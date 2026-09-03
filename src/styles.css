@@ -75,12 +75,13 @@
 
 :root {
   --radius: 0.45rem;
-  /* Snow-white workspace — pure bright white (cards stay cream) */
+  /* Pure workspace white — never cream/muted as page fill */
   --background: #ffffff;
+  --color-background: #ffffff;
   --foreground: oklch(0.24 0.05 296);
-  /* Cream cards on pure white workspace — alternate for liveliness */
-  --cream: oklch(0.985 0.022 92);
-  --cream-light: oklch(0.993 0.012 92);
+  /* Cream cards must contrast against pure white (was nearly invisible) */
+  --cream: oklch(0.965 0.042 92);
+  --cream-light: oklch(0.98 0.028 92);
   --card: var(--cream);
   --card-foreground: oklch(0.24 0.05 296);
   --popover: var(--cream);
@@ -89,7 +90,8 @@
   --primary-foreground: oklch(0.99 0.02 95);
   --secondary: oklch(0.96 0.05 92);
   --secondary-foreground: oklch(0.4 0.16 296);
-  --muted: oklch(0.97 0.03 92);
+  /* Cool muted for chips only — not a warm page wash */
+  --muted: oklch(0.965 0.006 92);
   --muted-foreground: oklch(0.46 0.05 296);
   --accent: oklch(0.94 0.08 92);
   --accent-foreground: oklch(0.36 0.14 296);
@@ -168,13 +170,25 @@
     height: 100%;
   }
 
+  html {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+  }
+
   body {
-    background-color: #ffffff;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
     color: var(--color-foreground);
     font-family: var(--font-sans);
     letter-spacing: 0;
     margin: 0;
     min-width: 320px;
+  }
+
+  #root {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    min-height: 100%;
   }
 
   button, input, select { font: inherit; }
@@ -184,7 +198,7 @@
 
 @utility tabular { font-variant-numeric: tabular-nums; }
 
-.tlb-app-shell { min-height: 100%; display: flex; background: #ffffff; }
+.tlb-app-shell { min-height: 100%; display: flex; background: #ffffff !important; background-color: #ffffff !important; }
 .tlb-sidebar { width: 248px; height: 100vh; display: flex; flex-direction: column; background: var(--sidebar); color: var(--sidebar-foreground); border-right: 1px solid var(--sidebar-border); transition: width 180ms ease; overflow: hidden; }
 .tlb-sidebar-collapsed { width: 68px; }
 .tlb-brand { min-height: 82px; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--sidebar-border); }
@@ -212,7 +226,7 @@
 .tlb-environment-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px color-mix(in oklab, var(--success) 20%, transparent); }
 .tlb-desktop-sidebar { flex-shrink: 0; z-index: 30; }
 .tlb-mobile-sidebar, .tlb-mobile-overlay { display: none; }
-.tlb-main { min-width: 0; flex: 1; background: #ffffff; }
+.tlb-main { min-width: 0; flex: 1; background: #ffffff !important; background-color: #ffffff !important; }
 
 @media (min-width: 901px) {
   html, body {
@@ -258,8 +272,8 @@
     left: auto;
   }
 }
-.tlb-header { height: 64px; display: flex; align-items: center; gap: 18px; padding: 0 28px; position: sticky; top: 0; z-index: 60; overflow: visible; background: #ffffff; border-bottom: 1px solid var(--border); }
-.tlb-global-search { width: min(480px, 48vw); height: 36px; display: flex; align-items: center; gap: 9px; padding: 0 11px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--muted); color: var(--muted-foreground); text-align: left; }
+.tlb-header { height: 64px; display: flex; align-items: center; gap: 18px; padding: 0 28px; position: sticky; top: 0; z-index: 60; overflow: visible; background: #ffffff !important; background-color: #ffffff !important; border-bottom: 1px solid var(--border); }
+.tlb-global-search { width: min(480px, 48vw); height: 36px; display: flex; align-items: center; gap: 9px; padding: 0 11px; border: 1px solid var(--border); border-radius: var(--radius-md); background: #ffffff; color: var(--muted-foreground); text-align: left; }
 .tlb-global-search svg { width: 16px; }.tlb-global-search span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--card); color: var(--muted-foreground); font-size: 10px; box-shadow: 0 1px 1px color-mix(in oklab, var(--foreground) 8%, transparent); }
 .tlb-header-actions { margin-left: auto; display: flex; align-items: center; gap: 14px; }
@@ -267,7 +281,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-avatar { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: var(--primary); color: var(--primary-foreground); font-size: 11px; font-weight: 700; }
 .tlb-user-copy { display: flex; flex-direction: column; }.tlb-user-copy strong { font-size: 12px; }.tlb-user-copy span { margin-top: 1px; color: var(--muted-foreground); font-size: 10px; }.tlb-user > svg { width: 14px; }
 .tlb-mobile-menu { display: none; }
-.tlb-content { max-width: 1580px; margin: 0 auto; padding: 24px 28px 44px; }
+.tlb-content { max-width: 1580px; margin: 0 auto; padding: 24px 28px 44px; background: #ffffff !important; background-color: #ffffff !important; }
 .tlb-breadcrumb { display: flex; align-items: center; gap: 6px; color: var(--muted-foreground); font-size: 11px; }.tlb-breadcrumb svg { width: 12px; }.tlb-breadcrumb span:last-child { color: var(--foreground); }
 .tlb-page-heading { margin-top: 13px; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; position: relative; z-index: 40; overflow: visible; }
 .tlb-eyebrow { margin: 0 0 5px; color: var(--primary); font-size: 11px; font-weight: 700; text-transform: uppercase; }
