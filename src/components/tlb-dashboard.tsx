@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -124,18 +124,211 @@ export function TLBDashboard() {
   const [quickOpen, setQuickOpen] = useState(false);
   const [activeNav, setActiveNav] = useState("Dashboard");
 
+  const [isNavMobile, setIsNavMobile] = useState(false);
+  const sidebarOpenRef = useRef(sidebarOpen);
+  const desktopSidebarOpenRef = useRef(sidebarOpen);
+
+  const searchDialogRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const lastFocusedElementRef = useRef<HTMLElement | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const searchShortcutLabel = useMemo(() => {
+    if (typeof navigator === "undefined") return "Ctrl K";
+    const platform = navigator.platform ?? "";
+    const isMac = /Mac|iPhone|iPad|iPod/i.test(platform);
+    return isMac ? "⌘ K" : "Ctrl K";
+  }, []);
+
+  const searchPool = useMemo(
+    () => [
+      "Hydrochloric Acid · SKU CHEM-001",
+      "Batch HCL-26001 · Main Warehouse",
+      "Sales Order SO-260904",
+      "Import Shipment IMP-26017",
+    ],
+    [],
+  );
+
+  const filteredSearchPool = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return searchPool;
+    return searchPool.filter((result) => result.toLowerCase().includes(q));
+  }, [searchPool, searchQuery]);
+
+  const sidebarIsOpen = isNavMobile ? true : sidebarOpen;
+
+  const openSearch = useMemo(() => {
+    return () => {
+      setSearchQuery("");
+      setSearchOpen(true);
+      setMobileOpen(false);
+      setNotificationsOpen(false);
+      setQuickOpen(false);
+    };
+  }, []);
+
+  useEffect(() => {
+    sidebarOpenRef.current = sidebarOpen;
+  }, [sidebarOpen]);
+
+  // Keep the sidebar labels visible on the mobile drawer, while preserving the user's
+  // desktop collapsed preference for later.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const mql = window.matchMedia("(max-width: 900px)");
+    const sync = () => setIsNavMobile(mql.matches);
+
+    sync();
+    if (typeof mql.addEventListener === "function") {
+      mql.addEventListener("change", sync);
+      return () => mql.removeEventListener("change", sync);
+    }
+
+    // Legacy Safari fallback.
+    mql.addListener(sync);
+    return () => mql.removeListener(sync);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (isNavMobile) {
+      desktopSidebarOpenRef.current = sidebarOpenRef.current;
+      setSidebarOpen(true);
+      setMobileOpen(false);
+      return;
+    }
+
+    setMobileOpen(false);
+    setSidebarOpen(desktopSidebarOpenRef.current);
+  }, [isNavMobile]);
+
+  useEffect(() => {
+    const shouldLockScroll = searchOpen || mobileOpen;
+    if (!shouldLockScroll) return;
+    if (typeof document === "undefined") return;
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [searchOpen, mobileOpen]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      const key = event.key?.toLowerCase?.() ?? "";
+
+      // Ctrl/Cmd + K opens global search.
+      if ((event.ctrlKey || event.metaKey) && key === "k") {
+        event.preventDefault();
+        openSearch();
+        return;
+      }
+
+      // Escape closes any open overlay/popover.
+      if (event.key === "Escape") {
+        setSearchOpen(false);
+        setNotificationsOpen(false);
+        setQuickOpen(false);
+        setMobileOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [openSearch]);
+
+  useEffect(() => {
+    if (!searchOpen) {
+      lastFocusedElementRef.current?.focus?.();
+      return;
+    }
+    if (typeof document === "undefined" || typeof window === "undefined") return;
+
+    lastFocusedElementRef.current = document.activeElement as HTMLElement | null;
+    const t = window.setTimeout(() => searchInputRef.current?.focus(), 0);
+    return () => window.clearTimeout(t);
+  }, [searchOpen]);
+
+  const handleSearchDialogKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape") {
+      event.stopPropagation();
+      setSearchOpen(false);
+      return;
+    }
+
+    if (event.key !== "Tab") return;
+    const dialog = searchDialogRef.current;
+    if (!dialog) return;
+
+    const focusable = Array.from(
+      dialog.querySelectorAll<HTMLElement>(
+        'button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((el) => !el.hasAttribute("disabled") && el.getAttribute("aria-hidden") !== "true");
+
+    if (focusable.length === 0) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement as HTMLElement | null;
+
+    if (event.shiftKey && active === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
+  const notificationsWrapRef = useRef<HTMLDivElement | null>(null);
+  const quickWrapRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!notificationsOpen && !quickOpen) return;
+    if (typeof document === "undefined") return;
+
+    const onMouseDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+
+      if (notificationsOpen && notificationsWrapRef.current?.contains(target)) return;
+      if (quickOpen && quickWrapRef.current?.contains(target)) return;
+
+      setNotificationsOpen(false);
+      setQuickOpen(false);
+    };
+
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [notificationsOpen, quickOpen]);
+
   const maxSale = useMemo(() => Math.max(...sales), []);
 
   const sidebar = (
-    <aside className={cn("tlb-sidebar", !sidebarOpen && "tlb-sidebar-collapsed")} aria-label="Primary navigation">
+    <aside className={cn("tlb-sidebar", !sidebarIsOpen && "tlb-sidebar-collapsed")} aria-label="Primary navigation">
       <div className="tlb-brand">
         <img src={logoAsset.url} alt="TLB Enterprise" className="tlb-brand-logo" />
         <div className="tlb-brand-copy">
           <strong>TLB Enterprise</strong>
           <span>Operations Management</span>
         </div>
-        <Button variant="ghost" size="icon" className="tlb-collapse" onClick={() => setSidebarOpen((value) => !value)} aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}>
-          {sidebarOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="tlb-collapse"
+          onClick={() => {
+            if (isNavMobile) return;
+            setSidebarOpen((value) => !value);
+          }}
+          aria-label={sidebarIsOpen ? "Collapse sidebar" : "Expand sidebar"}
+        >
+          {sidebarIsOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
         </Button>
       </div>
       <nav className="tlb-nav">
@@ -154,7 +347,7 @@ export function TLBDashboard() {
                     setActiveNav(item.label);
                     setMobileOpen(false);
                   }}
-                  title={!sidebarOpen ? item.label : undefined}
+                  title={!sidebarIsOpen ? item.label : undefined}
                 >
                   <Icon aria-hidden="true" />
                   <span>{item.label}</span>
@@ -180,18 +373,54 @@ export function TLBDashboard() {
 
       <div className="tlb-main">
         <header className="tlb-header">
-          <Button variant="ghost" size="icon" className="tlb-mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu /></Button>
-          <button type="button" className="tlb-global-search" onClick={() => setSearchOpen(true)}>
-            <Search aria-hidden="true" /><span>Search products, batches, orders, invoices…</span><kbd>⌘ K</kbd>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="tlb-mobile-menu"
+            onClick={() => {
+              setMobileOpen(true);
+              setNotificationsOpen(false);
+              setQuickOpen(false);
+              setSearchOpen(false);
+            }}
+            aria-label="Open navigation"
+          >
+            <Menu />
+          </Button>
+          <button
+            type="button"
+            className="tlb-global-search"
+            onClick={openSearch}
+            aria-haspopup="dialog"
+            aria-expanded={searchOpen}
+            aria-controls="tlb-search-dialog"
+          >
+            <Search aria-hidden="true" /><span>Search products, batches, orders, invoices…</span><kbd>{searchShortcutLabel}</kbd>
           </button>
           <div className="tlb-header-actions">
-            <div className="tlb-popover-wrap">
-              <Button variant="ghost" size="icon" onClick={() => setNotificationsOpen((value) => !value)} aria-label="Open notifications" className="relative">
+            <div className="tlb-popover-wrap" ref={notificationsWrapRef}>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setNotificationsOpen((value) => {
+                    const next = !value;
+                    if (next) {
+                      setQuickOpen(false);
+                      setSearchOpen(false);
+                    }
+                    return next;
+                  });
+                }}
+                aria-label="Open notifications"
+                aria-expanded={notificationsOpen}
+                className="relative"
+              >
                 <Bell /><span className="tlb-notification-dot" />
               </Button>
               {notificationsOpen && (
-                <div className="tlb-popover tlb-notification-panel">
-                  <div className="tlb-popover-heading"><strong>Notifications</strong><button type="button" onClick={() => setNotificationsOpen(false)}><X /></button></div>
+                <div className="tlb-popover tlb-notification-panel" role="region" aria-label="Notifications">
+                  <div className="tlb-popover-heading"><strong>Notifications</strong><button type="button" aria-label="Close notifications" onClick={() => setNotificationsOpen(false)}><X /></button></div>
                   {alerts.slice(0, 2).map((alert) => <div className="tlb-mini-alert" key={alert.title}><span className={`tlb-alert-dot tlb-alert-${alert.type}`} /><div><strong>{alert.title}</strong><span>{alert.detail}</span></div></div>)}
                   <button type="button" className="tlb-text-action">View notification center <ChevronRight /></button>
                 </div>
@@ -208,9 +437,44 @@ export function TLBDashboard() {
           <div className="tlb-page-heading">
             <div><p className="tlb-eyebrow">Wednesday, 02 September 2026</p><h1>Good evening, Kwame</h1><p>Here is today’s operational position across TLB Enterprise.</p></div>
             <div className="tlb-heading-actions">
-              <div className="tlb-popover-wrap">
-                <Button onClick={() => setQuickOpen((value) => !value)}><Plus /> Quick action <ChevronDown /></Button>
-                {quickOpen && <div className="tlb-popover tlb-quick-menu">{["Create sales order", "Receive goods", "Start stock transfer", "Create production order"].map((action) => <button type="button" key={action} onClick={() => setQuickOpen(false)}>{action}<ChevronRight /></button>)}</div>}
+              <div className="tlb-popover-wrap" ref={quickWrapRef}>
+                <Button
+                  onClick={() => {
+                    setQuickOpen((value) => {
+                      const next = !value;
+                      if (next) {
+                        setNotificationsOpen(false);
+                        setSearchOpen(false);
+                      }
+                      return next;
+                    });
+                  }}
+                  aria-expanded={quickOpen}
+                  aria-controls="tlb-quick-menu"
+                >
+                  <Plus /> Quick action <ChevronDown />
+                </Button>
+                {quickOpen && (
+                  <div
+                    id="tlb-quick-menu"
+                    className="tlb-popover tlb-quick-menu"
+                    role="menu"
+                    aria-label="Quick actions"
+                  >
+                    {["Create sales order", "Receive goods", "Start stock transfer", "Create production order"].map(
+                      (action) => (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          key={action}
+                          onClick={() => setQuickOpen(false)}
+                        >
+                          {action}<ChevronRight />
+                        </button>
+                      ),
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -268,7 +532,58 @@ export function TLBDashboard() {
         </main>
       </div>
 
-      {searchOpen && <div className="tlb-dialog-backdrop" role="presentation" onMouseDown={() => setSearchOpen(false)}><div className="tlb-search-dialog" role="dialog" aria-modal="true" aria-label="Global search" onMouseDown={(event) => event.stopPropagation()}><div className="tlb-search-input"><Search /><input autoFocus placeholder="Search TLB Enterprise…" /><kbd>ESC</kbd></div><div className="tlb-search-results"><p>QUICK ACCESS</p>{["Hydrochloric Acid · SKU CHEM-001", "Batch HCL-26001 · Main Warehouse", "Sales Order SO-260904", "Import Shipment IMP-26017"].map((result) => <button type="button" key={result} onClick={() => setSearchOpen(false)}><PackageSearch /><span>{result}</span><ChevronRight /></button>)}</div></div></div>}
+      {searchOpen && (
+        <div
+          className="tlb-dialog-backdrop"
+          role="presentation"
+          onMouseDown={() => setSearchOpen(false)}
+        >
+          <div
+            ref={searchDialogRef}
+            id="tlb-search-dialog"
+            className="tlb-search-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Global search"
+            onMouseDown={(event) => event.stopPropagation()}
+            onKeyDown={handleSearchDialogKeyDown}
+          >
+            <div className="tlb-search-input">
+              <Search aria-hidden="true" />
+              <input
+                ref={searchInputRef}
+                autoFocus
+                placeholder="Search TLB Enterprise…"
+                aria-label="Search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && filteredSearchPool.length > 0) {
+                    event.preventDefault();
+                    setSearchOpen(false);
+                  }
+                }}
+              />
+              <kbd>ESC</kbd>
+            </div>
+            <div className="tlb-search-results" role="list">
+              <p>{filteredSearchPool.length ? "QUICK ACCESS" : "NO MATCHES"}</p>
+              {filteredSearchPool.map((result) => (
+                <button
+                  type="button"
+                  role="listitem"
+                  key={result}
+                  onClick={() => setSearchOpen(false)}
+                >
+                  <PackageSearch />
+                  <span>{result}</span>
+                  <ChevronRight />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

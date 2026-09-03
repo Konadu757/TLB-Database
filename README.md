@@ -1,24 +1,38 @@
-# Embrace Your Brand
+# TLB Management System
 
-I HAVE ADDED THEIR LOGO TOO SO YOU CAN PICK COLORS FROM THERE TOO
+Internal operations management system for TLB Enterprise — inventory, sales, production, procurement, quality control, and finance.
 
-This project was built with [Lovable](https://lovable.dev).
+## Tech Stack
 
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/543a5784-647c-41c2-abdf-b620cf8cfdcc).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+- **Framework**: [TanStack Start](https://tanstack.com/start) (React 19, SSR)
+- **Styling**: [Tailwind CSS v4](https://tailwindcss.com/) + custom TLB design tokens
+- **Database**: [Supabase](https://supabase.com/) (Postgres + Auth)
+- **Charts**: [Recharts](https://recharts.org/)
+- **Build**: [Vite](https://vite.dev/)
+- **Hosting**: [Vercel](https://vercel.com/)
 
 ## Development
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+```sh
+npm install
+npm run dev
+```
+
+## Build
 
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
+npm run build
+npm run preview
+```
+
+## Environment Variables
+
+Create a `.env` file with:
+
+```
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
+SUPABASE_URL=your_supabase_url
+SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ```

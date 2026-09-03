@@ -1,10 +1,8 @@
-<!-- LOVABLE:BEGIN -->
-> [!IMPORTANT]
-> This project is connected to [Lovable](https://lovable.dev). Avoid rewriting
-> published git history — force pushing, or rebasing/amending/squashing commits
-> that are already pushed — as it rewrites history on Lovable's side and the
-> user will likely lose their project history.
->
-> Commits you push to the connected branch sync back to Lovable and show up in
-> the editor, so keep the branch in a working state.
-<!-- LOVABLE:END -->
+# TLB Management System — Agent Notes
+
+This is a TanStack Start (React 19 + Vite + SSR) project for TLB Enterprise's internal operations.
+
+- The main dashboard lives in `src/components/tlb-dashboard.tsx`
+- Custom CSS classes use the `tlb-*` prefix in `src/styles.css`
+- Supabase integration is in `src/integrations/supabase/`
+- Routes use TanStack Router file-based routing in `src/routes/`
