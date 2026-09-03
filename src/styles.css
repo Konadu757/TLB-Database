@@ -180,7 +180,7 @@
 
 @utility tabular { font-variant-numeric: tabular-nums; }
 
-.tlb-app-shell { min-height: 100%; display: flex; background: var(--background); overflow-x: clip; }
+.tlb-app-shell { min-height: 100%; display: flex; background: var(--background); }
 .tlb-sidebar { width: 248px; height: 100vh; display: flex; flex-direction: column; background: var(--sidebar); color: var(--sidebar-foreground); border-right: 1px solid var(--sidebar-border); transition: width 180ms ease; overflow: hidden; }
 .tlb-sidebar-collapsed { width: 68px; }
 .tlb-brand { min-height: 82px; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--sidebar-border); }
@@ -210,22 +210,32 @@
 .tlb-main { min-width: 0; flex: 1; }
 
 @media (min-width: 901px) {
-  html, body { overflow: hidden; }
-  .tlb-app-shell { height: 100%; overflow: hidden; }
+  html, body {
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  .tlb-app-shell {
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+  }
   .tlb-desktop-sidebar {
     position: fixed;
     top: 0;
     left: 0;
-    bottom: 0;
     width: 248px;
-    height: 100%;
+    height: 100dvh;
+    z-index: 40;
   }
-  .tlb-desktop-sidebar .tlb-sidebar { height: 100%; }
+  .tlb-desktop-sidebar .tlb-sidebar { height: 100dvh; }
   .tlb-desktop-sidebar:has(.tlb-sidebar-collapsed) { width: 68px; }
   .tlb-main {
     margin-left: 248px;
     width: calc(100% - 248px);
-    height: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
     min-height: 0;
     overflow-x: hidden;
     overflow-y: auto;
