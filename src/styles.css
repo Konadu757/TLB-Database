@@ -207,15 +207,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 52px;
-  height: 52px;
-  padding: 3px;
-  border-radius: 10px;
-  background: #ffffff;
-  border: 1px solid color-mix(in oklab, var(--brand-gold) 55%, white);
-  box-shadow: 0 0 0 1px color-mix(in oklab, #ffffff 18%, transparent);
+  width: 58px;
+  height: 58px;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
 }
-.tlb-brand-logo { width: 100%; height: 100%; display: block; object-fit: contain; border-radius: 7px; }
+.tlb-brand-logo { width: 100%; height: 100%; display: block; object-fit: contain; }
 .tlb-brand-copy { min-width: 126px; display: flex; flex-direction: column; }
 .tlb-brand-copy strong {
   color: #ffffff;
@@ -230,7 +229,7 @@
 .tlb-sidebar-collapsed .tlb-brand { flex-direction: column; justify-content: center; padding-inline: 10px; gap: 4px; }
 .tlb-sidebar-collapsed .tlb-brand-copy, .tlb-sidebar-collapsed .tlb-nav-label, .tlb-sidebar-collapsed .tlb-nav-item span, .tlb-sidebar-collapsed .tlb-sidebar-footer div { display: none; }
 .tlb-sidebar-collapsed .tlb-collapse { margin-left: 0; flex: none; }
-.tlb-sidebar-collapsed .tlb-brand-mark { width: 44px; height: 44px; }
+.tlb-sidebar-collapsed .tlb-brand-mark { width: 48px; height: 48px; }
 .tlb-nav { flex: 1; overflow-y: auto; padding: 13px 10px; scrollbar-width: thin; }
 .tlb-nav-group + .tlb-nav-group { margin-top: 14px; }
 .tlb-nav-label { margin: 0 8px 5px; color: color-mix(in oklab, var(--sidebar-foreground) 48%, transparent); font-size: 10px; font-weight: 700; text-transform: uppercase; }
