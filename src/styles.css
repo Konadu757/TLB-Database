@@ -75,7 +75,8 @@
 
 :root {
   --radius: 0.45rem;
-  --background: oklch(1 0 0);
+  /* Snow-white workspace — pure bright white (cards stay cream) */
+  --background: #ffffff;
   --foreground: oklch(0.24 0.05 296);
   /* Cream cards on pure white workspace — alternate for liveliness */
   --cream: oklch(0.985 0.022 92);
@@ -168,7 +169,7 @@
   }
 
   body {
-    background-color: var(--color-background);
+    background-color: #ffffff;
     color: var(--color-foreground);
     font-family: var(--font-sans);
     letter-spacing: 0;
@@ -183,7 +184,7 @@
 
 @utility tabular { font-variant-numeric: tabular-nums; }
 
-.tlb-app-shell { min-height: 100%; display: flex; background: var(--background); }
+.tlb-app-shell { min-height: 100%; display: flex; background: #ffffff; }
 .tlb-sidebar { width: 248px; height: 100vh; display: flex; flex-direction: column; background: var(--sidebar); color: var(--sidebar-foreground); border-right: 1px solid var(--sidebar-border); transition: width 180ms ease; overflow: hidden; }
 .tlb-sidebar-collapsed { width: 68px; }
 .tlb-brand { min-height: 82px; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--sidebar-border); }
@@ -211,7 +212,7 @@
 .tlb-environment-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px color-mix(in oklab, var(--success) 20%, transparent); }
 .tlb-desktop-sidebar { flex-shrink: 0; z-index: 30; }
 .tlb-mobile-sidebar, .tlb-mobile-overlay { display: none; }
-.tlb-main { min-width: 0; flex: 1; }
+.tlb-main { min-width: 0; flex: 1; background: #ffffff; }
 
 @media (min-width: 901px) {
   html, body {
@@ -257,7 +258,7 @@
     left: auto;
   }
 }
-.tlb-header { height: 64px; display: flex; align-items: center; gap: 18px; padding: 0 28px; position: sticky; top: 0; z-index: 60; overflow: visible; background: color-mix(in oklab, var(--background) 96%, transparent); border-bottom: 1px solid var(--border); }
+.tlb-header { height: 64px; display: flex; align-items: center; gap: 18px; padding: 0 28px; position: sticky; top: 0; z-index: 60; overflow: visible; background: #ffffff; border-bottom: 1px solid var(--border); }
 .tlb-global-search { width: min(480px, 48vw); height: 36px; display: flex; align-items: center; gap: 9px; padding: 0 11px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--muted); color: var(--muted-foreground); text-align: left; }
 .tlb-global-search svg { width: 16px; }.tlb-global-search span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--card); color: var(--muted-foreground); font-size: 10px; box-shadow: 0 1px 1px color-mix(in oklab, var(--foreground) 8%, transparent); }
