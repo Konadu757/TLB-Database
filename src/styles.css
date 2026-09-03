@@ -160,6 +160,10 @@
     border-color: var(--color-border);
   }
 
+  html, body {
+    height: 100%;
+  }
+
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
@@ -176,7 +180,7 @@
 
 @utility tabular { font-variant-numeric: tabular-nums; }
 
-.tlb-app-shell { min-height: 100vh; display: flex; background: var(--background); overflow-x: hidden; }
+.tlb-app-shell { min-height: 100%; display: flex; background: var(--background); overflow-x: clip; }
 .tlb-sidebar { width: 248px; height: 100vh; display: flex; flex-direction: column; background: var(--sidebar); color: var(--sidebar-foreground); border-right: 1px solid var(--sidebar-border); transition: width 180ms ease; overflow: hidden; }
 .tlb-sidebar-collapsed { width: 68px; }
 .tlb-brand { min-height: 82px; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--sidebar-border); }
@@ -201,13 +205,36 @@
 .tlb-sidebar-footer div { display: flex; flex-direction: column; white-space: nowrap; }
 .tlb-sidebar-footer strong { font-size: 11px; }.tlb-sidebar-footer span { font-size: 10px; color: color-mix(in oklab, var(--sidebar-foreground) 56%, transparent); }
 .tlb-environment-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px color-mix(in oklab, var(--success) 20%, transparent); }
-.tlb-desktop-sidebar { flex-shrink: 0; z-index: 30; height: 100vh; }
+.tlb-desktop-sidebar { flex-shrink: 0; z-index: 30; }
 .tlb-mobile-sidebar, .tlb-mobile-overlay { display: none; }
 .tlb-main { min-width: 0; flex: 1; }
 
 @media (min-width: 901px) {
-  .tlb-app-shell { height: 100vh; overflow: hidden; }
-  .tlb-main { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  html, body { overflow: hidden; }
+  .tlb-app-shell { height: 100%; overflow: hidden; }
+  .tlb-desktop-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 248px;
+    height: 100%;
+  }
+  .tlb-desktop-sidebar .tlb-sidebar { height: 100%; }
+  .tlb-desktop-sidebar:has(.tlb-sidebar-collapsed) { width: 68px; }
+  .tlb-main {
+    margin-left: 248px;
+    width: calc(100% - 248px);
+    height: 100%;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .tlb-app-shell:has(.tlb-desktop-sidebar .tlb-sidebar-collapsed) .tlb-main {
+    margin-left: 68px;
+    width: calc(100% - 68px);
+  }
 }
 .tlb-header { height: 64px; display: flex; align-items: center; gap: 18px; padding: 0 28px; position: sticky; top: 0; z-index: 20; background: color-mix(in oklab, var(--card) 96%, transparent); border-bottom: 1px solid var(--border); }
 .tlb-global-search { width: min(480px, 48vw); height: 36px; display: flex; align-items: center; gap: 9px; padding: 0 11px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--muted); color: var(--muted-foreground); text-align: left; }
