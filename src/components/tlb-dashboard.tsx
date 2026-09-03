@@ -14,7 +14,6 @@ import {
   FileText,
   FlaskConical,
   Gauge,
-  HandCoins,
   LayoutDashboard,
   Menu,
   PackageCheck,
@@ -110,6 +109,155 @@ const alerts = [
   { title: "QC release required", detail: "Production batch HP-26009", type: "info" },
 ];
 
+const moduleScreens: Record<string, { kicker: string; description: string; rows: { primary: string; secondary: string; status: string; tone: string }[] }> = {
+  Customers: {
+    kicker: "Business",
+    description: "Customer accounts currently trading with TLB Enterprise.",
+    rows: [
+      { primary: "Korle Vista Medical Centre", secondary: "Accra · Net 30", status: "Active", tone: "success" },
+      { primary: "Apex Analytical Labs", secondary: "Tema · Net 15", status: "Active", tone: "success" },
+      { primary: "Northstar Pharma Ltd", secondary: "Kumasi · On hold", status: "Review", tone: "warning" },
+    ],
+  },
+  Suppliers: {
+    kicker: "Business",
+    description: "Approved chemical and packaging suppliers.",
+    rows: [
+      { primary: "Ningbo Industrial Chem", secondary: "China · Sodium Hydroxide", status: "Preferred", tone: "success" },
+      { primary: "Tema Drum Works", secondary: "Ghana · HDPE drums", status: "Active", tone: "info" },
+    ],
+  },
+  Quotations: {
+    kicker: "Business",
+    description: "Open commercial quotations awaiting conversion.",
+    rows: [
+      { primary: "QT-260441", secondary: "Achimota Science Academy · Ethanol 96%", status: "Sent", tone: "info" },
+      { primary: "QT-260438", secondary: "Korle Vista · Hydrogen Peroxide", status: "Draft", tone: "warning" },
+    ],
+  },
+  "Sales Orders": {
+    kicker: "Business",
+    description: "Live sales orders from the operational sandbox.",
+    rows: orders.map((order) => ({ primary: order.id, secondary: `${order.customer} · ${order.value}`, status: order.status, tone: order.tone })),
+  },
+  Products: {
+    kicker: "Inventory",
+    description: "Finished goods and raw chemicals in the product master.",
+    rows: [
+      { primary: "Hydrochloric Acid", secondary: "SKU CHEM-001 · 32%", status: "In stock", tone: "success" },
+      { primary: "Ethanol 96%", secondary: "SKU CHEM-014 · drums", status: "Low", tone: "warning" },
+    ],
+  },
+  Stock: {
+    kicker: "Inventory",
+    description: "Warehouse on-hand position for the selected period.",
+    rows: [
+      { primary: "Available", secondary: "72% of warehouse capacity", status: "72%", tone: "success" },
+      { primary: "Reserved", secondary: "Allocated to sales orders", status: "14%", tone: "info" },
+      { primary: "Under inspection", secondary: "Awaiting QC release", status: "8%", tone: "warning" },
+      { primary: "Quarantined", secondary: "Held from dispatch", status: "6%", tone: "warning" },
+    ],
+  },
+  Batches: {
+    kicker: "Inventory",
+    description: "Traceable production and import batches.",
+    rows: [
+      { primary: "HCL-26001", secondary: "Main Warehouse · 240 drums", status: "Released", tone: "success" },
+      { primary: "ETH-26018", secondary: "Expires in 42 days", status: "Watch", tone: "warning" },
+    ],
+  },
+  Warehouses: {
+    kicker: "Inventory",
+    description: "Storage locations used by operations.",
+    rows: [
+      { primary: "Main Warehouse", secondary: "Tema · bonded chemicals", status: "Open", tone: "success" },
+      { primary: "Factory Store", secondary: "Production floor · WIP", status: "Open", tone: "info" },
+    ],
+  },
+  "Stock Movements": {
+    kicker: "Inventory",
+    description: "Recent receipts, issues, and transfers.",
+    rows: [
+      { primary: "TR-26088", secondary: "Main Warehouse → Factory Store · 40 drums", status: "Posted", tone: "success" },
+      { primary: "GR-26061", secondary: "IMP-26017 receipt · NaOH", status: "Draft", tone: "warning" },
+    ],
+  },
+  Procurement: {
+    kicker: "Operations",
+    description: "Purchase orders awaiting receipt or approval.",
+    rows: [
+      { primary: "PO-26017", secondary: "Ningbo Industrial Chem · 1 container", status: "In transit", tone: "info" },
+      { primary: "PO-26012", secondary: "Tema Drum Works · 200 drums", status: "Open", tone: "warning" },
+    ],
+  },
+  "Import & Export": {
+    kicker: "Operations",
+    description: "Shipments currently moving through Tema.",
+    rows: [
+      { primary: "IMP-26017", secondary: "Ningbo → Tema · Sodium Hydroxide", status: "Clearing", tone: "warning" },
+      { primary: "EXP-26004", secondary: "Tema → Abidjan · Ethanol", status: "Booked", tone: "info" },
+    ],
+  },
+  Factory: {
+    kicker: "Operations",
+    description: "Production orders on the factory floor.",
+    rows: [
+      { primary: "PO-26042", secondary: "Hydrogen Peroxide · Batch HP-26009", status: "Mixing 46%", tone: "info" },
+      { primary: "PO-26039", secondary: "HCl dilution · Batch HCL-26022", status: "Queued", tone: "warning" },
+    ],
+  },
+  "Quality Control": {
+    kicker: "Operations",
+    description: "Batches waiting laboratory release.",
+    rows: [
+      { primary: "HP-26009", secondary: "Hydrogen Peroxide · assay pending", status: "Hold", tone: "warning" },
+      { primary: "HCL-26001", secondary: "Released to sales", status: "Pass", tone: "success" },
+    ],
+  },
+  Deliveries: {
+    kicker: "Operations",
+    description: "Dispatch queue for ready sales orders.",
+    rows: [
+      { primary: "SO-260904", secondary: "Korle Vista Medical Centre", status: "Ready", tone: "success" },
+      { primary: "SO-260896", secondary: "Achimota Science Academy", status: "Picking", tone: "info" },
+    ],
+  },
+  Finance: {
+    kicker: "Control",
+    description: "Receivables snapshot from the operational sandbox.",
+    rows: [
+      { primary: "Current", secondary: "GH₵ 368K within terms", status: "Healthy", tone: "success" },
+      { primary: "60+ days", secondary: "GH₵ 61K overdue", status: "Escalate", tone: "warning" },
+    ],
+  },
+  Reports: {
+    kicker: "Control",
+    description: "Management reports available in this sandbox.",
+    rows: [
+      { primary: "Monthly sales pack", secondary: "September 2026", status: "Ready", tone: "success" },
+      { primary: "Expiry watchlist", secondary: "42-day horizon", status: "Updated", tone: "info" },
+    ],
+  },
+  "Audit Log": {
+    kicker: "Control",
+    description: "Recent privileged actions in the demo environment.",
+    rows: [
+      { primary: "Kwame Asare", secondary: "Opened QC release HP-26009", status: "Today", tone: "info" },
+      { primary: "System", secondary: "Nightly stock valuation posted", status: "Today", tone: "success" },
+    ],
+  },
+  Settings: {
+    kicker: "Control",
+    description: "Workspace preferences for this demo environment.",
+    rows: [
+      { primary: "Company", secondary: "TLB Enterprise · Ghana", status: "Live", tone: "success" },
+      { primary: "Environment", secondary: "Operational data sandbox", status: "Demo", tone: "info" },
+    ],
+  },
+};
+
+type Inspector = { title: string; kicker: string; lines: string[] };
+
 function StatusBadge({ children, tone }: { children: React.ReactNode; tone: string }) {
   return <span className={`status-badge status-${tone}`}>{children}</span>;
 }
@@ -122,7 +270,9 @@ export function TLBDashboard() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
+  const [userOpen, setUserOpen] = useState(false);
   const [activeNav, setActiveNav] = useState("Dashboard");
+  const [inspector, setInspector] = useState<Inspector | null>(null);
 
   const [isNavMobile, setIsNavMobile] = useState(false);
   const sidebarOpenRef = useRef(sidebarOpen);
@@ -165,8 +315,18 @@ export function TLBDashboard() {
       setMobileOpen(false);
       setNotificationsOpen(false);
       setQuickOpen(false);
+      setUserOpen(false);
     };
   }, []);
+
+  const openInspector = (payload: Inspector) => {
+    setInspector(payload);
+    setSearchOpen(false);
+    setNotificationsOpen(false);
+    setQuickOpen(false);
+    setUserOpen(false);
+    setMobileOpen(false);
+  };
 
   useEffect(() => {
     sidebarOpenRef.current = sidebarOpen;
@@ -205,7 +365,7 @@ export function TLBDashboard() {
   }, [isNavMobile]);
 
   useEffect(() => {
-    const shouldLockScroll = searchOpen || mobileOpen;
+    const shouldLockScroll = searchOpen || mobileOpen || inspector != null;
     if (!shouldLockScroll) return;
     if (typeof document === "undefined") return;
 
@@ -214,7 +374,7 @@ export function TLBDashboard() {
     return () => {
       document.body.style.overflow = prevOverflow;
     };
-  }, [searchOpen, mobileOpen]);
+  }, [searchOpen, mobileOpen, inspector]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -234,7 +394,9 @@ export function TLBDashboard() {
         setSearchOpen(false);
         setNotificationsOpen(false);
         setQuickOpen(false);
+        setUserOpen(false);
         setMobileOpen(false);
+        setInspector(null);
       }
     };
 
@@ -288,9 +450,10 @@ export function TLBDashboard() {
 
   const notificationsWrapRef = useRef<HTMLDivElement | null>(null);
   const quickWrapRef = useRef<HTMLDivElement | null>(null);
+  const userWrapRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!notificationsOpen && !quickOpen) return;
+    if (!notificationsOpen && !quickOpen && !userOpen) return;
     if (typeof document === "undefined") return;
 
     const onMouseDown = (event: MouseEvent) => {
@@ -299,14 +462,16 @@ export function TLBDashboard() {
 
       if (notificationsOpen && notificationsWrapRef.current?.contains(target)) return;
       if (quickOpen && quickWrapRef.current?.contains(target)) return;
+      if (userOpen && userWrapRef.current?.contains(target)) return;
 
       setNotificationsOpen(false);
       setQuickOpen(false);
+      setUserOpen(false);
     };
 
     document.addEventListener("mousedown", onMouseDown);
     return () => document.removeEventListener("mousedown", onMouseDown);
-  }, [notificationsOpen, quickOpen]);
+  }, [notificationsOpen, quickOpen, userOpen]);
 
   const maxSale = useMemo(() => Math.max(...sales), []);
 
@@ -346,6 +511,10 @@ export function TLBDashboard() {
                   onClick={() => {
                     setActiveNav(item.label);
                     setMobileOpen(false);
+                    setInspector(null);
+                    setNotificationsOpen(false);
+                    setQuickOpen(false);
+                    setUserOpen(false);
                   }}
                   title={!sidebarIsOpen ? item.label : undefined}
                 >
@@ -408,6 +577,7 @@ export function TLBDashboard() {
                     if (next) {
                       setQuickOpen(false);
                       setSearchOpen(false);
+                      setUserOpen(false);
                     }
                     return next;
                   });
@@ -421,21 +591,74 @@ export function TLBDashboard() {
               {notificationsOpen && (
                 <div className="tlb-popover tlb-notification-panel" role="region" aria-label="Notifications">
                   <div className="tlb-popover-heading"><strong>Notifications</strong><button type="button" aria-label="Close notifications" onClick={() => setNotificationsOpen(false)}><X /></button></div>
-                  {alerts.slice(0, 2).map((alert) => <div className="tlb-mini-alert" key={alert.title}><span className={`tlb-alert-dot tlb-alert-${alert.type}`} /><div><strong>{alert.title}</strong><span>{alert.detail}</span></div></div>)}
-                  <button type="button" className="tlb-text-action">View notification center <ChevronRight /></button>
+                  {alerts.slice(0, 2).map((alert) => (
+                    <button
+                      type="button"
+                      className="tlb-mini-alert"
+                      key={alert.title}
+                      onClick={() => openInspector({ title: alert.title, kicker: "Alert", lines: [alert.detail, "This alert is shown from the operational sandbox. No backend write is performed."] })}
+                    >
+                      <span className={`tlb-alert-dot tlb-alert-${alert.type}`} />
+                      <div><strong>{alert.title}</strong><span>{alert.detail}</span></div>
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className="tlb-text-action"
+                    onClick={() => {
+                      setNotificationsOpen(false);
+                      setActiveNav("Quality Control");
+                    }}
+                  >
+                    View notification center <ChevronRight />
+                  </button>
                 </div>
               )}
             </div>
-            <div className="tlb-user">
-              <div className="tlb-avatar">KA</div><div className="tlb-user-copy"><strong>Kwame Asare</strong><span>Operations Manager</span></div><ChevronDown />
+            <div className="tlb-popover-wrap" ref={userWrapRef}>
+              <button
+                type="button"
+                className="tlb-user"
+                aria-expanded={userOpen}
+                aria-haspopup="menu"
+                onClick={() => {
+                  setUserOpen((value) => {
+                    const next = !value;
+                    if (next) {
+                      setNotificationsOpen(false);
+                      setQuickOpen(false);
+                      setSearchOpen(false);
+                    }
+                    return next;
+                  });
+                }}
+              >
+                <div className="tlb-avatar">KA</div>
+                <div className="tlb-user-copy"><strong>Kwame Asare</strong><span>Operations Manager</span></div>
+                <ChevronDown />
+              </button>
+              {userOpen && (
+                <div className="tlb-popover tlb-quick-menu tlb-user-menu" role="menu" aria-label="Account">
+                  <button type="button" role="menuitem" onClick={() => openInspector({ title: "Kwame Asare", kicker: "Signed in", lines: ["Role: Operations Manager", "Workspace: TLB Enterprise demo environment", "Authentication is UI-only until backend sign-in is connected."] })}>Profile <ChevronRight /></button>
+                  <button type="button" role="menuitem" onClick={() => { setUserOpen(false); setActiveNav("Settings"); }}>Settings <ChevronRight /></button>
+                </div>
+              )}
             </div>
           </div>
         </header>
 
         <main className="tlb-content">
-          <div className="tlb-breadcrumb"><span>TLB Enterprise</span><ChevronRight /><span>Executive Dashboard</span></div>
+          <div className="tlb-breadcrumb"><span>TLB Enterprise</span><ChevronRight /><span>{activeNav === "Dashboard" ? "Executive Dashboard" : activeNav}</span></div>
           <div className="tlb-page-heading">
-            <div><p className="tlb-eyebrow">Wednesday, 02 September 2026</p><h1>Good evening, Kwame</h1><p>Here is today’s operational position across TLB Enterprise.</p></div>
+            <div>
+              <p className="tlb-eyebrow">Wednesday, 02 September 2026 · {period} · {warehouse}</p>
+              <h1>{activeNav === "Dashboard" ? "Good evening, Kwame" : activeNav}</h1>
+              <p>
+                {activeNav === "Dashboard"
+                  ? "Here is today’s operational position across TLB Enterprise."
+                  : (moduleScreens[activeNav]?.description ?? "Operational sandbox records for this module.")}
+              </p>
+            </div>
             <div className="tlb-heading-actions">
               <div className="tlb-popover-wrap" ref={quickWrapRef}>
                 <Button
@@ -445,6 +668,7 @@ export function TLBDashboard() {
                       if (next) {
                         setNotificationsOpen(false);
                         setSearchOpen(false);
+                        setUserOpen(false);
                       }
                       return next;
                     });
@@ -467,7 +691,16 @@ export function TLBDashboard() {
                           type="button"
                           role="menuitem"
                           key={action}
-                          onClick={() => setQuickOpen(false)}
+                          onClick={() => openInspector({
+                            title: action,
+                            kicker: "Quick action",
+                            lines: [
+                              `${action} is available in the operations sandbox.`,
+                              `Period: ${period}`,
+                              `Warehouse: ${warehouse}`,
+                              "No backend posting is connected yet; this confirms the control works.",
+                            ],
+                          })}
                         >
                           {action}<ChevronRight />
                         </button>
@@ -486,8 +719,78 @@ export function TLBDashboard() {
             <label className="tlb-select"><Warehouse /><select value={warehouse} onChange={(event) => setWarehouse(event.target.value)} aria-label="Warehouse"><option>All warehouses</option><option>Main Warehouse</option><option>Factory Store</option></select><ChevronDown /></label>
           </section>
 
+          {activeNav !== "Dashboard" && moduleScreens[activeNav] ? (
+            <article className="tlb-panel tlb-orders-panel">
+              <div className="tlb-panel-heading">
+                <div>
+                  <span>{moduleScreens[activeNav].kicker}</span>
+                  <strong>{activeNav}</strong>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openInspector({
+                    title: activeNav,
+                    kicker: moduleScreens[activeNav].kicker,
+                    lines: [moduleScreens[activeNav].description, `Showing sandbox records for ${period} · ${warehouse}.`],
+                  })}
+                >
+                  Open record <ChevronRight />
+                </button>
+              </div>
+              <div className="tlb-table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Record</th>
+                      <th>Detail</th>
+                      <th>Status</th>
+                      <th><span className="sr-only">Open</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {moduleScreens[activeNav].rows.map((row) => (
+                      <tr key={row.primary}>
+                        <td><strong>{row.primary}</strong></td>
+                        <td>{row.secondary}</td>
+                        <td><StatusBadge tone={row.tone}>{row.status}</StatusBadge></td>
+                        <td>
+                          <button
+                            type="button"
+                            aria-label={`Open ${row.primary}`}
+                            onClick={() => openInspector({ title: row.primary, kicker: activeNav, lines: [row.secondary, `Status: ${row.status}`, "Sandbox record. Backend persistence is not connected."] })}
+                          >
+                            <ChevronRight />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </article>
+          ) : (
+            <>
           <section className="tlb-metrics" aria-label="Key performance indicators">
-            {metrics.map((metric) => <article className="tlb-metric" key={metric.label}><div className="tlb-metric-label"><span>{metric.label}</span><button type="button" aria-label={`Open ${metric.label}`}><ChevronRight /></button></div><strong>{metric.value}</strong><p className={metric.trend === "up" ? "metric-positive" : metric.trend === "down" ? "metric-negative" : ""}>{metric.trend === "up" && <ArrowUpRight />}{metric.trend === "down" && <ArrowDownRight />}{metric.note}</p></article>)}
+            {metrics.map((metric) => (
+              <article className="tlb-metric" key={metric.label}>
+                <div className="tlb-metric-label">
+                  <span>{metric.label}</span>
+                  <button
+                    type="button"
+                    aria-label={`Open ${metric.label}`}
+                    onClick={() => openInspector({ title: metric.label, kicker: "KPI", lines: [`Value: ${metric.value}`, metric.note, `Filter: ${period} · ${warehouse}`] })}
+                  >
+                    <ChevronRight />
+                  </button>
+                </div>
+                <strong>{metric.value}</strong>
+                <p className={metric.trend === "up" ? "metric-positive" : metric.trend === "down" ? "metric-negative" : ""}>
+                  {metric.trend === "up" && <ArrowUpRight />}
+                  {metric.trend === "down" && <ArrowDownRight />}
+                  {metric.note}
+                </p>
+              </article>
+            ))}
           </section>
 
           <section className="tlb-dashboard-grid">
@@ -501,34 +804,36 @@ export function TLBDashboard() {
             </article>
 
             <article className="tlb-panel">
-              <div className="tlb-panel-heading"><div><span>Inventory overview</span><strong>2,486 stock items</strong></div><button type="button">View stock <ChevronRight /></button></div>
+              <div className="tlb-panel-heading"><div><span>Inventory overview</span><strong>2,486 stock items</strong></div><button type="button" onClick={() => setActiveNav("Stock")}>View stock <ChevronRight /></button></div>
               <div className="tlb-inventory-value"><div><span>Total stock value</span><strong>GH₵ 4,263,840</strong></div><PackageCheck /></div>
               <div className="tlb-stock-list">{stock.map((item) => <div key={item.label}><div><span>{item.label}</span><strong>{item.value}</strong></div><div className="tlb-progress"><span className={item.tone} style={{ width: item.width }} /></div></div>)}</div>
               <div className="tlb-stock-summary"><div><span>Low stock</span><strong className="text-danger">14</strong></div><div><span>Expiring soon</span><strong className="text-warning-foreground">23</strong></div><div><span>Out of stock</span><strong>4</strong></div></div>
             </article>
 
             <article className="tlb-panel tlb-orders-panel">
-              <div className="tlb-panel-heading"><div><span>Recent orders</span><strong>Today’s commercial activity</strong></div><button type="button">View all <ChevronRight /></button></div>
-              <div className="tlb-table-scroll"><table><thead><tr><th>Order</th><th>Customer</th><th>Value</th><th>Status</th><th><span className="sr-only">Open</span></th></tr></thead><tbody>{orders.map((order) => <tr key={order.id}><td><strong>{order.id}</strong></td><td>{order.customer}</td><td>{order.value}</td><td><StatusBadge tone={order.tone}>{order.status}</StatusBadge></td><td><button type="button" aria-label={`Open ${order.id}`}><ChevronRight /></button></td></tr>)}</tbody></table></div>
+              <div className="tlb-panel-heading"><div><span>Recent orders</span><strong>Today’s commercial activity</strong></div><button type="button" onClick={() => setActiveNav("Sales Orders")}>View all <ChevronRight /></button></div>
+              <div className="tlb-table-scroll"><table><thead><tr><th>Order</th><th>Customer</th><th>Value</th><th>Status</th><th><span className="sr-only">Open</span></th></tr></thead><tbody>{orders.map((order) => <tr key={order.id}><td><strong>{order.id}</strong></td><td>{order.customer}</td><td>{order.value}</td><td><StatusBadge tone={order.tone}>{order.status}</StatusBadge></td><td><button type="button" aria-label={`Open ${order.id}`} onClick={() => openInspector({ title: order.id, kicker: "Sales order", lines: [`Customer: ${order.customer}`, `Value: ${order.value}`, `Status: ${order.status}`, "Sandbox order. Fulfilment is not posted to a backend."] })}><ChevronRight /></button></td></tr>)}</tbody></table></div>
             </article>
 
             <article className="tlb-panel tlb-alerts-panel">
-              <div className="tlb-panel-heading"><div><span>Alerts requiring attention</span><strong>7 operational alerts</strong></div><button type="button">View all <ChevronRight /></button></div>
-              <div className="tlb-alert-list">{alerts.map((alert) => <button type="button" className="tlb-alert-row" key={alert.title}><span className={`tlb-alert-icon tlb-alert-${alert.type}`}><AlertTriangle /></span><span><strong>{alert.title}</strong><small>{alert.detail}</small></span><ChevronRight /></button>)}</div>
+              <div className="tlb-panel-heading"><div><span>Alerts requiring attention</span><strong>7 operational alerts</strong></div><button type="button" onClick={() => setActiveNav("Quality Control")}>View all <ChevronRight /></button></div>
+              <div className="tlb-alert-list">{alerts.map((alert) => <button type="button" className="tlb-alert-row" key={alert.title} onClick={() => openInspector({ title: alert.title, kicker: "Operational alert", lines: [alert.detail, "Sandbox alert. Acknowledgement is not persisted."] })}><span className={`tlb-alert-icon tlb-alert-${alert.type}`}><AlertTriangle /></span><span><strong>{alert.title}</strong><small>{alert.detail}</small></span><ChevronRight /></button>)}</div>
             </article>
 
             <article className="tlb-panel tlb-operations-panel">
-              <div className="tlb-panel-heading"><div><span>Operational pulse</span><strong>Imports & production</strong></div><button type="button">Open operations <ChevronRight /></button></div>
+              <div className="tlb-panel-heading"><div><span>Operational pulse</span><strong>Imports & production</strong></div><button type="button" onClick={() => setActiveNav("Import & Export")}>Open operations <ChevronRight /></button></div>
               <div className="tlb-operation-row"><span className="tlb-operation-icon"><Ship /></span><div><strong>IMP-26017 · Ningbo → Tema</strong><span>Sodium Hydroxide · 1 container</span></div><div className="tlb-operation-progress"><span><i style={{ width: "68%" }} /></span><small>At port · clearing</small></div></div>
               <div className="tlb-operation-row"><span className="tlb-operation-icon"><Factory /></span><div><strong>PO-26042 · Hydrogen Peroxide</strong><span>Batch HP-26009 · 1,200 L target</span></div><div className="tlb-operation-progress"><span><i style={{ width: "46%" }} /></span><small>Mixing · 46%</small></div></div>
             </article>
 
             <article className="tlb-panel tlb-receivables-panel">
-              <div className="tlb-panel-heading"><div><span>Receivables</span><strong>GH₵ 682,420.00 outstanding</strong></div><button type="button">View ledger <ChevronRight /></button></div>
+              <div className="tlb-panel-heading"><div><span>Receivables</span><strong>GH₵ 682,420.00 outstanding</strong></div><button type="button" onClick={() => setActiveNav("Finance")}>View ledger <ChevronRight /></button></div>
               <div className="tlb-receivable-bars"><div style={{ width: "54%" }} className="current" /><div style={{ width: "20%" }} className="due" /><div style={{ width: "17%" }} className="overdue" /><div style={{ width: "9%" }} className="critical" /></div>
               <div className="tlb-receivable-legend"><span><i className="current" />Current <strong>GH₵ 368K</strong></span><span><i className="due" />1–30 days <strong>GH₵ 137K</strong></span><span><i className="overdue" />31–60 days <strong>GH₵ 116K</strong></span><span><i className="critical" />60+ days <strong>GH₵ 61K</strong></span></div>
             </article>
           </section>
+            </>
+          )}
         </main>
       </div>
 
@@ -560,7 +865,10 @@ export function TLBDashboard() {
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && filteredSearchPool.length > 0) {
                     event.preventDefault();
-                    setSearchOpen(false);
+                    const first = filteredSearchPool[0];
+                    if (first) {
+                      openInspector({ title: first, kicker: "Search", lines: ["Opened from global search.", "This is sandbox data until search is connected to the database."] });
+                    }
                   }
                 }}
               />
@@ -573,13 +881,46 @@ export function TLBDashboard() {
                   type="button"
                   role="listitem"
                   key={result}
-                  onClick={() => setSearchOpen(false)}
+                  onClick={() => openInspector({ title: result, kicker: "Search", lines: ["Opened from global search.", "This is sandbox data until search is connected to the database."] })}
                 >
                   <PackageSearch />
                   <span>{result}</span>
                   <ChevronRight />
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {inspector && (
+        <div
+          className="tlb-dialog-backdrop"
+          role="presentation"
+          onMouseDown={() => setInspector(null)}
+        >
+          <div
+            className="tlb-search-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="tlb-inspector-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="tlb-popover-heading">
+              <div>
+                <span className="tlb-eyebrow">{inspector.kicker}</span>
+                <strong id="tlb-inspector-title">{inspector.title}</strong>
+              </div>
+              <button type="button" aria-label="Close" onClick={() => setInspector(null)}>
+                <X />
+              </button>
+            </div>
+            <div className="tlb-inspector-body">
+              <ul className="tlb-inspector-list">
+                {inspector.lines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
             </div>
           </div>
         </div>
