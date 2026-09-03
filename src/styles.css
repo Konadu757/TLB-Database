@@ -202,15 +202,35 @@
 .tlb-sidebar { width: 248px; height: 100vh; display: flex; flex-direction: column; background: var(--sidebar); color: var(--sidebar-foreground); border-right: 1px solid var(--sidebar-border); transition: width 180ms ease; overflow: hidden; }
 .tlb-sidebar-collapsed { width: 68px; }
 .tlb-brand { min-height: 82px; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--sidebar-border); }
-.tlb-brand-logo { width: 46px; height: 46px; flex: none; object-fit: contain; }
+.tlb-brand-mark {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  padding: 3px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid color-mix(in oklab, var(--brand-gold) 55%, white);
+  box-shadow: 0 0 0 1px color-mix(in oklab, #ffffff 18%, transparent);
+}
+.tlb-brand-logo { width: 100%; height: 100%; display: block; object-fit: contain; border-radius: 7px; }
 .tlb-brand-copy { min-width: 126px; display: flex; flex-direction: column; }
-.tlb-brand-copy strong { color: var(--sidebar-accent-foreground); font-size: 15px; line-height: 1.2; }
-.tlb-brand-copy span { margin-top: 3px; color: color-mix(in oklab, var(--sidebar-foreground) 66%, transparent); font-size: 10px; text-transform: uppercase; }
-.tlb-collapse { margin-left: auto; color: var(--sidebar-foreground); }
+.tlb-brand-copy strong {
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 0 color-mix(in oklab, #000000 28%, transparent);
+}
+.tlb-brand-copy span { margin-top: 3px; color: color-mix(in oklab, var(--brand-gold) 88%, white); font-size: 10px; text-transform: uppercase; }
+.tlb-collapse { margin-left: auto; color: #ffffff; }
 .tlb-sidebar-collapsed .tlb-brand { flex-direction: column; justify-content: center; padding-inline: 10px; gap: 4px; }
 .tlb-sidebar-collapsed .tlb-brand-copy, .tlb-sidebar-collapsed .tlb-nav-label, .tlb-sidebar-collapsed .tlb-nav-item span, .tlb-sidebar-collapsed .tlb-sidebar-footer div { display: none; }
 .tlb-sidebar-collapsed .tlb-collapse { margin-left: 0; flex: none; }
-.tlb-sidebar-collapsed .tlb-brand-logo { width: 42px; }
+.tlb-sidebar-collapsed .tlb-brand-mark { width: 44px; height: 44px; }
 .tlb-nav { flex: 1; overflow-y: auto; padding: 13px 10px; scrollbar-width: thin; }
 .tlb-nav-group + .tlb-nav-group { margin-top: 14px; }
 .tlb-nav-label { margin: 0 8px 5px; color: color-mix(in oklab, var(--sidebar-foreground) 48%, transparent); font-size: 10px; font-weight: 700; text-transform: uppercase; }

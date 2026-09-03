@@ -478,7 +478,9 @@ export function TLBDashboard() {
   const sidebar = (
     <aside className={cn("tlb-sidebar", !sidebarIsOpen && "tlb-sidebar-collapsed")} aria-label="Primary navigation">
       <div className="tlb-brand">
-        <img src={logoUrl} alt="TLB Enterprise" className="tlb-brand-logo" />
+        <span className="tlb-brand-mark">
+          <img src={logoUrl} alt="TLB Enterprise" className="tlb-brand-logo" />
+        </span>
         <div className="tlb-brand-copy">
           <strong>TLB Enterprise</strong>
         </div>
