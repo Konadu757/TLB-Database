@@ -75,11 +75,11 @@
 
 :root {
   --radius: 0.45rem;
-  --background: oklch(0.985 0.022 92);
+  --background: oklch(1 0 0);
   --foreground: oklch(0.24 0.05 296);
-  --card: oklch(0.995 0.008 95);
+  --card: oklch(0.985 0.022 92);
   --card-foreground: oklch(0.24 0.05 296);
-  --popover: oklch(0.995 0.008 95);
+  --popover: oklch(0.985 0.022 92);
   --popover-foreground: oklch(0.24 0.05 296);
   --primary: oklch(0.45 0.175 296);
   --primary-foreground: oklch(0.99 0.02 95);
@@ -254,7 +254,7 @@
     left: auto;
   }
 }
-.tlb-header { height: 64px; display: flex; align-items: center; gap: 18px; padding: 0 28px; position: sticky; top: 0; z-index: 60; overflow: visible; background: color-mix(in oklab, var(--card) 96%, transparent); border-bottom: 1px solid var(--border); }
+.tlb-header { height: 64px; display: flex; align-items: center; gap: 18px; padding: 0 28px; position: sticky; top: 0; z-index: 60; overflow: visible; background: color-mix(in oklab, var(--background) 96%, transparent); border-bottom: 1px solid var(--border); }
 .tlb-global-search { width: min(480px, 48vw); height: 36px; display: flex; align-items: center; gap: 9px; padding: 0 11px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--muted); color: var(--muted-foreground); text-align: left; }
 .tlb-global-search svg { width: 16px; }.tlb-global-search span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--card); color: var(--muted-foreground); font-size: 10px; box-shadow: 0 1px 1px color-mix(in oklab, var(--foreground) 8%, transparent); }

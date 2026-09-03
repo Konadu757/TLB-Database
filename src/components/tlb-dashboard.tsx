@@ -32,7 +32,7 @@ import {
   X,
 } from "lucide-react";
 
-import logoAsset from "@/assets/tlb-logo.png.asset.json";
+import logoUrl from "@/assets/tlb-logo.png";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -478,7 +478,7 @@ export function TLBDashboard() {
   const sidebar = (
     <aside className={cn("tlb-sidebar", !sidebarIsOpen && "tlb-sidebar-collapsed")} aria-label="Primary navigation">
       <div className="tlb-brand">
-        <img src={logoAsset.url} alt="TLB Enterprise" className="tlb-brand-logo" />
+        <img src={logoUrl} alt="TLB Enterprise" className="tlb-brand-logo" />
         <div className="tlb-brand-copy">
           <strong>TLB Enterprise</strong>
           <span>Operations Management</span>
