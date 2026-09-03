@@ -481,7 +481,6 @@ export function TLBDashboard() {
         <img src={logoUrl} alt="TLB Enterprise" className="tlb-brand-logo" />
         <div className="tlb-brand-copy">
           <strong>TLB Enterprise</strong>
-          <span>Operations Management</span>
         </div>
         <Button
           variant="ghost"
