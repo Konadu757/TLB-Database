@@ -201,9 +201,14 @@
 .tlb-sidebar-footer div { display: flex; flex-direction: column; white-space: nowrap; }
 .tlb-sidebar-footer strong { font-size: 11px; }.tlb-sidebar-footer span { font-size: 10px; color: color-mix(in oklab, var(--sidebar-foreground) 56%, transparent); }
 .tlb-environment-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px color-mix(in oklab, var(--success) 20%, transparent); }
-.tlb-desktop-sidebar { position: sticky; top: 0; z-index: 30; height: 100vh; }
+.tlb-desktop-sidebar { flex-shrink: 0; z-index: 30; height: 100vh; }
 .tlb-mobile-sidebar, .tlb-mobile-overlay { display: none; }
 .tlb-main { min-width: 0; flex: 1; }
+
+@media (min-width: 901px) {
+  .tlb-app-shell { height: 100vh; overflow: hidden; }
+  .tlb-main { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+}
 .tlb-header { height: 64px; display: flex; align-items: center; gap: 18px; padding: 0 28px; position: sticky; top: 0; z-index: 20; background: color-mix(in oklab, var(--card) 96%, transparent); border-bottom: 1px solid var(--border); }
 .tlb-global-search { width: min(480px, 48vw); height: 36px; display: flex; align-items: center; gap: 9px; padding: 0 11px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--muted); color: var(--muted-foreground); text-align: left; }
 .tlb-global-search svg { width: 16px; }.tlb-global-search span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
