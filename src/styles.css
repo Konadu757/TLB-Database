@@ -201,7 +201,15 @@
 .tlb-app-shell { min-height: 100%; display: flex; background: #ffffff !important; background-color: #ffffff !important; }
 .tlb-sidebar { width: 248px; height: 100vh; display: flex; flex-direction: column; background: var(--sidebar); color: var(--sidebar-foreground); border-right: 1px solid var(--sidebar-border); transition: width 180ms ease; overflow: hidden; }
 .tlb-sidebar-collapsed { width: 68px; }
-.tlb-brand { min-height: 82px; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--sidebar-border); }
+.tlb-brand {
+  min-height: 82px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--cream);
+  border: 1px solid var(--sidebar);
+}
 .tlb-brand-mark {
   flex: none;
   display: inline-flex;
@@ -217,15 +225,25 @@
 .tlb-brand-logo { width: 100%; height: 100%; display: block; object-fit: contain; }
 .tlb-brand-copy { min-width: 126px; display: flex; flex-direction: column; }
 .tlb-brand-copy strong {
-  color: #ffffff;
+  color: var(--sidebar);
   font-size: 15px;
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: 0.01em;
-  text-shadow: 0 1px 0 color-mix(in oklab, #000000 28%, transparent);
 }
 .tlb-brand-copy span { margin-top: 3px; color: color-mix(in oklab, var(--brand-gold) 88%, white); font-size: 10px; text-transform: uppercase; }
-.tlb-collapse { margin-left: auto; color: #ffffff; }
+.tlb-collapse {
+  margin-left: auto;
+  color: var(--sidebar);
+}
+.tlb-collapse svg {
+  color: var(--sidebar);
+}
+.tlb-collapse:hover,
+.tlb-collapse:focus-visible {
+  color: var(--sidebar);
+  background: color-mix(in oklab, var(--sidebar) 10%, transparent);
+}
 .tlb-sidebar-collapsed .tlb-brand { flex-direction: column; justify-content: center; padding-inline: 10px; gap: 4px; }
 .tlb-sidebar-collapsed .tlb-brand-copy, .tlb-sidebar-collapsed .tlb-nav-label, .tlb-sidebar-collapsed .tlb-nav-item span, .tlb-sidebar-collapsed .tlb-sidebar-footer div { display: none; }
 .tlb-sidebar-collapsed .tlb-collapse { margin-left: 0; flex: none; }
