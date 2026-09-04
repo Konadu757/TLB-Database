@@ -199,7 +199,7 @@
 @utility tabular { font-variant-numeric: tabular-nums; }
 
 .tlb-app-shell { min-height: 100%; display: flex; background: #ffffff !important; background-color: #ffffff !important; }
-.tlb-sidebar { width: 248px; height: 100vh; display: flex; flex-direction: column; background: var(--sidebar); color: var(--sidebar-foreground); border-right: 1px solid var(--sidebar-border); border-radius: var(--radius-lg); transition: width 180ms ease; overflow: hidden; }
+.tlb-sidebar { width: 248px; height: 100vh; display: flex; flex-direction: column; background: var(--sidebar); color: var(--sidebar-foreground); border-right: 1px solid var(--sidebar-border); transition: width 180ms ease; overflow: hidden; }
 .tlb-sidebar-collapsed { width: 68px; }
 .tlb-brand {
   min-height: 82px;
