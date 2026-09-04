@@ -34,7 +34,6 @@ import {
 
 import logoUrl from "@/assets/tlb-logo.png";
 import { Button } from "@/components/ui/button";
-import { useScroll3D } from "@/hooks/use-scroll-3d";
 import { cn } from "@/lib/utils";
 
 type NavItem = { label: string; icon: typeof LayoutDashboard; badge?: string };
@@ -282,11 +281,7 @@ export function TLBDashboard() {
   const searchDialogRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const lastFocusedElementRef = useRef<HTMLElement | null>(null);
-  const mainScrollRef = useRef<HTMLDivElement | null>(null);
-  const contentRef = useRef<HTMLElement | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-
-  useScroll3D(mainScrollRef, contentRef, [activeNav]);
 
   const searchShortcutLabel = useMemo(() => {
     if (typeof navigator === "undefined") return "Ctrl K";
@@ -546,7 +541,7 @@ export function TLBDashboard() {
       {mobileOpen && <div className="tlb-mobile-overlay" onClick={() => setMobileOpen(false)} aria-hidden="true" />}
       <div className={cn("tlb-mobile-sidebar", mobileOpen && "tlb-mobile-sidebar-open")}>{sidebar}</div>
 
-      <div className="tlb-main" ref={mainScrollRef}>
+      <div className="tlb-main">
         <header className="tlb-header">
           <Button
             variant="ghost"
@@ -653,7 +648,7 @@ export function TLBDashboard() {
           </div>
         </header>
 
-        <main className="tlb-content tlb-scroll-3d-stage" ref={contentRef}>
+        <main className="tlb-content">
           <div className="tlb-breadcrumb"><span>TLB Enterprise</span><ChevronRight /><span>{activeNav === "Dashboard" ? "Executive Dashboard" : activeNav}</span></div>
           <div className="tlb-page-heading">
             <div>
@@ -718,7 +713,7 @@ export function TLBDashboard() {
             </div>
           </div>
 
-          <section className="tlb-filter-bar tlb-scroll-3d" aria-label="Dashboard filters">
+          <section className="tlb-filter-bar" aria-label="Dashboard filters">
             <div className="tlb-periods">
               {["Today", "This Week", "This Month", "This Quarter", "This Year"].map((item) => <button type="button" key={item} className={period === item ? "active" : ""} onClick={() => setPeriod(item)}>{item}</button>)}
             </div>
@@ -726,7 +721,7 @@ export function TLBDashboard() {
           </section>
 
           {activeNav !== "Dashboard" && moduleScreens[activeNav] ? (
-            <article className="tlb-panel tlb-orders-panel tlb-scroll-3d tlb-scroll-3d-tilt">
+            <article className="tlb-panel tlb-orders-panel">
               <div className="tlb-panel-heading">
                 <div>
                   <span>{moduleScreens[activeNav].kicker}</span>
@@ -777,13 +772,8 @@ export function TLBDashboard() {
           ) : (
             <>
           <section className="tlb-metrics" aria-label="Key performance indicators">
-            {metrics.map((metric, index) => (
-              <article
-                className="tlb-metric tlb-scroll-3d tlb-scroll-3d-tilt"
-                key={metric.label}
-                style={{ "--tlb-3d-delay": `${index * 55}ms` } as React.CSSProperties}
-                data-tilt-side={index % 3 === 0 ? "left" : index % 3 === 2 ? "right" : undefined}
-              >
+            {metrics.map((metric) => (
+              <article className="tlb-metric" key={metric.label}>
                 <div className="tlb-metric-label">
                   <span>{metric.label}</span>
                   <button
@@ -804,12 +794,8 @@ export function TLBDashboard() {
             ))}
           </section>
 
-          <section className="tlb-dashboard-grid tlb-scroll-3d-depth">
-            <article
-              className="tlb-panel tlb-sales-panel tlb-scroll-3d tlb-scroll-3d-tilt"
-              style={{ "--tlb-3d-delay": "80ms" } as React.CSSProperties}
-              data-tilt-side="left"
-            >
+          <section className="tlb-dashboard-grid">
+            <article className="tlb-panel tlb-sales-panel">
               <div className="tlb-panel-heading"><div><span>Sales performance</span><strong>GH₵ 1,842,680.00</strong></div><StatusBadge tone="success">+12.4%</StatusBadge></div>
               <div className="tlb-chart" aria-label="Monthly sales trend from October to September">
                 <div className="tlb-chart-axis"><span>120K</span><span>80K</span><span>40K</span><span>0</span></div>
@@ -818,50 +804,30 @@ export function TLBDashboard() {
               <div className="tlb-chart-footer"><span><i className="tlb-legend-primary" />Sales revenue</span><span>Target: GH₵ 1.75M</span></div>
             </article>
 
-            <article
-              className="tlb-panel tlb-scroll-3d tlb-scroll-3d-tilt"
-              style={{ "--tlb-3d-delay": "140ms" } as React.CSSProperties}
-              data-tilt-side="right"
-            >
+            <article className="tlb-panel">
               <div className="tlb-panel-heading"><div><span>Inventory overview</span><strong>2,486 stock items</strong></div><button type="button" onClick={() => setActiveNav("Stock")}>View stock <ChevronRight /></button></div>
               <div className="tlb-inventory-value"><div><span>Total stock value</span><strong>GH₵ 4,263,840</strong></div><PackageCheck /></div>
               <div className="tlb-stock-list">{stock.map((item) => <div key={item.label}><div><span>{item.label}</span><strong>{item.value}</strong></div><div className="tlb-progress"><span className={item.tone} style={{ width: item.width }} /></div></div>)}</div>
               <div className="tlb-stock-summary"><div><span>Low stock</span><strong className="text-danger">14</strong></div><div><span>Expiring soon</span><strong className="text-warning-foreground">23</strong></div><div><span>Out of stock</span><strong>4</strong></div></div>
             </article>
 
-            <article
-              className="tlb-panel tlb-orders-panel tlb-scroll-3d tlb-scroll-3d-tilt"
-              style={{ "--tlb-3d-delay": "200ms" } as React.CSSProperties}
-              data-tilt-side="left"
-            >
+            <article className="tlb-panel tlb-orders-panel">
               <div className="tlb-panel-heading"><div><span>Recent orders</span><strong>Today’s commercial activity</strong></div><button type="button" onClick={() => setActiveNav("Sales Orders")}>View all <ChevronRight /></button></div>
               <div className="tlb-table-scroll"><table><thead><tr><th>Order</th><th>Customer</th><th>Value</th><th>Status</th><th><span className="sr-only">Open</span></th></tr></thead><tbody>{orders.map((order) => <tr key={order.id}><td><strong>{order.id}</strong></td><td>{order.customer}</td><td>{order.value}</td><td><StatusBadge tone={order.tone}>{order.status}</StatusBadge></td><td><button type="button" aria-label={`Open ${order.id}`} onClick={() => openInspector({ title: order.id, kicker: "Sales order", lines: [`Customer: ${order.customer}`, `Value: ${order.value}`, `Status: ${order.status}`, "Sandbox order. Fulfilment is not posted to a backend."] })}><ChevronRight /></button></td></tr>)}</tbody></table></div>
             </article>
 
-            <article
-              className="tlb-panel tlb-alerts-panel tlb-scroll-3d tlb-scroll-3d-tilt"
-              style={{ "--tlb-3d-delay": "260ms" } as React.CSSProperties}
-              data-tilt-side="right"
-            >
+            <article className="tlb-panel tlb-alerts-panel">
               <div className="tlb-panel-heading"><div><span>Alerts requiring attention</span><strong>7 operational alerts</strong></div><button type="button" onClick={() => setActiveNav("Quality Control")}>View all <ChevronRight /></button></div>
               <div className="tlb-alert-list">{alerts.map((alert) => <button type="button" className="tlb-alert-row" key={alert.title} onClick={() => openInspector({ title: alert.title, kicker: "Operational alert", lines: [alert.detail, "Sandbox alert. Acknowledgement is not persisted."] })}><span className={`tlb-alert-icon tlb-alert-${alert.type}`}><AlertTriangle /></span><span><strong>{alert.title}</strong><small>{alert.detail}</small></span><ChevronRight /></button>)}</div>
             </article>
 
-            <article
-              className="tlb-panel tlb-operations-panel tlb-scroll-3d tlb-scroll-3d-tilt"
-              style={{ "--tlb-3d-delay": "320ms" } as React.CSSProperties}
-              data-tilt-side="left"
-            >
+            <article className="tlb-panel tlb-operations-panel">
               <div className="tlb-panel-heading"><div><span>Operational pulse</span><strong>Imports & production</strong></div><button type="button" onClick={() => setActiveNav("Import & Export")}>Open operations <ChevronRight /></button></div>
               <div className="tlb-operation-row"><span className="tlb-operation-icon"><Ship /></span><div><strong>IMP-26017 · Ningbo → Tema</strong><span>Sodium Hydroxide · 1 container</span></div><div className="tlb-operation-progress"><span><i style={{ width: "68%" }} /></span><small>At port · clearing</small></div></div>
               <div className="tlb-operation-row"><span className="tlb-operation-icon"><Factory /></span><div><strong>PO-26042 · Hydrogen Peroxide</strong><span>Batch HP-26009 · 1,200 L target</span></div><div className="tlb-operation-progress"><span><i style={{ width: "46%" }} /></span><small>Mixing · 46%</small></div></div>
             </article>
 
-            <article
-              className="tlb-panel tlb-receivables-panel tlb-scroll-3d tlb-scroll-3d-tilt"
-              style={{ "--tlb-3d-delay": "380ms" } as React.CSSProperties}
-              data-tilt-side="right"
-            >
+            <article className="tlb-panel tlb-receivables-panel">
               <div className="tlb-panel-heading"><div><span>Receivables</span><strong>GH₵ 682,420.00 outstanding</strong></div><button type="button" onClick={() => setActiveNav("Finance")}>View ledger <ChevronRight /></button></div>
               <div className="tlb-receivable-bars"><div style={{ width: "54%" }} className="current" /><div style={{ width: "20%" }} className="due" /><div style={{ width: "17%" }} className="overdue" /><div style={{ width: "9%" }} className="critical" /></div>
               <div className="tlb-receivable-legend"><span><i className="current" />Current <strong>GH₵ 368K</strong></span><span><i className="due" />1–30 days <strong>GH₵ 137K</strong></span><span><i className="overdue" />31–60 days <strong>GH₵ 116K</strong></span><span><i className="critical" />60+ days <strong>GH₵ 61K</strong></span></div>
