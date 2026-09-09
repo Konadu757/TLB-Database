@@ -44,10 +44,12 @@ const DEFAULT_COUNTERS: DocumentCounters = {
   payment: 0,
 };
 
-/** Upgrade legacy localStorage payloads to v2 without wiping demo data. */
+/** Upgrade legacy localStorage payloads without wiping demo data. */
 export function migrateState(raw: unknown): TlbState {
   if (!raw || typeof raw !== "object") return createSeedState();
   const parsed = raw as Partial<TlbState> & { version?: number };
+  const seed = createSeedState();
+  const priorVersion = parsed.version ?? 0;
 
   const counters: DocumentCounters = {
     ...DEFAULT_COUNTERS,
@@ -65,27 +67,37 @@ export function migrateState(raw: unknown): TlbState {
     expectedApproachingDays: parsed.ageing?.expectedApproachingDays ?? DEFAULT_AGEING.expectedApproachingDays,
   };
 
+  // v3: seed dated collections when upgrading from empty finance ledgers.
+  const needsCollectionSeed =
+    priorVersion < 3 && !(parsed.payments?.length) && !(parsed.receipts?.length);
+
   return {
-    version: 2,
-    warehouses: parsed.warehouses ?? [],
-    products: parsed.products ?? [],
-    stock: parsed.stock ?? [],
-    customers: parsed.customers ?? [],
-    orders: (parsed.orders ?? []).map((o) => ({ ...o })),
-    orderLines: parsed.orderLines ?? [],
+    version: 3,
+    warehouses: parsed.warehouses?.length ? parsed.warehouses : seed.warehouses,
+    products: parsed.products?.length ? parsed.products : seed.products,
+    stock: parsed.stock?.length ? parsed.stock : seed.stock,
+    customers: parsed.customers?.length ? parsed.customers : seed.customers,
+    orders: (parsed.orders?.length ? parsed.orders : seed.orders).map((o) => ({ ...o })),
+    orderLines: parsed.orderLines?.length ? parsed.orderLines : seed.orderLines,
     supplies: parsed.supplies ?? [],
     supplyLines: parsed.supplyLines ?? [],
     invoices: parsed.invoices ?? [],
     invoiceLines: parsed.invoiceLines ?? [],
-    receipts: parsed.receipts ?? [],
-    receiptLines: parsed.receiptLines ?? [],
+    receipts: needsCollectionSeed ? seed.receipts : (parsed.receipts ?? []),
+    receiptLines: needsCollectionSeed ? seed.receiptLines : (parsed.receiptLines ?? []),
     deliveries: parsed.deliveries ?? [],
     deliveryItems: parsed.deliveryItems ?? [],
-    payments: parsed.payments ?? [],
+    payments: needsCollectionSeed ? seed.payments : (parsed.payments ?? []),
     notifications: parsed.notifications ?? [],
     reservations: parsed.reservations ?? [],
     audit: parsed.audit ?? [],
-    counters,
+    counters: needsCollectionSeed
+      ? {
+          ...counters,
+          receipt: Math.max(counters.receipt, seed.counters.receipt),
+          payment: Math.max(counters.payment, seed.counters.payment),
+        }
+      : counters,
     ageing,
     company: parsed.company ?? DEFAULT_COMPANY,
     vatRates: parsed.vatRates?.length ? parsed.vatRates : DEFAULT_VAT,

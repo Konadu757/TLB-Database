@@ -474,11 +474,21 @@ export function TLBDashboard() {
   }, [notificationsOpen, quickOpen, userOpen]);
 
   const dash = useMemo(
-    () => buildDashboardSnapshot(store.state, period, warehouse, DEMO_AS_OF),
-    [store.state, period, warehouse],
+    () => buildDashboardSnapshot(store.state, rangeSelection, warehouse, DEMO_AS_OF),
+    [store.state, rangeSelection, warehouse],
   );
   const maxSale = Math.max(dash.chartAxisMax, 1);
   const recvTotal = Math.max(dash.receivablesTotal, 1);
+  const periodCaption =
+    rangeSelection.mode === "preset"
+      ? rangeSelection.period
+      : rangeSelection.mode === "previousMonth"
+        ? "Previous Month"
+        : "Custom range";
+
+  const selectPreset = (period: DashboardPeriod) => {
+    setRangeSelection({ mode: "preset", period });
+  };
 
   const sidebar = (
     <aside className={cn("tlb-sidebar", !sidebarIsOpen && "tlb-sidebar-collapsed")} aria-label="Primary navigation">
@@ -680,11 +690,11 @@ export function TLBDashboard() {
           <div className="tlb-breadcrumb"><span>TLB Enterprise</span><ChevronRight /><span>{activeNav === "Dashboard" ? "Executive Dashboard" : activeNav}</span></div>
           <div className="tlb-page-heading">
             <div>
-              <p className="tlb-eyebrow">Wednesday, 09 September 2026 · {period} · {warehouse}</p>
+              <p className="tlb-eyebrow">Wednesday, 09 September 2026 · {periodCaption} · {warehouse}</p>
               <h1>{activeNav === "Dashboard" ? "Good evening, Kwame" : activeNav}</h1>
               <p>
                 {activeNav === "Dashboard"
-                  ? "Here is today’s operational position across TLB Enterprise."
+                  ? "Operational position for the selected period — sales KPIs use collections (payments & receipts dated in range), defaulting to this month."
                   : activeNav === "Customers"
                     ? "Customer accounts with credit, terms, TIN, and transaction history."
                     : activeNav === "Sales Orders"
@@ -763,8 +773,8 @@ export function TLBDashboard() {
                 <button
                   type="button"
                   key={item}
-                  className={period === item ? "active" : ""}
-                  onClick={() => setPeriod(item)}
+                  className={rangeSelection.mode === "preset" && rangeSelection.period === item ? "active" : ""}
+                  onClick={() => selectPreset(item)}
                 >
                   {item}
                 </button>
@@ -772,6 +782,65 @@ export function TLBDashboard() {
             </div>
             <label className="tlb-select"><Warehouse /><select value={warehouse} onChange={(event) => setWarehouse(event.target.value)} aria-label="Warehouse"><option>All warehouses</option><option>Main Warehouse</option><option>Factory Store</option></select><ChevronDown /></label>
           </section>
+
+          {activeNav === "Dashboard" && (
+            <section className="tlb-history-lookup" aria-label="Sales history lookup">
+              <div className="tlb-history-copy">
+                <span className="tlb-eyebrow">Collected sales history</span>
+                <strong>Review previous month or any custom dates</strong>
+                <p>
+                  Live KPIs default to this month’s collections (money received). Use presets above for week/quarter/year,
+                  or look up an earlier period here — figures recompute from payment and receipt dates.
+                </p>
+              </div>
+              <div className="tlb-history-controls">
+                <button
+                  type="button"
+                  className={rangeSelection.mode === "previousMonth" ? "active" : ""}
+                  onClick={() => setRangeSelection({ mode: "previousMonth" })}
+                >
+                  Previous month
+                </button>
+                <label>
+                  From
+                  <input
+                    type="date"
+                    value={customFrom}
+                    onChange={(e) => setCustomFrom(e.target.value)}
+                    aria-label="Custom from date"
+                  />
+                </label>
+                <label>
+                  To
+                  <input
+                    type="date"
+                    value={customTo}
+                    onChange={(e) => setCustomTo(e.target.value)}
+                    aria-label="Custom to date"
+                  />
+                </label>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    if (!customFrom || !customTo) return;
+                    setRangeSelection({ mode: "custom", from: customFrom, to: customTo });
+                  }}
+                >
+                  Apply custom range
+                </Button>
+                {(rangeSelection.mode === "previousMonth" || rangeSelection.mode === "custom") && (
+                  <button type="button" className="tlb-text-action" onClick={() => selectPreset("This Month")}>
+                    Back to this month
+                  </button>
+                )}
+              </div>
+              <p className="tlb-history-result">
+                Showing <strong>{dash.salesTotalLabel}</strong> collected · {dash.collectionCount} receipt/payment
+                {dash.collectionCount === 1 ? "" : "s"} · {dash.periodLabel}
+              </p>
+            </section>
+          )}
 
           {commerceNav ? (
             activeNav === "Customers" ? (
@@ -820,7 +889,7 @@ export function TLBDashboard() {
                   onClick={() => openInspector({
                     title: activeNav,
                     kicker: moduleScreens[activeNav].kicker,
-                    lines: [moduleScreens[activeNav].description, `Showing sandbox records for ${period} · ${warehouse}.`],
+                    lines: [moduleScreens[activeNav].description, `Showing sandbox records for ${periodCaption} · ${warehouse}.`],
                   })}
                 >
                   Open record <ChevronRight />
@@ -867,7 +936,7 @@ export function TLBDashboard() {
                   <button
                     type="button"
                     aria-label={`Open ${metric.label}`}
-                    onClick={() => openInspector({ title: metric.label, kicker: "KPI", lines: [`Value: ${metric.value}`, metric.note, `Filter: ${period} · ${warehouse}`, `Range: ${dash.periodLabel}`] })}
+                    onClick={() => openInspector({ title: metric.label, kicker: "KPI", lines: [`Value: ${metric.value}`, metric.note, dash.salesBasisLabel, `Filter: ${periodCaption} · ${warehouse}`, `Range: ${dash.periodLabel}`] })}
                   >
                     <ChevronRight />
                   </button>
@@ -886,12 +955,12 @@ export function TLBDashboard() {
             <article className="tlb-panel tlb-sales-panel">
               <div className="tlb-panel-heading">
                 <div>
-                  <span>Sales performance</span>
+                  <span>Collected sales</span>
                   <strong>{dash.salesTotalLabel}</strong>
                 </div>
                 <StatusBadge tone={dash.salesDeltaTone}>{dash.salesDeltaLabel}</StatusBadge>
               </div>
-              <div className="tlb-chart" aria-label={`Sales trend for ${period}`}>
+              <div className="tlb-chart" aria-label={`Collected sales trend for ${periodCaption}`}>
                 <div className="tlb-chart-axis">
                   <span>{Math.round(maxSale / 1000)}K</span>
                   <span>{Math.round((maxSale * 0.66) / 1000)}K</span>
@@ -911,7 +980,7 @@ export function TLBDashboard() {
                 </div>
               </div>
               <div className="tlb-chart-footer">
-                <span><i className="tlb-legend-primary" />Sales revenue</span>
+                <span><i className="tlb-legend-primary" />Collections (payments + receipts)</span>
                 <span>{dash.periodLabel}</span>
               </div>
             </article>
@@ -955,7 +1024,7 @@ export function TLBDashboard() {
               <div className="tlb-panel-heading">
                 <div>
                   <span>Recent orders</span>
-                  <strong>{period} commercial activity</strong>
+                  <strong>{periodCaption} commercial activity</strong>
                 </div>
                 <button type="button" onClick={() => openLiveModule("Sales Orders")}>View all <ChevronRight /></button>
               </div>
@@ -987,7 +1056,7 @@ export function TLBDashboard() {
                               onClick={() => openInspector({
                                 title: order.number,
                                 kicker: "Sales order",
-                                lines: [`Customer: ${order.customer}`, `Value: ${order.value}`, `Status: ${order.status}`, `Order date: ${order.orderDate}`, `Filter: ${period}`],
+                                lines: [`Customer: ${order.customer}`, `Value: ${order.value}`, `Status: ${order.status}`, `Order date: ${order.orderDate}`, `Filter: ${periodCaption}`],
                               })}
                             >
                               <ChevronRight />
@@ -1043,7 +1112,7 @@ export function TLBDashboard() {
               <div className="tlb-panel-heading">
                 <div>
                   <span>Operational pulse</span>
-                  <strong>Imports & production · {period}</strong>
+                  <strong>Imports & production · {periodCaption}</strong>
                 </div>
                 <button type="button" onClick={() => setActiveNav("Import & Export")}>Open operations <ChevronRight /></button>
               </div>

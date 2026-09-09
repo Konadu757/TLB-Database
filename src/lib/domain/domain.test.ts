@@ -8,6 +8,8 @@ import {
   deriveOrderStatus,
   validateSupplyQty,
 } from "./calculations";
+import { buildDashboardSnapshot, collectionsTotal } from "./dashboard-metrics";
+import { DEMO_AS_OF } from "./period-range";
 import { createSeedState } from "../store/seed";
 import { createSupply, getOutstandingRows, receiveStock } from "../store/tlb-store";
 
@@ -114,6 +116,31 @@ test("deriveOrderStatus partial", () => {
     stockByKey: new Map(),
   });
   assert(status === "Partially Supplied", status);
+});
+
+test("dashboard sales KPIs use collections by payment/receipt date", () => {
+  const state = createSeedState();
+
+  const month = buildDashboardSnapshot(state, "This Month", "All warehouses", DEMO_AS_OF);
+  const today = buildDashboardSnapshot(state, "Today", "All warehouses", DEMO_AS_OF);
+  const prev = buildDashboardSnapshot(state, { mode: "previousMonth" }, "All warehouses", DEMO_AS_OF);
+  const custom = buildDashboardSnapshot(
+    state,
+    { mode: "custom", from: "2026-03-01", to: "2026-03-31" },
+    "All warehouses",
+    DEMO_AS_OF,
+  );
+
+  assert(month.salesTotal === 31540, `month collected expected 31540 got ${month.salesTotal}`);
+  assert(today.salesTotal === 3840, `today collected expected 3840 got ${today.salesTotal}`);
+  assert(prev.salesTotal === 12800, `prev month expected 12800 got ${prev.salesTotal}`);
+  assert(custom.salesTotal === 37500, `custom Mar expected 37500 got ${custom.salesTotal}`);
+  assert(month.salesTotal !== today.salesTotal, "period filters must diverge");
+  assert(month.salesBasisLabel.toLowerCase().includes("collected"), "label collections");
+  assert(
+    collectionsTotal(state, month.range) === month.salesTotal,
+    "collectionsTotal matches snapshot",
+  );
 });
 
 console.log(`\n${passed} tests passed`);
