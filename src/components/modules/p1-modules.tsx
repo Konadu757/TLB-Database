@@ -1066,7 +1066,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                       <strong>{role.name}</strong>
                       <span>{role.systemKey ? "System" : "Custom"} · {role.permissions.length} caps</span>
                     </button>
-                  ))}
+                  ))
                 )}
               </div>
               <div className="tlb-roles-detail">
