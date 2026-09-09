@@ -10,18 +10,25 @@ import {
   stockKey,
   validateSupplyQty,
 } from "../domain/calculations";
+import { buildNotifications } from "../domain/notifications";
 import { nextDocumentNumber } from "../domain/numbering";
+import { hasPermission } from "../domain/permissions";
 import type {
+  AppRole,
   AuditEvent,
+  CompanyProfile,
   Customer,
   CustomerOrderLine,
   CustomerPurchaseOrder,
   OutstandingRow,
+  Permission,
   StockBalance,
   StoreResult,
   SupplyRequestLine,
   TlbState,
+  VatRate,
 } from "../domain/types";
+import { migrateState } from "./migrate";
 import { createSeedState } from "./seed";
 
 export const STORAGE_KEY = "tlb.enterprise.state.v1";
@@ -48,7 +55,20 @@ function pushAudit(
     summary: partial.summary,
     meta: partial.meta,
   });
+  // Audit history is append-only from the UI — never expose delete. Cap for storage only.
   if (state.audit.length > 500) state.audit.length = 500;
+}
+
+function requirePerm(state: TlbState, permission: Permission): string | null {
+  if (!hasPermission(state.currentRole, permission)) {
+    return `Role ${state.currentRole} cannot perform ${permission}.`;
+  }
+  return null;
+}
+
+function refreshNotifications(state: TlbState): void {
+  const outstanding = getOutstandingRows(state);
+  state.notifications = buildNotifications(state, new Date().toISOString(), outstanding);
 }
 
 function recomputeOrder(state: TlbState, orderId: string): void {
@@ -99,11 +119,11 @@ export function loadState(): TlbState {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return createSeedState();
-    const parsed = JSON.parse(raw) as TlbState;
-    if (!parsed || parsed.version !== 1) return createSeedState();
-    // Refresh derived statuses on load
-    recomputeAllOpenOrders(parsed);
-    return parsed;
+    const parsed = JSON.parse(raw) as unknown;
+    const migrated = migrateState(parsed);
+    recomputeAllOpenOrders(migrated);
+    refreshNotifications(migrated);
+    return migrated;
   } catch {
     return createSeedState();
   }
@@ -117,6 +137,7 @@ export function saveState(state: TlbState): void {
 export function resetToSeed(): TlbState {
   const seed = createSeedState();
   recomputeAllOpenOrders(seed);
+  refreshNotifications(seed);
   saveState(seed);
   return seed;
 }
@@ -156,6 +177,7 @@ export function getOutstandingRows(state: TlbState, asOf = new Date().toISOStrin
       orderStatus: order.status,
       lineStatus: line.lineStatus,
       orderDate: order.orderDate,
+      requiredDate: order.requiredDate,
       ageDays,
       ageingBand: ageingBand(ageDays, state.ageing),
       unitPrice: line.unitPrice,
@@ -183,6 +205,9 @@ export function upsertCustomer(
   state: TlbState,
   input: Omit<Customer, "id" | "code" | "createdAt" | "updatedAt"> & { id?: string },
 ): MutResult<Customer> {
+  const blocked = requirePerm(state, "customers.manage");
+  if (blocked) return { ok: false, error: blocked };
+
   const next = cloneState(state);
   const now = new Date().toISOString();
 
@@ -192,6 +217,10 @@ export function upsertCustomer(
     const idx = next.customers.findIndex((c) => c.id === input.id);
     if (idx < 0) return { ok: false, error: "Customer not found." };
     const existing = next.customers[idx]!;
+    if ((input.tin ?? "") !== (existing.tin ?? "")) {
+      const tinBlocked = requirePerm(next, "tin.update");
+      if (tinBlocked) return { ok: false, error: tinBlocked };
+    }
     const updated: Customer = {
       ...existing,
       name: input.name,
@@ -200,7 +229,7 @@ export function upsertCustomer(
       phone: input.phone,
       email: input.email,
       address: input.address,
-      tin: input.tin,
+      tin: input.tin?.trim() || undefined,
       creditLimit: input.creditLimit,
       paymentTerms: input.paymentTerms,
       notes: input.notes,
@@ -228,7 +257,7 @@ export function upsertCustomer(
     phone: input.phone,
     email: input.email,
     address: input.address,
-    tin: input.tin,
+    tin: input.tin?.trim() || undefined,
     creditLimit: input.creditLimit,
     paymentTerms: input.paymentTerms,
     notes: input.notes,
@@ -252,9 +281,12 @@ export function createCustomerOrder(
     customerId: string;
     notes?: string;
     requiredDate?: string;
+    customerPoNumber?: string;
     lines: Array<{ productId: string; warehouseId: string; orderedQty: number; unitPrice: number }>;
   },
 ): MutResult<CustomerPurchaseOrder> {
+  const blocked = requirePerm(state, "orders.create");
+  if (blocked) return { ok: false, error: blocked };
   if (!input.customerId) return { ok: false, error: "Customer is required." };
   if (!input.lines.length) return { ok: false, error: "Add at least one order line." };
   for (const line of input.lines) {
@@ -271,6 +303,7 @@ export function createCustomerOrder(
     id: uid("ord"),
     number: numbered.number,
     customerId: input.customerId,
+    customerPoNumber: input.customerPoNumber?.trim() || undefined,
     status: "Draft",
     orderDate: now,
     requiredDate: input.requiredDate,
@@ -304,6 +337,8 @@ export function createCustomerOrder(
 }
 
 export function confirmCustomerOrder(state: TlbState, orderId: string): MutResult<CustomerPurchaseOrder> {
+  const blocked = requirePerm(state, "orders.confirm");
+  if (blocked) return { ok: false, error: blocked };
   const next = cloneState(state);
   const order = next.orders.find((o) => o.id === orderId);
   if (!order) return { ok: false, error: "Order not found." };
@@ -320,6 +355,7 @@ export function confirmCustomerOrder(state: TlbState, orderId: string): MutResul
     summary: `Confirmed ${order.number}.`,
   });
   recomputeOrder(next, order.id);
+  refreshNotifications(next);
   return { ok: true, data: { state: next, data: order } };
 }
 
@@ -328,6 +364,8 @@ export function cancelOrderLine(
   orderLineId: string,
   reason: string,
 ): MutResult<CustomerOrderLine> {
+  const blocked = requirePerm(state, "orders.cancel_line");
+  if (blocked) return { ok: false, error: blocked };
   if (!reason.trim()) return { ok: false, error: "Cancellation reason is required." };
   const next = cloneState(state);
   const line = next.orderLines.find((l) => l.id === orderLineId);
@@ -340,6 +378,10 @@ export function cancelOrderLine(
     line.reservedQty -= release;
     const bal = next.stock.find((s) => s.productId === line.productId && s.warehouseId === line.warehouseId);
     if (bal) bal.reservedQty = Math.max(0, bal.reservedQty - release);
+    for (const res of next.reservations.filter((r) => r.orderLineId === line.id && !r.releasedAt)) {
+      res.releasedAt = new Date().toISOString();
+      res.releaseReason = "Line outstanding cancelled";
+    }
   }
 
   line.cancelledQty += outstanding;
@@ -356,6 +398,7 @@ export function cancelOrderLine(
   });
 
   recomputeOrder(next, line.orderId);
+  refreshNotifications(next);
   return { ok: true, data: { state: next, data: line } };
 }
 
@@ -364,7 +407,11 @@ export function reserveForOutstanding(
   productId: string,
   warehouseId: string,
   maxQty?: number,
+  expiresAt?: string,
 ): MutResult<{ reserved: number }> {
+  const blocked = requirePerm(state, "stock.reserve");
+  if (blocked) return { ok: false, error: blocked };
+
   const next = cloneState(state);
   const bal = next.stock.find((s) => s.productId === productId && s.warehouseId === warehouseId);
   if (!bal) return { ok: false, error: "Stock balance not found." };
@@ -377,10 +424,12 @@ export function reserveForOutstanding(
     .sort((a, b) => b.ageDays - a.ageDays);
 
   let reservedTotal = 0;
+  const now = new Date().toISOString();
   for (const row of candidates) {
     if (remaining <= 0) break;
     const line = next.orderLines.find((l) => l.id === row.lineId);
     if (!line) continue;
+    // No double-reserve beyond outstanding need
     const need = Math.max(0, calcOutstanding(line) - line.reservedQty);
     if (need <= 0) continue;
     const take = Math.min(need, remaining, calcAvailable(bal));
@@ -389,6 +438,16 @@ export function reserveForOutstanding(
     bal.reservedQty += take;
     remaining -= take;
     reservedTotal += take;
+    next.reservations.unshift({
+      id: uid("rsv"),
+      orderLineId: line.id,
+      productId,
+      warehouseId,
+      quantity: take,
+      reservedAt: now,
+      reservedBy: next.currentUser,
+      expiresAt,
+    });
   }
 
   if (reservedTotal > 0) {
@@ -400,9 +459,43 @@ export function reserveForOutstanding(
       meta: { reserved: reservedTotal, productId, warehouseId },
     });
     recomputeAllOpenOrders(next);
+    refreshNotifications(next);
   }
 
   return { ok: true, data: { state: next, data: { reserved: reservedTotal } } };
+}
+
+export function releaseReservation(
+  state: TlbState,
+  reservationId: string,
+  reason = "Released",
+): MutResult<{ released: number }> {
+  const blocked = requirePerm(state, "stock.reserve");
+  if (blocked) return { ok: false, error: blocked };
+
+  const next = cloneState(state);
+  const res = next.reservations.find((r) => r.id === reservationId);
+  if (!res) return { ok: false, error: "Reservation not found." };
+  if (res.releasedAt) return { ok: false, error: "Reservation already released." };
+
+  const line = next.orderLines.find((l) => l.id === res.orderLineId);
+  const bal = next.stock.find((s) => s.productId === res.productId && s.warehouseId === res.warehouseId);
+  const qty = res.quantity;
+  if (line) line.reservedQty = Math.max(0, line.reservedQty - qty);
+  if (bal) bal.reservedQty = Math.max(0, bal.reservedQty - qty);
+  res.releasedAt = new Date().toISOString();
+  res.releaseReason = reason;
+
+  pushAudit(next, {
+    action: "stock.released",
+    entityType: "stock_reservation",
+    entityId: res.id,
+    summary: `Released reservation of ${qty}: ${reason}`,
+    meta: { quantity: qty },
+  });
+  if (line) recomputeOrder(next, line.orderId);
+  refreshNotifications(next);
+  return { ok: true, data: { state: next, data: { released: qty } } };
 }
 
 export function receiveStock(
@@ -412,6 +505,8 @@ export function receiveStock(
   quantity: number,
   autoReserve = true,
 ): MutResult<StockBalance> {
+  const blocked = requirePerm(state, "stock.receive");
+  if (blocked) return { ok: false, error: blocked };
   if (!Number.isInteger(quantity) || quantity <= 0) {
     return { ok: false, error: "Receipt quantity must be a positive whole number." };
   }
@@ -442,6 +537,7 @@ export function receiveStock(
   } else {
     recomputeAllOpenOrders(next);
   }
+  refreshNotifications(next);
 
   const updated = next.stock.find((s) => s.productId === productId && s.warehouseId === warehouseId)!;
   return { ok: true, data: { state: next, data: updated } };
@@ -453,6 +549,8 @@ export function createSupply(
   lines: SupplyRequestLine[],
   notes?: string,
 ): MutResult<{ supplyId: string; number: string }> {
+  const blocked = requirePerm(state, "supply.create");
+  if (blocked) return { ok: false, error: blocked };
   if (!lines.length) return { ok: false, error: "Select at least one line to supply." };
 
   const next = cloneState(state);
@@ -505,6 +603,21 @@ export function createSupply(
     m.bal.physicalQty = Math.max(0, m.bal.physicalQty - m.qty);
     m.line.suppliedQty += m.qty;
 
+    // Consume active reservations for this line
+    let left = fromReserved;
+    for (const res of next.reservations.filter((r) => r.orderLineId === m.line.id && !r.releasedAt)) {
+      if (left <= 0) break;
+      const take = Math.min(res.quantity, left);
+      if (take >= res.quantity) {
+        res.releasedAt = now;
+        res.releaseReason = `Consumed by supply ${numbered.number}`;
+        left -= take;
+      } else {
+        res.quantity -= take;
+        left -= take;
+      }
+    }
+
     next.supplyLines.push({
       id: uid("sl"),
       supplyId,
@@ -524,15 +637,24 @@ export function createSupply(
   });
 
   recomputeOrder(next, orderId);
+  refreshNotifications(next);
   return { ok: true, data: { state: next, data: { supplyId, number: numbered.number } } };
 }
 
 export function markDelivered(state: TlbState, orderId: string): MutResult<CustomerPurchaseOrder> {
+  const blocked = requirePerm(state, "delivery.manage");
+  if (blocked) return { ok: false, error: blocked };
   const next = cloneState(state);
   const order = next.orders.find((o) => o.id === orderId);
   if (!order) return { ok: false, error: "Order not found." };
   if (order.status !== "Fully Supplied") {
-    return { ok: false, error: "Only fully supplied orders can be marked delivered." };
+    return { ok: false, error: "Only fully supplied orders can be marked delivered (outstanding must be cleared or cancelled formally)." };
+  }
+  const anyOutstanding = next.orderLines
+    .filter((l) => l.orderId === orderId)
+    .some((l) => calcOutstanding(l) > 0);
+  if (anyOutstanding) {
+    return { ok: false, error: "Cannot mark delivered while outstanding quantities remain." };
   }
   order.status = "Delivered";
   order.updatedAt = new Date().toISOString();
@@ -542,6 +664,7 @@ export function markDelivered(state: TlbState, orderId: string): MutResult<Custo
     entityId: order.id,
     summary: `Marked ${order.number} as Delivered.`,
   });
+  refreshNotifications(next);
   return { ok: true, data: { state: next, data: order } };
 }
 
@@ -549,7 +672,11 @@ export function updateAgeingSettings(
   state: TlbState,
   normalMaxDays: number,
   attentionMaxDays: number,
+  extendedUnfulfilledDays?: number,
+  expectedApproachingDays?: number,
 ): MutResult<TlbState["ageing"]> {
+  const blocked = requirePerm(state, "settings.manage");
+  if (blocked) return { ok: false, error: blocked };
   if (!Number.isInteger(normalMaxDays) || normalMaxDays < 0) {
     return { ok: false, error: "Normal max days must be a non-negative integer." };
   }
@@ -557,8 +684,107 @@ export function updateAgeingSettings(
     return { ok: false, error: "Attention max days must be >= normal max days." };
   }
   const next = cloneState(state);
-  next.ageing = { normalMaxDays, attentionMaxDays };
+  next.ageing = {
+    normalMaxDays,
+    attentionMaxDays,
+    extendedUnfulfilledDays: extendedUnfulfilledDays ?? next.ageing.extendedUnfulfilledDays,
+    expectedApproachingDays: expectedApproachingDays ?? next.ageing.expectedApproachingDays,
+  };
+  pushAudit(next, {
+    action: "settings.updated",
+    entityType: "app_settings",
+    entityId: "ageing",
+    summary: `Updated ageing thresholds (${normalMaxDays}/${attentionMaxDays}).`,
+  });
+  refreshNotifications(next);
   return { ok: true, data: { state: next, data: next.ageing } };
+}
+
+export function updateCompanyProfile(state: TlbState, company: CompanyProfile): MutResult<CompanyProfile> {
+  const blocked = requirePerm(state, "settings.manage");
+  if (blocked) return { ok: false, error: blocked };
+  const next = cloneState(state);
+  next.company = { ...company };
+  pushAudit(next, {
+    action: "settings.updated",
+    entityType: "app_settings",
+    entityId: "company",
+    summary: "Updated company profile for invoices.",
+  });
+  return { ok: true, data: { state: next, data: next.company } };
+}
+
+export function upsertVatRate(
+  state: TlbState,
+  input: Omit<VatRate, "id"> & { id?: string },
+): MutResult<VatRate> {
+  const blocked = requirePerm(state, "settings.manage");
+  if (blocked) return { ok: false, error: blocked };
+  if (!input.label.trim()) return { ok: false, error: "VAT rate label is required." };
+  if (!Number.isFinite(input.ratePercent) || input.ratePercent < 0) {
+    return { ok: false, error: "VAT rate percent must be a non-negative number (configure in settings)." };
+  }
+  const next = cloneState(state);
+  if (input.id) {
+    const idx = next.vatRates.findIndex((v) => v.id === input.id);
+    if (idx < 0) return { ok: false, error: "VAT rate not found." };
+    const updated: VatRate = {
+      id: input.id,
+      code: input.code,
+      label: input.label,
+      ratePercent: input.ratePercent,
+      active: input.active,
+    };
+    next.vatRates[idx] = updated;
+    pushAudit(next, {
+      action: "settings.updated",
+      entityType: "vat_rate",
+      entityId: updated.id,
+      summary: `Updated VAT rate ${updated.code} to ${updated.ratePercent}%.`,
+    });
+    return { ok: true, data: { state: next, data: updated } };
+  }
+  const created: VatRate = {
+    id: uid("vat"),
+    code: input.code,
+    label: input.label,
+    ratePercent: input.ratePercent,
+    active: input.active,
+  };
+  next.vatRates.push(created);
+  pushAudit(next, {
+    action: "settings.updated",
+    entityType: "vat_rate",
+    entityId: created.id,
+    summary: `Added VAT rate ${created.code} at ${created.ratePercent}%.`,
+  });
+  return { ok: true, data: { state: next, data: created } };
+}
+
+export function switchRole(state: TlbState, role: AppRole): MutResult<AppRole> {
+  const next = cloneState(state);
+  next.currentRole = role;
+  pushAudit(next, {
+    action: "role.switched",
+    entityType: "session",
+    entityId: "current",
+    summary: `Switched simulated role to ${role}.`,
+  });
+  return { ok: true, data: { state: next, data: role } };
+}
+
+export function markNotificationRead(state: TlbState, id: string): MutResult<null> {
+  const next = cloneState(state);
+  const n = next.notifications.find((x) => x.id === id);
+  if (!n) return { ok: false, error: "Notification not found." };
+  n.readAt = n.readAt ?? new Date().toISOString();
+  return { ok: true, data: { state: next, data: null } };
+}
+
+export function refreshOpsNotifications(state: TlbState): MutResult<number> {
+  const next = cloneState(state);
+  refreshNotifications(next);
+  return { ok: true, data: { state: next, data: next.notifications.length } };
 }
 
 export function orderValue(state: TlbState, orderId: string): number {
@@ -574,3 +800,16 @@ export function orderFulfilment(state: TlbState, orderId: string): number {
 export function formatMoney(amount: number): string {
   return `GH₵ ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+
+export function can(state: TlbState, permission: Permission): boolean {
+  return hasPermission(state.currentRole, permission);
+}
+
+// Re-export document mutations
+export {
+  createDeliveryFromSupply,
+  createInvoiceFromSupply,
+  createOrdinaryReceipt,
+  recordPayment,
+  updateDeliveryStatus,
+} from "./documents";
