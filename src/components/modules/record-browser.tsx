@@ -82,7 +82,7 @@ export function filterByPeriodDate(
   return isoInRange(dateIso, range);
 }
 
-/** Shared list←detail back control — purple/TLB styled, keyboard accessible. */
+/** Shared list←detail back control — high-contrast purple chip, keyboard accessible. */
 export function RecordBackLink({
   label,
   onBack,
@@ -116,20 +116,24 @@ export function RecordDetailHeader({
   actions?: ReactNode;
 }) {
   return (
-    <header className="tlb-record-detail-header tlb-customer-detail-header">
-      <RecordBackLink label={backLabel} onBack={onBack} />
-      <div className="tlb-record-detail-header-row tlb-customer-detail-header-row">
-        <div className="tlb-record-detail-identity tlb-customer-detail-identity">
-          {code ? <span className="tlb-record-detail-code tlb-customer-detail-code">{code}</span> : null}
-          <strong>{title}</strong>
-          {subtitle ? <p className="tlb-muted-line">{subtitle}</p> : null}
-        </div>
-        <div className="tlb-record-detail-actions tlb-customer-detail-actions">
-          {badges ? <div className="tlb-record-detail-badges tlb-customer-detail-badges">{badges}</div> : null}
-          {actions}
-        </div>
+    <>
+      <div className="tlb-record-back-bar">
+        <RecordBackLink label={backLabel} onBack={onBack} />
       </div>
-    </header>
+      <header className="tlb-record-detail-header tlb-customer-detail-header">
+        <div className="tlb-record-detail-header-row tlb-customer-detail-header-row">
+          <div className="tlb-record-detail-identity tlb-customer-detail-identity">
+            {code ? <span className="tlb-record-detail-code tlb-customer-detail-code">{code}</span> : null}
+            <strong>{title}</strong>
+            {subtitle ? <p className="tlb-muted-line">{subtitle}</p> : null}
+          </div>
+          <div className="tlb-record-detail-actions tlb-customer-detail-actions">
+            {badges ? <div className="tlb-record-detail-badges tlb-customer-detail-badges">{badges}</div> : null}
+            {actions}
+          </div>
+        </div>
+      </header>
+    </>
   );
 }
 
