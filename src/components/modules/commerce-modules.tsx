@@ -1515,7 +1515,7 @@ export function LiveSearchResults({
   store: TlbStoreApi;
   query: string;
   onOpenOrder: (id: string) => void;
-  onOpenNav: (nav: string) => void;
+  onOpenNav: (nav: string, entityId?: string) => void;
 }) {
   const q = query.trim();
   const hits = useMemo(() => globalSearch(store.state, q, 16), [q, store.state]);
@@ -1558,6 +1558,7 @@ export function LiveSearchResults({
           key={`${hit.kind}-${hit.id}`}
           onClick={() => {
             if (hit.orderId) onOpenOrder(hit.orderId);
+            else if (hit.kind === "Customer") onOpenNav(hit.nav, hit.id);
             else onOpenNav(hit.nav);
           }}
         >

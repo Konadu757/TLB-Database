@@ -238,6 +238,7 @@ export function TLBDashboard() {
   const [activeNav, setActiveNav] = useState("Dashboard");
   const [inspector, setInspector] = useState<Inspector | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [outstandingProductFilter, setOutstandingProductFilter] = useState<string | null>(null);
 
   const [isNavMobile, setIsNavMobile] = useState(false);
@@ -281,9 +282,15 @@ export function TLBDashboard() {
     [outstandingBadge, store.state.orders],
   );
 
-  const openLiveModule = (nav: string, orderId?: string | null, productId?: string | null) => {
+  const openLiveModule = (
+    nav: string,
+    orderId?: string | null,
+    productId?: string | null,
+    customerId?: string | null,
+  ) => {
     setActiveNav(nav);
     setSelectedOrderId(orderId ?? null);
+    setSelectedCustomerId(nav === "Customers" ? customerId ?? null : null);
     setOutstandingProductFilter(nav === "Outstanding Supplies" ? productId ?? null : null);
     setMobileOpen(false);
     setInspector(null);
@@ -844,7 +851,11 @@ export function TLBDashboard() {
 
           {commerceNav ? (
             activeNav === "Customers" ? (
-              <CustomersModule store={store} onOpenOrder={(id) => openLiveModule("Sales Orders", id)} />
+              <CustomersModule
+                store={store}
+                selectedCustomerId={selectedCustomerId}
+                onOpenOrder={(id) => openLiveModule("Sales Orders", id)}
+              />
             ) : activeNav === "Sales Orders" ? (
               <SalesOrdersModule
                 store={store}
@@ -1215,7 +1226,10 @@ export function TLBDashboard() {
                 store={store}
                 query={searchQuery}
                 onOpenOrder={(id) => openLiveModule("Sales Orders", id)}
-                onOpenNav={(nav) => openLiveModule(nav)}
+                onOpenNav={(nav, entityId) => {
+                  if (nav === "Customers") openLiveModule("Customers", null, null, entityId ?? null);
+                  else openLiveModule(nav);
+                }}
               />
             </div>
           </div>
