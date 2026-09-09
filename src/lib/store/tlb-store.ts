@@ -24,6 +24,7 @@ import type {
   CustomerPurchaseOrder,
   OutstandingRow,
   Permission,
+  Quotation,
   RoleDefinition,
   SoftDeleteFields,
   StockBalance,
@@ -361,6 +362,82 @@ export function upsertSupplier(
     summary: `Created supplier ${supplier.code} · ${supplier.name}.`,
   });
   return { ok: true, data: { state: next, data: supplier } };
+}
+
+export function createQuotation(
+  state: TlbState,
+  input: {
+    customerId?: string;
+    customerName: string;
+    contact?: string;
+    itemLabel: string;
+    qty: number;
+    unitPrice: number;
+    paymentTerms?: string;
+    notes?: string;
+    validDays?: number;
+    status?: "Draft" | "Sent";
+  },
+): MutResult<Quotation> {
+  const blocked = requirePerm(state, "quotations.view");
+  if (blocked) return { ok: false, error: blocked };
+
+  const customerName = input.customerName.trim();
+  const itemLabel = input.itemLabel.trim();
+  if (!customerName) return { ok: false, error: "Customer name is required." };
+  if (!itemLabel) return { ok: false, error: "Item / description is required." };
+  if (!Number.isFinite(input.qty) || input.qty <= 0) {
+    return { ok: false, error: "Quantity must be greater than zero." };
+  }
+  if (!Number.isFinite(input.unitPrice) || input.unitPrice < 0) {
+    return { ok: false, error: "Unit price must be zero or greater." };
+  }
+
+  const next = cloneState(state);
+  const numbered = nextDocumentNumber("quotation", next.counters);
+  next.counters = numbered.counters;
+
+  // Hard uniqueness guard — never reuse an existing quote number.
+  const used = new Set([
+    ...next.quotations.map((q) => q.number),
+  ]);
+  if (used.has(numbered.number)) {
+    return { ok: false, error: `Quote number ${numbered.number} already exists.` };
+  }
+
+  const now = new Date();
+  const quoteDate = now.toISOString();
+  const validDays = input.validDays && input.validDays > 0 ? input.validDays : 14;
+  const validUntil = new Date(now.getTime() + validDays * 24 * 60 * 60 * 1000).toISOString();
+  const amount = Math.round(input.qty * input.unitPrice * 100) / 100;
+
+  const quotation: Quotation = {
+    id: uid("qt"),
+    number: numbered.number,
+    customerName,
+    itemLabel,
+    qty: input.qty,
+    unitPrice: input.unitPrice,
+    amount,
+    paymentTerms: (input.paymentTerms?.trim() || "Net 30"),
+    status: input.status ?? "Draft",
+    quoteDate,
+    validUntil,
+    preparedBy: next.currentUser,
+    createdAt: quoteDate,
+    ...(input.customerId ? { customerId: input.customerId } : {}),
+    ...(input.contact?.trim() ? { contact: input.contact.trim() } : {}),
+    ...(input.notes?.trim() ? { notes: input.notes.trim() } : {}),
+  };
+
+  next.quotations.unshift(quotation);
+  pushAudit(next, {
+    action: "quotation.created",
+    entityType: "quotation",
+    entityId: quotation.id,
+    summary: `Created quotation ${quotation.number} for ${quotation.customerName}.`,
+  });
+  return { ok: true, data: { state: next, data: quotation } };
 }
 
 export function createCustomerOrder(
@@ -1171,7 +1248,7 @@ export function softDeleteRecord(
     if (next.catalogDeletions.some((d) => d.catalogId === input.entityId)) {
       return { ok: false, error: "Record is already in trash." };
     }
-    const deletion = buildCatalogDeletion(input.entityId, actor, reason);
+    const deletion = buildCatalogDeletion(input.entityId, actor, reason, next.quotations);
     if (!deletion) return { ok: false, error: "Catalog record not found." };
     next.catalogDeletions.unshift(deletion);
     summary = `Moved ${deletion.module} ${deletion.label} to trash.`;

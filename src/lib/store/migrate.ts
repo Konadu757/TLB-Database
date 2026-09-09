@@ -55,6 +55,7 @@ const DEFAULT_COUNTERS: DocumentCounters = {
   receipt: 0,
   delivery: 0,
   payment: 0,
+  quotation: 0,
 };
 
 function defaultUsers(roles: RoleDefinition[]): AppUser[] {
@@ -140,6 +141,7 @@ export function migrateState(raw: unknown): TlbState {
     receipt: parsed.counters?.receipt ?? 0,
     delivery: parsed.counters?.delivery ?? 0,
     payment: parsed.counters?.payment ?? 0,
+    quotation: parsed.counters?.quotation ?? 0,
   };
 
   const ageing: AgeingSettings = {
@@ -178,7 +180,7 @@ export function migrateState(raw: unknown): TlbState {
   const basePayments = needsCollectionSeed ? seed.payments : (parsed.payments ?? []);
 
   const next: TlbState = {
-    version: 7,
+    version: 8,
     warehouses: parsed.warehouses?.length ? parsed.warehouses : seed.warehouses,
     products: parsed.products?.length ? parsed.products : seed.products,
     stock: parsed.stock?.length ? parsed.stock : seed.stock,
@@ -200,6 +202,7 @@ export function migrateState(raw: unknown): TlbState {
     deliveries: parsed.deliveries ?? [],
     deliveryItems: parsed.deliveryItems ?? [],
     payments: needsPeriodSpanSeed ? mergeById(basePayments, seed.payments) : basePayments,
+    quotations: parsed.quotations ?? [],
     notifications: parsed.notifications ?? [],
     reservations: parsed.reservations ?? [],
     audit: parsed.audit ?? [],
@@ -220,6 +223,7 @@ export function migrateState(raw: unknown): TlbState {
             supplierPayment: Math.max(counters.supplierPayment, seed.counters.supplierPayment),
           }
         : {}),
+      quotation: Math.max(counters.quotation ?? 0, seed.counters.quotation ?? 0, parsed.quotations?.length ?? 0),
     },
     ageing,
     company: parsed.company ?? DEFAULT_COMPANY,

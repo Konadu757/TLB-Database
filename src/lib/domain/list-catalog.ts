@@ -46,6 +46,66 @@ function money(n: number): string {
   return `GHS ${n.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function formatQuoteDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  } catch {
+    return iso.slice(0, 10);
+  }
+}
+
+/** Map a stored quotation into the catalog list/detail shape. */
+export function quotationToCatalogRecord(q: {
+  id: string;
+  number: string;
+  customerName: string;
+  contact?: string;
+  itemLabel: string;
+  qty: number;
+  amount: number;
+  paymentTerms: string;
+  notes?: string;
+  status: string;
+  quoteDate: string;
+  validUntil: string;
+  preparedBy: string;
+}): CatalogRecord {
+  return {
+    id: q.id,
+    module: "Quotations",
+    primary: q.number,
+    secondary: `${q.customerName} · ${q.itemLabel}`,
+    status: q.status,
+    tone: q.status === "Draft" ? "warning" : q.status === "Sent" ? "info" : "neutral",
+    date: q.quoteDate,
+    searchText: `${q.number} ${q.customerName} ${q.itemLabel} ${q.status} ${q.contact ?? ""}`,
+    fields: [
+      { label: "Customer", value: q.customerName },
+      ...(q.contact ? [{ label: "Contact", value: q.contact }] : []),
+      { label: "Quote date", value: formatQuoteDate(q.quoteDate) },
+      { label: "Valid until", value: formatQuoteDate(q.validUntil) },
+      { label: "Prepared by", value: q.preparedBy },
+      { label: "Payment terms", value: q.paymentTerms },
+      ...(q.notes ? [{ label: "Notes", value: q.notes }] : []),
+    ],
+    summary: [
+      { label: "Total", value: money(q.amount), note: "ex-VAT" },
+      { label: "Lines", value: "1" },
+      { label: "Status", value: q.status },
+      { label: "Quote #", value: q.number },
+    ],
+    lines: [{ id: `${q.id}-line`, label: q.itemLabel, qty: q.qty, amount: q.amount }],
+    history: [
+      {
+        id: `${q.id}-created`,
+        at: q.quoteDate,
+        label: "Created",
+        detail: `Quotation ${q.number} opened`,
+      },
+    ],
+  };
+}
+
 /** Quotations with dates that diverge across Today / Week / Month / Quarter / Year. */
 export const QUOTATION_RECORDS: CatalogRecord[] = [
   {
@@ -704,9 +764,15 @@ export const MODULE_META: Record<
 export function recordsForModule(
   module: string,
   range?: DateRange | null,
-  opts?: { hideIds?: ReadonlySet<string> },
+  opts?: { hideIds?: ReadonlySet<string>; userQuotations?: ReadonlyArray<Parameters<typeof quotationToCatalogRecord>[0]> },
 ): CatalogRecord[] {
-  const source = module === "Quotations" ? QUOTATION_RECORDS : SANDBOX_RECORDS.filter((r) => r.module === module);
+  const source =
+    module === "Quotations"
+      ? [
+          ...(opts?.userQuotations ?? []).map(quotationToCatalogRecord),
+          ...QUOTATION_RECORDS,
+        ]
+      : SANDBOX_RECORDS.filter((r) => r.module === module);
   const hide = opts?.hideIds;
   const visible = hide?.size ? source.filter((r) => !hide.has(r.id)) : source;
   if (!range) return visible;
@@ -714,6 +780,11 @@ export function recordsForModule(
 }
 
 /** Lookup any catalog/sandbox record by id (quotations + ops sandbox modules). */
-export function findCatalogRecord(id: string): CatalogRecord | undefined {
+export function findCatalogRecord(
+  id: string,
+  userQuotations?: ReadonlyArray<Parameters<typeof quotationToCatalogRecord>[0]>,
+): CatalogRecord | undefined {
+  const fromUser = userQuotations?.find((q) => q.id === id);
+  if (fromUser) return quotationToCatalogRecord(fromUser);
   return QUOTATION_RECORDS.find((r) => r.id === id) ?? SANDBOX_RECORDS.find((r) => r.id === id);
 }

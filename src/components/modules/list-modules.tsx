@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Plus } from "lucide-react";
 
 import { MoveToTrashButton } from "@/components/modules/move-to-trash-button";
 import {
   RecordBrowser,
   type BrowserColumn,
 } from "@/components/modules/record-browser";
+import { Button } from "@/components/ui/button";
 import {
   MODULE_META,
   recordsForModule,
@@ -13,12 +15,16 @@ import {
 import type { DateRange } from "@/lib/domain/period-range";
 import { calcAvailable } from "@/lib/domain/calculations";
 import { catalogDeletionSet, catalogPurgedSet, notSoftDeleted } from "@/lib/domain/trash";
+import type { Quotation } from "@/lib/domain/types";
 import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
 
 type CatalogModuleProps = {
   range?: DateRange | null | undefined;
   periodLabel?: string | undefined;
   store?: TlbStoreApi;
+  startCreating?: boolean | undefined;
+  onStartCreatingConsumed?: (() => void) | undefined;
+  onCreatingChange?: ((open: boolean) => void) | undefined;
 };
 
 function formatWhen(iso: string): string {
@@ -39,12 +45,18 @@ function CatalogModule({
   periodLabel,
   listColumns,
   store,
+  toolbarExtra,
+  listExtra,
+  userQuotations,
 }: {
   module: string;
   range?: DateRange | null | undefined;
   periodLabel?: string | undefined;
   listColumns?: BrowserColumn<CatalogRecord>[];
   store?: TlbStoreApi;
+  toolbarExtra?: ReactNode;
+  listExtra?: ReactNode;
+  userQuotations?: readonly Quotation[];
 }) {
   const meta = MODULE_META[module] ?? {
     kicker: "TLB",
@@ -60,10 +72,18 @@ function CatalogModule({
   }, [store, store?.state.catalogDeletions, store?.state.catalogPurgedIds]);
 
   const rows = useMemo(
-    () => recordsForModule(module, range, hideIds ? { hideIds } : undefined),
+    () =>
+      recordsForModule(
+        module,
+        range,
+        {
+          ...(hideIds ? { hideIds } : {}),
+          ...(userQuotations ? { userQuotations } : {}),
+        },
+      ),
     // Depend on range bounds so period chip changes always refilter lists.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- range object identity is unstable
-    [module, range?.from, range?.to, hideIds],
+    [module, range?.from, range?.to, hideIds, userQuotations],
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -112,6 +132,8 @@ function CatalogModule({
       detailSubtitle={(row) => row.secondary}
       detailCode={(row) => row.primary}
       {...(periodLabel ? { periodLabel } : {})}
+      {...(toolbarExtra !== undefined ? { toolbarExtra } : {})}
+      {...(listExtra !== undefined ? { listExtra } : {})}
       {...(store
         ? {
             trash: { store, entityType: "catalog" as const },
@@ -199,13 +221,196 @@ const quotationColumns: BrowserColumn<CatalogRecord>[] = [
 ];
 
 export function QuotationsModule(props: CatalogModuleProps) {
+  const store = props.store;
+  const startCreating = props.startCreating;
+  const onStartCreatingConsumed = props.onStartCreatingConsumed;
+  const onCreatingChange = props.onCreatingChange;
+
+  const [creating, setCreating] = useState(false);
+  const [customerId, setCustomerId] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [contact, setContact] = useState("");
+  const [itemLabel, setItemLabel] = useState("");
+  const [qty, setQty] = useState("1");
+  const [unitPrice, setUnitPrice] = useState("0");
+  const [paymentTerms, setPaymentTerms] = useState("Net 30");
+  const [notes, setNotes] = useState("");
+  const [previewNumber, setPreviewNumber] = useState<string | null>(null);
+
+  const openCreate = useCallback(() => {
+    setCreating(true);
+    onCreatingChange?.(true);
+    if (store) {
+      const next = (store.state.counters.quotation ?? 0) + 1;
+      const now = new Date();
+      const yy = String(now.getFullYear()).slice(-2);
+      const mm = String(now.getMonth() + 1).padStart(2, "0");
+      setPreviewNumber(`TLB-QTE-${yy}${mm}-${String(next).padStart(5, "0")}`);
+      const first = notSoftDeleted(store.state.customers).find((c) => c.active);
+      if (first) {
+        setCustomerId(first.id);
+        setCustomerName(first.name);
+        setContact([first.contactName, first.email].filter(Boolean).join(" · "));
+        setPaymentTerms(first.paymentTerms || "Net 30");
+      } else {
+        setCustomerId("");
+        setCustomerName("");
+        setContact("");
+      }
+    }
+  }, [onCreatingChange, store]);
+
+  const closeCreate = useCallback(() => {
+    setCreating(false);
+    onCreatingChange?.(false);
+  }, [onCreatingChange]);
+
+  useEffect(() => {
+    if (!startCreating) return;
+    openCreate();
+    onStartCreatingConsumed?.();
+  }, [startCreating, openCreate, onStartCreatingConsumed]);
+
+  useEffect(() => {
+    return () => onCreatingChange?.(false);
+  }, [onCreatingChange]);
+
+  const customers = store ? notSoftDeleted(store.state.customers).filter((c) => c.active) : [];
+
   return (
     <CatalogModule
       module="Quotations"
       listColumns={quotationColumns}
       {...(props.range !== undefined ? { range: props.range } : {})}
       {...(props.periodLabel !== undefined ? { periodLabel: props.periodLabel } : {})}
-      {...(props.store ? { store: props.store } : {})}
+      {...(store ? { store } : {})}
+      {...(store ? { userQuotations: store.state.quotations } : {})}
+      toolbarExtra={
+        store ? (
+          <Button type="button" onClick={() => (creating ? closeCreate() : openCreate())}>
+            <Plus /> {creating ? "Close form" : "New quotation"}
+          </Button>
+        ) : null
+      }
+      listExtra={
+        creating && store ? (
+          <article className="tlb-panel tlb-form-panel tlb-record-detail-section tlb-record-detail-section--profile">
+            <form
+              className="tlb-form-grid"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const ok = store.createQuotation({
+                  customerName,
+                  itemLabel,
+                  qty: Number(qty),
+                  unitPrice: Number(unitPrice),
+                  paymentTerms,
+                  ...(customerId ? { customerId } : {}),
+                  ...(contact.trim() ? { contact: contact.trim() } : {}),
+                  ...(notes.trim() ? { notes: notes.trim() } : {}),
+                });
+                if (ok) {
+                  setItemLabel("");
+                  setQty("1");
+                  setUnitPrice("0");
+                  setNotes("");
+                  closeCreate();
+                }
+              }}
+            >
+              <div className="tlb-panel-heading">
+                <div>
+                  <span>Commercial quotation</span>
+                  <strong>New quotation{previewNumber ? ` · ${previewNumber}` : ""}</strong>
+                </div>
+                <button type="button" onClick={closeCreate}>
+                  Cancel
+                </button>
+              </div>
+              <label>
+                Customer
+                <select
+                  value={customerId}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setCustomerId(id);
+                    const c = customers.find((row) => row.id === id);
+                    if (c) {
+                      setCustomerName(c.name);
+                      setContact([c.contactName, c.email].filter(Boolean).join(" · "));
+                      setPaymentTerms(c.paymentTerms || "Net 30");
+                    } else {
+                      setCustomerName("");
+                    }
+                  }}
+                >
+                  <option value="">Custom / walk-in</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.code} · {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Customer name
+                <input
+                  required
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Customer or company"
+                />
+              </label>
+              <label>
+                Contact
+                <input value={contact} onChange={(e) => setContact(e.target.value)} placeholder="Name · email" />
+              </label>
+              <label>
+                Payment terms
+                <input value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} />
+              </label>
+              <label className="tlb-span-2">
+                Item / description
+                <input
+                  required
+                  value={itemLabel}
+                  onChange={(e) => setItemLabel(e.target.value)}
+                  placeholder="Product or package being quoted"
+                />
+              </label>
+              <label>
+                Qty
+                <input
+                  required
+                  type="number"
+                  min={0.01}
+                  step="any"
+                  value={qty}
+                  onChange={(e) => setQty(e.target.value)}
+                />
+              </label>
+              <label>
+                Unit price (GHS)
+                <input
+                  required
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={unitPrice}
+                  onChange={(e) => setUnitPrice(e.target.value)}
+                />
+              </label>
+              <label className="tlb-span-2">
+                Notes
+                <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" />
+              </label>
+              <div className="tlb-form-actions tlb-span-2">
+                <Button type="submit">Save quotation</Button>
+              </div>
+            </form>
+          </article>
+        ) : null
+      }
     />
   );
 }

@@ -150,8 +150,9 @@ export function buildCatalogDeletion(
   catalogId: string,
   actor: string,
   reason?: string,
+  userQuotations?: TlbState["quotations"],
 ): CatalogDeletion | null {
-  const record = findCatalogRecord(catalogId);
+  const record = findCatalogRecord(catalogId, userQuotations);
   if (!record) return null;
   return {
     catalogId: record.id,

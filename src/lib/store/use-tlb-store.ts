@@ -10,6 +10,7 @@ import {
   createDeliveryFromSupply,
   createInvoiceFromSupply,
   createOrdinaryReceipt,
+  createQuotation,
   createRole,
   createSupply,
   deactivateRole,
@@ -105,6 +106,8 @@ export function useTlbStore() {
       apply((s) => upsertSupplier(s, input), "Supplier saved."),
     createOrder: (input: Parameters<typeof createCustomerOrder>[1]) =>
       apply((s) => createCustomerOrder(s, input), "Customer order created."),
+    createQuotation: (input: Parameters<typeof createQuotation>[1]) =>
+      apply((s) => createQuotation(s, input), "Quotation created."),
     confirmOrder: (orderId: string) =>
       apply((s) => confirmCustomerOrder(s, orderId), "Order confirmed."),
     cancelLine: (lineId: string, reason: string) =>

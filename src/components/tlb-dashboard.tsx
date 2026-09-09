@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -218,6 +218,9 @@ function TLBDashboardInner() {
   const [outstandingProductFilter, setOutstandingProductFilter] = useState<string | null>(null);
   const [moduleFocusId, setModuleFocusId] = useState<string | null>(null);
   const [orderReturnNav, setOrderReturnNav] = useState<string | null>(null);
+  const [quoteCreateRequest, setQuoteCreateRequest] = useState(false);
+  const [quoteFormOpen, setQuoteFormOpen] = useState(false);
+  const clearQuoteCreateRequest = useCallback(() => setQuoteCreateRequest(false), []);
 
   const [isNavMobile, setIsNavMobile] = useState(false);
   const sidebarOpenRef = useRef(sidebarOpen);
@@ -340,6 +343,7 @@ function TLBDashboardInner() {
     activeNav === "Settings";
 
   const showPeriodBar = PERIOD_SCOPED_NAV.has(activeNav);
+  const overlayOpen = quickOpen || quoteFormOpen;
   const listRange = useMemo(
     () => resolveSelectionRange(rangeSelection, DEMO_AS_OF),
     [rangeSelection],
@@ -763,10 +767,10 @@ function TLBDashboardInner() {
           </div>
         </header>
 
-        <main className={cn("tlb-content", detailOpen && "tlb-content--detail-open")}>
+        <main className={cn("tlb-content", detailOpen && "tlb-content--detail-open", overlayOpen && "tlb-content--overlay-open")}>
           <div className="tlb-breadcrumb"><span>TLB Enterprise</span><ChevronRight /><span>{activeNav === "Dashboard" ? "Executive Dashboard" : activeNav}</span></div>
           {!detailOpen && (
-          <div className="tlb-page-heading">
+          <div className={cn("tlb-page-heading", quickOpen && "tlb-page-heading--overlay-open")}>
             <div>
               <p className="tlb-eyebrow">Wednesday, 09 September 2026 · {periodCaption} · {warehouse}</p>
               <h1>{activeNav === "Dashboard" ? `Good evening, ${firstName(store.state.currentUser)}` : activeNav}</h1>
@@ -802,7 +806,7 @@ function TLBDashboardInner() {
                     role="menu"
                     aria-label="Quick actions"
                   >
-                    {["Create customer order", "Receive goods", "View outstanding supplies", "Create invoice", "Reset Phase 30 demo"].map(
+                    {["Create quotation", "Create customer order", "Receive goods", "View outstanding supplies", "Create invoice", "Reset Phase 30 demo"].map(
                       (action) => (
                         <button
                           type="button"
@@ -810,7 +814,10 @@ function TLBDashboardInner() {
                           key={action}
                           onClick={() => {
                             setQuickOpen(false);
-                            if (action === "Create customer order") openLiveModule("Sales Orders");
+                            if (action === "Create quotation") {
+                              setQuoteCreateRequest(true);
+                              openLiveModule("Quotations");
+                            } else if (action === "Create customer order") openLiveModule("Sales Orders");
                             else if (action === "Receive goods") openLiveModule("Stock");
                             else if (action === "View outstanding supplies") openLiveModule("Outstanding Supplies");
                             else if (action === "Create invoice") openLiveModule("Finance");
@@ -917,7 +924,14 @@ function TLBDashboardInner() {
                 onSelectSupplier={setSelectedSupplierId}
               />
             ) : activeNav === "Quotations" ? (
-              <QuotationsModule range={listRange} periodLabel={listPeriodLabel} store={store} />
+              <QuotationsModule
+                range={listRange}
+                periodLabel={listPeriodLabel}
+                store={store}
+                startCreating={quoteCreateRequest}
+                onStartCreatingConsumed={clearQuoteCreateRequest}
+                onCreatingChange={setQuoteFormOpen}
+              />
             ) : activeNav === "Sales Orders" ? (
               <SalesOrdersModule
                 store={store}

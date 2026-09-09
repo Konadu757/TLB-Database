@@ -105,6 +105,7 @@ export type AuditAction =
   | "supplier.created"
   | "supplier.updated"
   | "order.created"
+  | "quotation.created"
   | "order.status_changed"
   | "order.confirmed"
   | "order.cancelled"
@@ -528,6 +529,27 @@ export interface DocumentCounters {
   receipt: number;
   delivery: number;
   payment: number;
+  quotation: number;
+}
+
+/** User-created commercial quotations (unique TLB-QTE numbers). */
+export interface Quotation {
+  id: string;
+  number: string;
+  customerId?: string;
+  customerName: string;
+  contact?: string;
+  itemLabel: string;
+  qty: number;
+  unitPrice: number;
+  amount: number;
+  paymentTerms: string;
+  notes?: string;
+  status: "Draft" | "Sent";
+  quoteDate: string;
+  validUntil: string;
+  preparedBy: string;
+  createdAt: string;
 }
 
 export interface TlbState {
@@ -551,6 +573,7 @@ export interface TlbState {
   deliveries: Delivery[];
   deliveryItems: DeliveryItem[];
   payments: Payment[];
+  quotations: Quotation[];
   notifications: AppNotification[];
   reservations: StockReservation[];
   audit: AuditEvent[];

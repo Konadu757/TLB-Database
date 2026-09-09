@@ -13,9 +13,10 @@ export type DocumentKind =
   | "invoice"
   | "receipt"
   | "delivery"
-  | "payment";
+  | "payment"
+  | "quotation";
 
-/** Document numbering — TLB-ORD / TLB-SUP / TLB-CUS / TLB-VEN / TLB-PO / TLB-GRN / TLB-SPAY / … */
+/** Document numbering — TLB-ORD / TLB-QTE / TLB-SUP / TLB-CUS / TLB-VEN / TLB-PO / TLB-GRN / TLB-SPAY / … */
 export function nextDocumentNumber(
   kind: DocumentKind,
   counters: DocumentCounters,
@@ -28,6 +29,10 @@ export function nextDocumentNumber(
   if (kind === "order") {
     next.order += 1;
     return { number: `TLB-ORD-${yy}${mm}-${pad(next.order)}`, counters: next };
+  }
+  if (kind === "quotation") {
+    next.quotation += 1;
+    return { number: `TLB-QTE-${yy}${mm}-${pad(next.quotation)}`, counters: next };
   }
   if (kind === "supply") {
     next.supply += 1;
