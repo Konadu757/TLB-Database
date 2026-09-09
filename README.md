@@ -27,12 +27,15 @@ npm run preview
 
 ## Environment Variables
 
-Create a `.env` file with:
+Create a `.env` file (see `.env.example`):
 
 ```
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
+VITE_TLB_USE_SUPABASE=1
 SUPABASE_URL=your_supabase_url
 SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ```
+
+Live domain sync details: `src/lib/repo/README.md`.

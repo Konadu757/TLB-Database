@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { AppRole, DeliveryStatus, Permission, TlbState } from "@/lib/domain/types";
+import { createTlbRepository } from "@/lib/repo/tlb-repository";
 import { can as canPerm } from "@/lib/store/tlb-store";
 import {
   assignUserRole,
@@ -27,7 +28,6 @@ import {
   reserveForOutstanding,
   resetToSeed,
   restoreTrashItem,
-  saveState,
   softDeleteRecord,
   switchRole,
   switchSessionUser,
@@ -65,21 +65,63 @@ type MutFn = (state: TlbState) =>
   | { ok: true; data: { state: TlbState; data: unknown } }
   | { ok: false; error: string };
 
+const SAVE_DEBOUNCE_MS = 450;
+
 export function useTlbStore() {
+  const repo = useMemo(() => createTlbRepository(), []);
   const [state, setState] = useState<TlbState>(() => loadState());
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [persistError, setPersistError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipNextPersist = useRef(true);
 
   useEffect(() => {
-    setState(loadState());
-    setHydrated(true);
-  }, []);
+    let cancelled = false;
+    (async () => {
+      try {
+        const loaded = await repo.load();
+        if (cancelled) return;
+        skipNextPersist.current = true;
+        setState(loaded);
+        setHydrated(true);
+      } catch (err) {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : String(err);
+        setPersistError(`Failed to load from ${repo.backend}: ${message}`);
+        setState(loadState());
+        setHydrated(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [repo]);
 
   useEffect(() => {
     if (!hydrated) return;
-    saveState(state);
-  }, [state, hydrated]);
+    if (skipNextPersist.current) {
+      skipNextPersist.current = false;
+      return;
+    }
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      setSaving(true);
+      void repo
+        .save(state)
+        .then(() => setPersistError(null))
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
+          setPersistError(`Save to ${repo.backend} failed: ${message}`);
+        })
+        .finally(() => setSaving(false));
+    }, SAVE_DEBOUNCE_MS);
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, [state, hydrated, repo]);
 
   const apply = useCallback((fn: MutFn, successMessage?: string) => {
     setError(null);
@@ -106,18 +148,27 @@ export function useTlbStore() {
   return {
     state,
     hydrated,
-    error,
+    saving,
+    backend: repo.backend,
+    error: error ?? persistError,
     notice,
+    persistError,
     clearMessages: () => {
       setError(null);
       setNotice(null);
+      setPersistError(null);
     },
     outstanding,
     can: (permission: Permission) => canPerm(state, permission),
     resetDemo: () => {
       const seed = resetToSeed();
+      skipNextPersist.current = false;
       setState(seed);
-      setNotice("Demo reset to Phase 30 Chemical A/B starting stock.");
+      setNotice(
+        repo.backend === "supabase"
+          ? "Demo reset locally — next save will upsert seed into Supabase (does not truncate other rows first)."
+          : "Demo reset to Phase 30 Chemical A/B starting stock.",
+      );
       setError(null);
     },
     saveCustomer: (input: Parameters<typeof upsertCustomer>[1]) =>

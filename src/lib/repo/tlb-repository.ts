@@ -1,15 +1,17 @@
 /**
  * Repository boundary for live Supabase wiring.
  *
- * Current runtime: LocalTlbRepository (localStorage via tlb-store).
- * To switch: implement SupabaseTlbRepository against migrations in
- * supabase/migrations/, then swap createTlbRepository() below.
+ * Runtime:
+ * - LocalTlbRepository when Supabase is disabled / credentials missing
+ * - SupabaseTlbRepository (hybrid) when VITE_SUPABASE_URL + key + VITE_TLB_USE_SUPABASE=1
  *
  * Do not destroy production data when applying migrations — use additive SQL only.
  */
 
+import { supabase } from "@/integrations/supabase/client";
 import type { TlbState } from "../domain/types";
 import { loadState, saveState } from "../store/tlb-store";
+import { SupabaseTlbRepository } from "./supabase-tlb-repository";
 
 export interface TlbRepository {
   load(): Promise<TlbState>;
@@ -27,16 +29,45 @@ export class LocalTlbRepository implements TlbRepository {
   }
 }
 
+function envFlag(name: string): string | undefined {
+  try {
+    const vite = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
+    return vite?.[name] ?? (typeof process !== "undefined" ? process.env?.[name] : undefined);
+  } catch {
+    return typeof process !== "undefined" ? process.env?.[name] : undefined;
+  }
+}
+
+/** True when URL + publishable key exist and the feature flag is enabled. */
+export function shouldUseSupabaseRepository(): boolean {
+  const url = envFlag("VITE_SUPABASE_URL") || envFlag("SUPABASE_URL");
+  const key = envFlag("VITE_SUPABASE_PUBLISHABLE_KEY") || envFlag("SUPABASE_PUBLISHABLE_KEY");
+  const flag = (envFlag("VITE_TLB_USE_SUPABASE") || envFlag("TLB_USE_SUPABASE") || "1").toLowerCase();
+  if (!url || !key) return false;
+  // Default ON when credentials exist; set VITE_TLB_USE_SUPABASE=0 to force local.
+  return flag !== "0" && flag !== "false" && flag !== "off";
+}
+
+let cached: TlbRepository | null = null;
+
 /**
- * Placeholder for live wiring. Tables: invoices, invoice_lines, receipts,
- * receipt_lines, deliveries, delivery_items, notifications, payments,
- * stock_reservations, vat_rates, company_profile (+ existing P0 tables).
- *
- * Enable when SUPABASE_URL is set AND migrations have been applied:
- *   return new SupabaseTlbRepository(createClient(...))
+ * Returns the active repository. Prefers live Supabase when configured.
  */
 export function createTlbRepository(): TlbRepository {
-  // Credentials exist in .env but live table sync is not enabled until
-  // migrations are applied in the Supabase project. Keep local store.
-  return new LocalTlbRepository();
+  if (cached) return cached;
+  if (shouldUseSupabaseRepository()) {
+    try {
+      cached = new SupabaseTlbRepository(supabase);
+      return cached;
+    } catch (err) {
+      console.error("[createTlbRepository] Supabase client failed, using local store:", err);
+    }
+  }
+  cached = new LocalTlbRepository();
+  return cached;
+}
+
+/** Test helper — clear singleton between tests. */
+export function resetTlbRepositoryCache(): void {
+  cached = null;
 }

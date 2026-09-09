@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test:domain": "npx --yes tsx scripts/phase30-verify.ts"
+    "test:domain": "npx --yes tsx scripts/phase30-verify.ts",
+    "test:repo": "npx --yes tsx scripts/repo-verify.ts"
   },
   "overrides": {
     "rolldown": "1.2.1"
