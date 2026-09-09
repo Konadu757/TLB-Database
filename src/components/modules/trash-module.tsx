@@ -1,6 +1,12 @@
 import { useMemo, useState } from "react";
 import { RotateCcw, Trash2 } from "lucide-react";
 
+import {
+  BulkPurgeMixedToolbar,
+  SelectAllHeader,
+  SelectRowCell,
+  useListSelection,
+} from "@/components/modules/list-bulk-trash";
 import { TrashConfirmDialog } from "@/components/modules/trash-confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { listTrashItems } from "@/lib/domain/trash";
@@ -49,6 +55,12 @@ export function TrashModule({ store }: { store: TlbStoreApi }) {
   const canRestore = store.can("records.delete");
   const canPurge = store.can("trash.purge");
   const [purgeTarget, setPurgeTarget] = useState<TrashListItem | null>(null);
+  const itemIds = useMemo(() => items.map((i) => i.id), [items]);
+  const selection = useListSelection(canPurge ? itemIds : []);
+  const selectedItems = useMemo(
+    () => items.filter((i) => selection.selectedIds.includes(i.id)),
+    [items, selection.selectedIds],
+  );
 
   if (!store.can("trash.view")) {
     return <EmptyState title="Trash restricted" detail="Your role cannot view the trash." />;
@@ -61,6 +73,18 @@ export function TrashModule({ store }: { store: TlbStoreApi }) {
         <div>
           <span className="tlb-eyebrow">Control</span>
           <strong>Trash</strong>
+        </div>
+        <div className="tlb-toolbar-actions">
+          {canPurge ? (
+            <BulkPurgeMixedToolbar
+              store={store}
+              items={selectedItems.map((i) => ({
+                entityType: i.entityType,
+                entityId: i.entityId,
+              }))}
+              onDone={selection.clear}
+            />
+          ) : null}
         </div>
       </div>
 
@@ -75,6 +99,13 @@ export function TrashModule({ store }: { store: TlbStoreApi }) {
             <table>
               <thead>
                 <tr>
+                  {canPurge ? (
+                    <SelectAllHeader
+                      allSelected={selection.allVisibleSelected}
+                      someSelected={selection.someVisibleSelected}
+                      onToggle={selection.toggleAllVisible}
+                    />
+                  ) : null}
                   <th>Type</th>
                   <th>Name / ref</th>
                   <th>Deleted by</th>
@@ -86,7 +117,18 @@ export function TrashModule({ store }: { store: TlbStoreApi }) {
               </thead>
               <tbody>
                 {items.map((item) => (
-                  <tr key={item.id}>
+                  <tr
+                    key={item.id}
+                    className={selection.isSelected(item.id) ? "tlb-row-selected" : undefined}
+                  >
+                    {canPurge ? (
+                      <SelectRowCell
+                        id={item.id}
+                        checked={selection.isSelected(item.id)}
+                        onToggle={selection.toggle}
+                        label={`Select ${item.label}`}
+                      />
+                    ) : null}
                     <td>
                       <strong>{item.typeLabel}</strong>
                     </td>
@@ -137,6 +179,7 @@ export function TrashModule({ store }: { store: TlbStoreApi }) {
         {items.length > 0 ? (
           <div className="tlb-list-meta">
             {items.length} item{items.length === 1 ? "" : "s"} in trash
+            {selection.count > 0 ? ` · ${selection.count} selected` : ""}
           </div>
         ) : null}
       </article>

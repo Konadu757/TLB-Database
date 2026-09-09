@@ -1,8 +1,17 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { ChevronRight, Search } from "lucide-react";
 
+import { useRegisterDetailBack } from "@/components/modules/detail-back-context";
+import {
+  BulkTrashToolbar,
+  SelectAllHeader,
+  SelectRowCell,
+  useListSelection,
+} from "@/components/modules/list-bulk-trash";
 import type { DateRange } from "@/lib/domain/period-range";
 import { isoInRange } from "@/lib/domain/period-range";
+import type { TrashEntityType } from "@/lib/domain/types";
+import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
 
 export type RecordTone = "success" | "warning" | "info" | "danger" | "neutral";
 
@@ -90,11 +99,22 @@ export function RecordBackLink({
   label: string;
   onBack: () => void;
 }) {
+  const text = label.toLowerCase().startsWith("back to ") ? label : `Back to ${label}`;
   return (
-    <button type="button" className="tlb-record-back" onClick={onBack} aria-label={`Back to ${label}`}>
+    <button type="button" className="tlb-record-back" onClick={onBack} aria-label={text}>
       <span aria-hidden="true">←</span>
-      <span>{label}</span>
+      <span>{text}</span>
     </button>
+  );
+}
+
+/** Registers header back + renders sticky in-page back (not-found / edit fallbacks). */
+export function DetailBackChrome({ label, onBack }: { label: string; onBack: () => void }) {
+  useRegisterDetailBack(label, onBack);
+  return (
+    <div className="tlb-record-back-bar" data-tlb-detail-back>
+      <RecordBackLink label={label} onBack={onBack} />
+    </div>
   );
 }
 
@@ -115,9 +135,10 @@ export function RecordDetailHeader({
   badges?: ReactNode;
   actions?: ReactNode;
 }) {
+  useRegisterDetailBack(backLabel, onBack);
   return (
     <>
-      <div className="tlb-record-back-bar">
+      <div className="tlb-record-back-bar" data-tlb-detail-back>
         <RecordBackLink label={backLabel} onBack={onBack} />
       </div>
       <header className="tlb-record-detail-header tlb-customer-detail-header">
@@ -235,6 +256,7 @@ export function RecordBrowser<T extends { id: string }>({
   toolbarExtra,
   listExtra,
   detailActions,
+  trash,
 }: {
   kicker: string;
   title: string;
@@ -261,12 +283,20 @@ export function RecordBrowser<T extends { id: string }>({
   toolbarExtra?: ReactNode;
   listExtra?: ReactNode;
   detailActions?: (row: T) => ReactNode;
+  trash?: {
+    store: TlbStoreApi;
+    entityType: TrashEntityType;
+  };
 }) {
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
     return rows.filter((row) => matchesSearch(getSearchValues(row), search));
   }, [rows, search, getSearchValues]);
+
+  const filteredIds = useMemo(() => filtered.map((r) => r.id), [filtered]);
+  const canBulkTrash = Boolean(trash && trash.store.can("records.delete"));
+  const selection = useListSelection(canBulkTrash ? filteredIds : []);
 
   const selected = rows.find((r) => r.id === selectedId) ?? null;
   const hasSearch = search.trim().length > 0;
@@ -276,9 +306,7 @@ export function RecordBrowser<T extends { id: string }>({
       return (
         <div className="tlb-module">
           <EmptyState title="Record not found" detail="The selected record is no longer available." />
-          <div style={{ marginTop: 12 }}>
-            <RecordBackLink label={backLabel ?? title} onBack={onBack} />
-          </div>
+          <DetailBackChrome label={backLabel ?? title} onBack={onBack} />
         </div>
       );
     }
@@ -383,6 +411,14 @@ export function RecordBrowser<T extends { id: string }>({
               aria-label={searchAriaLabel}
             />
           </label>
+          {canBulkTrash && trash ? (
+            <BulkTrashToolbar
+              store={trash.store}
+              entityType={trash.entityType}
+              selectedIds={selection.selectedIds}
+              onDone={selection.clear}
+            />
+          ) : null}
           {toolbarExtra}
         </div>
       </div>
@@ -399,6 +435,13 @@ export function RecordBrowser<T extends { id: string }>({
             <table className="tlb-customers-table">
               <thead>
                 <tr>
+                  {canBulkTrash ? (
+                    <SelectAllHeader
+                      allSelected={selection.allVisibleSelected}
+                      someSelected={selection.someVisibleSelected}
+                      onToggle={selection.toggleAllVisible}
+                    />
+                  ) : null}
                   {columns.map((col) => (
                     <th key={col.key} className={col.className}>
                       {col.header}
@@ -416,7 +459,7 @@ export function RecordBrowser<T extends { id: string }>({
                   return (
                     <tr
                       key={row.id}
-                      className="tlb-row-clickable"
+                      className={`tlb-row-clickable${selection.isSelected(row.id) ? " tlb-row-selected" : ""}`}
                       tabIndex={0}
                       onClick={() => onSelect(row.id)}
                       onKeyDown={(e) => {
@@ -426,6 +469,14 @@ export function RecordBrowser<T extends { id: string }>({
                         }
                       }}
                     >
+                      {canBulkTrash ? (
+                        <SelectRowCell
+                          id={row.id}
+                          checked={selection.isSelected(row.id)}
+                          onToggle={selection.toggle}
+                          label={`Select ${detailTitle(row)}`}
+                        />
+                      ) : null}
                       {columns.map((col) => (
                         <td key={col.key} className={col.className}>
                           {col.render(row)}
@@ -458,11 +509,15 @@ export function RecordBrowser<T extends { id: string }>({
         {hasSearch && filtered.length > 0 ? (
           <div className="tlb-list-meta">
             Showing {filtered.length} of {rows.length} records
+            {selection.count > 0 ? ` · ${selection.count} selected` : ""}
           </div>
         ) : periodLabel && rows.length > 0 ? (
           <div className="tlb-list-meta">
             {rows.length} record{rows.length === 1 ? "" : "s"} in period
+            {selection.count > 0 ? ` · ${selection.count} selected` : ""}
           </div>
+        ) : selection.count > 0 ? (
+          <div className="tlb-list-meta">{selection.count} selected</div>
         ) : null}
       </article>
     </div>

@@ -2,11 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, Plus, Search, X } from "lucide-react";
 
 import {
-  RecordBackLink,
+  BulkTrashToolbar,
+  SelectAllHeader,
+  SelectRowCell,
+  useListSelection,
+} from "@/components/modules/list-bulk-trash";
+import {
   RecordDetailPage,
   RecordDetailSection,
   StatusBadge,
   EmptyState,
+  DetailBackChrome,
 } from "@/components/modules/record-browser";
 import { MoveToTrashButton } from "@/components/modules/move-to-trash-button";
 import { Button } from "@/components/ui/button";
@@ -247,6 +253,9 @@ export function SuppliersModule({
   }
 
   const hasSearch = search.trim().length > 0;
+  const canBulkTrash = store.can("records.delete");
+  const filteredIds = useMemo(() => filteredSuppliers.map((s) => s.id), [filteredSuppliers]);
+  const selection = useListSelection(canBulkTrash ? filteredIds : []);
 
   return (
     <div className="tlb-module">
@@ -268,6 +277,14 @@ export function SuppliersModule({
               aria-label="Search suppliers"
             />
           </label>
+          {canBulkTrash ? (
+            <BulkTrashToolbar
+              store={store}
+              entityType="supplier"
+              selectedIds={selection.selectedIds}
+              onDone={selection.clear}
+            />
+          ) : null}
           <Button
             type="button"
             onClick={() => {
@@ -354,6 +371,13 @@ export function SuppliersModule({
             <table className="tlb-customers-table">
               <thead>
                 <tr>
+                  {canBulkTrash ? (
+                    <SelectAllHeader
+                      allSelected={selection.allVisibleSelected}
+                      someSelected={selection.someVisibleSelected}
+                      onToggle={selection.toggleAllVisible}
+                    />
+                  ) : null}
                   <th className="tlb-col-priority">Code</th>
                   <th className="tlb-col-priority">Supplier</th>
                   <th className="tlb-col-contact">Phone / email</th>
@@ -372,7 +396,7 @@ export function SuppliersModule({
                   return (
                     <tr
                       key={s.id}
-                      className="tlb-row-clickable"
+                      className={`tlb-row-clickable${selection.isSelected(s.id) ? " tlb-row-selected" : ""}`}
                       tabIndex={0}
                       onClick={() => onSelectSupplier(s.id)}
                       onKeyDown={(e) => {
@@ -382,6 +406,14 @@ export function SuppliersModule({
                         }
                       }}
                     >
+                      {canBulkTrash ? (
+                        <SelectRowCell
+                          id={s.id}
+                          checked={selection.isSelected(s.id)}
+                          onToggle={selection.toggle}
+                          label={`Select ${s.name}`}
+                        />
+                      ) : null}
                       <td className="tlb-col-priority">
                         <strong>{s.code}</strong>
                       </td>
@@ -435,7 +467,10 @@ export function SuppliersModule({
         {hasSearch && filteredSuppliers.length > 0 ? (
           <div className="tlb-list-meta">
             Showing {filteredSuppliers.length} of {activeSuppliers.length} suppliers
+            {selection.count > 0 ? ` · ${selection.count} selected` : ""}
           </div>
+        ) : selection.count > 0 ? (
+          <div className="tlb-list-meta">{selection.count} selected</div>
         ) : null}
       </article>
     </div>
@@ -559,9 +594,7 @@ function SupplierDetailModule({
     return (
       <div className="tlb-module">
         <EmptyState title="Supplier not found" detail="The selected supplier account is no longer available." />
-        <div style={{ marginTop: 12 }}>
-          <RecordBackLink label="Suppliers" onBack={onBack} />
-        </div>
+        <DetailBackChrome label="Suppliers" onBack={onBack} />
       </div>
     );
   }
@@ -570,8 +603,8 @@ function SupplierDetailModule({
     return (
       <div className="tlb-module tlb-record-detail-page">
         <Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />
+        <DetailBackChrome label="Cancel edit" onBack={() => setEditing(false)} />
         <header className="tlb-record-detail-header">
-          <RecordBackLink label="Cancel edit" onBack={() => setEditing(false)} />
           <div className="tlb-record-detail-header-row">
             <div className="tlb-record-detail-identity">
               <span className="tlb-record-detail-code">{selected.code}</span>

@@ -114,6 +114,7 @@ function CatalogModule({
       {...(periodLabel ? { periodLabel } : {})}
       {...(store
         ? {
+            trash: { store, entityType: "catalog" as const },
             detailActions: (row: CatalogRecord) => (
               <MoveToTrashButton
                 store={store}
@@ -516,6 +517,7 @@ export function ProductsModule({
       detailTitle={(r) => r.name}
       detailSubtitle={(r) => `${r.sku} · ${r.unit}`}
       detailCode={(r) => r.sku}
+      trash={{ store, entityType: "product" }}
       detailActions={(r) => (
         <MoveToTrashButton
           store={store}
@@ -647,6 +649,7 @@ export function WarehousesModule({
       detailTitle={(r) => r.name}
       detailSubtitle={(r) => r.location}
       detailCode={(r) => r.code}
+      trash={{ store, entityType: "warehouse" }}
       detailActions={(r) => (
         <MoveToTrashButton
           store={store}

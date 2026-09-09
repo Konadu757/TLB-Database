@@ -2,10 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, PackageSearch, Plus, Search, X } from "lucide-react";
 
 import {
-  RecordBackLink,
   RecordDetailPage,
   RecordDetailSection,
+  DetailBackChrome,
 } from "@/components/modules/record-browser";
+import {
+  BulkTrashToolbar,
+  SelectAllHeader,
+  SelectRowCell,
+  useListSelection,
+} from "@/components/modules/list-bulk-trash";
 import { MoveToTrashButton } from "@/components/modules/move-to-trash-button";
 import { Button } from "@/components/ui/button";
 import { calcAvailable, calcOutstanding, statusTone } from "@/lib/domain/calculations";
@@ -271,6 +277,9 @@ export function CustomersModule({
   }
 
   const hasSearch = search.trim().length > 0;
+  const canBulkTrash = store.can("records.delete");
+  const filteredIds = useMemo(() => filteredCustomers.map((c) => c.id), [filteredCustomers]);
+  const selection = useListSelection(canBulkTrash ? filteredIds : []);
 
   return (
     <div className="tlb-module">
@@ -291,6 +300,14 @@ export function CustomersModule({
               aria-label="Search customers"
             />
           </label>
+          {canBulkTrash ? (
+            <BulkTrashToolbar
+              store={store}
+              entityType="customer"
+              selectedIds={selection.selectedIds}
+              onDone={selection.clear}
+            />
+          ) : null}
           <Button
             type="button"
             onClick={() => {
@@ -355,6 +372,13 @@ export function CustomersModule({
             <table className="tlb-customers-table">
               <thead>
                 <tr>
+                  {canBulkTrash ? (
+                    <SelectAllHeader
+                      allSelected={selection.allVisibleSelected}
+                      someSelected={selection.someVisibleSelected}
+                      onToggle={selection.toggleAllVisible}
+                    />
+                  ) : null}
                   <th className="tlb-col-priority">Code</th>
                   <th className="tlb-col-priority">Customer</th>
                   <th className="tlb-col-contact">Phone / email</th>
@@ -376,7 +400,7 @@ export function CustomersModule({
                   return (
                     <tr
                       key={c.id}
-                      className="tlb-row-clickable"
+                      className={`tlb-row-clickable${selection.isSelected(c.id) ? " tlb-row-selected" : ""}`}
                       tabIndex={0}
                       onClick={() => onSelectCustomer(c.id)}
                       onKeyDown={(e) => {
@@ -386,6 +410,14 @@ export function CustomersModule({
                         }
                       }}
                     >
+                      {canBulkTrash ? (
+                        <SelectRowCell
+                          id={c.id}
+                          checked={selection.isSelected(c.id)}
+                          onToggle={selection.toggle}
+                          label={`Select ${c.name}`}
+                        />
+                      ) : null}
                       <td className="tlb-col-priority">
                         <strong>{c.code}</strong>
                       </td>
@@ -437,7 +469,10 @@ export function CustomersModule({
         {hasSearch && filteredCustomers.length > 0 ? (
           <div className="tlb-list-meta">
             Showing {filteredCustomers.length} of {activeCustomers.length} customers
+            {selection.count > 0 ? ` · ${selection.count} selected` : ""}
           </div>
+        ) : selection.count > 0 ? (
+          <div className="tlb-list-meta">{selection.count} selected</div>
         ) : null}
       </article>
     </div>
@@ -594,9 +629,7 @@ function CustomerDetailModule({
     return (
       <div className="tlb-module">
         <EmptyState title="Customer not found" detail="The selected customer account is no longer available." />
-        <div style={{ marginTop: 12 }}>
-          <RecordBackLink label="Customers" onBack={onBack} />
-        </div>
+        <DetailBackChrome label="Customers" onBack={onBack} />
       </div>
     );
   }
@@ -1180,6 +1213,9 @@ export function SalesOrdersModule({
   }, [state.orders, state.customers, range?.from, range?.to, search]);
 
   const activeOrderCount = useMemo(() => notSoftDeleted(state.orders).length, [state.orders]);
+  const canBulkTrash = store.can("records.delete");
+  const filteredOrderIds = useMemo(() => filteredOrders.map((o) => o.id), [filteredOrders]);
+  const selection = useListSelection(canBulkTrash ? filteredOrderIds : []);
 
   if (selectedOrderId) {
     return (
@@ -1212,6 +1248,14 @@ export function SalesOrdersModule({
               aria-label="Search sales orders"
             />
           </label>
+          {canBulkTrash ? (
+            <BulkTrashToolbar
+              store={store}
+              entityType="order"
+              selectedIds={selection.selectedIds}
+              onDone={selection.clear}
+            />
+          ) : null}
           <Button type="button" variant="outline" onClick={store.resetDemo}>
             Reset Phase 30 demo
           </Button>
@@ -1373,6 +1417,13 @@ export function SalesOrdersModule({
             <table>
               <thead>
                 <tr>
+                  {canBulkTrash ? (
+                    <SelectAllHeader
+                      allSelected={selection.allVisibleSelected}
+                      someSelected={selection.someVisibleSelected}
+                      onToggle={selection.toggleAllVisible}
+                    />
+                  ) : null}
                   <th>Order</th>
                   <th>Customer</th>
                   <th>Date</th>
@@ -1390,7 +1441,7 @@ export function SalesOrdersModule({
                   return (
                     <tr
                       key={order.id}
-                      className={`tlb-row-clickable${isSelected ? " tlb-row-active" : ""}`}
+                      className={`tlb-row-clickable${isSelected ? " tlb-row-active" : ""}${selection.isSelected(order.id) ? " tlb-row-selected" : ""}`}
                       tabIndex={0}
                       onClick={() => onSelectOrder(order.id)}
                       onKeyDown={(e) => {
@@ -1400,6 +1451,14 @@ export function SalesOrdersModule({
                         }
                       }}
                     >
+                      {canBulkTrash ? (
+                        <SelectRowCell
+                          id={order.id}
+                          checked={selection.isSelected(order.id)}
+                          onToggle={selection.toggle}
+                          label={`Select ${order.number}`}
+                        />
+                      ) : null}
                       <td><strong>{order.number}</strong></td>
                       <td>{customer?.name ?? "—"}</td>
                       <td>{order.orderDate.slice(0, 10)}</td>
@@ -1421,9 +1480,15 @@ export function SalesOrdersModule({
         {search.trim() && filteredOrders.length > 0 ? (
           <div className="tlb-list-meta">
             Showing {filteredOrders.length} of {activeOrderCount} orders
+            {selection.count > 0 ? ` · ${selection.count} selected` : ""}
           </div>
         ) : periodLabel && filteredOrders.length > 0 ? (
-          <div className="tlb-list-meta">{filteredOrders.length} order{filteredOrders.length === 1 ? "" : "s"} in {periodLabel}</div>
+          <div className="tlb-list-meta">
+            {filteredOrders.length} order{filteredOrders.length === 1 ? "" : "s"} in {periodLabel}
+            {selection.count > 0 ? ` · ${selection.count} selected` : ""}
+          </div>
+        ) : selection.count > 0 ? (
+          <div className="tlb-list-meta">{selection.count} selected</div>
         ) : null}
       </article>
     </div>
@@ -1452,9 +1517,7 @@ function OrderDetailModule({
     return (
       <div className="tlb-module">
         <EmptyState title="Order not found" detail="The selected customer order is no longer available." />
-        <div style={{ marginTop: 12 }}>
-          <RecordBackLink label="Sales Orders" onBack={onBack} />
-        </div>
+        <DetailBackChrome label="Sales Orders" onBack={onBack} />
       </div>
     );
   }
