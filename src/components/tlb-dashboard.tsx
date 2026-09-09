@@ -810,6 +810,7 @@ export function TLBDashboard() {
               <CustomersModule
                 store={store}
                 selectedCustomerId={selectedCustomerId}
+                onSelectCustomer={setSelectedCustomerId}
                 onOpenOrder={(id) => openLiveModule("Sales Orders", id)}
               />
             ) : activeNav === "Suppliers" ? (
