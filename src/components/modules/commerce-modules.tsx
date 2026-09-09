@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, PackageSearch, Plus, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,8 @@ import type {
   CustomerPurchaseOrder,
   PaymentTerms,
 } from "@/lib/domain/types";
+import { getRelatedRecords } from "@/lib/domain/notifications";
+import { globalSearch } from "@/lib/domain/search";
 import {
   countOutstandingOrdersForProduct,
   formatMoney,
@@ -16,6 +18,14 @@ import {
   orderValue,
 } from "@/lib/store/tlb-store";
 import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
+
+function creditEligibility(customer: Customer): { label: string; tone: string } {
+  if (!customer.active) return { label: "Inactive — no credit", tone: "warning" };
+  if (customer.paymentTerms === "COD" || customer.creditLimit <= 0) {
+    return { label: "Not credit eligible", tone: "warning" };
+  }
+  return { label: "Credit eligible", tone: "success" };
+}
 
 function StatusBadge({ children, tone }: { children: React.ReactNode; tone: string }) {
   return <span className={`status-badge status-${tone}`}>{children}</span>;
@@ -57,12 +67,17 @@ type NavSetter = (label: string) => void;
 export function CustomersModule({
   store,
   onOpenOrder,
+  selectedCustomerId,
 }: {
   store: TlbStoreApi;
   onOpenOrder: (orderId: string) => void;
+  selectedCustomerId?: string | null;
 }) {
   const { state } = store;
-  const [selectedId, setSelectedId] = useState<string | null>(state.customers[0]?.id ?? null);
+  const detailRef = useRef<HTMLElement | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    selectedCustomerId ?? state.customers[0]?.id ?? null,
+  );
   const [editing, setEditing] = useState(false);
   const selected = state.customers.find((c) => c.id === selectedId) ?? null;
 
@@ -79,6 +94,27 @@ export function CustomersModule({
     notes: "",
     active: true,
   });
+
+  useEffect(() => {
+    if (selectedCustomerId) {
+      setSelectedId(selectedCustomerId);
+      setEditing(false);
+    }
+  }, [selectedCustomerId]);
+
+  useEffect(() => {
+    if (selectedId && !state.customers.some((c) => c.id === selectedId)) {
+      setSelectedId(state.customers[0]?.id ?? null);
+    }
+  }, [state.customers, selectedId]);
+
+  const selectCustomer = (id: string) => {
+    setSelectedId(id);
+    setEditing(false);
+    requestAnimationFrame(() => {
+      detailRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  };
 
   const startCreate = () => {
     setEditing(true);
@@ -116,16 +152,47 @@ export function CustomersModule({
     });
   };
 
-  const history = useMemo(() => {
-    if (!selected) return [];
-    return state.orders
+  const customerHistory = useMemo(() => {
+    if (!selected) {
+      return {
+        orders: [] as Array<{ order: CustomerPurchaseOrder; value: number; fulfilment: number }>,
+        supplies: [] as Array<{ id: string; number: string; orderNumber: string; suppliedAt: string; notes?: string }>,
+        outstanding: [] as typeof store.outstanding,
+        invoices: [] as typeof state.invoices,
+        receipts: [] as typeof state.receipts,
+        deliveries: [] as typeof state.deliveries,
+        payments: [] as typeof state.payments,
+      };
+    }
+
+    const orders = state.orders
       .filter((o) => o.customerId === selected.id)
       .map((o) => ({
         order: o,
         value: orderValue(state, o.id),
         fulfilment: orderFulfilment(state, o.id),
       }));
-  }, [selected, state]);
+    const orderById = new Map(state.orders.map((o) => [o.id, o]));
+    const orderIds = new Set(orders.map((o) => o.order.id));
+    const supplies = state.supplies
+      .filter((s) => orderIds.has(s.orderId))
+      .map((s) => ({
+        id: s.id,
+        number: s.number,
+        orderNumber: orderById.get(s.orderId)?.number ?? s.orderId,
+        suppliedAt: s.suppliedAt,
+        ...(s.notes ? { notes: s.notes } : {}),
+      }));
+    const outstanding = store.outstanding.filter((r) => r.customerId === selected.id);
+    const invoices = (state.invoices ?? []).filter((i) => i.customerId === selected.id);
+    const receipts = (state.receipts ?? []).filter((r) => r.customerId === selected.id);
+    const deliveries = (state.deliveries ?? []).filter((d) => d.customerId === selected.id);
+    const payments = (state.payments ?? []).filter((p) => p.customerId === selected.id);
+
+    return { orders, supplies, outstanding, invoices, receipts, deliveries, payments };
+  }, [selected, state, store.outstanding]);
+
+  const credit = selected ? creditEligibility(selected) : null;
 
   return (
     <div className="tlb-module">
@@ -161,7 +228,19 @@ export function CustomersModule({
                 </thead>
                 <tbody>
                   {state.customers.map((c) => (
-                    <tr key={c.id} className={selectedId === c.id ? "tlb-row-active" : undefined}>
+                    <tr
+                      key={c.id}
+                      className={`tlb-row-clickable${selectedId === c.id && !editing ? " tlb-row-active" : ""}`}
+                      tabIndex={0}
+                      aria-selected={selectedId === c.id && !editing}
+                      onClick={() => selectCustomer(c.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          selectCustomer(c.id);
+                        }
+                      }}
+                    >
                       <td>
                         <strong>{c.code}</strong>
                       </td>
@@ -175,7 +254,14 @@ export function CustomersModule({
                         <StatusBadge tone={c.active ? "success" : "warning"}>{c.active ? "Active" : "Inactive"}</StatusBadge>
                       </td>
                       <td>
-                        <button type="button" aria-label={`Open ${c.name}`} onClick={() => { setSelectedId(c.id); setEditing(false); }}>
+                        <button
+                          type="button"
+                          aria-label={`View ${c.name}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            selectCustomer(c.id);
+                          }}
+                        >
                           <ChevronRight />
                         </button>
                       </td>
@@ -194,10 +280,18 @@ export function CustomersModule({
               onSubmit={(e) => {
                 e.preventDefault();
                 const ok = store.saveCustomer({
-                  id: selectedId ?? undefined,
-                  ...form,
-                  tin: form.tin.trim() || undefined,
-                  notes: form.notes.trim() || undefined,
+                  ...(selectedId ? { id: selectedId } : {}),
+                  name: form.name,
+                  category: form.category,
+                  contactName: form.contactName,
+                  phone: form.phone,
+                  email: form.email,
+                  address: form.address,
+                  creditLimit: form.creditLimit,
+                  paymentTerms: form.paymentTerms,
+                  active: form.active,
+                  ...(form.tin.trim() ? { tin: form.tin.trim() } : {}),
+                  ...(form.notes.trim() ? { notes: form.notes.trim() } : {}),
                 });
                 if (ok) setEditing(false);
               }}
@@ -341,15 +435,18 @@ export function SalesOrdersModule({
   store,
   selectedOrderId,
   onSelectOrder,
+  onNavigateRelated,
 }: {
   store: TlbStoreApi;
   selectedOrderId: string | null;
   onSelectOrder: (id: string | null) => void;
+  onNavigateRelated?: (nav: string, id?: string) => void;
 }) {
   const { state } = store;
   const [creating, setCreating] = useState(false);
   const [customerId, setCustomerId] = useState(state.customers[0]?.id ?? "");
   const [notes, setNotes] = useState("");
+  const [customerPoNumber, setCustomerPoNumber] = useState("");
   const [draftLines, setDraftLines] = useState([
     { productId: state.products[0]?.id ?? "", warehouseId: state.warehouses[0]?.id ?? "", orderedQty: 1, unitPrice: 1000 },
   ]);
@@ -360,6 +457,7 @@ export function SalesOrdersModule({
         store={store}
         orderId={selectedOrderId}
         onBack={() => onSelectOrder(null)}
+        {...(onNavigateRelated ? { onNavigateRelated } : {})}
       />
     );
   }
@@ -397,16 +495,18 @@ export function SalesOrdersModule({
               e.preventDefault();
               const ok = store.createOrder({
                 customerId,
-                notes: notes.trim() || undefined,
                 lines: draftLines.map((l) => ({
                   ...l,
                   orderedQty: Number(l.orderedQty),
                   unitPrice: Number(l.unitPrice),
                 })),
+                ...(notes.trim() ? { notes: notes.trim() } : {}),
+                ...(customerPoNumber.trim() ? { customerPoNumber: customerPoNumber.trim() } : {}),
               });
               if (ok) {
                 setCreating(false);
                 setNotes("");
+                setCustomerPoNumber("");
               }
             }}
           >
@@ -417,6 +517,10 @@ export function SalesOrdersModule({
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
+            </label>
+            <label>
+              Customer PO #
+              <input value={customerPoNumber} onChange={(e) => setCustomerPoNumber(e.target.value)} placeholder="Optional" />
             </label>
             <label className="tlb-span-2">
               Notes
@@ -554,16 +658,19 @@ function OrderDetailModule({
   store,
   orderId,
   onBack,
+  onNavigateRelated,
 }: {
   store: TlbStoreApi;
   orderId: string;
   onBack: () => void;
+  onNavigateRelated?: (nav: string, id?: string) => void;
 }) {
   const { state } = store;
   const order = state.orders.find((o) => o.id === orderId);
   const [supplyQty, setSupplyQty] = useState<Record<string, number>>({});
   const [cancelReason, setCancelReason] = useState<Record<string, string>>({});
   const [supplyNotes, setSupplyNotes] = useState("");
+  const related = useMemo(() => getRelatedRecords(state, orderId), [state, orderId]);
 
   if (!order) {
     return (
@@ -622,6 +729,7 @@ function OrderDetailModule({
           <dl className="tlb-kv">
             <div><dt>Customer</dt><dd>{customer?.name}</dd></div>
             <div><dt>TIN</dt><dd>{customer?.tin || "—"}</dd></div>
+            <div><dt>Customer PO #</dt><dd>{order.customerPoNumber || "—"}</dd></div>
             <div><dt>Order date</dt><dd>{new Date(order.orderDate).toLocaleString()}</dd></div>
             <div><dt>Required</dt><dd>{order.requiredDate ?? "—"}</dd></div>
             <div><dt>Value</dt><dd>{formatMoney(orderValue(state, order.id))}</dd></div>
@@ -806,13 +914,60 @@ function OrderDetailModule({
 
         <article className="tlb-panel">
           <div className="tlb-panel-heading">
-            <div><span>Related records</span><strong>Linked documents</strong></div>
+            <div><span>Related records</span><strong>Document chain</strong></div>
           </div>
+          <p className="tlb-muted-line" style={{ padding: "0 17px 8px" }}>
+            Customer → Order → Supplies → Invoice / Receipt → Delivery → Complete
+          </p>
           <ul className="tlb-inspector-list">
-            <li>Customer: {customer?.code} · {customer?.name}</li>
-            <li>Supplies: {supplies.map((s) => s.number).join(", ") || "None yet"}</li>
-            <li>Document chain: Order → Supply → (Delivery / Invoice deferred to P1)</li>
+            {related.map((r) => {
+              const nav =
+                r.kind === "customer"
+                  ? "Customers"
+                  : r.kind === "invoice" || r.kind === "receipt" || r.kind === "payment"
+                    ? "Finance"
+                    : r.kind === "delivery"
+                      ? "Deliveries"
+                      : r.kind === "supply" || r.kind === "order" || r.kind === "reservation"
+                        ? "Sales Orders"
+                        : "Sales Orders";
+              return (
+                <li key={`${r.kind}-${r.id}`}>
+                  <button
+                    type="button"
+                    className="tlb-text-link"
+                    onClick={() => {
+                      if (r.kind === "order" || r.kind === "supply" || r.kind === "reservation") {
+                        onNavigateRelated?.(nav, order.id);
+                      } else {
+                        onNavigateRelated?.(nav, r.id);
+                      }
+                    }}
+                  >
+                    {r.number} — {r.label}
+                    {r.status ? ` · ${r.status}` : ""}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
+          <div className="tlb-inline-actions" style={{ padding: 12, flexWrap: "wrap" }}>
+            {store.can("invoice.create") && supplies[0] && (
+              <Button type="button" variant="outline" onClick={() => onNavigateRelated?.("Finance", supplies[0]?.id)}>
+                Create invoice
+              </Button>
+            )}
+            {store.can("receipt.create") && (
+              <Button type="button" variant="outline" onClick={() => onNavigateRelated?.("Finance")}>
+                Create receipt
+              </Button>
+            )}
+            {store.can("delivery.manage") && supplies[0] && (
+              <Button type="button" variant="outline" onClick={() => onNavigateRelated?.("Deliveries", supplies[0]?.id)}>
+                Create delivery
+              </Button>
+            )}
+          </div>
         </article>
 
         <article className="tlb-panel tlb-orders-panel tlb-span-2">
@@ -1157,44 +1312,21 @@ export function LiveSearchResults({
   onOpenOrder: (id: string) => void;
   onOpenNav: (nav: string) => void;
 }) {
-  const q = query.trim().toLowerCase();
-  const hits = useMemo(() => {
-    if (!q) return [] as Array<{ label: string; onClick: () => void }>;
-    const out: Array<{ label: string; onClick: () => void }> = [];
-    for (const c of store.state.customers) {
-      if (`${c.name} ${c.code} ${c.tin ?? ""}`.toLowerCase().includes(q)) {
-        out.push({ label: `Customer · ${c.code} · ${c.name}`, onClick: () => onOpenNav("Customers") });
-      }
-    }
-    for (const o of store.state.orders) {
-      if (o.number.toLowerCase().includes(q)) {
-        out.push({ label: `Order · ${o.number} · ${o.status}`, onClick: () => onOpenOrder(o.id) });
-      }
-    }
-    for (const p of store.state.products) {
-      if (`${p.name} ${p.sku}`.toLowerCase().includes(q)) {
-        out.push({ label: `Product · ${p.sku} · ${p.name}`, onClick: () => onOpenNav("Stock") });
-      }
-    }
-    for (const s of store.state.supplies) {
-      if (s.number.toLowerCase().includes(q)) {
-        out.push({ label: `Supply · ${s.number}`, onClick: () => onOpenOrder(s.orderId) });
-      }
-    }
-    return out.slice(0, 12);
-  }, [q, store.state, onOpenNav, onOpenOrder]);
+  const q = query.trim();
+  const hits = useMemo(() => globalSearch(store.state, q, 16), [q, store.state]);
 
   if (!q) {
     return (
       <>
         <p>QUICK ACCESS</p>
-        {["Chemical A · CHEM-A", "TLB-ORD Phase 30 order", "Outstanding Supplies"].map((label) => (
+        {["Chemical A · CHEM-A", "TLB-ORD Phase 30 order", "Outstanding Supplies", "Invoices"].map((label) => (
           <button
             type="button"
             role="listitem"
             key={label}
             onClick={() => {
               if (label.includes("Outstanding")) onOpenNav("Outstanding Supplies");
+              else if (label.includes("Invoice")) onOpenNav("Finance");
               else if (label.includes("ORD")) {
                 const order = store.state.orders.find((o) => o.id === "ord-phase30");
                 if (order) onOpenOrder(order.id);
@@ -1215,9 +1347,20 @@ export function LiveSearchResults({
     <>
       <p>{hits.length ? "RESULTS" : "NO MATCHES"}</p>
       {hits.map((hit) => (
-        <button type="button" role="listitem" key={hit.label} onClick={hit.onClick}>
+        <button
+          type="button"
+          role="listitem"
+          key={`${hit.kind}-${hit.id}`}
+          onClick={() => {
+            if (hit.orderId) onOpenOrder(hit.orderId);
+            else onOpenNav(hit.nav);
+          }}
+        >
           <PackageSearch />
-          <span>{hit.label}</span>
+          <span>
+            {hit.label}
+            {hit.subtitle ? ` · ${hit.subtitle}` : ""}
+          </span>
           <ChevronRight />
         </button>
       ))}

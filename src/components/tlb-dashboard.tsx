@@ -41,8 +41,17 @@ import {
   SalesOrdersModule,
   StockModule,
 } from "@/components/modules/commerce-modules";
-import { AgeingSettingsPanel } from "@/components/modules/ageing-settings";
+import {
+  AuditModule,
+  DeliveriesModule,
+  FinanceModule,
+  ReportsModule,
+  SettingsModule,
+} from "@/components/modules/p1-modules";
 import { Button } from "@/components/ui/button";
+import { buildDashboardSnapshot } from "@/lib/domain/dashboard-metrics";
+import { DASHBOARD_PERIODS, DEMO_AS_OF, isDashboardPeriod, type DashboardPeriod } from "@/lib/domain/period-range";
+import { formatMoney } from "@/lib/store/tlb-store";
 import { useTlbStore } from "@/lib/store/use-tlb-store";
 import { cn } from "@/lib/utils";
 
@@ -90,34 +99,6 @@ const navGroups: NavGroup[] = [
       { label: "Settings", icon: Settings },
     ],
   },
-];
-
-const metrics = [
-  { label: "Monthly sales", value: "GH₵ 1.84M", note: "+12.4% vs Aug", trend: "up" },
-  { label: "Inventory value", value: "GH₵ 4.26M", note: "Across 2 warehouses", trend: "neutral" },
-  { label: "Receivables", value: "GH₵ 682.4K", note: "GH₵ 118.2K overdue", trend: "down" },
-  { label: "Active orders", value: "38", note: "12 awaiting dispatch", trend: "up" },
-  { label: "Active imports", value: "7", note: "3 arriving this month", trend: "neutral" },
-  { label: "Production in progress", value: "6", note: "4 batches on schedule", trend: "neutral" },
-];
-
-const sales = [42, 58, 51, 67, 63, 82, 76, 94, 88, 108, 101, 122];
-const stock = [
-  { label: "Available", value: "72%", width: "72%", tone: "bg-primary" },
-  { label: "Reserved", value: "14%", width: "14%", tone: "bg-info" },
-  { label: "Under inspection", value: "8%", width: "8%", tone: "bg-warning" },
-  { label: "Quarantined", value: "6%", width: "6%", tone: "bg-danger" },
-];
-const orders = [
-  { id: "SO-260904", customer: "Korle Vista Medical Centre", value: "GH₵ 48,650.00", status: "Ready", tone: "success" },
-  { id: "SO-260903", customer: "Apex Analytical Labs", value: "GH₵ 32,480.00", status: "Processing", tone: "info" },
-  { id: "SO-260899", customer: "Northstar Pharma Ltd", value: "GH₵ 76,120.00", status: "Pending approval", tone: "warning" },
-  { id: "SO-260896", customer: "Achimota Science Academy", value: "GH₵ 18,940.00", status: "Picking", tone: "info" },
-];
-const alerts = [
-  { title: "Sodium Hydroxide below reorder level", detail: "Main Warehouse · 180 kg remaining", type: "danger" },
-  { title: "Batch ETH-26018 expires in 42 days", detail: "Ethanol 96% · 24 drums", type: "warning" },
-  { title: "QC release required", detail: "Production batch HP-26009", type: "info" },
 ];
 
 const moduleScreens: Record<string, { kicker: string; description: string; rows: { primary: string; secondary: string; status: string; tone: string }[] }> = {
@@ -203,43 +184,28 @@ const moduleScreens: Record<string, { kicker: string; description: string; rows:
   },
   Deliveries: {
     kicker: "Operations",
-    description: "Dispatch queue for ready sales orders.",
-    rows: [
-      { primary: "SO-260904", secondary: "Korle Vista Medical Centre", status: "Ready", tone: "success" },
-      { primary: "SO-260896", secondary: "Achimota Science Academy", status: "Picking", tone: "info" },
-    ],
+    description: "Dispatch queue linked to supplies.",
+    rows: [],
   },
   Finance: {
     kicker: "Control",
-    description: "Receivables snapshot from the operational sandbox.",
-    rows: [
-      { primary: "Current", secondary: "GH₵ 368K within terms", status: "Healthy", tone: "success" },
-      { primary: "60+ days", secondary: "GH₵ 61K overdue", status: "Escalate", tone: "warning" },
-    ],
+    description: "VAT invoices, ordinary receipts, and payments.",
+    rows: [],
   },
   Reports: {
     kicker: "Control",
-    description: "Management reports available in this sandbox.",
-    rows: [
-      { primary: "Monthly sales pack", secondary: "September 2026", status: "Ready", tone: "success" },
-      { primary: "Expiry watchlist", secondary: "42-day horizon", status: "Updated", tone: "info" },
-    ],
+    description: "Outstanding, partial supply, and fulfilment performance.",
+    rows: [],
   },
   "Audit Log": {
     kicker: "Control",
-    description: "Recent privileged actions in the demo environment.",
-    rows: [
-      { primary: "Kwame Asare", secondary: "Opened QC release HP-26009", status: "Today", tone: "info" },
-      { primary: "System", secondary: "Nightly stock valuation posted", status: "Today", tone: "success" },
-    ],
+    description: "Append-only audit of major fulfilment and document events.",
+    rows: [],
   },
   Settings: {
     kicker: "Control",
-    description: "Workspace preferences including outstanding ageing thresholds.",
-    rows: [
-      { primary: "Company", secondary: "TLB Enterprise · Ghana", status: "Live", tone: "success" },
-      { primary: "Outstanding ageing", secondary: "0–2 Normal · 3–7 Attention · 8+ Overdue", status: "Configurable", tone: "info" },
-    ],
+    description: "Company profile, VAT rates, roles, and ageing reminders.",
+    rows: [],
   },
 };
 
@@ -253,7 +219,7 @@ export function TLBDashboard() {
   const store = useTlbStore();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [period, setPeriod] = useState("This Month");
+  const [period, setPeriod] = useState<DashboardPeriod>("This Month");
   const [warehouse, setWarehouse] = useState("All warehouses");
   const [searchOpen, setSearchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -321,7 +287,14 @@ export function TLBDashboard() {
     activeNav === "Customers" ||
     activeNav === "Sales Orders" ||
     activeNav === "Outstanding Supplies" ||
-    activeNav === "Stock";
+    activeNav === "Stock" ||
+    activeNav === "Deliveries" ||
+    activeNav === "Finance" ||
+    activeNav === "Reports" ||
+    activeNav === "Audit Log" ||
+    activeNav === "Settings";
+
+  const unreadNotifications = store.state.notifications.filter((n) => !n.readAt).length;
 
   const sidebarIsOpen = isNavMobile ? true : sidebarOpen;
 
@@ -490,7 +463,12 @@ export function TLBDashboard() {
     return () => document.removeEventListener("mousedown", onMouseDown);
   }, [notificationsOpen, quickOpen, userOpen]);
 
-  const maxSale = useMemo(() => Math.max(...sales), []);
+  const dash = useMemo(
+    () => buildDashboardSnapshot(store.state, period, warehouse, DEMO_AS_OF),
+    [store.state, period, warehouse],
+  );
+  const maxSale = Math.max(dash.chartAxisMax, 1);
+  const recvTotal = Math.max(dash.receivablesTotal, 1);
 
   const sidebar = (
     <aside className={cn("tlb-sidebar", !sidebarIsOpen && "tlb-sidebar-collapsed")} aria-label="Primary navigation">
@@ -600,48 +578,58 @@ export function TLBDashboard() {
                 aria-expanded={notificationsOpen}
                 className="relative"
               >
-                <Bell /><span className="tlb-notification-dot" />
+                <Bell />{unreadNotifications > 0 && <span className="tlb-notification-dot" />}
               </Button>
               {notificationsOpen && (
                 <div className="tlb-popover tlb-notification-panel" role="region" aria-label="Notifications">
                   <div className="tlb-popover-heading"><strong>Notifications</strong><button type="button" aria-label="Close notifications" onClick={() => setNotificationsOpen(false)}><X /></button></div>
-                  {store.outstanding.slice(0, 2).map((row) => (
+                  {store.state.notifications.slice(0, 6).map((n) => (
                     <button
                       type="button"
                       className="tlb-mini-alert"
-                      key={row.lineId}
+                      key={n.id}
                       onClick={() => {
+                        store.readNotification(n.id);
                         setNotificationsOpen(false);
-                        openLiveModule("Outstanding Supplies");
+                        if (n.orderId) openLiveModule("Sales Orders", n.orderId);
+                        else openLiveModule("Outstanding Supplies");
                       }}
                     >
-                      <span className={`tlb-alert-dot tlb-alert-${row.ageingBand === "Overdue" ? "danger" : row.ageingBand === "Attention" ? "warning" : "info"}`} />
+                      <span className={`tlb-alert-dot tlb-alert-${n.type.includes("overdue") || n.type.includes("extended") ? "danger" : n.type.includes("approaching") || n.type.includes("partial") ? "warning" : "info"}`} />
                       <div>
-                        <strong>{row.orderNumber} · {row.productSku}</strong>
-                        <span>{row.outstandingQty} outstanding · {row.ageDays}d · {row.ageingBand}</span>
+                        <strong>{n.title}</strong>
+                        <span>{n.body}</span>
                       </div>
                     </button>
                   ))}
-                  {alerts.slice(0, store.outstanding.length ? 1 : 2).map((alert) => (
-                    <button
-                      type="button"
-                      className="tlb-mini-alert"
-                      key={alert.title}
-                      onClick={() => openInspector({ title: alert.title, kicker: "Alert", lines: [alert.detail, "This alert is shown from the operational sandbox. No backend write is performed."] })}
-                    >
-                      <span className={`tlb-alert-dot tlb-alert-${alert.type}`} />
-                      <div><strong>{alert.title}</strong><span>{alert.detail}</span></div>
-                    </button>
-                  ))}
+                  {store.state.notifications.length === 0 &&
+                    store.outstanding.slice(0, 2).map((row) => (
+                      <button
+                        type="button"
+                        className="tlb-mini-alert"
+                        key={row.lineId}
+                        onClick={() => {
+                          setNotificationsOpen(false);
+                          openLiveModule("Outstanding Supplies");
+                        }}
+                      >
+                        <span className={`tlb-alert-dot tlb-alert-${row.ageingBand === "Overdue" ? "danger" : row.ageingBand === "Attention" ? "warning" : "info"}`} />
+                        <div>
+                          <strong>{row.orderNumber} · {row.productSku}</strong>
+                          <span>{row.outstandingQty} outstanding · {row.ageDays}d · {row.ageingBand}</span>
+                        </div>
+                      </button>
+                    ))}
                   <button
                     type="button"
                     className="tlb-text-action"
                     onClick={() => {
+                      store.refreshNotifications();
                       setNotificationsOpen(false);
                       openLiveModule("Outstanding Supplies");
                     }}
                   >
-                    View outstanding supplies <ChevronRight />
+                    Refresh & view outstanding <ChevronRight />
                   </button>
                 </div>
               )}
@@ -665,12 +653,12 @@ export function TLBDashboard() {
                 }}
               >
                 <div className="tlb-avatar">KA</div>
-                <div className="tlb-user-copy"><strong>Kwame Asare</strong><span>Operations Manager</span></div>
+                <div className="tlb-user-copy"><strong>{store.state.currentUser}</strong><span>{store.state.currentRole}</span></div>
                 <ChevronDown />
               </button>
               {userOpen && (
                 <div className="tlb-popover tlb-quick-menu tlb-user-menu" role="menu" aria-label="Account">
-                  <button type="button" role="menuitem" onClick={() => openInspector({ title: "Kwame Asare", kicker: "Signed in", lines: ["Role: Operations Manager", "Workspace: TLB Enterprise demo environment", "Authentication is UI-only until backend sign-in is connected."] })}>Profile <ChevronRight /></button>
+                  <button type="button" role="menuitem" onClick={() => openInspector({ title: store.state.currentUser, kicker: "Signed in", lines: [`Role: ${store.state.currentRole}`, "Workspace: TLB Enterprise demo environment", "Switch role under Settings (mock auth ready for real claims)."] })}>Profile <ChevronRight /></button>
                   <button type="button" role="menuitem" onClick={() => { setUserOpen(false); setActiveNav("Settings"); }}>Settings <ChevronRight /></button>
                 </div>
               )}
@@ -682,7 +670,7 @@ export function TLBDashboard() {
           <div className="tlb-breadcrumb"><span>TLB Enterprise</span><ChevronRight /><span>{activeNav === "Dashboard" ? "Executive Dashboard" : activeNav}</span></div>
           <div className="tlb-page-heading">
             <div>
-              <p className="tlb-eyebrow">Wednesday, 02 September 2026 · {period} · {warehouse}</p>
+              <p className="tlb-eyebrow">Wednesday, 09 September 2026 · {period} · {warehouse}</p>
               <h1>{activeNav === "Dashboard" ? "Good evening, Kwame" : activeNav}</h1>
               <p>
                 {activeNav === "Dashboard"
@@ -695,6 +683,16 @@ export function TLBDashboard() {
                         ? "Open ordered quantities that still need supply — never silently cleared."
                         : activeNav === "Stock"
                           ? "Physical, reserved, and available stock with outstanding demand links."
+                          : activeNav === "Deliveries"
+                            ? "Deliveries linked to supplies — order stays open while outstanding remains."
+                            : activeNav === "Finance"
+                              ? "VAT invoices, ordinary receipts (TLB-RCT), and payments."
+                              : activeNav === "Reports"
+                                ? "Outstanding, partial supply, fulfilment performance, and customer outstanding."
+                                : activeNav === "Audit Log"
+                                  ? "Append-only audit trail for supplies, invoices, receipts, deliveries, and payments."
+                                  : activeNav === "Settings"
+                                    ? "Company letterhead, configurable VAT rates, roles, and reminder thresholds."
                   : (moduleScreens[activeNav]?.description ?? "Operational sandbox records for this module.")}
               </p>
             </div>
@@ -724,7 +722,7 @@ export function TLBDashboard() {
                     role="menu"
                     aria-label="Quick actions"
                   >
-                    {["Create customer order", "Receive goods", "View outstanding supplies", "Reset Phase 30 demo"].map(
+                    {["Create customer order", "Receive goods", "View outstanding supplies", "Create invoice", "Reset Phase 30 demo"].map(
                       (action) => (
                         <button
                           type="button"
@@ -735,6 +733,7 @@ export function TLBDashboard() {
                             if (action === "Create customer order") openLiveModule("Sales Orders");
                             else if (action === "Receive goods") openLiveModule("Stock");
                             else if (action === "View outstanding supplies") openLiveModule("Outstanding Supplies");
+                            else if (action === "Create invoice") openLiveModule("Finance");
                             else store.resetDemo();
                           }}
                         >
@@ -750,7 +749,16 @@ export function TLBDashboard() {
 
           <section className="tlb-filter-bar" aria-label="Dashboard filters">
             <div className="tlb-periods">
-              {["Today", "This Week", "This Month", "This Quarter", "This Year"].map((item) => <button type="button" key={item} className={period === item ? "active" : ""} onClick={() => setPeriod(item)}>{item}</button>)}
+              {DASHBOARD_PERIODS.map((item) => (
+                <button
+                  type="button"
+                  key={item}
+                  className={period === item ? "active" : ""}
+                  onClick={() => setPeriod(item)}
+                >
+                  {item}
+                </button>
+              ))}
             </div>
             <label className="tlb-select"><Warehouse /><select value={warehouse} onChange={(event) => setWarehouse(event.target.value)} aria-label="Warehouse"><option>All warehouses</option><option>Main Warehouse</option><option>Factory Store</option></select><ChevronDown /></label>
           </section>
@@ -763,6 +771,10 @@ export function TLBDashboard() {
                 store={store}
                 selectedOrderId={selectedOrderId}
                 onSelectOrder={(id) => setSelectedOrderId(id)}
+                onNavigateRelated={(nav, id) => {
+                  if (nav === "Sales Orders") openLiveModule("Sales Orders", id ?? selectedOrderId);
+                  else openLiveModule(nav);
+                }}
               />
             ) : activeNav === "Outstanding Supplies" ? (
               <OutstandingSuppliesModule
@@ -770,12 +782,22 @@ export function TLBDashboard() {
                 productFilterId={outstandingProductFilter}
                 onOpenOrder={(id) => openLiveModule("Sales Orders", id)}
               />
-            ) : (
+            ) : activeNav === "Stock" ? (
               <StockModule
                 store={store}
                 onViewOutstanding={(productId) => openLiveModule("Outstanding Supplies", null, productId)}
               />
-            )
+            ) : activeNav === "Deliveries" ? (
+              <DeliveriesModule store={store} onOpenOrder={(id) => openLiveModule("Sales Orders", id)} />
+            ) : activeNav === "Finance" ? (
+              <FinanceModule store={store} onOpenOrder={(id) => openLiveModule("Sales Orders", id)} />
+            ) : activeNav === "Reports" ? (
+              <ReportsModule store={store} />
+            ) : activeNav === "Audit Log" ? (
+              <AuditModule store={store} />
+            ) : activeNav === "Settings" ? (
+              <SettingsModule store={store} />
+            ) : null
           ) : activeNav !== "Dashboard" && moduleScreens[activeNav] ? (
             <article className="tlb-panel tlb-orders-panel">
               <div className="tlb-panel-heading">
@@ -824,19 +846,18 @@ export function TLBDashboard() {
                   </tbody>
                 </table>
               </div>
-              {activeNav === "Settings" && <AgeingSettingsPanel store={store} />}
             </article>
           ) : (
             <>
           <section className="tlb-metrics" aria-label="Key performance indicators">
-            {metrics.map((metric) => (
+            {dash.metrics.map((metric) => (
               <article className="tlb-metric" key={metric.label}>
                 <div className="tlb-metric-label">
                   <span>{metric.label}</span>
                   <button
                     type="button"
                     aria-label={`Open ${metric.label}`}
-                    onClick={() => openInspector({ title: metric.label, kicker: "KPI", lines: [`Value: ${metric.value}`, metric.note, `Filter: ${period} · ${warehouse}`] })}
+                    onClick={() => openInspector({ title: metric.label, kicker: "KPI", lines: [`Value: ${metric.value}`, metric.note, `Filter: ${period} · ${warehouse}`, `Range: ${dash.periodLabel}`] })}
                   >
                     <ChevronRight />
                   </button>
@@ -853,43 +874,213 @@ export function TLBDashboard() {
 
           <section className="tlb-dashboard-grid">
             <article className="tlb-panel tlb-sales-panel">
-              <div className="tlb-panel-heading"><div><span>Sales performance</span><strong>GH₵ 1,842,680.00</strong></div><StatusBadge tone="success">+12.4%</StatusBadge></div>
-              <div className="tlb-chart" aria-label="Monthly sales trend from October to September">
-                <div className="tlb-chart-axis"><span>120K</span><span>80K</span><span>40K</span><span>0</span></div>
-                <div className="tlb-bars">{sales.map((value, index) => <div className="tlb-bar-column" key={index}><div className={cn("tlb-bar", index === sales.length - 1 && "tlb-bar-current")} style={{ height: `${(value / maxSale) * 100}%` }} /><span>{["Oct","Nov","Dec","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep"][index]}</span></div>)}</div>
+              <div className="tlb-panel-heading">
+                <div>
+                  <span>Sales performance</span>
+                  <strong>{dash.salesTotalLabel}</strong>
+                </div>
+                <StatusBadge tone={dash.salesDeltaTone}>{dash.salesDeltaLabel}</StatusBadge>
               </div>
-              <div className="tlb-chart-footer"><span><i className="tlb-legend-primary" />Sales revenue</span><span>Target: GH₵ 1.75M</span></div>
+              <div className="tlb-chart" aria-label={`Sales trend for ${period}`}>
+                <div className="tlb-chart-axis">
+                  <span>{Math.round(maxSale / 1000)}K</span>
+                  <span>{Math.round((maxSale * 0.66) / 1000)}K</span>
+                  <span>{Math.round((maxSale * 0.33) / 1000)}K</span>
+                  <span>0</span>
+                </div>
+                <div className="tlb-bars">
+                  {dash.chart.map((point, index) => (
+                    <div className="tlb-bar-column" key={`${point.label}-${index}`}>
+                      <div
+                        className={cn("tlb-bar", index === dash.chart.length - 1 && "tlb-bar-current")}
+                        style={{ height: `${(point.value / maxSale) * 100}%` }}
+                      />
+                      <span>{point.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="tlb-chart-footer">
+                <span><i className="tlb-legend-primary" />Sales revenue</span>
+                <span>{dash.periodLabel}</span>
+              </div>
             </article>
 
             <article className="tlb-panel">
-              <div className="tlb-panel-heading"><div><span>Inventory overview</span><strong>2,486 stock items</strong></div><button type="button" onClick={() => setActiveNav("Stock")}>View stock <ChevronRight /></button></div>
-              <div className="tlb-inventory-value"><div><span>Total stock value</span><strong>GH₵ 4,263,840</strong></div><PackageCheck /></div>
-              <div className="tlb-stock-list">{stock.map((item) => <div key={item.label}><div><span>{item.label}</span><strong>{item.value}</strong></div><div className="tlb-progress"><span className={item.tone} style={{ width: item.width }} /></div></div>)}</div>
-              <div className="tlb-stock-summary"><div><span>Low stock</span><strong className="text-danger">14</strong></div><div><span>Expiring soon</span><strong className="text-warning-foreground">23</strong></div><div><span>Out of stock</span><strong>4</strong></div></div>
+              <div className="tlb-panel-heading">
+                <div>
+                  <span>Inventory overview</span>
+                  <strong>{dash.stockItemCount.toLocaleString()} stock units</strong>
+                </div>
+                <button type="button" onClick={() => setActiveNav("Stock")}>View stock <ChevronRight /></button>
+              </div>
+              <div className="tlb-inventory-value">
+                <div>
+                  <span>Total stock value</span>
+                  <strong>{dash.inventoryValueLabel}</strong>
+                </div>
+                <PackageCheck />
+              </div>
+              <div className="tlb-stock-list">
+                {dash.stockSlices.map((item) => (
+                  <div key={item.label}>
+                    <div>
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                    </div>
+                    <div className="tlb-progress">
+                      <span className={item.tone} style={{ width: item.width }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="tlb-stock-summary">
+                <div><span>Low stock</span><strong className="text-danger">{dash.lowStock}</strong></div>
+                <div><span>Warehouses</span><strong className="text-warning-foreground">{store.state.warehouses.length}</strong></div>
+                <div><span>Out of stock</span><strong>{dash.outOfStock}</strong></div>
+              </div>
             </article>
 
             <article className="tlb-panel tlb-orders-panel">
-              <div className="tlb-panel-heading"><div><span>Recent orders</span><strong>Today’s commercial activity</strong></div><button type="button" onClick={() => openLiveModule("Sales Orders")}>View all <ChevronRight /></button></div>
-              <div className="tlb-table-scroll"><table><thead><tr><th>Order</th><th>Customer</th><th>Value</th><th>Status</th><th><span className="sr-only">Open</span></th></tr></thead><tbody>{orders.map((order) => <tr key={order.id}><td><strong>{order.id}</strong></td><td>{order.customer}</td><td>{order.value}</td><td><StatusBadge tone={order.tone}>{order.status}</StatusBadge></td><td><button type="button" aria-label={`Open ${order.id}`} onClick={() => openInspector({ title: order.id, kicker: "Sales order", lines: [`Customer: ${order.customer}`, `Value: ${order.value}`, `Status: ${order.status}`, "Sandbox order. Fulfilment is not posted to a backend."] })}><ChevronRight /></button></td></tr>)}</tbody></table></div>
+              <div className="tlb-panel-heading">
+                <div>
+                  <span>Recent orders</span>
+                  <strong>{period} commercial activity</strong>
+                </div>
+                <button type="button" onClick={() => openLiveModule("Sales Orders")}>View all <ChevronRight /></button>
+              </div>
+              <div className="tlb-table-scroll">
+                {dash.recentOrders.length === 0 ? (
+                  <p className="tlb-muted-line" style={{ padding: "1rem" }}>No orders in this period.</p>
+                ) : (
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Order</th>
+                        <th>Customer</th>
+                        <th>Value</th>
+                        <th>Status</th>
+                        <th><span className="sr-only">Open</span></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dash.recentOrders.map((order) => (
+                        <tr key={order.id}>
+                          <td><strong>{order.number}</strong></td>
+                          <td>{order.customer}</td>
+                          <td>{order.value}</td>
+                          <td><StatusBadge tone={order.tone}>{order.status}</StatusBadge></td>
+                          <td>
+                            <button
+                              type="button"
+                              aria-label={`Open ${order.number}`}
+                              onClick={() => openInspector({
+                                title: order.number,
+                                kicker: "Sales order",
+                                lines: [`Customer: ${order.customer}`, `Value: ${order.value}`, `Status: ${order.status}`, `Order date: ${order.orderDate}`, `Filter: ${period}`],
+                              })}
+                            >
+                              <ChevronRight />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             </article>
 
-            <OutstandingDashboardWidget store={store} onOpen={() => openLiveModule("Outstanding Supplies")} />
+            <OutstandingDashboardWidget
+              store={store}
+              dateFilter={dash.range}
+              onOpen={() => openLiveModule("Outstanding Supplies")}
+            />
 
             <article className="tlb-panel tlb-alerts-panel">
-              <div className="tlb-panel-heading"><div><span>Alerts requiring attention</span><strong>7 operational alerts</strong></div><button type="button" onClick={() => setActiveNav("Quality Control")}>View all <ChevronRight /></button></div>
-              <div className="tlb-alert-list">{alerts.map((alert) => <button type="button" className="tlb-alert-row" key={alert.title} onClick={() => openInspector({ title: alert.title, kicker: "Operational alert", lines: [alert.detail, "Sandbox alert. Acknowledgement is not persisted."] })}><span className={`tlb-alert-icon tlb-alert-${alert.type}`}><AlertTriangle /></span><span><strong>{alert.title}</strong><small>{alert.detail}</small></span><ChevronRight /></button>)}</div>
+              <div className="tlb-panel-heading">
+                <div>
+                  <span>Alerts requiring attention</span>
+                  <strong>{dash.alerts.length} alert{dash.alerts.length === 1 ? "" : "s"} in period</strong>
+                </div>
+                <button type="button" onClick={() => setActiveNav("Quality Control")}>View all <ChevronRight /></button>
+              </div>
+              <div className="tlb-alert-list">
+                {dash.alerts.length === 0 ? (
+                  <p className="tlb-muted-line" style={{ padding: "1rem" }}>No alerts dated in this period.</p>
+                ) : (
+                  dash.alerts.map((alert) => (
+                    <button
+                      type="button"
+                      className="tlb-alert-row"
+                      key={alert.title}
+                      onClick={() => openInspector({
+                        title: alert.title,
+                        kicker: "Operational alert",
+                        lines: [alert.detail, `Date: ${alert.date}`, "Sandbox alert. Acknowledgement is not persisted."],
+                      })}
+                    >
+                      <span className={`tlb-alert-icon tlb-alert-${alert.type}`}><AlertTriangle /></span>
+                      <span><strong>{alert.title}</strong><small>{alert.detail}</small></span>
+                      <ChevronRight />
+                    </button>
+                  ))
+                )}
+              </div>
             </article>
 
             <article className="tlb-panel tlb-operations-panel">
-              <div className="tlb-panel-heading"><div><span>Operational pulse</span><strong>Imports & production</strong></div><button type="button" onClick={() => setActiveNav("Import & Export")}>Open operations <ChevronRight /></button></div>
-              <div className="tlb-operation-row"><span className="tlb-operation-icon"><Ship /></span><div><strong>IMP-26017 · Ningbo → Tema</strong><span>Sodium Hydroxide · 1 container</span></div><div className="tlb-operation-progress"><span><i style={{ width: "68%" }} /></span><small>At port · clearing</small></div></div>
-              <div className="tlb-operation-row"><span className="tlb-operation-icon"><Factory /></span><div><strong>PO-26042 · Hydrogen Peroxide</strong><span>Batch HP-26009 · 1,200 L target</span></div><div className="tlb-operation-progress"><span><i style={{ width: "46%" }} /></span><small>Mixing · 46%</small></div></div>
+              <div className="tlb-panel-heading">
+                <div>
+                  <span>Operational pulse</span>
+                  <strong>Imports & production · {period}</strong>
+                </div>
+                <button type="button" onClick={() => setActiveNav("Import & Export")}>Open operations <ChevronRight /></button>
+              </div>
+              {dash.opsRows.length === 0 ? (
+                <p className="tlb-muted-line" style={{ padding: "1rem" }}>No import/production events in this period.</p>
+              ) : (
+                dash.opsRows.map((row) => (
+                  <div className="tlb-operation-row" key={row.title}>
+                    <span className="tlb-operation-icon">{row.kind === "import" ? <Ship /> : <Factory />}</span>
+                    <div>
+                      <strong>{row.title}</strong>
+                      <span>{row.detail}</span>
+                    </div>
+                    <div className="tlb-operation-progress">
+                      <span><i style={{ width: `${row.progress}%` }} /></span>
+                      <small>{row.caption}</small>
+                    </div>
+                  </div>
+                ))
+              )}
             </article>
 
             <article className="tlb-panel tlb-receivables-panel">
-              <div className="tlb-panel-heading"><div><span>Receivables</span><strong>GH₵ 682,420.00 outstanding</strong></div><button type="button" onClick={() => setActiveNav("Finance")}>View ledger <ChevronRight /></button></div>
-              <div className="tlb-receivable-bars"><div style={{ width: "54%" }} className="current" /><div style={{ width: "20%" }} className="due" /><div style={{ width: "17%" }} className="overdue" /><div style={{ width: "9%" }} className="critical" /></div>
-              <div className="tlb-receivable-legend"><span><i className="current" />Current <strong>GH₵ 368K</strong></span><span><i className="due" />1–30 days <strong>GH₵ 137K</strong></span><span><i className="overdue" />31–60 days <strong>GH₵ 116K</strong></span><span><i className="critical" />60+ days <strong>GH₵ 61K</strong></span></div>
+              <div className="tlb-panel-heading">
+                <div>
+                  <span>Receivables</span>
+                  <strong>{dash.receivablesLabel} outstanding</strong>
+                </div>
+                <button type="button" onClick={() => setActiveNav("Finance")}>View ledger <ChevronRight /></button>
+              </div>
+              <div className="tlb-receivable-bars">
+                {dash.receivableBuckets.map((bucket) => (
+                  <div
+                    key={bucket.className}
+                    style={{ width: `${Math.max(2, (bucket.amount / recvTotal) * 100)}%` }}
+                    className={bucket.className}
+                  />
+                ))}
+              </div>
+              <div className="tlb-receivable-legend">
+                {dash.receivableBuckets.map((bucket) => (
+                  <span key={bucket.className}>
+                    <i className={bucket.className} />
+                    {bucket.label} <strong>{formatMoney(bucket.amount)}</strong>
+                  </span>
+                ))}
+              </div>
             </article>
           </section>
             </>
