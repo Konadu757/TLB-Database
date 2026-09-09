@@ -195,7 +195,7 @@ export function TLBDashboard() {
 
 function TLBDashboardInner() {
   const store = useTlbStore();
-  const { detailBack } = useDetailBack();
+  const { detailBack, setDetailBack } = useDetailBack();
   const detailOpen = Boolean(detailBack);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -280,6 +280,7 @@ function TLBDashboardInner() {
     supplierId?: string | null,
     focusEntityId?: string | null,
   ) => {
+    setDetailBack(null);
     setActiveNav(nav);
     setSelectedOrderId(orderId ?? null);
     setSelectedCustomerId(nav === "Customers" ? customerId ?? null : null);
