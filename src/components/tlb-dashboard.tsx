@@ -870,12 +870,12 @@ function TLBDashboardInner() {
               <div className="tlb-history-controls">
                 <button
                   type="button"
-                  className={rangeSelection.mode === "previousMonth" ? "active" : ""}
+                  className={`tlb-history-card tlb-history-card--prev${rangeSelection.mode === "previousMonth" ? " active" : ""}`}
                   onClick={() => setRangeSelection({ mode: "previousMonth" })}
                 >
                   Previous month
                 </button>
-                <label>
+                <label className="tlb-history-card tlb-history-card--from">
                   From
                   <input
                     type="date"
@@ -884,7 +884,7 @@ function TLBDashboardInner() {
                     aria-label="Custom from date"
                   />
                 </label>
-                <label>
+                <label className="tlb-history-card tlb-history-card--to">
                   To
                   <input
                     type="date"
@@ -896,6 +896,7 @@ function TLBDashboardInner() {
                 <Button
                   type="button"
                   variant="secondary"
+                  className="tlb-history-card tlb-history-card--apply"
                   onClick={() => {
                     if (!customFrom || !customTo) return;
                     setRangeSelection({ mode: "custom", from: customFrom, to: customTo });

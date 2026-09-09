@@ -430,10 +430,83 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-history-copy strong { display: block; font-size: 15px; }
 .tlb-history-copy p { margin: 6px 0 0; color: var(--muted-foreground); font-size: 12px; max-width: 72ch; line-height: 1.45; }
 .tlb-history-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
-.tlb-history-controls > button { height: 34px; padding: 0 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--cream); color: var(--foreground); font-size: 12px; font-weight: 600; }
-.tlb-history-controls > button.active { border-color: var(--primary); background: var(--secondary); color: var(--primary); }
-.tlb-history-controls label { display: grid; gap: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--muted-foreground); }
-.tlb-history-controls input[type="date"] { height: 34px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--cream); color: var(--foreground); font-size: 12px; }
+.tlb-history-controls > button:not(.tlb-history-card) { height: 34px; padding: 0 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--cream); color: var(--foreground); font-size: 12px; font-weight: 600; }
+.tlb-history-controls > button:not(.tlb-history-card).active { border-color: var(--primary); background: var(--secondary); color: var(--primary); }
+.tlb-history-controls label:not(.tlb-history-card) { display: grid; gap: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--muted-foreground); }
+.tlb-history-controls input[type="date"] { height: 34px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: #ffffff; color: var(--foreground); font-size: 12px; }
+.tlb-history-card {
+  display: grid;
+  gap: 4px;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  box-shadow: 0 1px 3px color-mix(in oklab, var(--foreground) 6%, transparent);
+}
+.tlb-history-controls > button.tlb-history-card {
+  height: auto;
+  min-height: 34px;
+  align-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: none;
+  cursor: pointer;
+}
+.tlb-history-controls > button.tlb-history-card--apply,
+.tlb-history-controls .tlb-history-card--apply {
+  height: auto;
+  min-height: 42px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: none;
+  box-shadow: 0 1px 3px color-mix(in oklab, var(--foreground) 6%, transparent);
+}
+/* Previous month — bright yellow */
+.tlb-history-card--prev {
+  background: #ffe566;
+  border-color: #f0c929;
+  color: #5c4a00;
+}
+.tlb-history-card--prev:hover { background: #ffdf40; }
+.tlb-history-card--prev.active {
+  background: #ffd400;
+  border-color: #c9a600;
+  color: #3d3200;
+  box-shadow: 0 0 0 2px color-mix(in oklab, #ffd400 55%, transparent);
+}
+/* From date — bright gray */
+.tlb-history-card--from {
+  background: #e8eaed;
+  border-color: #c5c9d0;
+  color: #3c4048;
+}
+.tlb-history-card--from input[type="date"] {
+  background: #f8f9fa;
+  border-color: #b0b5bd;
+}
+/* To date — soft brand purple */
+.tlb-history-card--to {
+  background: color-mix(in oklab, #523784 14%, #f7f4fb);
+  border-color: color-mix(in oklab, #523784 28%, #d4cce3);
+  color: #523784;
+}
+.tlb-history-card--to input[type="date"] {
+  background: color-mix(in oklab, #f9cd5b 12%, white);
+  border-color: color-mix(in oklab, #523784 22%, #d4cce3);
+}
+/* Apply custom range — bright green */
+.tlb-history-card--apply {
+  background: #3ddc84 !important;
+  border-color: #22c55e !important;
+  color: #0b3d24 !important;
+}
+.tlb-history-card--apply:hover {
+  background: #2fd078 !important;
+  color: #062816 !important;
+}
 .tlb-history-result { margin: 0; font-size: 12px; color: var(--muted-foreground); }
 .tlb-history-result strong { color: var(--foreground); font-variant-numeric: tabular-nums; }
 .tlb-select { height: 32px; display: flex; align-items: center; gap: 7px; padding: 0 9px; border-left: 1px solid var(--border); color: var(--muted-foreground); }.tlb-select svg { width: 14px; }.tlb-select select { appearance: none; border: 0; background: transparent; color: var(--foreground); font-size: 11px; font-weight: 600; outline: 0; }
