@@ -43,6 +43,17 @@ import {
   SuppliersModule,
 } from "@/components/modules/commerce-modules";
 import {
+  BatchesModule,
+  FactoryModule,
+  ImportExportModule,
+  ProductsModule,
+  ProcurementModule,
+  QualityControlModule,
+  QuotationsModule,
+  StockMovementsModule,
+  WarehousesModule,
+} from "@/components/modules/list-modules";
+import {
   AuditModule,
   DeliveriesModule,
   FinanceModule,
@@ -54,11 +65,14 @@ import { buildDashboardSnapshot } from "@/lib/domain/dashboard-metrics";
 import {
   DASHBOARD_PERIODS,
   DEMO_AS_OF,
+  resolveSelectionRange,
+  selectionLabel,
   type DashboardPeriod,
   type DashboardRangeSelection,
 } from "@/lib/domain/period-range";
 import { formatMoney } from "@/lib/store/tlb-store";
 import { useTlbStore } from "@/lib/store/use-tlb-store";
+import { canAccessNav, firstName, userInitials } from "@/lib/domain/permissions";
 import { cn } from "@/lib/utils";
 
 type NavItem = { label: string; icon: typeof LayoutDashboard; badge?: string };
@@ -107,104 +121,43 @@ const navGroups: NavGroup[] = [
   },
 ];
 
-const moduleScreens: Record<string, { kicker: string; description: string; rows: { primary: string; secondary: string; status: string; tone: string }[] }> = {
-  Quotations: {
-    kicker: "Business",
-    description: "Open commercial quotations awaiting conversion.",
-    rows: [
-      { primary: "QT-260441", secondary: "Achimota Science Academy · Ethanol 96%", status: "Sent", tone: "info" },
-      { primary: "QT-260438", secondary: "Korle Vista · Hydrogen Peroxide", status: "Draft", tone: "warning" },
-    ],
-  },
-  Products: {
-    kicker: "Inventory",
-    description: "Finished goods and raw chemicals in the product master.",
-    rows: [
-      { primary: "Hydrochloric Acid", secondary: "SKU CHEM-001 · 32%", status: "In stock", tone: "success" },
-      { primary: "Ethanol 96%", secondary: "SKU CHEM-014 · drums", status: "Low", tone: "warning" },
-    ],
-  },
-  Batches: {
-    kicker: "Inventory",
-    description: "Traceable production and import batches.",
-    rows: [
-      { primary: "HCL-26001", secondary: "Main Warehouse · 240 drums", status: "Released", tone: "success" },
-      { primary: "ETH-26018", secondary: "Expires in 42 days", status: "Watch", tone: "warning" },
-    ],
-  },
-  Warehouses: {
-    kicker: "Inventory",
-    description: "Storage locations used by operations.",
-    rows: [
-      { primary: "Main Warehouse", secondary: "Tema · bonded chemicals", status: "Open", tone: "success" },
-      { primary: "Factory Store", secondary: "Production floor · WIP", status: "Open", tone: "info" },
-    ],
-  },
-  "Stock Movements": {
-    kicker: "Inventory",
-    description: "Recent receipts, issues, and transfers.",
-    rows: [
-      { primary: "TR-26088", secondary: "Main Warehouse → Factory Store · 40 drums", status: "Posted", tone: "success" },
-      { primary: "GR-26061", secondary: "IMP-26017 receipt · NaOH", status: "Draft", tone: "warning" },
-    ],
-  },
-  Procurement: {
-    kicker: "Operations",
-    description: "Purchase orders awaiting receipt or approval.",
-    rows: [
-      { primary: "PO-26017", secondary: "Ningbo Industrial Chem · 1 container", status: "In transit", tone: "info" },
-      { primary: "PO-26012", secondary: "Tema Drum Works · 200 drums", status: "Open", tone: "warning" },
-    ],
-  },
-  "Import & Export": {
-    kicker: "Operations",
-    description: "Shipments currently moving through Tema.",
-    rows: [
-      { primary: "IMP-26017", secondary: "Ningbo → Tema · Sodium Hydroxide", status: "Clearing", tone: "warning" },
-      { primary: "EXP-26004", secondary: "Tema → Abidjan · Ethanol", status: "Booked", tone: "info" },
-    ],
-  },
-  Factory: {
-    kicker: "Operations",
-    description: "Production orders on the factory floor.",
-    rows: [
-      { primary: "PO-26042", secondary: "Hydrogen Peroxide · Batch HP-26009", status: "Mixing 46%", tone: "info" },
-      { primary: "PO-26039", secondary: "HCl dilution · Batch HCL-26022", status: "Queued", tone: "warning" },
-    ],
-  },
-  "Quality Control": {
-    kicker: "Operations",
-    description: "Batches waiting laboratory release.",
-    rows: [
-      { primary: "HP-26009", secondary: "Hydrogen Peroxide · assay pending", status: "Hold", tone: "warning" },
-      { primary: "HCL-26001", secondary: "Released to sales", status: "Pass", tone: "success" },
-    ],
-  },
-  Deliveries: {
-    kicker: "Operations",
-    description: "Dispatch queue linked to supplies.",
-    rows: [],
-  },
-  Finance: {
-    kicker: "Control",
-    description: "VAT invoices, ordinary receipts, and payments.",
-    rows: [],
-  },
-  Reports: {
-    kicker: "Control",
-    description: "Outstanding, partial supply, and fulfilment performance.",
-    rows: [],
-  },
-  "Audit Log": {
-    kicker: "Control",
-    description: "Append-only audit of major fulfilment and document events.",
-    rows: [],
-  },
-  Settings: {
-    kicker: "Control",
-    description: "Company profile, VAT rates, roles, and ageing reminders.",
-    rows: [],
-  },
+const PERIOD_SCOPED_NAV = new Set([
+  "Dashboard",
+  "Suppliers",
+  "Quotations",
+  "Sales Orders",
+  "Outstanding Supplies",
+  "Batches",
+  "Stock Movements",
+  "Procurement",
+  "Import & Export",
+  "Factory",
+  "Quality Control",
+  "Finance",
+  "Deliveries",
+  "Reports",
+]);
+
+const MODULE_BLURBS: Record<string, string> = {
+  Customers: "Customer accounts with credit, terms, TIN, and transaction history.",
+  Suppliers: "Approved suppliers with period-scoped purchase orders, receipts, and spend.",
+  Quotations: "Commercial quotations — click a row for full detail; period filters quote dates.",
+  "Sales Orders": "Customer purchase orders with partial supply and fulfilment history.",
+  "Outstanding Supplies": "Open ordered quantities that still need supply — never silently cleared.",
+  Products: "Finished goods and raw chemicals in the product master.",
+  Stock: "Physical, reserved, and available stock with outstanding demand links.",
+  Batches: "Traceable production and import batches filtered by event date.",
+  Warehouses: "Storage locations with live stock balances from the product master.",
+  "Stock Movements": "Receipts, issues, and transfers scoped to the selected period.",
+  Procurement: "Purchase orders awaiting receipt or approval — filtered by order date.",
+  "Import & Export": "Shipments moving through Tema — filtered by shipment date.",
+  Factory: "Production orders on the factory floor — filtered by run date.",
+  "Quality Control": "Laboratory holds and releases — filtered by QC event date.",
+  Deliveries: "Deliveries linked to supplies — order stays open while outstanding remains.",
+  Finance: "VAT invoices, ordinary receipts (TLB-RCT), and payments.",
+  Reports: "Outstanding, partial supply, fulfilment performance, and customer outstanding.",
+  "Audit Log": "Append-only audit trail for supplies, invoices, receipts, deliveries, and payments.",
+  Settings: "Company letterhead, configurable VAT rates, roles, and reminder thresholds.",
 };
 
 type Inspector = { title: string; kicker: string; lines: string[] };
@@ -255,26 +208,36 @@ export function TLBDashboard() {
 
   const navGroupsLive = useMemo(
     () =>
-      navGroups.map((group) => ({
-        ...group,
-        items: group.items.map((item) =>
-          item.label === "Outstanding Supplies"
-            ? { ...item, badge: outstandingBadge > 0 ? String(outstandingBadge) : undefined }
-            : item.label === "Sales Orders"
-              ? {
-                  ...item,
-                  badge: (() => {
-                    const count = store.state.orders.filter(
-                      (o) => o.status !== "Delivered" && o.status !== "Cancelled",
-                    ).length;
-                    return count > 0 ? String(count) : undefined;
-                  })(),
-                }
-              : item,
-        ),
-      })),
-    [outstandingBadge, store.state.orders],
+      navGroups
+        .map((group) => ({
+          ...group,
+          items: group.items
+            .filter((item) => canAccessNav(store.state, item.label))
+            .map((item) =>
+              item.label === "Outstanding Supplies"
+                ? { ...item, badge: outstandingBadge > 0 ? String(outstandingBadge) : undefined }
+                : item.label === "Sales Orders"
+                  ? {
+                      ...item,
+                      badge: (() => {
+                        const count = store.state.orders.filter(
+                          (o) => o.status !== "Delivered" && o.status !== "Cancelled",
+                        ).length;
+                        return count > 0 ? String(count) : undefined;
+                      })(),
+                    }
+                  : item,
+            ),
+        }))
+        .filter((group) => group.items.length > 0),
+    [outstandingBadge, store.state],
   );
+
+  useEffect(() => {
+    if (!canAccessNav(store.state, activeNav)) {
+      setActiveNav("Dashboard");
+    }
+  }, [store.state.currentRoleId, store.state.currentUserId, activeNav, store.state]);
 
   const openLiveModule = (
     nav: string,
@@ -296,17 +259,33 @@ export function TLBDashboard() {
     setUserOpen(false);
   };
 
-  const commerceNav =
+  const liveModuleNav =
     activeNav === "Customers" ||
     activeNav === "Suppliers" ||
+    activeNav === "Quotations" ||
     activeNav === "Sales Orders" ||
     activeNav === "Outstanding Supplies" ||
+    activeNav === "Products" ||
     activeNav === "Stock" ||
+    activeNav === "Batches" ||
+    activeNav === "Warehouses" ||
+    activeNav === "Stock Movements" ||
+    activeNav === "Procurement" ||
+    activeNav === "Import & Export" ||
+    activeNav === "Factory" ||
+    activeNav === "Quality Control" ||
     activeNav === "Deliveries" ||
     activeNav === "Finance" ||
     activeNav === "Reports" ||
     activeNav === "Audit Log" ||
     activeNav === "Settings";
+
+  const showPeriodBar = PERIOD_SCOPED_NAV.has(activeNav);
+  const listRange = useMemo(
+    () => resolveSelectionRange(rangeSelection, DEMO_AS_OF),
+    [rangeSelection],
+  );
+  const listPeriodLabel = selectionLabel(rangeSelection);
 
   const unreadNotifications = store.state.notifications.filter((n) => !n.readAt).length;
 
@@ -439,8 +418,8 @@ export function TLBDashboard() {
 
     if (focusable.length === 0) return;
 
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
+    const first = focusable[0]!;
+    const last = focusable[focusable.length - 1]!;
     const active = document.activeElement as HTMLElement | null;
 
     if (event.shiftKey && active === first) {
@@ -676,13 +655,13 @@ export function TLBDashboard() {
                   });
                 }}
               >
-                <div className="tlb-avatar">KA</div>
+                <div className="tlb-avatar">{userInitials(store.state.currentUser)}</div>
                 <div className="tlb-user-copy"><strong>{store.state.currentUser}</strong><span>{store.state.currentRole}</span></div>
                 <ChevronDown />
               </button>
               {userOpen && (
                 <div className="tlb-popover tlb-quick-menu tlb-user-menu" role="menu" aria-label="Account">
-                  <button type="button" role="menuitem" onClick={() => openInspector({ title: store.state.currentUser, kicker: "Signed in", lines: [`Role: ${store.state.currentRole}`, "Workspace: TLB Enterprise demo environment", "Switch role under Settings (mock auth ready for real claims)."] })}>Profile <ChevronRight /></button>
+                  <button type="button" role="menuitem" onClick={() => openInspector({ title: store.state.currentUser, kicker: "Signed in", lines: [`Role: ${store.state.currentRole}`, "Workspace: TLB Enterprise", "Owner manages users & roles under Settings."] })}>Profile <ChevronRight /></button>
                   <button type="button" role="menuitem" onClick={() => { setUserOpen(false); setActiveNav("Settings"); }}>Settings <ChevronRight /></button>
                 </div>
               )}
@@ -695,31 +674,11 @@ export function TLBDashboard() {
           <div className="tlb-page-heading">
             <div>
               <p className="tlb-eyebrow">Wednesday, 09 September 2026 · {periodCaption} · {warehouse}</p>
-              <h1>{activeNav === "Dashboard" ? "Good evening, Kwame" : activeNav}</h1>
+              <h1>{activeNav === "Dashboard" ? `Good evening, ${firstName(store.state.currentUser)}` : activeNav}</h1>
               <p>
                 {activeNav === "Dashboard"
                   ? "Operational position for the selected period — sales KPIs use collections (payments & receipts dated in range), defaulting to this month."
-                  : activeNav === "Customers"
-                    ? "Customer accounts with credit, terms, TIN, and transaction history."
-                    : activeNav === "Suppliers"
-                      ? "Approved suppliers with period-scoped purchase orders, receipts, and spend."
-                    : activeNav === "Sales Orders"
-                      ? "Customer purchase orders with partial supply and fulfilment history."
-                      : activeNav === "Outstanding Supplies"
-                        ? "Open ordered quantities that still need supply — never silently cleared."
-                        : activeNav === "Stock"
-                          ? "Physical, reserved, and available stock with outstanding demand links."
-                          : activeNav === "Deliveries"
-                            ? "Deliveries linked to supplies — order stays open while outstanding remains."
-                            : activeNav === "Finance"
-                              ? "VAT invoices, ordinary receipts (TLB-RCT), and payments."
-                              : activeNav === "Reports"
-                                ? "Outstanding, partial supply, fulfilment performance, and customer outstanding."
-                                : activeNav === "Audit Log"
-                                  ? "Append-only audit trail for supplies, invoices, receipts, deliveries, and payments."
-                                  : activeNav === "Settings"
-                                    ? "Company letterhead, configurable VAT rates, roles, and reminder thresholds."
-                  : (moduleScreens[activeNav]?.description ?? "Operational sandbox records for this module.")}
+                  : (MODULE_BLURBS[activeNav] ?? "Operational records for this module.")}
               </p>
             </div>
             <div className="tlb-heading-actions">
@@ -773,8 +732,8 @@ export function TLBDashboard() {
             </div>
           </div>
 
-          {activeNav !== "Settings" && (
-            <section className="tlb-filter-bar" aria-label="Dashboard filters">
+          {showPeriodBar && (
+            <section className="tlb-filter-bar" aria-label="Period filters">
               <div className="tlb-periods">
                 {DASHBOARD_PERIODS.map((item) => (
                   <button
@@ -846,7 +805,7 @@ export function TLBDashboard() {
             </section>
           )}
 
-          {commerceNav ? (
+          {liveModuleNav ? (
             activeNav === "Customers" ? (
               <CustomersModule
                 store={store}
@@ -859,11 +818,15 @@ export function TLBDashboard() {
                 rangeSelection={rangeSelection}
                 selectedSupplierId={selectedSupplierId}
               />
+            ) : activeNav === "Quotations" ? (
+              <QuotationsModule range={listRange} periodLabel={listPeriodLabel} />
             ) : activeNav === "Sales Orders" ? (
               <SalesOrdersModule
                 store={store}
                 selectedOrderId={selectedOrderId}
                 onSelectOrder={(id) => setSelectedOrderId(id)}
+                range={listRange}
+                periodLabel={listPeriodLabel}
                 onNavigateRelated={(nav, id) => {
                   if (nav === "Sales Orders") openLiveModule("Sales Orders", id ?? selectedOrderId);
                   else openLiveModule(nav);
@@ -875,11 +838,27 @@ export function TLBDashboard() {
                 productFilterId={outstandingProductFilter}
                 onOpenOrder={(id) => openLiveModule("Sales Orders", id)}
               />
+            ) : activeNav === "Products" ? (
+              <ProductsModule store={store} />
             ) : activeNav === "Stock" ? (
               <StockModule
                 store={store}
                 onViewOutstanding={(productId) => openLiveModule("Outstanding Supplies", null, productId)}
               />
+            ) : activeNav === "Batches" ? (
+              <BatchesModule range={listRange} periodLabel={listPeriodLabel} />
+            ) : activeNav === "Warehouses" ? (
+              <WarehousesModule store={store} />
+            ) : activeNav === "Stock Movements" ? (
+              <StockMovementsModule range={listRange} periodLabel={listPeriodLabel} />
+            ) : activeNav === "Procurement" ? (
+              <ProcurementModule range={listRange} periodLabel={listPeriodLabel} />
+            ) : activeNav === "Import & Export" ? (
+              <ImportExportModule range={listRange} periodLabel={listPeriodLabel} />
+            ) : activeNav === "Factory" ? (
+              <FactoryModule range={listRange} periodLabel={listPeriodLabel} />
+            ) : activeNav === "Quality Control" ? (
+              <QualityControlModule range={listRange} periodLabel={listPeriodLabel} />
             ) : activeNav === "Deliveries" ? (
               <DeliveriesModule store={store} onOpenOrder={(id) => openLiveModule("Sales Orders", id)} />
             ) : activeNav === "Finance" ? (
@@ -891,55 +870,6 @@ export function TLBDashboard() {
             ) : activeNav === "Settings" ? (
               <SettingsModule store={store} />
             ) : null
-          ) : activeNav !== "Dashboard" && moduleScreens[activeNav] ? (
-            <article className="tlb-panel tlb-orders-panel">
-              <div className="tlb-panel-heading">
-                <div>
-                  <span>{moduleScreens[activeNav].kicker}</span>
-                  <strong>{activeNav}</strong>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => openInspector({
-                    title: activeNav,
-                    kicker: moduleScreens[activeNav].kicker,
-                    lines: [moduleScreens[activeNav].description, `Showing sandbox records for ${periodCaption} · ${warehouse}.`],
-                  })}
-                >
-                  Open record <ChevronRight />
-                </button>
-              </div>
-              <div className="tlb-table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Record</th>
-                      <th>Detail</th>
-                      <th>Status</th>
-                      <th><span className="sr-only">Open</span></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {moduleScreens[activeNav].rows.map((row) => (
-                      <tr key={row.primary}>
-                        <td><strong>{row.primary}</strong></td>
-                        <td>{row.secondary}</td>
-                        <td><StatusBadge tone={row.tone}>{row.status}</StatusBadge></td>
-                        <td>
-                          <button
-                            type="button"
-                            aria-label={`Open ${row.primary}`}
-                            onClick={() => openInspector({ title: row.primary, kicker: activeNav, lines: [row.secondary, `Status: ${row.status}`, "Sandbox record. Backend persistence is not connected."] })}
-                          >
-                            <ChevronRight />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </article>
           ) : (
             <>
           <section className="tlb-metrics" aria-label="Key performance indicators">
