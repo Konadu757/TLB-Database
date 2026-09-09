@@ -1,0 +1,15 @@
+-- DO NOT RUN
+-- Archived competing draft (non-canonical P0 schema).
+--
+-- Canonical migrations — run in this order after the one-shot repair SQL:
+--   1) supabase/migrations/20260909_customer_orders.sql
+--   2) supabase/migrations/20260909_p1_documents.sql
+--
+-- Why archived: this draft defined a different outstanding view shape
+-- (order_line_id, quantity_ordered, quantity_outstanding, ...) against
+-- customer_purchase_order_lines / supply_records. Replacing the canonical
+-- view via CREATE OR REPLACE VIEW failed with:
+--   ERROR: 42P16: cannot drop columns from view
+--
+-- Original draft content intentionally omitted from executable SQL so it
+-- cannot be re-applied from this path. See git history for the full draft.

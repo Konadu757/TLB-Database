@@ -132,7 +132,10 @@ insert into public.document_counters(id) values (1) on conflict do nothing;
 
 -- Outstanding is calculated, never stored as source of truth:
 -- outstanding = greatest(ordered_qty - supplied_qty - cancelled_qty, 0)
-create or replace view public.v_outstanding_customer_supplies as
+-- DROP first: CREATE OR REPLACE VIEW cannot remove/rename columns (42P16).
+drop view if exists public.v_outstanding_customer_supplies cascade;
+
+create view public.v_outstanding_customer_supplies as
 select
   o.id as order_id,
   o.number as order_number,
