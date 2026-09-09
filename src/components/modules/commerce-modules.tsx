@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, PackageSearch, Plus, X } from "lucide-react";
+import { ChevronRight, PackageSearch, Plus, Search, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { calcAvailable, calcOutstanding, statusTone } from "@/lib/domain/calculations";
@@ -79,6 +79,7 @@ export function CustomersModule({
     selectedCustomerId ?? state.customers[0]?.id ?? null,
   );
   const [editing, setEditing] = useState(false);
+  const [search, setSearch] = useState("");
   const selected = state.customers.find((c) => c.id === selectedId) ?? null;
 
   const [form, setForm] = useState({
@@ -152,6 +153,37 @@ export function CustomersModule({
     });
   };
 
+  const customerStats = useMemo(() => {
+    const map = new Map<string, { outstandingOrders: number; outstandingLines: number; outstandingQty: number }>();
+    for (const c of state.customers) {
+      map.set(c.id, { outstandingOrders: 0, outstandingLines: 0, outstandingQty: 0 });
+    }
+    const seenOrders = new Set<string>();
+    for (const row of store.outstanding) {
+      const cur = map.get(row.customerId) ?? { outstandingOrders: 0, outstandingLines: 0, outstandingQty: 0 };
+      cur.outstandingLines += 1;
+      cur.outstandingQty += row.outstandingQty;
+      const key = `${row.customerId}:${row.orderId}`;
+      if (!seenOrders.has(key)) {
+        seenOrders.add(key);
+        cur.outstandingOrders += 1;
+      }
+      map.set(row.customerId, cur);
+    }
+    return map;
+  }, [state.customers, store.outstanding]);
+
+  const filteredCustomers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return state.customers;
+    return state.customers.filter((c) => {
+      const hay = [c.code, c.name, c.contactName, c.phone, c.email, c.tin ?? "", c.category]
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [state.customers, search]);
+
   const customerHistory = useMemo(() => {
     if (!selected) {
       return {
@@ -194,6 +226,77 @@ export function CustomersModule({
 
   const credit = selected ? creditEligibility(selected) : null;
 
+  const transactionSummary = useMemo(() => {
+    const outstandingQty = customerHistory.outstanding.reduce((sum, row) => sum + row.outstandingQty, 0);
+    const outstandingOrders = new Set(customerHistory.outstanding.map((r) => r.orderId)).size;
+    const invoiceTotal = customerHistory.invoices.reduce((sum, inv) => sum + inv.total, 0);
+    const invoiceBalance = customerHistory.invoices.reduce(
+      (sum, inv) => sum + Math.max(0, inv.total - inv.amountPaid),
+      0,
+    );
+    const paymentsTotal = customerHistory.payments.reduce((sum, p) => sum + p.amount, 0);
+    return {
+      orders: customerHistory.orders.length,
+      outstandingOrders,
+      outstandingLines: customerHistory.outstanding.length,
+      outstandingQty,
+      supplies: customerHistory.supplies.length,
+      invoices: customerHistory.invoices.length,
+      invoiceTotal,
+      invoiceBalance,
+      receipts: customerHistory.receipts.length,
+      deliveries: customerHistory.deliveries.length,
+      payments: customerHistory.payments.length,
+      paymentsTotal,
+    };
+  }, [customerHistory]);
+
+  const recentActivity = useMemo(() => {
+    type ActivityItem = { at: string; kind: string; detail: string };
+    const items: ActivityItem[] = [];
+    for (const { order } of customerHistory.orders) {
+      items.push({
+        at: order.updatedAt || order.createdAt || order.orderDate,
+        kind: "Order",
+        detail: `${order.number} · ${order.status}`,
+      });
+    }
+    for (const s of customerHistory.supplies) {
+      items.push({ at: s.suppliedAt, kind: "Supply", detail: `${s.number} · ${s.orderNumber}` });
+    }
+    for (const inv of customerHistory.invoices) {
+      items.push({
+        at: inv.updatedAt || inv.createdAt || inv.invoiceDate,
+        kind: "Invoice",
+        detail: `${inv.number} · ${formatMoney(inv.total)}`,
+      });
+    }
+    for (const r of customerHistory.receipts) {
+      items.push({
+        at: r.createdAt || r.receiptDate,
+        kind: "Receipt",
+        detail: `${r.number} · ${formatMoney(r.amountPaid)}`,
+      });
+    }
+    for (const d of customerHistory.deliveries) {
+      items.push({
+        at: d.updatedAt || d.createdAt || d.deliveryDate,
+        kind: "Delivery",
+        detail: `${d.number} · ${d.status}`,
+      });
+    }
+    for (const p of customerHistory.payments) {
+      items.push({
+        at: p.paymentDate,
+        kind: "Payment",
+        detail: `${p.number} · ${formatMoney(p.amount)}`,
+      });
+    }
+    return items.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 8);
+  }, [customerHistory]);
+
+  const hasSearch = search.trim().length > 0;
+
   return (
     <div className="tlb-module">
       <Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />
@@ -202,75 +305,120 @@ export function CustomersModule({
           <span className="tlb-eyebrow">Business</span>
           <strong>Customers</strong>
         </div>
-        <Button type="button" onClick={startCreate}>
-          <Plus /> New customer
-        </Button>
+        <div className="tlb-toolbar-actions">
+          <label className="tlb-module-search">
+            <Search aria-hidden />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search name, code, contact, phone, email, TIN, category…"
+              aria-label="Search customers"
+            />
+          </label>
+          <Button type="button" onClick={startCreate}>
+            <Plus /> New customer
+          </Button>
+        </div>
       </div>
 
       <div className="tlb-split">
-        <article className="tlb-panel tlb-orders-panel">
+        <article className="tlb-panel tlb-orders-panel tlb-customers-panel">
           <div className="tlb-table-scroll">
             {state.customers.length === 0 ? (
               <EmptyState title="No customers" detail="Create a customer account to begin trading." />
+            ) : filteredCustomers.length === 0 ? (
+              <EmptyState title="No customers match your search." detail="Try another name, code, contact, phone, email, TIN, or category." />
             ) : (
-              <table>
+              <table className="tlb-customers-table">
                 <thead>
                   <tr>
-                    <th>Code</th>
-                    <th>Customer</th>
-                    <th>Category</th>
-                    <th>Terms</th>
-                    <th>Status</th>
+                    <th className="tlb-col-priority">Code</th>
+                    <th className="tlb-col-priority">Customer</th>
+                    <th className="tlb-col-contact">Phone / email</th>
+                    <th className="tlb-col-priority">Category</th>
+                    <th className="tlb-col-priority">Terms</th>
+                    <th className="tlb-col-credit">Credit</th>
+                    <th className="tlb-col-tin">TIN</th>
+                    <th className="tlb-col-open">Open</th>
+                    <th className="tlb-col-priority">Status</th>
                     <th>
                       <span className="sr-only">Open</span>
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {state.customers.map((c) => (
-                    <tr
-                      key={c.id}
-                      className={`tlb-row-clickable${selectedId === c.id && !editing ? " tlb-row-active" : ""}`}
-                      tabIndex={0}
-                      aria-selected={selectedId === c.id && !editing}
-                      onClick={() => selectCustomer(c.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          selectCustomer(c.id);
-                        }
-                      }}
-                    >
-                      <td>
-                        <strong>{c.code}</strong>
-                      </td>
-                      <td>
-                        {c.name}
-                        <div className="tlb-muted-line">{c.contactName || "—"}</div>
-                      </td>
-                      <td>{c.category}</td>
-                      <td>{c.paymentTerms}</td>
-                      <td>
-                        <StatusBadge tone={c.active ? "success" : "warning"}>{c.active ? "Active" : "Inactive"}</StatusBadge>
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          aria-label={`View ${c.name}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
+                  {filteredCustomers.map((c) => {
+                    const stats = customerStats.get(c.id);
+                    const rowCredit = creditEligibility(c);
+                    const isSelected = selectedId === c.id && !editing;
+                    return (
+                      <tr
+                        key={c.id}
+                        className={`tlb-row-clickable${isSelected ? " tlb-row-active" : ""}`}
+                        tabIndex={0}
+                        aria-selected={isSelected}
+                        onClick={() => selectCustomer(c.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
                             selectCustomer(c.id);
-                          }}
-                        >
-                          <ChevronRight />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                          }
+                        }}
+                      >
+                        <td className="tlb-col-priority">
+                          <strong>{c.code}</strong>
+                        </td>
+                        <td className="tlb-col-priority">
+                          {c.name}
+                          <div className="tlb-muted-line">{c.contactName || "—"}</div>
+                        </td>
+                        <td className="tlb-col-contact">
+                          {c.phone || "—"}
+                          <div className="tlb-muted-line">{c.email || "—"}</div>
+                        </td>
+                        <td className="tlb-col-priority">{c.category}</td>
+                        <td className="tlb-col-priority">{c.paymentTerms}</td>
+                        <td className="tlb-col-credit">
+                          <StatusBadge tone={rowCredit.tone}>{rowCredit.label}</StatusBadge>
+                        </td>
+                        <td className="tlb-col-tin">{c.tin?.trim() ? c.tin : "—"}</td>
+                        <td className="tlb-col-open">
+                          {stats && stats.outstandingOrders > 0 ? (
+                            <StatusBadge tone="warning">
+                              {stats.outstandingOrders} open · {stats.outstandingQty} qty
+                            </StatusBadge>
+                          ) : (
+                            <span className="tlb-muted-line">None</span>
+                          )}
+                        </td>
+                        <td className="tlb-col-priority">
+                          <StatusBadge tone={c.active ? "success" : "warning"}>{c.active ? "Active" : "Inactive"}</StatusBadge>
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            aria-label={`View ${c.name}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              selectCustomer(c.id);
+                            }}
+                          >
+                            <ChevronRight />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
           </div>
+          {hasSearch && filteredCustomers.length > 0 ? (
+            <div className="tlb-list-meta">
+              Showing {filteredCustomers.length} of {state.customers.length} customers
+            </div>
+          ) : null}
         </article>
 
         <article className="tlb-panel tlb-detail-panel" ref={detailRef} key={selectedId ?? "new"}>
@@ -377,6 +525,53 @@ export function CustomersModule({
                   Edit <ChevronRight />
                 </button>
               </div>
+
+              <div className="tlb-subheading">Transaction summary</div>
+              <div className="tlb-customer-summary" aria-label="Customer transaction summary">
+                <div>
+                  <span>Orders</span>
+                  <strong>{transactionSummary.orders}</strong>
+                </div>
+                <div>
+                  <span>Outstanding</span>
+                  <strong>
+                    {transactionSummary.outstandingLines}
+                    <small> lines · {transactionSummary.outstandingQty} qty</small>
+                  </strong>
+                </div>
+                <div>
+                  <span>Supplies</span>
+                  <strong>{transactionSummary.supplies}</strong>
+                </div>
+                <div>
+                  <span>Invoices</span>
+                  <strong>
+                    {transactionSummary.invoices}
+                    <small>{formatMoney(transactionSummary.invoiceBalance)} due</small>
+                  </strong>
+                </div>
+                <div>
+                  <span>Receipts</span>
+                  <strong>{transactionSummary.receipts}</strong>
+                </div>
+                <div>
+                  <span>Deliveries</span>
+                  <strong>{transactionSummary.deliveries}</strong>
+                </div>
+                <div>
+                  <span>Payments</span>
+                  <strong>
+                    {transactionSummary.payments}
+                    <small>{formatMoney(transactionSummary.paymentsTotal)}</small>
+                  </strong>
+                </div>
+                <div>
+                  <span>Open orders</span>
+                  <strong>{transactionSummary.outstandingOrders}</strong>
+                </div>
+              </div>
+
+              <div className="tlb-subheading">Account details</div>
               <dl className="tlb-kv">
                 <div><dt>Company / name</dt><dd>{selected.name}</dd></div>
                 <div><dt>Category</dt><dd>{selected.category}</dd></div>
@@ -399,8 +594,30 @@ export function CustomersModule({
                     </StatusBadge>
                   </dd>
                 </div>
+                <div>
+                  <dt>Record dates</dt>
+                  <dd>
+                    Created {new Date(selected.createdAt).toLocaleDateString()}
+                    <div className="tlb-muted-line">Updated {new Date(selected.updatedAt).toLocaleDateString()}</div>
+                  </dd>
+                </div>
                 <div className="tlb-span-2"><dt>Notes</dt><dd>{selected.notes || "—"}</dd></div>
               </dl>
+
+              <div className="tlb-subheading">Recent activity</div>
+              {recentActivity.length === 0 ? (
+                <EmptyState title="No recent activity." detail="Orders, supplies, invoices, receipts, deliveries, and payments will appear here." />
+              ) : (
+                <ul className="tlb-activity-list">
+                  {recentActivity.map((item) => (
+                    <li key={`${item.kind}-${item.detail}-${item.at}`}>
+                      <span>{item.kind}</span>
+                      <strong>{item.detail}</strong>
+                      <small>{new Date(item.at).toLocaleString()}</small>
+                    </li>
+                  ))}
+                </ul>
+              )}
 
               <div className="tlb-subheading">Orders / purchase orders</div>
               {customerHistory.orders.length === 0 ? (
