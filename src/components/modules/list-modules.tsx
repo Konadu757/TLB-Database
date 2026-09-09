@@ -44,7 +44,12 @@ function CatalogModule({
     emptyDetail: "Nothing to show for this filter.",
   };
 
-  const rows = useMemo(() => recordsForModule(module, range), [module, range]);
+  const rows = useMemo(
+    () => recordsForModule(module, range),
+    // Depend on range bounds so period chip changes always refilter lists.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- range object identity is unstable
+    [module, range?.from, range?.to],
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const onSelect = useCallback((id: string) => setSelectedId(id), []);

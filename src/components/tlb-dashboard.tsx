@@ -513,10 +513,6 @@ export function TLBDashboard() {
           </div>
         ))}
       </nav>
-      <div className="tlb-sidebar-footer">
-        <span className="tlb-environment-dot" />
-        <div><strong>Demo environment</strong><span>Operational data sandbox</span></div>
-      </div>
     </aside>
   );
 
@@ -902,6 +898,8 @@ export function TLBDashboard() {
                 store={store}
                 productFilterId={outstandingProductFilter}
                 onOpenOrder={(id) => openOrderDetail(id, "Outstanding Supplies")}
+                range={listRange}
+                periodLabel={listPeriodLabel}
               />
             ) : activeNav === "Products" ? (
               <ProductsModule
@@ -938,6 +936,8 @@ export function TLBDashboard() {
                 focusId={moduleFocusId}
                 onFocusConsumed={() => setModuleFocusId(null)}
                 onOpenOrder={(id) => openOrderDetail(id, "Deliveries")}
+                range={listRange}
+                periodLabel={listPeriodLabel}
               />
             ) : activeNav === "Finance" ? (
               <FinanceModule
@@ -945,9 +945,11 @@ export function TLBDashboard() {
                 focusId={moduleFocusId}
                 onFocusConsumed={() => setModuleFocusId(null)}
                 onOpenOrder={(id) => openOrderDetail(id, "Finance")}
+                range={listRange}
+                periodLabel={listPeriodLabel}
               />
             ) : activeNav === "Reports" ? (
-              <ReportsModule store={store} />
+              <ReportsModule store={store} range={listRange} periodLabel={listPeriodLabel} />
             ) : activeNav === "Audit Log" ? (
               <AuditModule store={store} />
             ) : activeNav === "Settings" ? (

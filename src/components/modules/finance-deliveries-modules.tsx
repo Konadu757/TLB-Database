@@ -10,6 +10,7 @@ import {
 } from "@/components/modules/record-browser";
 import { Button } from "@/components/ui/button";
 import { statusTone } from "@/lib/domain/calculations";
+import { isoInRange } from "@/lib/domain/period-range";
 import type { DeliveryStatus, PaymentMethod } from "@/lib/domain/types";
 import { formatMoney } from "@/lib/store/tlb-store";
 import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
@@ -56,11 +57,15 @@ export function FinanceModule({
   onOpenOrder,
   focusId,
   onFocusConsumed,
+  range,
+  periodLabel,
 }: {
   store: TlbStoreApi;
   onOpenOrder: (orderId: string) => void;
   focusId?: string | null;
   onFocusConsumed?: () => void;
+  range?: { from: string; to: string } | null;
+  periodLabel?: string;
 }) {
   const { state } = store;
   const initialFocus = resolveFinanceFocus(state, focusId);
@@ -105,6 +110,7 @@ export function FinanceModule({
 
   const filteredInvoices = useMemo(() => {
     return state.invoices.filter((inv) => {
+      if (range && !isoInRange(inv.invoiceDate, range)) return false;
       const order = state.orders.find((o) => o.id === inv.orderId);
       const customer = state.customers.find((c) => c.id === inv.customerId);
       return matchesSearch(
@@ -112,22 +118,24 @@ export function FinanceModule({
         invoiceSearch,
       );
     });
-  }, [state.invoices, state.orders, state.customers, invoiceSearch]);
+  }, [state.invoices, state.orders, state.customers, invoiceSearch, range]);
 
   const filteredReceipts = useMemo(() => {
     return state.receipts.filter((r) => {
+      if (range && !isoInRange(r.receiptDate, range)) return false;
       const customer = state.customers.find((c) => c.id === r.customerId);
       return matchesSearch([r.number, customer?.name, r.paymentMethod, r.processedBy], receiptSearch);
     });
-  }, [state.receipts, state.customers, receiptSearch]);
+  }, [state.receipts, state.customers, receiptSearch, range]);
 
   const filteredPayments = useMemo(() => {
     return state.payments.filter((p) => {
+      if (range && !isoInRange(p.paymentDate, range)) return false;
       const customer = state.customers.find((c) => c.id === p.customerId);
       const invoice = state.invoices.find((i) => i.id === p.invoiceId);
       return matchesSearch([p.number, customer?.name, p.method, invoice?.number, p.recordedBy], paymentSearch);
     });
-  }, [state.payments, state.customers, state.invoices, paymentSearch]);
+  }, [state.payments, state.customers, state.invoices, paymentSearch, range]);
 
   const selectedInvoice = state.invoices.find((i) => i.id === selectedInvoiceId) ?? null;
   const selectedReceipt = state.receipts.find((r) => r.id === selectedReceiptId) ?? null;
@@ -397,6 +405,7 @@ export function FinanceModule({
         <div>
           <span className="tlb-eyebrow">Control · Finance</span>
           <strong>Invoices, receipts & payments</strong>
+          {periodLabel ? <p className="tlb-muted-line">Document dates scoped to {periodLabel}</p> : null}
         </div>
         <div className="tlb-periods">
           {(["invoices", "receipts", "payments"] as const).map((t) => (
@@ -868,11 +877,15 @@ export function DeliveriesModule({
   onOpenOrder,
   focusId,
   onFocusConsumed,
+  range,
+  periodLabel,
 }: {
   store: TlbStoreApi;
   onOpenOrder: (orderId: string) => void;
   focusId?: string | null;
   onFocusConsumed?: () => void;
+  range?: { from: string; to: string } | null;
+  periodLabel?: string;
 }) {
   const { state } = store;
   const [selectedId, setSelectedId] = useState<string | null>(focusId ?? null);
@@ -902,6 +915,7 @@ export function DeliveriesModule({
 
   const filtered = useMemo(() => {
     return state.deliveries.filter((d) => {
+      if (range && !isoInRange(d.deliveryDate, range)) return false;
       const order = state.orders.find((o) => o.id === d.orderId);
       const customer = state.customers.find((c) => c.id === d.customerId);
       const supply = state.supplies.find((s) => s.id === d.supplyId);
@@ -910,7 +924,7 @@ export function DeliveriesModule({
         search,
       );
     });
-  }, [state.deliveries, state.orders, state.customers, state.supplies, search]);
+  }, [state.deliveries, state.orders, state.customers, state.supplies, search, range]);
 
   if (selected) {
     const items = state.deliveryItems.filter((i) => i.deliveryId === selected.id);
@@ -1046,7 +1060,10 @@ export function DeliveriesModule({
         <div>
           <span className="tlb-eyebrow">Operations</span>
           <strong>Deliveries</strong>
-          <p className="tlb-muted-line">Linked to supplies — order stays open while outstanding remains</p>
+          <p className="tlb-muted-line">
+            Linked to supplies — order stays open while outstanding remains
+            {periodLabel ? ` · Delivery dates scoped to ${periodLabel}` : ""}
+          </p>
         </div>
         <div className="tlb-toolbar-actions">
           <label className="tlb-module-search">

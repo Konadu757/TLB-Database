@@ -52,16 +52,28 @@ function downloadCsv(filename: string, csv: string) {
 
 export { FinanceModule, DeliveriesModule } from '@/components/modules/finance-deliveries-modules';
 
-export function ReportsModule({ store }: { store: TlbStoreApi }) {
+export function ReportsModule({
+  store,
+  range,
+  periodLabel,
+}: {
+  store: TlbStoreApi;
+  range?: { from: string; to: string } | null;
+  periodLabel?: string;
+}) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [tab, setTab] = useState<"outstanding" | "partial" | "performance" | "customer">("outstanding");
   const filter = useMemo(() => {
-    const f: { from?: string; to?: string } = {};
-    if (from) f.from = from;
-    if (to) f.to = to;
-    return f;
-  }, [from, to]);
+    if (from || to) {
+      const f: { from?: string; to?: string } = {};
+      if (from) f.from = from;
+      if (to) f.to = to;
+      return f;
+    }
+    if (range) return { from: range.from, to: range.to };
+    return {};
+  }, [from, to, range]);
 
   if (!store.can("reports.view")) {
     return (
@@ -82,6 +94,9 @@ export function ReportsModule({ store }: { store: TlbStoreApi }) {
         <div>
           <span className="tlb-eyebrow">Control</span>
           <strong>Fulfilment reports</strong>
+          {periodLabel && !from && !to ? (
+            <p className="tlb-muted-line">Using timeline · {periodLabel} (override with From/To)</p>
+          ) : null}
         </div>
         <div className="tlb-inline-actions">
           <label className="tlb-select">

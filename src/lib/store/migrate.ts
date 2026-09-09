@@ -114,6 +114,11 @@ export function syncSessionIdentity(state: TlbState): void {
   }
 }
 
+function mergeById<T extends { id: string }>(existing: T[], extras: T[]): T[] {
+  const ids = new Set(existing.map((e) => e.id));
+  return [...existing, ...extras.filter((e) => !ids.has(e.id))];
+}
+
 /** Upgrade legacy localStorage payloads without wiping demo data. */
 export function migrateState(raw: unknown): TlbState {
   if (!raw || typeof raw !== "object") return createSeedState();
@@ -148,6 +153,10 @@ export function migrateState(raw: unknown): TlbState {
   // v4: seed supplier master + period-dated procurement activity.
   const needsSupplierSeed = priorVersion < 4 || !(parsed.suppliers?.length);
 
+  // v6: merge period-spanning commercial demo rows so Today ≠ Month ≠ Year is visible
+  // without wiping user-created documents (merge-by-id only).
+  const needsPeriodSpanSeed = priorVersion < 6;
+
   // v5: owner-managed roles/users + correct owner identity (replace demo Kwame/Manager session).
   const systemRoles = createSystemRoles();
   const roles: RoleDefinition[] =
@@ -159,8 +168,14 @@ export function migrateState(raw: unknown): TlbState {
       : systemRoles;
   const users: AppUser[] = parsed.users?.length ? parsed.users : defaultUsers(roles);
 
+  const baseOrders = parsed.orders?.length ? parsed.orders.map((o) => ({ ...o })) : seed.orders.map((o) => ({ ...o }));
+  const baseOrderLines = parsed.orderLines?.length ? parsed.orderLines : seed.orderLines;
+  const baseReceipts = needsCollectionSeed ? seed.receipts : (parsed.receipts ?? []);
+  const baseReceiptLines = needsCollectionSeed ? seed.receiptLines : (parsed.receiptLines ?? []);
+  const basePayments = needsCollectionSeed ? seed.payments : (parsed.payments ?? []);
+
   const next: TlbState = {
-    version: 5,
+    version: 6,
     warehouses: parsed.warehouses?.length ? parsed.warehouses : seed.warehouses,
     products: parsed.products?.length ? parsed.products : seed.products,
     stock: parsed.stock?.length ? parsed.stock : seed.stock,
@@ -171,26 +186,27 @@ export function migrateState(raw: unknown): TlbState {
       : (parsed.supplierPurchaseOrders ?? []),
     supplierReceipts: needsSupplierSeed ? seed.supplierReceipts : (parsed.supplierReceipts ?? []),
     supplierPayments: needsSupplierSeed ? seed.supplierPayments : (parsed.supplierPayments ?? []),
-    orders: (parsed.orders?.length ? parsed.orders : seed.orders).map((o) => ({ ...o })),
-    orderLines: parsed.orderLines?.length ? parsed.orderLines : seed.orderLines,
+    orders: needsPeriodSpanSeed ? mergeById(baseOrders, seed.orders) : baseOrders,
+    orderLines: needsPeriodSpanSeed ? mergeById(baseOrderLines, seed.orderLines) : baseOrderLines,
     supplies: parsed.supplies ?? [],
     supplyLines: parsed.supplyLines ?? [],
     invoices: parsed.invoices ?? [],
     invoiceLines: parsed.invoiceLines ?? [],
-    receipts: needsCollectionSeed ? seed.receipts : (parsed.receipts ?? []),
-    receiptLines: needsCollectionSeed ? seed.receiptLines : (parsed.receiptLines ?? []),
+    receipts: needsPeriodSpanSeed ? mergeById(baseReceipts, seed.receipts) : baseReceipts,
+    receiptLines: needsPeriodSpanSeed ? mergeById(baseReceiptLines, seed.receiptLines) : baseReceiptLines,
     deliveries: parsed.deliveries ?? [],
     deliveryItems: parsed.deliveryItems ?? [],
-    payments: needsCollectionSeed ? seed.payments : (parsed.payments ?? []),
+    payments: needsPeriodSpanSeed ? mergeById(basePayments, seed.payments) : basePayments,
     notifications: parsed.notifications ?? [],
     reservations: parsed.reservations ?? [],
     audit: parsed.audit ?? [],
     counters: {
-      ...(needsCollectionSeed
+      ...(needsCollectionSeed || needsPeriodSpanSeed
         ? {
             ...counters,
             receipt: Math.max(counters.receipt, seed.counters.receipt),
             payment: Math.max(counters.payment, seed.counters.payment),
+            order: Math.max(counters.order, seed.counters.order),
           }
         : counters),
       ...(needsSupplierSeed

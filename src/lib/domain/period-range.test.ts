@@ -3,7 +3,9 @@
  * Run: npx --yes tsx src/lib/domain/period-range.test.ts
  */
 import { buildDashboardSnapshot, snapshotFingerprint } from "./dashboard-metrics";
+import { recordsForModule } from "./list-catalog";
 import { DASHBOARD_PERIODS, getPeriodRange, isoInRange } from "./period-range";
+import { migrateState } from "../store/migrate";
 import { createSeedState } from "../store/seed";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -58,6 +60,35 @@ test("Today active orders only include same-day seed order", () => {
   assert(today.recentOrders.every((o) => o.orderDate === "2026-09-09"), "only today dates");
   assert(today.recentOrders.some((o) => o.number === "TLB-ORD-2609-00002"), "includes today order");
   assert(!today.recentOrders.some((o) => o.number === "TLB-ORD-2603-00005"), "excludes March order");
+});
+
+test("catalog modules filter by range (Today ≠ Year)", () => {
+  const today = getPeriodRange("Today");
+  const year = getPeriodRange("This Year");
+  const qToday = recordsForModule("Quotations", today);
+  const qYear = recordsForModule("Quotations", year);
+  assert(qToday.length < qYear.length, `quotations today ${qToday.length} vs year ${qYear.length}`);
+  const mToday = recordsForModule("Procurement", today);
+  const mYear = recordsForModule("Procurement", year);
+  assert(mToday.length < mYear.length, `procurement today ${mToday.length} vs year ${mYear.length}`);
+});
+
+test("v6 migrate merges missing period-spanning orders into stale v5 state", () => {
+  const seed = createSeedState();
+  const stale = {
+    ...seed,
+    version: 5,
+    orders: seed.orders.filter((o) => o.id === "ord-phase30"),
+    orderLines: seed.orderLines.filter((l) => l.orderId === "ord-phase30"),
+  };
+  const migrated = migrateState(stale);
+  assert(migrated.version === 6, "bumped to v6");
+  assert(migrated.orders.length >= 5, `expected ≥5 orders, got ${migrated.orders.length}`);
+  assert(migrated.orders.some((o) => o.id === "ord-today"), "has today order");
+  assert(migrated.orders.some((o) => o.id === "ord-year"), "has year order");
+  const todaySnap = buildDashboardSnapshot(migrated, "Today");
+  const yearSnap = buildDashboardSnapshot(migrated, "This Year");
+  assert(todaySnap.recentOrders.length < yearSnap.recentOrders.length, "migrated Today ≠ Year order counts");
 });
 
 console.log(`\n${passed} period tests passed`);

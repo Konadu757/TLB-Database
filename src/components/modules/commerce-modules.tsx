@@ -1157,7 +1157,7 @@ export function SalesOrdersModule({
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [state.orders, state.customers, range, search]);
+  }, [state.orders, state.customers, range?.from, range?.to, search]);
 
   if (selectedOrderId) {
     return (
@@ -1841,10 +1841,14 @@ export function OutstandingSuppliesModule({
   store,
   onOpenOrder,
   productFilterId,
+  range,
+  periodLabel,
 }: {
   store: TlbStoreApi;
   onOpenOrder: (orderId: string) => void;
   productFilterId?: string | null;
+  range?: { from: string; to: string } | null;
+  periodLabel?: string;
 }) {
   const [band, setBand] = useState<"All" | "Normal" | "Attention" | "Overdue">("All");
   const [sort, setSort] = useState<"age" | "qty" | "customer">("age");
@@ -1856,6 +1860,7 @@ export function OutstandingSuppliesModule({
   }, [productFilterId]);
 
   const rows = store.outstanding.filter((r) => {
+    if (range && !isoInRange(r.orderDate, range)) return false;
     if (band !== "All" && r.ageingBand !== band) return false;
     if (warehouseId !== "all" && r.warehouseId !== warehouseId) return false;
     if (productId !== "all" && r.productId !== productId) return false;
@@ -1877,6 +1882,7 @@ export function OutstandingSuppliesModule({
           <strong>Outstanding Supplies</strong>
           <p className="tlb-muted-line">
             Ageing: 0–{store.state.ageing.normalMaxDays} Normal · {store.state.ageing.normalMaxDays + 1}–{store.state.ageing.attentionMaxDays} Attention · {store.state.ageing.attentionMaxDays + 1}+ Overdue
+            {periodLabel ? ` · Order dates scoped to ${periodLabel}` : ""}
           </p>
         </div>
         <div className="tlb-inline-actions">
