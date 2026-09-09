@@ -12,20 +12,24 @@ import {
   deriveOrderStatus,
   validateSupplyQty,
 } from "../src/lib/domain/calculations";
-import { hasPermission } from "../src/lib/domain/permissions";
+import { canAccessNav, hasPermission } from "../src/lib/domain/permissions";
 import { nextDocumentNumber } from "../src/lib/domain/numbering";
 import { globalSearch } from "../src/lib/domain/search";
 import { createSeedState } from "../src/lib/store/seed";
 import {
+  assignUserRole,
   confirmCustomerOrder,
   createDeliveryFromSupply,
   createInvoiceFromSupply,
   createOrdinaryReceipt,
+  createRole,
   createSupply,
+  deactivateRole,
   getOutstandingRows,
   markDelivered,
   receiveStock,
   resetToSeed,
+  switchSessionUser,
   updateDeliveryStatus,
 } from "../src/lib/store/tlb-store";
 import type { CustomerOrderLine, StockBalance } from "../src/lib/domain/types";
@@ -77,6 +81,38 @@ function testPermissions() {
   assert.equal(hasPermission("Warehouse", "invoice.create"), false);
   assert.equal(hasPermission("Finance", "invoice.create"), true);
   assert.equal(hasPermission("Admin", "settings.manage"), true);
+  assert.equal(hasPermission("Owner", "users.manage"), true);
+  assert.equal(hasPermission("Manager", "users.manage"), false);
+
+  const state = createSeedState();
+  assert.equal(state.currentUser, "TLB Owner");
+  assert.equal(state.currentRole, "Owner");
+  assert.equal(hasPermission(state, "users.manage"), true);
+  assert.equal(canAccessNav(state, "Settings"), true);
+  assert.equal(canAccessNav(state, "Finance"), true);
+
+  const created = createRole(state, {
+    name: "Procurement Lead",
+    description: "Supplier and stock intake",
+    permissions: ["dashboard.view", "suppliers.manage", "stock.receive", "stock.view"],
+  });
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+  const roleId = created.data.data.id;
+  const assigned = assignUserRole(created.data.state, "user-sales", roleId);
+  assert.equal(assigned.ok, true);
+  if (!assigned.ok) return;
+  const switched = switchSessionUser(assigned.data.state, "user-sales");
+  assert.equal(switched.ok, true);
+  if (!switched.ok) return;
+  assert.equal(switched.data.state.currentRole, "Procurement Lead");
+  assert.equal(hasPermission(switched.data.state, "suppliers.manage"), true);
+  assert.equal(hasPermission(switched.data.state, "invoice.create"), false);
+  assert.equal(canAccessNav(switched.data.state, "Suppliers"), true);
+  assert.equal(canAccessNav(switched.data.state, "Finance"), false);
+
+  const blockedDelete = deactivateRole(switched.data.state, roleId);
+  assert.equal(blockedDelete.ok, false);
 }
 
 function testPhase30Scenario() {

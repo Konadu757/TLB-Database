@@ -1579,20 +1579,39 @@ export function SalesOrdersModule({
   selectedOrderId,
   onSelectOrder,
   onNavigateRelated,
+  range,
+  periodLabel,
 }: {
   store: TlbStoreApi;
   selectedOrderId: string | null;
   onSelectOrder: (id: string | null) => void;
   onNavigateRelated?: (nav: string, id?: string) => void;
+  range?: { from: string; to: string } | null;
+  periodLabel?: string;
 }) {
   const { state } = store;
   const [creating, setCreating] = useState(false);
+  const [search, setSearch] = useState("");
   const [customerId, setCustomerId] = useState(state.customers[0]?.id ?? "");
   const [notes, setNotes] = useState("");
   const [customerPoNumber, setCustomerPoNumber] = useState("");
   const [draftLines, setDraftLines] = useState([
     { productId: state.products[0]?.id ?? "", warehouseId: state.warehouses[0]?.id ?? "", orderedQty: 1, unitPrice: 1000 },
   ]);
+
+  const filteredOrders = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return state.orders.filter((order) => {
+      if (range && !isoInRange(order.orderDate, range)) return false;
+      if (!q) return true;
+      const customer = state.customers.find((c) => c.id === order.customerId);
+      const hay = [order.number, order.customerPoNumber, order.status, order.notes, customer?.name, customer?.code]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [state.orders, state.customers, range, search]);
 
   if (selectedOrderId) {
     return (
@@ -1612,8 +1631,19 @@ export function SalesOrdersModule({
         <div>
           <span className="tlb-eyebrow">Business · Customer purchase orders</span>
           <strong>Sales Orders</strong>
+          {periodLabel ? <p className="tlb-muted-line">Order dates scoped to {periodLabel}</p> : null}
         </div>
         <div className="tlb-toolbar-actions">
+          <label className="tlb-module-search">
+            <Search aria-hidden />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search order #, customer, PO #, status…"
+              aria-label="Search sales orders"
+            />
+          </label>
           <Button type="button" variant="outline" onClick={store.resetDemo}>
             Reset Phase 30 demo
           </Button>
@@ -1758,12 +1788,18 @@ export function SalesOrdersModule({
         <div className="tlb-table-scroll">
           {state.orders.length === 0 ? (
             <EmptyState title="No customer orders" detail="Create a customer purchase order to start fulfilment." />
+          ) : filteredOrders.length === 0 ? (
+            <EmptyState
+              title="No orders match this filter"
+              detail={range ? "Try a wider period or clear search." : "Try another order number, customer, or status."}
+            />
           ) : (
             <table>
               <thead>
                 <tr>
                   <th>Order</th>
                   <th>Customer</th>
+                  <th>Date</th>
                   <th>Value</th>
                   <th>Fulfilment</th>
                   <th>Status</th>
@@ -1771,17 +1807,30 @@ export function SalesOrdersModule({
                 </tr>
               </thead>
               <tbody>
-                {state.orders.map((order) => {
+                {filteredOrders.map((order) => {
                   const customer = state.customers.find((c) => c.id === order.customerId);
+                  const isSelected = selectedOrderId === order.id;
                   return (
-                    <tr key={order.id}>
+                    <tr
+                      key={order.id}
+                      className={`tlb-row-clickable${isSelected ? " tlb-row-active" : ""}`}
+                      tabIndex={0}
+                      onClick={() => onSelectOrder(order.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onSelectOrder(order.id);
+                        }
+                      }}
+                    >
                       <td><strong>{order.number}</strong></td>
                       <td>{customer?.name ?? "—"}</td>
+                      <td>{order.orderDate.slice(0, 10)}</td>
                       <td>{formatMoney(orderValue(state, order.id))}</td>
                       <td>{orderFulfilment(state, order.id)}%</td>
                       <td><StatusBadge tone={statusTone(order.status)}>{order.status}</StatusBadge></td>
                       <td>
-                        <button type="button" aria-label={`Open ${order.number}`} onClick={() => onSelectOrder(order.id)}>
+                        <button type="button" aria-label={`Open ${order.number}`} onClick={(e) => { e.stopPropagation(); onSelectOrder(order.id); }}>
                           <ChevronRight />
                         </button>
                       </td>
@@ -1792,6 +1841,13 @@ export function SalesOrdersModule({
             </table>
           )}
         </div>
+        {search.trim() && filteredOrders.length > 0 ? (
+          <div className="tlb-list-meta">
+            Showing {filteredOrders.length} of {state.orders.length} orders
+          </div>
+        ) : periodLabel && filteredOrders.length > 0 ? (
+          <div className="tlb-list-meta">{filteredOrders.length} order{filteredOrders.length === 1 ? "" : "s"} in {periodLabel}</div>
+        ) : null}
       </article>
     </div>
   );

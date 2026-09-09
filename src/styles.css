@@ -398,6 +398,22 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-flash button svg { width: 14px; }
 .tlb-flash-error { background: var(--danger-muted); color: var(--danger); }
 .tlb-flash-ok { background: var(--success-muted); color: var(--success); }
+.tlb-roles-layout { display: grid; grid-template-columns: minmax(180px, 240px) minmax(0, 1fr); gap: 14px; padding: 14px 17px; }
+.tlb-roles-list { display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow: auto; }
+.tlb-role-chip { display: flex; flex-direction: column; gap: 2px; text-align: left; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; padding: 10px 12px; cursor: pointer; color: inherit; }
+.tlb-role-chip strong { font-size: 12px; }
+.tlb-role-chip span { font-size: 10px; color: var(--muted-foreground); }
+.tlb-role-chip.active { border-color: var(--primary); background: color-mix(in oklab, var(--primary) 8%, white); }
+.tlb-perm-matrix { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+.tlb-perm-group { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; background: color-mix(in oklab, var(--muted) 35%, white); }
+.tlb-perm-group strong { display: block; font-size: 11px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.02em; }
+.tlb-perm-row { display: flex; align-items: flex-start; gap: 8px; font-size: 11px; font-weight: 500; text-transform: none; color: var(--foreground); margin-bottom: 6px; }
+.tlb-perm-row input { margin-top: 2px; }
+.tlb-inline-select { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 8px; font-size: 11px; background: #fff; max-width: 160px; }
+.tlb-link-btn { border: 0; background: transparent; color: var(--primary); font-size: 11px; font-weight: 700; cursor: pointer; padding: 0; }
+@media (max-width: 900px) {
+  .tlb-roles-layout { grid-template-columns: 1fr; }
+}
 .tlb-row-active { background: color-mix(in oklab, var(--secondary) 70%, white); box-shadow: inset 3px 0 0 var(--primary); }
 .tlb-row-clickable { cursor: pointer; }
 .tlb-row-clickable:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
