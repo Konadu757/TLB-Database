@@ -40,6 +40,7 @@ import {
   OutstandingSuppliesModule,
   SalesOrdersModule,
   StockModule,
+  SuppliersModule,
 } from "@/components/modules/commerce-modules";
 import {
   AuditModule,
@@ -107,14 +108,6 @@ const navGroups: NavGroup[] = [
 ];
 
 const moduleScreens: Record<string, { kicker: string; description: string; rows: { primary: string; secondary: string; status: string; tone: string }[] }> = {
-  Suppliers: {
-    kicker: "Business",
-    description: "Approved chemical and packaging suppliers.",
-    rows: [
-      { primary: "Ningbo Industrial Chem", secondary: "China · Sodium Hydroxide", status: "Preferred", tone: "success" },
-      { primary: "Tema Drum Works", secondary: "Ghana · HDPE drums", status: "Active", tone: "info" },
-    ],
-  },
   Quotations: {
     kicker: "Business",
     description: "Open commercial quotations awaiting conversion.",
@@ -239,6 +232,7 @@ export function TLBDashboard() {
   const [inspector, setInspector] = useState<Inspector | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [selectedSupplierId, setSelectedSupplierId] = useState<string | null>(null);
   const [outstandingProductFilter, setOutstandingProductFilter] = useState<string | null>(null);
 
   const [isNavMobile, setIsNavMobile] = useState(false);
@@ -287,10 +281,12 @@ export function TLBDashboard() {
     orderId?: string | null,
     productId?: string | null,
     customerId?: string | null,
+    supplierId?: string | null,
   ) => {
     setActiveNav(nav);
     setSelectedOrderId(orderId ?? null);
     setSelectedCustomerId(nav === "Customers" ? customerId ?? null : null);
+    setSelectedSupplierId(nav === "Suppliers" ? supplierId ?? null : null);
     setOutstandingProductFilter(nav === "Outstanding Supplies" ? productId ?? null : null);
     setMobileOpen(false);
     setInspector(null);
@@ -302,6 +298,7 @@ export function TLBDashboard() {
 
   const commerceNav =
     activeNav === "Customers" ||
+    activeNav === "Suppliers" ||
     activeNav === "Sales Orders" ||
     activeNav === "Outstanding Supplies" ||
     activeNav === "Stock" ||
@@ -704,6 +701,8 @@ export function TLBDashboard() {
                   ? "Operational position for the selected period — sales KPIs use collections (payments & receipts dated in range), defaulting to this month."
                   : activeNav === "Customers"
                     ? "Customer accounts with credit, terms, TIN, and transaction history."
+                    : activeNav === "Suppliers"
+                      ? "Approved suppliers with period-scoped purchase orders, receipts, and spend."
                     : activeNav === "Sales Orders"
                       ? "Customer purchase orders with partial supply and fulfilment history."
                       : activeNav === "Outstanding Supplies"
@@ -774,21 +773,23 @@ export function TLBDashboard() {
             </div>
           </div>
 
-          <section className="tlb-filter-bar" aria-label="Dashboard filters">
-            <div className="tlb-periods">
-              {DASHBOARD_PERIODS.map((item) => (
-                <button
-                  type="button"
-                  key={item}
-                  className={rangeSelection.mode === "preset" && rangeSelection.period === item ? "active" : ""}
-                  onClick={() => selectPreset(item)}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-            <label className="tlb-select"><Warehouse /><select value={warehouse} onChange={(event) => setWarehouse(event.target.value)} aria-label="Warehouse"><option>All warehouses</option><option>Main Warehouse</option><option>Factory Store</option></select><ChevronDown /></label>
-          </section>
+          {activeNav !== "Settings" && (
+            <section className="tlb-filter-bar" aria-label="Dashboard filters">
+              <div className="tlb-periods">
+                {DASHBOARD_PERIODS.map((item) => (
+                  <button
+                    type="button"
+                    key={item}
+                    className={rangeSelection.mode === "preset" && rangeSelection.period === item ? "active" : ""}
+                    onClick={() => selectPreset(item)}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+              <label className="tlb-select"><Warehouse /><select value={warehouse} onChange={(event) => setWarehouse(event.target.value)} aria-label="Warehouse"><option>All warehouses</option><option>Main Warehouse</option><option>Factory Store</option></select><ChevronDown /></label>
+            </section>
+          )}
 
           {activeNav === "Dashboard" && (
             <section className="tlb-history-lookup" aria-label="Sales history lookup">
@@ -851,6 +852,12 @@ export function TLBDashboard() {
                 store={store}
                 selectedCustomerId={selectedCustomerId}
                 onOpenOrder={(id) => openLiveModule("Sales Orders", id)}
+              />
+            ) : activeNav === "Suppliers" ? (
+              <SuppliersModule
+                store={store}
+                rangeSelection={rangeSelection}
+                selectedSupplierId={selectedSupplierId}
               />
             ) : activeNav === "Sales Orders" ? (
               <SalesOrdersModule
@@ -1224,6 +1231,7 @@ export function TLBDashboard() {
                 onOpenOrder={(id) => openLiveModule("Sales Orders", id)}
                 onOpenNav={(nav, entityId) => {
                   if (nav === "Customers") openLiveModule("Customers", null, null, entityId ?? null);
+                  else if (nav === "Suppliers") openLiveModule("Suppliers", null, null, null, entityId ?? null);
                   else openLiveModule(nav);
                 }}
               />
