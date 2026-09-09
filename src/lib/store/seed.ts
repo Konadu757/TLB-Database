@@ -7,18 +7,19 @@ const EARLIER = "2026-09-02T10:00:00.000Z";
 const TODAY_AM = "2026-09-09T08:15:00.000Z";
 const THIS_WEEK = "2026-09-08T11:30:00.000Z";
 const THIS_QUARTER = "2026-08-14T09:00:00.000Z";
+const PREV_MONTH_LATE = "2026-08-28T14:20:00.000Z";
 const THIS_YEAR = "2026-03-18T10:00:00.000Z";
 
 /** Seed includes Phase 30 Chemical A/B scenario ready to demo. */
 export function createSeedState(): TlbState {
   return {
-    version: 2,
+    version: 3,
     currentUser: "Kwame Asare",
     currentRole: "Manager",
     ageing: { ...DEFAULT_AGEING },
     company: { ...DEFAULT_COMPANY },
     vatRates: DEFAULT_VAT.map((v) => ({ ...v })),
-    counters: { order: 5, supply: 0, customer: 3, invoice: 0, receipt: 0, delivery: 0, payment: 0 },
+    counters: { order: 5, supply: 0, customer: 3, invoice: 0, receipt: 2, delivery: 0, payment: 5 },
     warehouses: [
       {
         id: "wh-main",
@@ -277,11 +278,112 @@ export function createSeedState(): TlbState {
     supplyLines: [],
     invoices: [],
     invoiceLines: [],
-    receipts: [],
+    /**
+     * Seed collections dated across periods so dashboard “collected sales”
+     * KPIs change when Today / Week / Month / Previous Month / custom ranges are selected.
+     * Receipts without a linked payment count via amountPaid; payments are primary.
+     */
+    receipts: [
+      {
+        id: "rct-sep-cash",
+        number: "TLB-RCT-2609-00001",
+        customerId: "cus-demo",
+        orderId: "ord-phase30",
+        receiptDate: EARLIER,
+        paymentMethod: "Cash",
+        amount: 4200,
+        amountPaid: 4200,
+        balance: 0,
+        processedBy: "Kwame Asare",
+        notes: "Partial COD collection on open Phase 30 order.",
+        createdAt: EARLIER,
+      },
+      {
+        id: "rct-aug-covered",
+        number: "TLB-RCT-2608-00002",
+        customerId: "cus-korle",
+        orderId: "ord-quarter",
+        receiptDate: THIS_QUARTER,
+        paymentMethod: "Bank Transfer",
+        amount: 12800,
+        amountPaid: 12800,
+        balance: 0,
+        processedBy: "Kwame Asare",
+        notes: "Covered by linked payment — not double-counted in collections.",
+        createdAt: THIS_QUARTER,
+      },
+    ],
     receiptLines: [],
     deliveries: [],
     deliveryItems: [],
-    payments: [],
+    payments: [
+      {
+        id: "pay-today",
+        number: "TLB-PAY-2609-00001",
+        customerId: "cus-korle",
+        orderId: "ord-today",
+        paymentDate: TODAY_AM,
+        method: "Mobile Money",
+        amount: 3840,
+        reference: "MTN-99021",
+        recordedBy: "Kwame Asare",
+        notes: "Same-day HCl collection.",
+        createdAt: TODAY_AM,
+      },
+      {
+        id: "pay-week",
+        number: "TLB-PAY-2609-00002",
+        customerId: "cus-apex",
+        orderId: "ord-week",
+        paymentDate: THIS_WEEK,
+        method: "Bank Transfer",
+        amount: 15000,
+        reference: "GTB-88412",
+        recordedBy: "Kwame Asare",
+        notes: "Weekly ethanol deposit.",
+        createdAt: THIS_WEEK,
+      },
+      {
+        id: "pay-month",
+        number: "TLB-PAY-2609-00003",
+        customerId: "cus-demo",
+        orderId: "ord-phase30",
+        paymentDate: EARLIER,
+        method: "Cheque",
+        amount: 8500,
+        reference: "CHQ-4410",
+        recordedBy: "Kwame Asare",
+        notes: "Early-month collection on Phase 30.",
+        createdAt: EARLIER,
+      },
+      {
+        id: "pay-prev-month",
+        number: "TLB-PAY-2608-00004",
+        customerId: "cus-korle",
+        orderId: "ord-quarter",
+        receiptId: "rct-aug-covered",
+        paymentDate: PREV_MONTH_LATE,
+        method: "Bank Transfer",
+        amount: 12800,
+        reference: "GTB-77102",
+        recordedBy: "Kwame Asare",
+        notes: "August collection linked to receipt.",
+        createdAt: PREV_MONTH_LATE,
+      },
+      {
+        id: "pay-year",
+        number: "TLB-PAY-2603-00005",
+        customerId: "cus-apex",
+        orderId: "ord-year",
+        paymentDate: THIS_YEAR,
+        method: "Cash",
+        amount: 37500,
+        reference: "CASH-Q1",
+        recordedBy: "Kwame Asare",
+        notes: "Q1 solvent campaign settlement.",
+        createdAt: THIS_YEAR,
+      },
+    ],
     notifications: [],
     reservations: [],
     audit: [

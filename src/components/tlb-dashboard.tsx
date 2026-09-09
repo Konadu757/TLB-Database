@@ -50,7 +50,12 @@ import {
 } from "@/components/modules/p1-modules";
 import { Button } from "@/components/ui/button";
 import { buildDashboardSnapshot } from "@/lib/domain/dashboard-metrics";
-import { DASHBOARD_PERIODS, DEMO_AS_OF, isDashboardPeriod, type DashboardPeriod } from "@/lib/domain/period-range";
+import {
+  DASHBOARD_PERIODS,
+  DEMO_AS_OF,
+  type DashboardPeriod,
+  type DashboardRangeSelection,
+} from "@/lib/domain/period-range";
 import { formatMoney } from "@/lib/store/tlb-store";
 import { useTlbStore } from "@/lib/store/use-tlb-store";
 import { cn } from "@/lib/utils";
@@ -219,7 +224,12 @@ export function TLBDashboard() {
   const store = useTlbStore();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [period, setPeriod] = useState<DashboardPeriod>("This Month");
+  const [rangeSelection, setRangeSelection] = useState<DashboardRangeSelection>({
+    mode: "preset",
+    period: "This Month",
+  });
+  const [customFrom, setCustomFrom] = useState("2026-08-01");
+  const [customTo, setCustomTo] = useState("2026-08-31");
   const [warehouse, setWarehouse] = useState("All warehouses");
   const [searchOpen, setSearchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);

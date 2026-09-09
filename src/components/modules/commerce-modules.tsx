@@ -273,7 +273,7 @@ export function CustomersModule({
           </div>
         </article>
 
-        <article className="tlb-panel tlb-detail-panel">
+        <article className="tlb-panel tlb-detail-panel" ref={detailRef} key={selectedId ?? "new"}>
           {editing ? (
             <form
               className="tlb-form-grid"
@@ -378,25 +378,40 @@ export function CustomersModule({
                 </button>
               </div>
               <dl className="tlb-kv">
+                <div><dt>Company / name</dt><dd>{selected.name}</dd></div>
                 <div><dt>Category</dt><dd>{selected.category}</dd></div>
-                <div><dt>Contact</dt><dd>{selected.contactName || "—"}</dd></div>
+                <div><dt>Contact person</dt><dd>{selected.contactName || "—"}</dd></div>
                 <div><dt>Phone</dt><dd>{selected.phone || "—"}</dd></div>
                 <div><dt>Email</dt><dd>{selected.email || "—"}</dd></div>
                 <div><dt>Address</dt><dd>{selected.address || "—"}</dd></div>
                 <div><dt>TIN</dt><dd>{selected.tin || "—"}</dd></div>
-                <div><dt>Credit</dt><dd>{formatMoney(selected.creditLimit)}</dd></div>
-                <div><dt>Terms</dt><dd>{selected.paymentTerms}</dd></div>
+                <div>
+                  <dt>Credit status</dt>
+                  <dd>{credit ? <StatusBadge tone={credit.tone}>{credit.label}</StatusBadge> : "—"}</dd>
+                </div>
+                <div><dt>Credit limit</dt><dd>{formatMoney(selected.creditLimit)}</dd></div>
+                <div><dt>Payment terms</dt><dd>{selected.paymentTerms}</dd></div>
+                <div>
+                  <dt>Account status</dt>
+                  <dd>
+                    <StatusBadge tone={selected.active ? "success" : "warning"}>
+                      {selected.active ? "Active" : "Inactive"}
+                    </StatusBadge>
+                  </dd>
+                </div>
                 <div className="tlb-span-2"><dt>Notes</dt><dd>{selected.notes || "—"}</dd></div>
               </dl>
-              <div className="tlb-subheading">Transaction history</div>
-              {history.length === 0 ? (
-                <EmptyState title="No orders yet" detail="Customer purchase orders will appear here." />
+
+              <div className="tlb-subheading">Orders / purchase orders</div>
+              {customerHistory.orders.length === 0 ? (
+                <EmptyState title="No orders for this customer yet." detail="Customer purchase orders will appear here." />
               ) : (
                 <div className="tlb-table-scroll">
                   <table>
                     <thead>
                       <tr>
                         <th>Order</th>
+                        <th>Customer PO</th>
                         <th>Value</th>
                         <th>Fulfilment</th>
                         <th>Status</th>
@@ -404,9 +419,10 @@ export function CustomersModule({
                       </tr>
                     </thead>
                     <tbody>
-                      {history.map(({ order, value, fulfilment }) => (
+                      {customerHistory.orders.map(({ order, value, fulfilment }) => (
                         <tr key={order.id}>
                           <td><strong>{order.number}</strong></td>
+                          <td>{order.customerPoNumber || "—"}</td>
                           <td>{formatMoney(value)}</td>
                           <td>{fulfilment}%</td>
                           <td><StatusBadge tone={statusTone(order.status)}>{order.status}</StatusBadge></td>
@@ -415,6 +431,182 @@ export function CustomersModule({
                               <ChevronRight />
                             </button>
                           </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="tlb-subheading">Partial supplies</div>
+              {customerHistory.supplies.length === 0 ? (
+                <EmptyState title="No supplies for this customer yet." detail="Posted partial or full supplies against orders will list here." />
+              ) : (
+                <div className="tlb-table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Supply</th>
+                        <th>Order</th>
+                        <th>Posted</th>
+                        <th>Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {customerHistory.supplies.map((s) => (
+                        <tr key={s.id}>
+                          <td><strong>{s.number}</strong></td>
+                          <td>{s.orderNumber}</td>
+                          <td>{new Date(s.suppliedAt).toLocaleString()}</td>
+                          <td>{s.notes || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="tlb-subheading">Outstanding items</div>
+              {customerHistory.outstanding.length === 0 ? (
+                <EmptyState title="No outstanding items for this customer." detail="Open ordered quantities that still need supply appear here." />
+              ) : (
+                <div className="tlb-table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Order</th>
+                        <th>Product</th>
+                        <th>Outstanding</th>
+                        <th>Age</th>
+                        <th />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {customerHistory.outstanding.map((row) => (
+                        <tr key={row.lineId}>
+                          <td><strong>{row.orderNumber}</strong></td>
+                          <td>{row.productName}</td>
+                          <td>{row.outstandingQty}</td>
+                          <td>
+                            <StatusBadge tone={statusTone(row.ageingBand)}>{row.ageingBand} · {row.ageDays}d</StatusBadge>
+                          </td>
+                          <td>
+                            <button type="button" onClick={() => onOpenOrder(row.orderId)} aria-label={`Open ${row.orderNumber}`}>
+                              <ChevronRight />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="tlb-subheading">Invoices</div>
+              {customerHistory.invoices.length === 0 ? (
+                <EmptyState title="No invoices for this customer yet." detail="Invoices created from supplies will appear here." />
+              ) : (
+                <div className="tlb-table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Invoice</th>
+                        <th>Total</th>
+                        <th>Paid</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {customerHistory.invoices.map((inv) => (
+                        <tr key={inv.id}>
+                          <td><strong>{inv.number}</strong></td>
+                          <td>{formatMoney(inv.total)}</td>
+                          <td>{formatMoney(inv.amountPaid)}</td>
+                          <td><StatusBadge tone={statusTone(inv.paymentStatus)}>{inv.paymentStatus}</StatusBadge></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="tlb-subheading">Receipts</div>
+              {customerHistory.receipts.length === 0 ? (
+                <EmptyState title="No receipts for this customer yet." detail="Payment receipts will appear here." />
+              ) : (
+                <div className="tlb-table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Receipt</th>
+                        <th>Method</th>
+                        <th>Amount</th>
+                        <th>Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {customerHistory.receipts.map((r) => (
+                        <tr key={r.id}>
+                          <td><strong>{r.number}</strong></td>
+                          <td>{r.paymentMethod}</td>
+                          <td>{formatMoney(r.amountPaid)}</td>
+                          <td>{new Date(r.receiptDate).toLocaleDateString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="tlb-subheading">Deliveries</div>
+              {customerHistory.deliveries.length === 0 ? (
+                <EmptyState title="No deliveries for this customer yet." detail="Dispatch records linked to this customer will appear here." />
+              ) : (
+                <div className="tlb-table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Delivery</th>
+                        <th>Method</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {customerHistory.deliveries.map((d) => (
+                        <tr key={d.id}>
+                          <td><strong>{d.number}</strong></td>
+                          <td>{d.method}</td>
+                          <td><StatusBadge tone={statusTone(d.status)}>{d.status}</StatusBadge></td>
+                          <td>{new Date(d.deliveryDate).toLocaleDateString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="tlb-subheading">Payments</div>
+              {customerHistory.payments.length === 0 ? (
+                <EmptyState title="No payments for this customer yet." detail="Recorded payments will appear here." />
+              ) : (
+                <div className="tlb-table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Payment</th>
+                        <th>Method</th>
+                        <th>Amount</th>
+                        <th>Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {customerHistory.payments.map((p) => (
+                        <tr key={p.id}>
+                          <td><strong>{p.number}</strong></td>
+                          <td>{p.method}</td>
+                          <td>{formatMoney(p.amount)}</td>
+                          <td>{new Date(p.paymentDate).toLocaleDateString()}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1243,25 +1435,38 @@ export function StockModule({
 export function OutstandingDashboardWidget({
   store,
   onOpen,
+  dateFilter,
 }: {
   store: TlbStoreApi;
   onOpen: () => void;
+  dateFilter?: { from?: string; to?: string };
 }) {
-  const rows = store.outstanding.slice(0, 5);
-  const overdue = store.outstanding.filter((r) => r.ageingBand === "Overdue").length;
+  const filtered = dateFilter
+    ? store.outstanding.filter((r) => {
+        const d = r.orderDate.slice(0, 10);
+        if (dateFilter.from && d < dateFilter.from) return false;
+        if (dateFilter.to && d > dateFilter.to) return false;
+        return true;
+      })
+    : store.outstanding;
+  const rows = filtered.slice(0, 5);
+  const overdue = filtered.filter((r) => r.ageingBand === "Overdue").length;
   return (
     <article className="tlb-panel tlb-orders-panel">
       <div className="tlb-panel-heading">
         <div>
           <span>Outstanding customer supplies</span>
-          <strong>{store.outstanding.length} open line{store.outstanding.length === 1 ? "" : "s"}</strong>
+          <strong>{filtered.length} open line{filtered.length === 1 ? "" : "s"}</strong>
         </div>
         <button type="button" onClick={onOpen}>
           View all <ChevronRight />
         </button>
       </div>
       {rows.length === 0 ? (
-        <EmptyState title="Caught up" detail="No outstanding customer supply lines." />
+        <EmptyState
+          title="Caught up"
+          detail={dateFilter ? "No outstanding lines in this period." : "No outstanding customer supply lines."}
+        />
       ) : (
         <div className="tlb-table-scroll">
           <table>
