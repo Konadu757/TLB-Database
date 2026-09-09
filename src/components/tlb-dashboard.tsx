@@ -33,7 +33,17 @@ import {
 } from "lucide-react";
 
 import logoUrl from "@/assets/tlb-logo.png";
+import {
+  CustomersModule,
+  LiveSearchResults,
+  OutstandingDashboardWidget,
+  OutstandingSuppliesModule,
+  SalesOrdersModule,
+  StockModule,
+} from "@/components/modules/commerce-modules";
+import { AgeingSettingsPanel } from "@/components/modules/ageing-settings";
 import { Button } from "@/components/ui/button";
+import { useTlbStore } from "@/lib/store/use-tlb-store";
 import { cn } from "@/lib/utils";
 
 type NavItem = { label: string; icon: typeof LayoutDashboard; badge?: string };
@@ -47,7 +57,8 @@ const navGroups: NavGroup[] = [
       { label: "Customers", icon: Users },
       { label: "Suppliers", icon: Building2 },
       { label: "Quotations", icon: FileText },
-      { label: "Sales Orders", icon: ShoppingCart, badge: "12" },
+      { label: "Sales Orders", icon: ShoppingCart },
+      { label: "Outstanding Supplies", icon: PackageCheck },
     ],
   },
   {
@@ -110,15 +121,6 @@ const alerts = [
 ];
 
 const moduleScreens: Record<string, { kicker: string; description: string; rows: { primary: string; secondary: string; status: string; tone: string }[] }> = {
-  Customers: {
-    kicker: "Business",
-    description: "Customer accounts currently trading with TLB Enterprise.",
-    rows: [
-      { primary: "Korle Vista Medical Centre", secondary: "Accra · Net 30", status: "Active", tone: "success" },
-      { primary: "Apex Analytical Labs", secondary: "Tema · Net 15", status: "Active", tone: "success" },
-      { primary: "Northstar Pharma Ltd", secondary: "Kumasi · On hold", status: "Review", tone: "warning" },
-    ],
-  },
   Suppliers: {
     kicker: "Business",
     description: "Approved chemical and packaging suppliers.",
@@ -135,27 +137,12 @@ const moduleScreens: Record<string, { kicker: string; description: string; rows:
       { primary: "QT-260438", secondary: "Korle Vista · Hydrogen Peroxide", status: "Draft", tone: "warning" },
     ],
   },
-  "Sales Orders": {
-    kicker: "Business",
-    description: "Live sales orders from the operational sandbox.",
-    rows: orders.map((order) => ({ primary: order.id, secondary: `${order.customer} · ${order.value}`, status: order.status, tone: order.tone })),
-  },
   Products: {
     kicker: "Inventory",
     description: "Finished goods and raw chemicals in the product master.",
     rows: [
       { primary: "Hydrochloric Acid", secondary: "SKU CHEM-001 · 32%", status: "In stock", tone: "success" },
       { primary: "Ethanol 96%", secondary: "SKU CHEM-014 · drums", status: "Low", tone: "warning" },
-    ],
-  },
-  Stock: {
-    kicker: "Inventory",
-    description: "Warehouse on-hand position for the selected period.",
-    rows: [
-      { primary: "Available", secondary: "72% of warehouse capacity", status: "72%", tone: "success" },
-      { primary: "Reserved", secondary: "Allocated to sales orders", status: "14%", tone: "info" },
-      { primary: "Under inspection", secondary: "Awaiting QC release", status: "8%", tone: "warning" },
-      { primary: "Quarantined", secondary: "Held from dispatch", status: "6%", tone: "warning" },
     ],
   },
   Batches: {
@@ -248,10 +235,10 @@ const moduleScreens: Record<string, { kicker: string; description: string; rows:
   },
   Settings: {
     kicker: "Control",
-    description: "Workspace preferences for this demo environment.",
+    description: "Workspace preferences including outstanding ageing thresholds.",
     rows: [
       { primary: "Company", secondary: "TLB Enterprise · Ghana", status: "Live", tone: "success" },
-      { primary: "Environment", secondary: "Operational data sandbox", status: "Demo", tone: "info" },
+      { primary: "Outstanding ageing", secondary: "0–2 Normal · 3–7 Attention · 8+ Overdue", status: "Configurable", tone: "info" },
     ],
   },
 };
@@ -263,6 +250,7 @@ function StatusBadge({ children, tone }: { children: React.ReactNode; tone: stri
 }
 
 export function TLBDashboard() {
+  const store = useTlbStore();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [period, setPeriod] = useState("This Month");
@@ -273,6 +261,8 @@ export function TLBDashboard() {
   const [userOpen, setUserOpen] = useState(false);
   const [activeNav, setActiveNav] = useState("Dashboard");
   const [inspector, setInspector] = useState<Inspector | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [outstandingProductFilter, setOutstandingProductFilter] = useState<string | null>(null);
 
   const [isNavMobile, setIsNavMobile] = useState(false);
   const sidebarOpenRef = useRef(sidebarOpen);
@@ -290,21 +280,48 @@ export function TLBDashboard() {
     return isMac ? "⌘ K" : "Ctrl K";
   }, []);
 
-  const searchPool = useMemo(
-    () => [
-      "Hydrochloric Acid · SKU CHEM-001",
-      "Batch HCL-26001 · Main Warehouse",
-      "Sales Order SO-260904",
-      "Import Shipment IMP-26017",
-    ],
-    [],
+  const outstandingBadge = store.outstanding.length;
+
+  const navGroupsLive = useMemo(
+    () =>
+      navGroups.map((group) => ({
+        ...group,
+        items: group.items.map((item) =>
+          item.label === "Outstanding Supplies"
+            ? { ...item, badge: outstandingBadge > 0 ? String(outstandingBadge) : undefined }
+            : item.label === "Sales Orders"
+              ? {
+                  ...item,
+                  badge: (() => {
+                    const count = store.state.orders.filter(
+                      (o) => o.status !== "Delivered" && o.status !== "Cancelled",
+                    ).length;
+                    return count > 0 ? String(count) : undefined;
+                  })(),
+                }
+              : item,
+        ),
+      })),
+    [outstandingBadge, store.state.orders],
   );
 
-  const filteredSearchPool = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return searchPool;
-    return searchPool.filter((result) => result.toLowerCase().includes(q));
-  }, [searchPool, searchQuery]);
+  const openLiveModule = (nav: string, orderId?: string | null, productId?: string | null) => {
+    setActiveNav(nav);
+    setSelectedOrderId(orderId ?? null);
+    setOutstandingProductFilter(nav === "Outstanding Supplies" ? productId ?? null : null);
+    setMobileOpen(false);
+    setInspector(null);
+    setSearchOpen(false);
+    setNotificationsOpen(false);
+    setQuickOpen(false);
+    setUserOpen(false);
+  };
+
+  const commerceNav =
+    activeNav === "Customers" ||
+    activeNav === "Sales Orders" ||
+    activeNav === "Outstanding Supplies" ||
+    activeNav === "Stock";
 
   const sidebarIsOpen = isNavMobile ? true : sidebarOpen;
 
@@ -498,7 +515,7 @@ export function TLBDashboard() {
         </Button>
       </div>
       <nav className="tlb-nav">
-        {navGroups.map((group, groupIndex) => (
+        {navGroupsLive.map((group, groupIndex) => (
           <div className="tlb-nav-group" key={group.label ?? groupIndex}>
             {group.label && <p className="tlb-nav-label">{group.label}</p>}
             {group.items.map((item) => {
@@ -510,12 +527,8 @@ export function TLBDashboard() {
                   key={item.label}
                   className={cn("tlb-nav-item", active && "tlb-nav-active")}
                   onClick={() => {
-                    setActiveNav(item.label);
-                    setMobileOpen(false);
-                    setInspector(null);
-                    setNotificationsOpen(false);
-                    setQuickOpen(false);
-                    setUserOpen(false);
+                    openLiveModule(item.label, item.label === "Sales Orders" ? selectedOrderId : null);
+                    if (item.label !== "Sales Orders") setSelectedOrderId(null);
                   }}
                   title={!sidebarIsOpen ? item.label : undefined}
                 >
@@ -592,7 +605,24 @@ export function TLBDashboard() {
               {notificationsOpen && (
                 <div className="tlb-popover tlb-notification-panel" role="region" aria-label="Notifications">
                   <div className="tlb-popover-heading"><strong>Notifications</strong><button type="button" aria-label="Close notifications" onClick={() => setNotificationsOpen(false)}><X /></button></div>
-                  {alerts.slice(0, 2).map((alert) => (
+                  {store.outstanding.slice(0, 2).map((row) => (
+                    <button
+                      type="button"
+                      className="tlb-mini-alert"
+                      key={row.lineId}
+                      onClick={() => {
+                        setNotificationsOpen(false);
+                        openLiveModule("Outstanding Supplies");
+                      }}
+                    >
+                      <span className={`tlb-alert-dot tlb-alert-${row.ageingBand === "Overdue" ? "danger" : row.ageingBand === "Attention" ? "warning" : "info"}`} />
+                      <div>
+                        <strong>{row.orderNumber} · {row.productSku}</strong>
+                        <span>{row.outstandingQty} outstanding · {row.ageDays}d · {row.ageingBand}</span>
+                      </div>
+                    </button>
+                  ))}
+                  {alerts.slice(0, store.outstanding.length ? 1 : 2).map((alert) => (
                     <button
                       type="button"
                       className="tlb-mini-alert"
@@ -608,10 +638,10 @@ export function TLBDashboard() {
                     className="tlb-text-action"
                     onClick={() => {
                       setNotificationsOpen(false);
-                      setActiveNav("Quality Control");
+                      openLiveModule("Outstanding Supplies");
                     }}
                   >
-                    View notification center <ChevronRight />
+                    View outstanding supplies <ChevronRight />
                   </button>
                 </div>
               )}
@@ -657,6 +687,14 @@ export function TLBDashboard() {
               <p>
                 {activeNav === "Dashboard"
                   ? "Here is today’s operational position across TLB Enterprise."
+                  : activeNav === "Customers"
+                    ? "Customer accounts with credit, terms, TIN, and transaction history."
+                    : activeNav === "Sales Orders"
+                      ? "Customer purchase orders with partial supply and fulfilment history."
+                      : activeNav === "Outstanding Supplies"
+                        ? "Open ordered quantities that still need supply — never silently cleared."
+                        : activeNav === "Stock"
+                          ? "Physical, reserved, and available stock with outstanding demand links."
                   : (moduleScreens[activeNav]?.description ?? "Operational sandbox records for this module.")}
               </p>
             </div>
@@ -686,22 +724,19 @@ export function TLBDashboard() {
                     role="menu"
                     aria-label="Quick actions"
                   >
-                    {["Create sales order", "Receive goods", "Start stock transfer", "Create production order"].map(
+                    {["Create customer order", "Receive goods", "View outstanding supplies", "Reset Phase 30 demo"].map(
                       (action) => (
                         <button
                           type="button"
                           role="menuitem"
                           key={action}
-                          onClick={() => openInspector({
-                            title: action,
-                            kicker: "Quick action",
-                            lines: [
-                              `${action} is available in the operations sandbox.`,
-                              `Period: ${period}`,
-                              `Warehouse: ${warehouse}`,
-                              "No backend posting is connected yet; this confirms the control works.",
-                            ],
-                          })}
+                          onClick={() => {
+                            setQuickOpen(false);
+                            if (action === "Create customer order") openLiveModule("Sales Orders");
+                            else if (action === "Receive goods") openLiveModule("Stock");
+                            else if (action === "View outstanding supplies") openLiveModule("Outstanding Supplies");
+                            else store.resetDemo();
+                          }}
                         >
                           {action}<ChevronRight />
                         </button>
@@ -720,7 +755,28 @@ export function TLBDashboard() {
             <label className="tlb-select"><Warehouse /><select value={warehouse} onChange={(event) => setWarehouse(event.target.value)} aria-label="Warehouse"><option>All warehouses</option><option>Main Warehouse</option><option>Factory Store</option></select><ChevronDown /></label>
           </section>
 
-          {activeNav !== "Dashboard" && moduleScreens[activeNav] ? (
+          {commerceNav ? (
+            activeNav === "Customers" ? (
+              <CustomersModule store={store} onOpenOrder={(id) => openLiveModule("Sales Orders", id)} />
+            ) : activeNav === "Sales Orders" ? (
+              <SalesOrdersModule
+                store={store}
+                selectedOrderId={selectedOrderId}
+                onSelectOrder={(id) => setSelectedOrderId(id)}
+              />
+            ) : activeNav === "Outstanding Supplies" ? (
+              <OutstandingSuppliesModule
+                store={store}
+                productFilterId={outstandingProductFilter}
+                onOpenOrder={(id) => openLiveModule("Sales Orders", id)}
+              />
+            ) : (
+              <StockModule
+                store={store}
+                onViewOutstanding={(productId) => openLiveModule("Outstanding Supplies", null, productId)}
+              />
+            )
+          ) : activeNav !== "Dashboard" && moduleScreens[activeNav] ? (
             <article className="tlb-panel tlb-orders-panel">
               <div className="tlb-panel-heading">
                 <div>
@@ -768,6 +824,7 @@ export function TLBDashboard() {
                   </tbody>
                 </table>
               </div>
+              {activeNav === "Settings" && <AgeingSettingsPanel store={store} />}
             </article>
           ) : (
             <>
@@ -812,9 +869,11 @@ export function TLBDashboard() {
             </article>
 
             <article className="tlb-panel tlb-orders-panel">
-              <div className="tlb-panel-heading"><div><span>Recent orders</span><strong>Today’s commercial activity</strong></div><button type="button" onClick={() => setActiveNav("Sales Orders")}>View all <ChevronRight /></button></div>
+              <div className="tlb-panel-heading"><div><span>Recent orders</span><strong>Today’s commercial activity</strong></div><button type="button" onClick={() => openLiveModule("Sales Orders")}>View all <ChevronRight /></button></div>
               <div className="tlb-table-scroll"><table><thead><tr><th>Order</th><th>Customer</th><th>Value</th><th>Status</th><th><span className="sr-only">Open</span></th></tr></thead><tbody>{orders.map((order) => <tr key={order.id}><td><strong>{order.id}</strong></td><td>{order.customer}</td><td>{order.value}</td><td><StatusBadge tone={order.tone}>{order.status}</StatusBadge></td><td><button type="button" aria-label={`Open ${order.id}`} onClick={() => openInspector({ title: order.id, kicker: "Sales order", lines: [`Customer: ${order.customer}`, `Value: ${order.value}`, `Status: ${order.status}`, "Sandbox order. Fulfilment is not posted to a backend."] })}><ChevronRight /></button></td></tr>)}</tbody></table></div>
             </article>
+
+            <OutstandingDashboardWidget store={store} onOpen={() => openLiveModule("Outstanding Supplies")} />
 
             <article className="tlb-panel tlb-alerts-panel">
               <div className="tlb-panel-heading"><div><span>Alerts requiring attention</span><strong>7 operational alerts</strong></div><button type="button" onClick={() => setActiveNav("Quality Control")}>View all <ChevronRight /></button></div>
@@ -864,31 +923,30 @@ export function TLBDashboard() {
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" && filteredSearchPool.length > 0) {
+                  if (event.key === "Enter") {
                     event.preventDefault();
-                    const first = filteredSearchPool[0];
-                    if (first) {
-                      openInspector({ title: first, kicker: "Search", lines: ["Opened from global search.", "This is sandbox data until search is connected to the database."] });
+                    const phaseOrder = store.state.orders.find((o) => o.id === "ord-phase30");
+                    if (searchQuery.toLowerCase().includes("ord") && phaseOrder) {
+                      openLiveModule("Sales Orders", phaseOrder.id);
+                      return;
                     }
+                    if (searchQuery.toLowerCase().includes("outstanding")) {
+                      openLiveModule("Outstanding Supplies");
+                      return;
+                    }
+                    openLiveModule("Sales Orders");
                   }
                 }}
               />
               <kbd>ESC</kbd>
             </div>
             <div className="tlb-search-results" role="list">
-              <p>{filteredSearchPool.length ? "QUICK ACCESS" : "NO MATCHES"}</p>
-              {filteredSearchPool.map((result) => (
-                <button
-                  type="button"
-                  role="listitem"
-                  key={result}
-                  onClick={() => openInspector({ title: result, kicker: "Search", lines: ["Opened from global search.", "This is sandbox data until search is connected to the database."] })}
-                >
-                  <PackageSearch />
-                  <span>{result}</span>
-                  <ChevronRight />
-                </button>
-              ))}
+              <LiveSearchResults
+                store={store}
+                query={searchQuery}
+                onOpenOrder={(id) => openLiveModule("Sales Orders", id)}
+                onOpenNav={(nav) => openLiveModule(nav)}
+              />
             </div>
           </div>
         </div>
