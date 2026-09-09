@@ -194,9 +194,8 @@ export function TLBDashboard() {
   const sidebarOpenRef = useRef(sidebarOpen);
   const desktopSidebarOpenRef = useRef(sidebarOpen);
 
-  const searchDialogRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-  const lastFocusedElementRef = useRef<HTMLElement | null>(null);
+  const searchWrapRef = useRef<HTMLDivElement | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   const searchShortcutLabel = useMemo(() => {
@@ -263,6 +262,7 @@ export function TLBDashboard() {
     setMobileOpen(false);
     setInspector(null);
     setSearchOpen(false);
+    setSearchQuery("");
     setNotificationsOpen(false);
     setQuickOpen(false);
     setUserOpen(false);
@@ -318,20 +318,24 @@ export function TLBDashboard() {
 
   const sidebarIsOpen = isNavMobile ? true : sidebarOpen;
 
-  const openSearch = useMemo(() => {
-    return () => {
-      setSearchQuery("");
-      setSearchOpen(true);
-      setMobileOpen(false);
-      setNotificationsOpen(false);
-      setQuickOpen(false);
-      setUserOpen(false);
-    };
-  }, []);
+  const focusHeaderSearch = () => {
+    setSearchOpen(true);
+    setMobileOpen(false);
+    setNotificationsOpen(false);
+    setQuickOpen(false);
+    setUserOpen(false);
+    window.setTimeout(() => searchInputRef.current?.focus(), 0);
+  };
+
+  const closeHeaderSearch = (options?: { clear?: boolean; blur?: boolean }) => {
+    setSearchOpen(false);
+    if (options?.clear !== false) setSearchQuery("");
+    if (options?.blur !== false) searchInputRef.current?.blur();
+  };
 
   const openInspector = (payload: Inspector) => {
     setInspector(payload);
-    setSearchOpen(false);
+    closeHeaderSearch();
     setNotificationsOpen(false);
     setQuickOpen(false);
     setUserOpen(false);
@@ -375,7 +379,7 @@ export function TLBDashboard() {
   }, [isNavMobile]);
 
   useEffect(() => {
-    const shouldLockScroll = searchOpen || mobileOpen || inspector != null;
+    const shouldLockScroll = mobileOpen || inspector != null;
     if (!shouldLockScroll) return;
     if (typeof document === "undefined") return;
 
@@ -384,7 +388,7 @@ export function TLBDashboard() {
     return () => {
       document.body.style.overflow = prevOverflow;
     };
-  }, [searchOpen, mobileOpen, inspector]);
+  }, [mobileOpen, inspector]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -392,16 +396,18 @@ export function TLBDashboard() {
     const onKeyDown = (event: KeyboardEvent) => {
       const key = event.key?.toLowerCase?.() ?? "";
 
-      // Ctrl/Cmd + K opens global search.
+      // Ctrl/Cmd + K focuses the header search input (no secondary UI).
       if ((event.ctrlKey || event.metaKey) && key === "k") {
         event.preventDefault();
-        openSearch();
+        focusHeaderSearch();
         return;
       }
 
       // Escape closes any open overlay/popover.
       if (event.key === "Escape") {
-        setSearchOpen(false);
+        if (searchOpen || document.activeElement === searchInputRef.current) {
+          closeHeaderSearch();
+        }
         setNotificationsOpen(false);
         setQuickOpen(false);
         setUserOpen(false);
@@ -412,68 +418,26 @@ export function TLBDashboard() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [openSearch]);
-
-  useEffect(() => {
-    if (!searchOpen) {
-      lastFocusedElementRef.current?.focus?.();
-      return;
-    }
-    if (typeof document === "undefined" || typeof window === "undefined") return;
-
-    lastFocusedElementRef.current = document.activeElement as HTMLElement | null;
-    const t = window.setTimeout(() => searchInputRef.current?.focus(), 0);
-    return () => window.clearTimeout(t);
   }, [searchOpen]);
-
-  const handleSearchDialogKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Escape") {
-      event.stopPropagation();
-      setSearchOpen(false);
-      return;
-    }
-
-    if (event.key !== "Tab") return;
-    const dialog = searchDialogRef.current;
-    if (!dialog) return;
-
-    const focusable = Array.from(
-      dialog.querySelectorAll<HTMLElement>(
-        'button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])',
-      ),
-    ).filter((el) => !el.hasAttribute("disabled") && el.getAttribute("aria-hidden") !== "true");
-
-    if (focusable.length === 0) return;
-
-    const first = focusable[0]!;
-    const last = focusable[focusable.length - 1]!;
-    const active = document.activeElement as HTMLElement | null;
-
-    if (event.shiftKey && active === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && active === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  };
 
   const notificationsWrapRef = useRef<HTMLDivElement | null>(null);
   const quickWrapRef = useRef<HTMLDivElement | null>(null);
   const userWrapRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!notificationsOpen && !quickOpen && !userOpen) return;
+    if (!notificationsOpen && !quickOpen && !userOpen && !searchOpen) return;
     if (typeof document === "undefined") return;
 
     const onMouseDown = (event: MouseEvent) => {
       const target = event.target as Node | null;
       if (!target) return;
 
+      if (searchOpen && searchWrapRef.current?.contains(target)) return;
       if (notificationsOpen && notificationsWrapRef.current?.contains(target)) return;
       if (quickOpen && quickWrapRef.current?.contains(target)) return;
       if (userOpen && userWrapRef.current?.contains(target)) return;
 
+      if (searchOpen) closeHeaderSearch({ blur: false });
       setNotificationsOpen(false);
       setQuickOpen(false);
       setUserOpen(false);
@@ -481,7 +445,7 @@ export function TLBDashboard() {
 
     document.addEventListener("mousedown", onMouseDown);
     return () => document.removeEventListener("mousedown", onMouseDown);
-  }, [notificationsOpen, quickOpen, userOpen]);
+  }, [notificationsOpen, quickOpen, userOpen, searchOpen]);
 
   const dash = useMemo(
     () => buildDashboardSnapshot(store.state, rangeSelection, warehouse, DEMO_AS_OF),
@@ -578,16 +542,74 @@ export function TLBDashboard() {
           >
             <Menu />
           </Button>
-          <button
-            type="button"
-            className="tlb-global-search"
-            onClick={openSearch}
-            aria-haspopup="dialog"
-            aria-expanded={searchOpen}
-            aria-controls="tlb-search-dialog"
-          >
-            <Search aria-hidden="true" /><span>Search products, batches, orders, invoices…</span><kbd>{searchShortcutLabel}</kbd>
-          </button>
+          <div className="tlb-popover-wrap tlb-global-search-wrap" ref={searchWrapRef}>
+            <label className={cn("tlb-global-search", searchOpen && "tlb-global-search-active")}>
+              <Search aria-hidden="true" />
+              <input
+                ref={searchInputRef}
+                type="search"
+                placeholder="Search products, batches, orders, invoices…"
+                aria-label="Search products, batches, orders, invoices"
+                aria-expanded={searchOpen}
+                aria-controls="tlb-search-results"
+                aria-haspopup="listbox"
+                value={searchQuery}
+                onChange={(event) => {
+                  setSearchQuery(event.target.value);
+                  setSearchOpen(true);
+                }}
+                onFocus={() => {
+                  setSearchOpen(true);
+                  setNotificationsOpen(false);
+                  setQuickOpen(false);
+                  setUserOpen(false);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    closeHeaderSearch();
+                    return;
+                  }
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    const phaseOrder = store.state.orders.find((o) => o.id === "ord-phase30");
+                    if (searchQuery.toLowerCase().includes("ord") && phaseOrder) {
+                      openLiveModule("Sales Orders", phaseOrder.id);
+                      return;
+                    }
+                    if (searchQuery.toLowerCase().includes("outstanding")) {
+                      openLiveModule("Outstanding Supplies");
+                      return;
+                    }
+                    openLiveModule("Sales Orders");
+                  }
+                }}
+              />
+              <kbd>{searchShortcutLabel}</kbd>
+            </label>
+            {searchOpen && (
+              <div
+                id="tlb-search-results"
+                className="tlb-popover tlb-search-dropdown tlb-search-results"
+                role="listbox"
+                aria-label="Search results"
+              >
+                <LiveSearchResults
+                  store={store}
+                  query={searchQuery}
+                  onOpenOrder={(id) => openOrderDetail(id)}
+                  onOpenNav={(nav, entityId) => {
+                    if (nav === "Customers") openLiveModule("Customers", null, null, entityId ?? null);
+                    else if (nav === "Suppliers") openLiveModule("Suppliers", null, null, null, entityId ?? null);
+                    else if (nav === "Finance" || nav === "Deliveries" || nav === "Products" || nav === "Warehouses") {
+                      openLiveModule(nav, null, null, null, null, entityId ?? null);
+                    } else openLiveModule(nav);
+                  }}
+                />
+              </div>
+            )}
+          </div>
           <div className="tlb-header-actions">
             <div className="tlb-popover-wrap" ref={notificationsWrapRef}>
               <Button
@@ -1171,67 +1193,6 @@ export function TLBDashboard() {
           )}
         </main>
       </div>
-
-      {searchOpen && (
-        <div
-          className="tlb-dialog-backdrop"
-          role="presentation"
-          onMouseDown={() => setSearchOpen(false)}
-        >
-          <div
-            ref={searchDialogRef}
-            id="tlb-search-dialog"
-            className="tlb-search-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Global search"
-            onMouseDown={(event) => event.stopPropagation()}
-            onKeyDown={handleSearchDialogKeyDown}
-          >
-            <div className="tlb-search-input">
-              <Search aria-hidden="true" />
-              <input
-                ref={searchInputRef}
-                autoFocus
-                placeholder="Search TLB Enterprise…"
-                aria-label="Search"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    const phaseOrder = store.state.orders.find((o) => o.id === "ord-phase30");
-                    if (searchQuery.toLowerCase().includes("ord") && phaseOrder) {
-                      openLiveModule("Sales Orders", phaseOrder.id);
-                      return;
-                    }
-                    if (searchQuery.toLowerCase().includes("outstanding")) {
-                      openLiveModule("Outstanding Supplies");
-                      return;
-                    }
-                    openLiveModule("Sales Orders");
-                  }
-                }}
-              />
-              <kbd>ESC</kbd>
-            </div>
-            <div className="tlb-search-results" role="list">
-              <LiveSearchResults
-                store={store}
-                query={searchQuery}
-                onOpenOrder={(id) => openOrderDetail(id)}
-                onOpenNav={(nav, entityId) => {
-                  if (nav === "Customers") openLiveModule("Customers", null, null, entityId ?? null);
-                  else if (nav === "Suppliers") openLiveModule("Suppliers", null, null, null, entityId ?? null);
-                  else if (nav === "Finance" || nav === "Deliveries" || nav === "Products" || nav === "Warehouses") {
-                    openLiveModule(nav, null, null, null, null, entityId ?? null);
-                  } else openLiveModule(nav);
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
 
       {inspector && (
         <div
