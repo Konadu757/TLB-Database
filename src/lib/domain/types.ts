@@ -85,6 +85,12 @@ export type Permission =
   | "stock.view"
   | "stock.receive"
   | "stock.reserve"
+  | "stock.issue"
+  | "stock.transfer"
+  | "stock.adjust"
+  | "stock.approve"
+  | "approvals.manage"
+  | "bi.view"
   | "invoice.create"
   | "receipt.create"
   | "delivery.manage"
@@ -98,6 +104,63 @@ export type Permission =
   | "trash.view"
   | "records.delete"
   | "trash.purge";
+
+/** Immutable stock ledger movement kinds. */
+export type StockMovementType =
+  | "opening"
+  | "grn"
+  | "issue"
+  | "transfer_out"
+  | "transfer_in"
+  | "adjustment_plus"
+  | "adjustment_minus"
+  | "return_customer"
+  | "return_supplier"
+  | "reservation"
+  | "release"
+  | "damage"
+  | "expiry"
+  | "production"
+  | "sample"
+  | "supply";
+
+export type IssueStrategy = "FIFO" | "LIFO" | "FEFO";
+
+export type TransferStatus =
+  | "Requested"
+  | "Approved"
+  | "Released"
+  | "In Transit"
+  | "Received"
+  | "Cancelled";
+
+export type AdjustmentStatus = "Draft" | "Posted" | "Pending Approval" | "Rejected" | "Cancelled";
+
+export type ApprovalKind =
+  | "supplier_po"
+  | "non_po_purchase"
+  | "credit_override"
+  | "high_discount"
+  | "stock_adjustment"
+  | "write_off"
+  | "transfer"
+  | "cancellation"
+  | "high_value";
+
+export type ApprovalStatus = "Pending" | "Approved" | "Rejected" | "Cancelled";
+
+export type GrnStatus = "Draft" | "Received" | "Checked" | "Approved" | "Rejected" | "Cancelled";
+
+export type StockIssueReason =
+  | "Customer supply"
+  | "Production"
+  | "Sample"
+  | "Damage"
+  | "Expiry"
+  | "Internal use"
+  | "Other";
+
+export type FinanceAgeingBucket = "0-30" | "31-60" | "61-90" | "90+";
 
 export type AuditAction =
   | "customer.created"
@@ -114,6 +177,16 @@ export type AuditAction =
   | "stock.received"
   | "stock.reserved"
   | "stock.released"
+  | "stock.issued"
+  | "stock.transferred"
+  | "stock.adjusted"
+  | "stock.movement"
+  | "grn.created"
+  | "grn.approved"
+  | "batch.created"
+  | "approval.requested"
+  | "approval.decided"
+  | "credit.override"
   | "invoice.created"
   | "invoice.updated"
   | "invoice.voided"
@@ -206,6 +279,17 @@ export interface Product extends SoftDeleteFields {
   unit: string;
   category: string;
   active: boolean;
+  /** Per-product issue strategy for batch picks. */
+  issueStrategy?: IssueStrategy;
+  allowNegativeStock?: boolean;
+  minQty?: number;
+  maxQty?: number;
+  reorderPoint?: number;
+  reorderQty?: number;
+  preferredSupplierId?: string;
+  leadTimeDays?: number;
+  /** Unit cost for valuation (GHS). */
+  standardCost?: number;
 }
 
 export interface StockBalance {
@@ -214,6 +298,189 @@ export interface StockBalance {
   warehouseId: string;
   physicalQty: number;
   reservedQty: number;
+  /** Unavailable buckets — excluded from available. */
+  damagedQty?: number;
+  expiredQty?: number;
+  quarantineQty?: number;
+  inTransitQty?: number;
+  allocatedQty?: number;
+}
+
+/** Immutable stock movement ledger row. */
+export interface StockMovement {
+  id: string;
+  number: string;
+  type: StockMovementType;
+  productId: string;
+  warehouseId: string;
+  batchId?: string;
+  qtyBefore: number;
+  qtyMove: number;
+  qtyAfter: number;
+  /** Signed direction: + inbound, − outbound for physical. */
+  signedQty: number;
+  reason?: string;
+  refType?: string;
+  refId?: string;
+  refNumber?: string;
+  notes?: string;
+  actor: string;
+  at: string;
+}
+
+/** Batch / lot with remaining qty and recall timeline. */
+export interface BatchLot {
+  id: string;
+  code: string;
+  productId: string;
+  warehouseId: string;
+  supplierId?: string;
+  receivedQty: number;
+  remainingQty: number;
+  unitCost: number;
+  manufacturedAt?: string;
+  expiresAt?: string;
+  receivedAt: string;
+  grnId?: string;
+  supplierPoId?: string;
+  status: "Open" | "Closed" | "Quarantine" | "Expired" | "Damaged";
+  notes?: string;
+}
+
+export interface GoodsReceiptLine {
+  id: string;
+  grnId: string;
+  productId: string;
+  warehouseId: string;
+  batchCode: string;
+  orderedQty: number;
+  acceptedQty: number;
+  rejectedQty: number;
+  damagedQty: number;
+  unitCost: number;
+  manufacturedAt?: string;
+  expiresAt?: string;
+  batchId?: string;
+}
+
+/** Full goods-in (GRN) — extends supplier receipt with QC / approval. */
+export interface GoodsReceiptNote {
+  id: string;
+  number: string;
+  supplierId: string;
+  purchaseOrderId?: string;
+  /** true = Non-PO purchase */
+  nonPo: boolean;
+  status: GrnStatus;
+  receivedAt: string;
+  receivedBy: string;
+  checkedBy?: string;
+  checkedAt?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  warehouseId: string;
+  documentRefs?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface StockIssueLine {
+  id: string;
+  issueId: string;
+  productId: string;
+  warehouseId: string;
+  batchId?: string;
+  quantity: number;
+}
+
+export interface StockIssue {
+  id: string;
+  number: string;
+  reason: StockIssueReason;
+  warehouseId: string;
+  issuedAt: string;
+  issuedBy: string;
+  orderId?: string;
+  supplyId?: string;
+  deliveryId?: string;
+  notes?: string;
+}
+
+export interface WarehouseTransferLine {
+  id: string;
+  transferId: string;
+  productId: string;
+  batchId?: string;
+  quantity: number;
+}
+
+export interface WarehouseTransfer {
+  id: string;
+  number: string;
+  fromWarehouseId: string;
+  toWarehouseId: string;
+  status: TransferStatus;
+  requestedAt: string;
+  requestedBy: string;
+  approvedAt?: string;
+  approvedBy?: string;
+  releasedAt?: string;
+  releasedBy?: string;
+  inTransitAt?: string;
+  receivedAt?: string;
+  receivedBy?: string;
+  notes?: string;
+}
+
+export interface StockAdjustmentLine {
+  id: string;
+  adjustmentId: string;
+  productId: string;
+  warehouseId: string;
+  batchId?: string;
+  qtyBefore: number;
+  qtyAfter: number;
+  variance: number;
+  reason: string;
+}
+
+export interface StockAdjustment {
+  id: string;
+  number: string;
+  status: AdjustmentStatus;
+  kind: "adjustment" | "count";
+  createdAt: string;
+  createdBy: string;
+  postedAt?: string;
+  postedBy?: string;
+  approvedAt?: string;
+  approvedBy?: string;
+  notes?: string;
+  /** Absolute variance qty requiring approval when above threshold. */
+  requiresApproval: boolean;
+}
+
+export interface ApprovalRequest {
+  id: string;
+  kind: ApprovalKind;
+  status: ApprovalStatus;
+  title: string;
+  summary: string;
+  refType: string;
+  refId: string;
+  amount?: number;
+  requestedAt: string;
+  requestedBy: string;
+  decidedAt?: string;
+  decidedBy?: string;
+  decisionNote?: string;
+}
+
+export interface InventorySettings {
+  expiryAlertDays: number[];
+  adjustmentApprovalThreshold: number;
+  highValueApprovalAmount: number;
+  allowNegativeStockDefault: boolean;
 }
 
 export interface Customer extends SoftDeleteFields {
@@ -313,6 +580,8 @@ export interface CustomerPurchaseOrder extends SoftDeleteFields {
   customerId: string;
   /** Optional customer-side PO / reference number */
   customerPoNumber?: string;
+  /** PO-backed vs walk-in / Non-PO */
+  orderSource?: "Customer PO" | "Non-PO" | "Phone" | "Email" | "Walk-in" | "Portal" | "Other";
   status: CustomerOrderStatus;
   orderDate: string;
   requiredDate?: string;
@@ -320,6 +589,10 @@ export interface CustomerPurchaseOrder extends SoftDeleteFields {
   confirmedAt?: string;
   cancelledAt?: string;
   cancelReason?: string;
+  /** Set when order exceeded credit and was still confirmed. */
+  creditOverrideBy?: string;
+  creditOverrideAt?: string;
+  creditOverrideReason?: string;
   createdAt: string;
   updatedAt: string;
   createdBy: string;
@@ -341,6 +614,8 @@ export interface SupplyLine {
   productId: string;
   warehouseId: string;
   quantity: number;
+  batchId?: string;
+  batchCode?: string;
 }
 
 export interface VatRate {
@@ -530,6 +805,11 @@ export interface DocumentCounters {
   delivery: number;
   payment: number;
   quotation: number;
+  stockMovement: number;
+  stockIssue: number;
+  transfer: number;
+  adjustment: number;
+  batch: number;
 }
 
 /** User-created commercial quotations (unique TLB-QTE numbers). */
@@ -557,6 +837,18 @@ export interface TlbState {
   warehouses: Warehouse[];
   products: Product[];
   stock: StockBalance[];
+  batches: BatchLot[];
+  stockMovements: StockMovement[];
+  goodsReceipts: GoodsReceiptNote[];
+  goodsReceiptLines: GoodsReceiptLine[];
+  stockIssues: StockIssue[];
+  stockIssueLines: StockIssueLine[];
+  transfers: WarehouseTransfer[];
+  transferLines: WarehouseTransferLine[];
+  adjustments: StockAdjustment[];
+  adjustmentLines: StockAdjustmentLine[];
+  approvals: ApprovalRequest[];
+  inventorySettings: InventorySettings;
   customers: Customer[];
   suppliers: Supplier[];
   supplierPurchaseOrders: SupplierPurchaseOrder[];
@@ -621,19 +913,47 @@ export interface OutstandingRow {
   ageDays: number;
   ageingBand: AgeingBand;
   unitPrice: number;
+  /** due_soon | due_today | overdue | awaiting_stock | normal */
+  demandFlag?: "due_soon" | "due_today" | "overdue" | "awaiting_stock" | "normal";
 }
 
 export interface SupplyRequestLine {
   orderLineId: string;
   quantity: number;
+  /** Optional forced batch; otherwise FEFO/FIFO/LIFO recommends. */
+  batchId?: string;
 }
 
 export interface RelatedRecord {
-  kind: "customer" | "order" | "supply" | "invoice" | "receipt" | "delivery" | "payment" | "reservation";
+  kind:
+    | "customer"
+    | "order"
+    | "supply"
+    | "invoice"
+    | "receipt"
+    | "delivery"
+    | "payment"
+    | "reservation"
+    | "batch"
+    | "grn"
+    | "transfer"
+    | "movement"
+    | "supplier"
+    | "supplier_po";
   id: string;
   number: string;
   label: string;
   status?: string;
+}
+
+export interface TraceNode {
+  id: string;
+  at: string;
+  kind: string;
+  title: string;
+  detail: string;
+  refNav?: string;
+  refId?: string;
 }
 
 export interface SearchHit {

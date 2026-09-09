@@ -14,7 +14,12 @@ export type DocumentKind =
   | "receipt"
   | "delivery"
   | "payment"
-  | "quotation";
+  | "quotation"
+  | "stockMovement"
+  | "stockIssue"
+  | "transfer"
+  | "adjustment"
+  | "batch";
 
 /** Document numbering — TLB-ORD / TLB-QTE / TLB-SUP / TLB-CUS / TLB-VEN / TLB-PO / TLB-GRN / TLB-SPAY / … */
 export function nextDocumentNumber(
@@ -69,6 +74,26 @@ export function nextDocumentNumber(
   if (kind === "supplierPayment") {
     next.supplierPayment += 1;
     return { number: `TLB-SPAY-${yy}${mm}-${pad(next.supplierPayment)}`, counters: next };
+  }
+  if (kind === "stockMovement") {
+    next.stockMovement = (next.stockMovement ?? 0) + 1;
+    return { number: `TLB-MV-${yy}${mm}-${pad(next.stockMovement)}`, counters: next };
+  }
+  if (kind === "stockIssue") {
+    next.stockIssue = (next.stockIssue ?? 0) + 1;
+    return { number: `TLB-ISS-${yy}${mm}-${pad(next.stockIssue)}`, counters: next };
+  }
+  if (kind === "transfer") {
+    next.transfer = (next.transfer ?? 0) + 1;
+    return { number: `TLB-TR-${yy}${mm}-${pad(next.transfer)}`, counters: next };
+  }
+  if (kind === "adjustment") {
+    next.adjustment = (next.adjustment ?? 0) + 1;
+    return { number: `TLB-ADJ-${yy}${mm}-${pad(next.adjustment)}`, counters: next };
+  }
+  if (kind === "batch") {
+    next.batch = (next.batch ?? 0) + 1;
+    return { number: `TLB-BAT-${yy}${mm}-${pad(next.batch)}`, counters: next };
   }
   next.customer += 1;
   return { number: `TLB-CUS-${pad(next.customer, 4)}`, counters: next };

@@ -13,9 +13,14 @@ export function calcOutstanding(line: Pick<CustomerOrderLine, "orderedQty" | "su
   return Math.max(0, line.orderedQty - line.suppliedQty - line.cancelledQty);
 }
 
-/** available = physical - reserved (never negative) */
-export function calcAvailable(stock: Pick<StockBalance, "physicalQty" | "reservedQty">): number {
-  return Math.max(0, stock.physicalQty - stock.reservedQty);
+/** available = physical - reserved - unavailable buckets (never negative unless configured elsewhere) */
+export function calcUnavailable(stock: Pick<StockBalance, "damagedQty" | "expiredQty" | "quarantineQty">): number {
+  return (stock.damagedQty ?? 0) + (stock.expiredQty ?? 0) + (stock.quarantineQty ?? 0);
+}
+
+/** available = physical - reserved - unavailable (never negative) */
+export function calcAvailable(stock: Pick<StockBalance, "physicalQty" | "reservedQty" | "damagedQty" | "expiredQty" | "quarantineQty">): number {
+  return Math.max(0, stock.physicalQty - stock.reservedQty - calcUnavailable(stock));
 }
 
 export function validateSupplyQty(params: {

@@ -40,6 +40,15 @@ import {
   upsertSupplier,
   upsertVatRate,
 } from "@/lib/store/tlb-store";
+import {
+  advanceTransfer,
+  createGoodsReceipt,
+  createStockIssue,
+  decideApproval,
+  postStockAdjustment,
+  requestWarehouseTransfer,
+} from "@/lib/store/inventory-store";
+import type { TransferStatus } from "@/lib/domain/types";
 
 type MutFn = (state: TlbState) =>
   | { ok: true; data: { state: TlbState; data: unknown } }
@@ -116,6 +125,18 @@ export function useTlbStore() {
       apply((s) => createSupply(s, orderId, lines, notes), "Supply posted."),
     receive: (productId: string, warehouseId: string, qty: number) =>
       apply((s) => receiveStock(s, productId, warehouseId, qty, true), "Stock received and reserved for outstanding orders."),
+    postGrn: (input: Parameters<typeof createGoodsReceipt>[1]) =>
+      apply((s) => createGoodsReceipt(s, input), "Goods receipt posted to ledger."),
+    postIssue: (input: Parameters<typeof createStockIssue>[1]) =>
+      apply((s) => createStockIssue(s, input), "Stock issue posted."),
+    requestTransfer: (input: Parameters<typeof requestWarehouseTransfer>[1]) =>
+      apply((s) => requestWarehouseTransfer(s, input), "Transfer requested."),
+    advanceTransfer: (transferId: string, toStatus: TransferStatus) =>
+      apply((s) => advanceTransfer(s, transferId, toStatus), "Transfer updated."),
+    postAdjustment: (input: Parameters<typeof postStockAdjustment>[1]) =>
+      apply((s) => postStockAdjustment(s, input), "Adjustment saved."),
+    decideApproval: (approvalId: string, decision: "Approved" | "Rejected", note?: string) =>
+      apply((s) => decideApproval(s, approvalId, decision, note), `Approval ${decision.toLowerCase()}.`),
     reserve: (productId: string, warehouseId: string) =>
       apply((s) => reserveForOutstanding(s, productId, warehouseId), "Stock reserved against outstanding orders."),
     releaseReservation: (id: string, reason?: string) =>

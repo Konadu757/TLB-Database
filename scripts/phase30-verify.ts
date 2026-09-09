@@ -12,10 +12,26 @@ import {
   deriveOrderStatus,
   validateSupplyQty,
 } from "../src/lib/domain/calculations";
+import {
+  accountsPayable,
+  accountsReceivable,
+  ageingBucket,
+  buildProductTrace,
+  recommendBatches,
+  runAskTlbPreset,
+  verifyLedgerTip,
+} from "../src/lib/domain/inventory";
 import { canAccessNav, hasPermission } from "../src/lib/domain/permissions";
 import { nextDocumentNumber } from "../src/lib/domain/numbering";
 import { globalSearch } from "../src/lib/domain/search";
 import { createSeedState } from "../src/lib/store/seed";
+import {
+  advanceTransfer,
+  createGoodsReceipt,
+  createStockIssue,
+  postStockAdjustment,
+  requestWarehouseTransfer,
+} from "../src/lib/store/inventory-store";
 import {
   assignUserRole,
   confirmCustomerOrder,
@@ -64,7 +80,25 @@ function testAgeing() {
 }
 
 function testNumbering() {
-  let counters = { order: 0, supply: 0, customer: 0, invoice: 0, receipt: 0, delivery: 0, payment: 0 };
+  let counters = {
+    order: 0,
+    supply: 0,
+    customer: 0,
+    supplier: 0,
+    supplierPo: 0,
+    supplierReceipt: 0,
+    supplierPayment: 0,
+    invoice: 0,
+    receipt: 0,
+    delivery: 0,
+    payment: 0,
+    quotation: 0,
+    stockMovement: 0,
+    stockIssue: 0,
+    transfer: 0,
+    adjustment: 0,
+    batch: 0,
+  };
   const inv = nextDocumentNumber("invoice", counters, new Date("2026-09-09"));
   assert.match(inv.number, /^TLB-INV-2609-/);
   counters = inv.counters;
@@ -73,6 +107,9 @@ function testNumbering() {
   counters = rct.counters;
   const dlv = nextDocumentNumber("delivery", counters, new Date("2026-09-09"));
   assert.match(dlv.number, /^TLB-DLV-2609-/);
+  counters = dlv.counters;
+  const mv = nextDocumentNumber("stockMovement", counters, new Date("2026-09-09"));
+  assert.match(mv.number, /^TLB-MV-2609-/);
 }
 
 function testPermissions() {
@@ -228,10 +265,112 @@ function testPhase30Scenario() {
   void calcAvailable;
 }
 
+function testInventoryEngine() {
+  const state = createSeedState();
+  assert.ok(state.batches.length >= 2, "seed batches");
+  assert.ok(state.stockMovements.length >= 1, "seed movements");
+  assert.equal(verifyLedgerTip(state, "prod-hcl", "wh-main"), true);
+
+  const picks = recommendBatches(state, "prod-hcl", "wh-main", 5);
+  assert.equal(picks[0]?.code, "HCL-26001");
+
+  const avail = calcAvailable(state.stock.find((s) => s.id === "stk-hcl-main")!);
+  assert.equal(avail, 200 - 12 - 2);
+
+  assert.equal(ageingBucket(10), "0-30");
+  assert.equal(ageingBucket(45), "31-60");
+  assert.equal(ageingBucket(100), "90+");
+
+  const ar = accountsReceivable(state);
+  assert.ok(Array.isArray(ar));
+  const ap = accountsPayable(state);
+  assert.ok(ap.length > 0);
+
+  const trace = buildProductTrace(state, "prod-hcl");
+  assert.ok(trace.some((n) => n.kind === "grn"));
+  assert.ok(trace.some((n) => n.kind === "batch"));
+  assert.ok(trace.some((n) => n.kind === "transfer"));
+
+  const ask = runAskTlbPreset(state, "expiring_stock");
+  assert.ok(ask.length >= 1);
+  const empty = runAskTlbPreset(state, "incomplete_deliveries");
+  assert.equal(empty.length, 0);
+
+  let next = state;
+  const grn = createGoodsReceipt(next, {
+    supplierId: "sup-ningbo",
+    purchaseOrderId: "spo-hcl-trace",
+    warehouseId: "wh-main",
+    notes: "Test GRN",
+    lines: [
+      {
+        productId: "prod-chem-a",
+        batchCode: "CHEM-A-TEST",
+        orderedQty: 5,
+        acceptedQty: 5,
+        unitCost: 800,
+        expiresAt: "2026-09-20",
+      },
+    ],
+  });
+  assert.equal(grn.ok, true);
+  if (!grn.ok) return;
+  next = grn.data.state;
+  assert.ok(next.stockMovements.some((m) => m.type === "grn" && m.refNumber === grn.data.data.number));
+
+  const issue = createStockIssue(next, {
+    warehouseId: "wh-main",
+    reason: "Sample",
+    lines: [{ productId: "prod-chem-b", quantity: 1 }],
+  });
+  assert.equal(issue.ok, true);
+  if (!issue.ok) return;
+  next = issue.data.state;
+
+  const tr = requestWarehouseTransfer(next, {
+    fromWarehouseId: "wh-main",
+    toWarehouseId: "wh-factory",
+    lines: [{ productId: "prod-chem-b", quantity: 1 }],
+  });
+  assert.equal(tr.ok, true);
+  if (!tr.ok) return;
+  next = tr.data.state;
+  const approved = advanceTransfer(next, tr.data.data.transferId, "Approved");
+  assert.equal(approved.ok, true);
+  if (!approved.ok) return;
+  next = approved.data.state;
+  const released = advanceTransfer(next, tr.data.data.transferId, "In Transit");
+  assert.equal(released.ok, true);
+  if (!released.ok) return;
+  next = released.data.state;
+  const received = advanceTransfer(next, tr.data.data.transferId, "Received");
+  assert.equal(received.ok, true);
+  if (!received.ok) return;
+  next = received.data.state;
+  assert.equal(next.transfers.find((t) => t.id === tr.data.data.transferId)?.status, "Received");
+
+  const adj = postStockAdjustment(next, {
+    kind: "count",
+    lines: [
+      {
+        productId: "prod-eth",
+        warehouseId: "wh-main",
+        qtyAfter: 48,
+        reason: "No variance",
+      },
+    ],
+  });
+  assert.equal(adj.ok, true);
+
+  const outstanding = getOutstandingRows(state);
+  assert.ok(outstanding.every((r) => r.demandFlag));
+}
+
 testOutstandingNeverNegative();
 testSupplyValidation();
 testAgeing();
 testNumbering();
 testPermissions();
 testPhase30Scenario();
-console.log("phase30-verify: all assertions passed (P0 + P1)");
+testInventoryEngine();
+console.log("phase30-verify: all assertions passed (P0 inventory + P1 + Ask TLB)");

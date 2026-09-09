@@ -38,6 +38,8 @@ import type {
 } from "../domain/types";
 import { migrateState, syncSessionIdentity } from "./migrate";
 import { createSeedState } from "./seed";
+import { applySupplyBatchPicks, getOrCreateBalance, postStockMovement } from "./inventory-store";
+import { creditPosition } from "../domain/inventory";
 
 export const STORAGE_KEY = "tlb.enterprise.state.v1";
 
@@ -166,6 +168,20 @@ export function getOutstandingRows(state: TlbState, asOf = new Date().toISOStrin
     const bal = stockMap.get(stockKey(line.productId, line.warehouseId));
     const available = bal ? calcAvailable(bal) : 0;
     const ageDays = daysBetween(order.confirmedAt ?? order.orderDate, asOf);
+    const band = ageingBand(ageDays, state.ageing);
+    let demandFlag: OutstandingRow["demandFlag"] = "normal";
+    if (available < outstanding) demandFlag = "awaiting_stock";
+    else if (order.requiredDate) {
+      const due = order.requiredDate.slice(0, 10);
+      const today = asOf.slice(0, 10);
+      if (due < today) demandFlag = "overdue";
+      else if (due === today) demandFlag = "due_today";
+      else if (daysBetween(asOf, order.requiredDate) <= (state.ageing.expectedApproachingDays ?? 2)) {
+        demandFlag = "due_soon";
+      }
+    } else if (band === "Overdue") {
+      demandFlag = "overdue";
+    }
     rows.push({
       orderId: order.id,
       orderNumber: order.number,
@@ -188,8 +204,9 @@ export function getOutstandingRows(state: TlbState, asOf = new Date().toISOStrin
       orderDate: order.orderDate,
       requiredDate: order.requiredDate,
       ageDays,
-      ageingBand: ageingBand(ageDays, state.ageing),
+      ageingBand: band,
       unitPrice: line.unitPrice,
+      demandFlag,
     });
   }
 
@@ -501,7 +518,11 @@ export function createCustomerOrder(
   return { ok: true, data: { state: next, data: order } };
 }
 
-export function confirmCustomerOrder(state: TlbState, orderId: string): MutResult<CustomerPurchaseOrder> {
+export function confirmCustomerOrder(
+  state: TlbState,
+  orderId: string,
+  creditOverrideReason?: string,
+): MutResult<CustomerPurchaseOrder> {
   const blocked = requirePerm(state, "orders.confirm");
   if (blocked) return { ok: false, error: blocked };
   const next = cloneState(state);
@@ -510,6 +531,30 @@ export function confirmCustomerOrder(state: TlbState, orderId: string): MutResul
   if (order.status !== "Draft" && order.status !== "Pending") {
     return { ok: false, error: `Cannot confirm order in status ${order.status}.` };
   }
+
+  const credit = creditPosition(next, order.customerId);
+  if (credit.overLimit) {
+    if (!creditOverrideReason?.trim()) {
+      return {
+        ok: false,
+        error: `Customer over credit limit (used ${credit.used} / limit ${credit.limit}). Provide an override reason to confirm.`,
+      };
+    }
+    if (!hasPermission(next, "approvals.manage") && !hasPermission(next, "orders.confirm")) {
+      return { ok: false, error: "Credit override requires manager approval permission." };
+    }
+    order.creditOverrideBy = next.currentUser;
+    order.creditOverrideAt = new Date().toISOString();
+    order.creditOverrideReason = creditOverrideReason.trim();
+    pushAudit(next, {
+      action: "credit.override",
+      entityType: "customer_purchase_order",
+      entityId: order.id,
+      summary: `Credit override on ${order.number}: ${creditOverrideReason.trim()}`,
+      meta: { used: credit.used, limit: credit.limit },
+    });
+  }
+
   order.status = "Confirmed";
   order.confirmedAt = new Date().toISOString();
   order.updatedAt = order.confirmedAt;
@@ -676,18 +721,20 @@ export function receiveStock(
     return { ok: false, error: "Receipt quantity must be a positive whole number." };
   }
   let next = cloneState(state);
-  let bal = next.stock.find((s) => s.productId === productId && s.warehouseId === warehouseId);
-  if (!bal) {
-    bal = {
-      id: uid("stk"),
+  const bal = getOrCreateBalance(next, productId, warehouseId);
+  try {
+    postStockMovement(next, {
+      type: "grn",
       productId,
       warehouseId,
-      physicalQty: 0,
-      reservedQty: 0,
-    };
-    next.stock.push(bal);
+      quantity,
+      reason: "Quick receive",
+      refType: "stock_balance",
+      refId: bal.id,
+    });
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Receive failed." };
   }
-  bal.physicalQty += quantity;
   pushAudit(next, {
     action: "stock.received",
     entityType: "stock_balance",
@@ -765,7 +812,22 @@ export function createSupply(
     const fromReserved = Math.min(m.line.reservedQty, m.qty);
     m.line.reservedQty -= fromReserved;
     m.bal.reservedQty = Math.max(0, m.bal.reservedQty - fromReserved);
-    m.bal.physicalQty = Math.max(0, m.bal.physicalQty - m.qty);
+    // Physical + ledger + batch via supply movement (do not double-decrement physical)
+    let batchMeta: { batchId?: string; batchCode?: string } = {};
+    try {
+      batchMeta = applySupplyBatchPicks(
+        next,
+        supplyId,
+        numbered.number,
+        m.line.productId,
+        m.line.warehouseId,
+        m.qty,
+        undefined,
+        now,
+      );
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : "Supply stock movement failed." };
+    }
     m.line.suppliedQty += m.qty;
 
     // Consume active reservations for this line
@@ -790,6 +852,8 @@ export function createSupply(
       productId: m.line.productId,
       warehouseId: m.line.warehouseId,
       quantity: m.qty,
+      batchId: batchMeta.batchId,
+      batchCode: batchMeta.batchCode,
     });
   }
 

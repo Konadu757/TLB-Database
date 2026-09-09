@@ -10,11 +10,13 @@ import type {
   AppUser,
   CompanyProfile,
   DocumentCounters,
+  InventorySettings,
   Permission,
   RoleDefinition,
   TlbState,
   VatRate,
 } from "../domain/types";
+import { DEFAULT_INVENTORY_SETTINGS } from "../domain/inventory";
 import { createSeedState } from "./seed";
 
 const DEFAULT_COMPANY: CompanyProfile = {
@@ -56,6 +58,11 @@ const DEFAULT_COUNTERS: DocumentCounters = {
   delivery: 0,
   payment: 0,
   quotation: 0,
+  stockMovement: 0,
+  stockIssue: 0,
+  transfer: 0,
+  adjustment: 0,
+  batch: 0,
 };
 
 function defaultUsers(roles: RoleDefinition[]): AppUser[] {
@@ -142,6 +149,11 @@ export function migrateState(raw: unknown): TlbState {
     delivery: parsed.counters?.delivery ?? 0,
     payment: parsed.counters?.payment ?? 0,
     quotation: parsed.counters?.quotation ?? 0,
+    stockMovement: parsed.counters?.stockMovement ?? 0,
+    stockIssue: parsed.counters?.stockIssue ?? 0,
+    transfer: parsed.counters?.transfer ?? 0,
+    adjustment: parsed.counters?.adjustment ?? 0,
+    batch: parsed.counters?.batch ?? 0,
   };
 
   const ageing: AgeingSettings = {
@@ -179,11 +191,53 @@ export function migrateState(raw: unknown): TlbState {
   const baseReceiptLines = needsCollectionSeed ? seed.receiptLines : (parsed.receiptLines ?? []);
   const basePayments = needsCollectionSeed ? seed.payments : (parsed.payments ?? []);
 
+  // v9: inventory engine collections (ledger, batches, GRN, transfers, approvals).
+  const needsInventorySeed = priorVersion < 9;
+
+  const inventorySettings: InventorySettings = {
+    ...DEFAULT_INVENTORY_SETTINGS,
+    ...(parsed.inventorySettings ?? {}),
+    expiryAlertDays:
+      parsed.inventorySettings?.expiryAlertDays?.length
+        ? parsed.inventorySettings.expiryAlertDays
+        : DEFAULT_INVENTORY_SETTINGS.expiryAlertDays,
+  };
+
   const next: TlbState = {
-    version: 8,
+    version: 9,
     warehouses: parsed.warehouses?.length ? parsed.warehouses : seed.warehouses,
-    products: parsed.products?.length ? parsed.products : seed.products,
-    stock: parsed.stock?.length ? parsed.stock : seed.stock,
+    products: needsInventorySeed
+      ? mergeById(parsed.products?.length ? parsed.products : seed.products, seed.products)
+      : parsed.products?.length
+        ? parsed.products
+        : seed.products,
+    stock: parsed.stock?.length ? parsed.stock.map((s) => ({ ...s })) : seed.stock,
+    batches: needsInventorySeed
+      ? mergeById(parsed.batches ?? [], seed.batches)
+      : (parsed.batches ?? []),
+    stockMovements: needsInventorySeed
+      ? mergeById(parsed.stockMovements ?? [], seed.stockMovements)
+      : (parsed.stockMovements ?? []),
+    goodsReceipts: needsInventorySeed
+      ? mergeById(parsed.goodsReceipts ?? [], seed.goodsReceipts)
+      : (parsed.goodsReceipts ?? []),
+    goodsReceiptLines: needsInventorySeed
+      ? mergeById(parsed.goodsReceiptLines ?? [], seed.goodsReceiptLines)
+      : (parsed.goodsReceiptLines ?? []),
+    stockIssues: parsed.stockIssues ?? [],
+    stockIssueLines: parsed.stockIssueLines ?? [],
+    transfers: needsInventorySeed
+      ? mergeById(parsed.transfers ?? [], seed.transfers)
+      : (parsed.transfers ?? []),
+    transferLines: needsInventorySeed
+      ? mergeById(parsed.transferLines ?? [], seed.transferLines)
+      : (parsed.transferLines ?? []),
+    adjustments: parsed.adjustments ?? [],
+    adjustmentLines: parsed.adjustmentLines ?? [],
+    approvals: needsInventorySeed
+      ? mergeById(parsed.approvals ?? [], seed.approvals)
+      : (parsed.approvals ?? []),
+    inventorySettings,
     customers: parsed.customers?.length ? parsed.customers : seed.customers,
     suppliers: needsSupplierSeed ? seed.suppliers : (parsed.suppliers ?? []),
     supplierPurchaseOrders: needsSupplierSeed
@@ -223,6 +277,14 @@ export function migrateState(raw: unknown): TlbState {
             supplierPayment: Math.max(counters.supplierPayment, seed.counters.supplierPayment),
           }
         : {}),
+      ...(needsInventorySeed
+        ? {
+            stockMovement: Math.max(counters.stockMovement ?? 0, seed.counters.stockMovement ?? 0),
+            transfer: Math.max(counters.transfer ?? 0, seed.counters.transfer ?? 0),
+            batch: Math.max(counters.batch ?? 0, seed.counters.batch ?? 0),
+            supplierReceipt: Math.max(counters.supplierReceipt ?? 0, seed.counters.supplierReceipt ?? 0),
+          }
+        : {}),
       quotation: Math.max(counters.quotation ?? 0, seed.counters.quotation ?? 0, parsed.quotations?.length ?? 0),
     },
     ageing,
@@ -255,7 +317,7 @@ export function migrateState(raw: unknown): TlbState {
   }
 
   // v7: trash permissions — keep system roles aligned with the latest capability matrix.
-  if (priorVersion < 7) {
+  if (priorVersion < 7 || priorVersion < 9) {
     for (const role of next.roles) {
       if (!role.systemKey) continue;
       const defaults = SYSTEM_ROLE_PERMISSIONS[role.systemKey] as Permission[] | undefined;
