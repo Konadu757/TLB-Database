@@ -6,12 +6,16 @@ export type DocumentKind =
   | "order"
   | "supply"
   | "customer"
+  | "supplier"
+  | "supplierPo"
+  | "supplierReceipt"
+  | "supplierPayment"
   | "invoice"
   | "receipt"
   | "delivery"
   | "payment";
 
-/** Document numbering — TLB-ORD / TLB-SUP / TLB-CUS / TLB-INV / TLB-RCT / TLB-DLV / TLB-PAY */
+/** Document numbering — TLB-ORD / TLB-SUP / TLB-CUS / TLB-VEN / TLB-PO / TLB-GRN / TLB-SPAY / … */
 export function nextDocumentNumber(
   kind: DocumentKind,
   counters: DocumentCounters,
@@ -44,6 +48,22 @@ export function nextDocumentNumber(
   if (kind === "payment") {
     next.payment += 1;
     return { number: `TLB-PAY-${yy}${mm}-${pad(next.payment)}`, counters: next };
+  }
+  if (kind === "supplier") {
+    next.supplier += 1;
+    return { number: `TLB-VEN-${pad(next.supplier, 4)}`, counters: next };
+  }
+  if (kind === "supplierPo") {
+    next.supplierPo += 1;
+    return { number: `TLB-PO-${yy}${mm}-${pad(next.supplierPo)}`, counters: next };
+  }
+  if (kind === "supplierReceipt") {
+    next.supplierReceipt += 1;
+    return { number: `TLB-GRN-${yy}${mm}-${pad(next.supplierReceipt)}`, counters: next };
+  }
+  if (kind === "supplierPayment") {
+    next.supplierPayment += 1;
+    return { number: `TLB-SPAY-${yy}${mm}-${pad(next.supplierPayment)}`, counters: next };
   }
   next.customer += 1;
   return { number: `TLB-CUS-${pad(next.customer, 4)}`, counters: next };

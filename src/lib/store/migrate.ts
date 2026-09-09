@@ -1,8 +1,14 @@
+import {
+  createSystemRoles,
+  OWNER_USER_ID,
+  SYSTEM_ROLE_IDS,
+} from "../domain/permissions";
 import type {
   AgeingSettings,
-  AppRole,
+  AppUser,
   CompanyProfile,
   DocumentCounters,
+  RoleDefinition,
   TlbState,
   VatRate,
 } from "../domain/types";
@@ -38,11 +44,75 @@ const DEFAULT_COUNTERS: DocumentCounters = {
   order: 0,
   supply: 0,
   customer: 0,
+  supplier: 0,
+  supplierPo: 0,
+  supplierReceipt: 0,
+  supplierPayment: 0,
   invoice: 0,
   receipt: 0,
   delivery: 0,
   payment: 0,
 };
+
+function defaultUsers(roles: RoleDefinition[]): AppUser[] {
+  const byKey = (key: string) => roles.find((r) => r.systemKey === key)?.id ?? SYSTEM_ROLE_IDS.Owner;
+  return [
+    {
+      id: OWNER_USER_ID,
+      name: "TLB Owner",
+      email: "owner@tlb.gh",
+      roleId: byKey("Owner"),
+      active: true,
+    },
+    {
+      id: "user-sales",
+      name: "Ama Mensah",
+      email: "sales@tlb.gh",
+      roleId: byKey("Sales"),
+      active: true,
+    },
+    {
+      id: "user-warehouse",
+      name: "Kofi Boateng",
+      email: "warehouse@tlb.gh",
+      roleId: byKey("Warehouse"),
+      active: true,
+    },
+    {
+      id: "user-finance",
+      name: "Efua Addo",
+      email: "finance@tlb.gh",
+      roleId: byKey("Finance"),
+      active: true,
+    },
+    {
+      id: "user-manager",
+      name: "Yaw Mensah",
+      email: "manager@tlb.gh",
+      roleId: byKey("Manager"),
+      active: true,
+    },
+  ];
+}
+
+/** Keep denormalized session fields aligned with users/roles. */
+export function syncSessionIdentity(state: TlbState): void {
+  const user =
+    state.users.find((u) => u.id === state.currentUserId) ??
+    state.users.find((u) => u.id === OWNER_USER_ID) ??
+    state.users[0];
+  if (!user) return;
+  const role =
+    state.roles.find((r) => r.id === user.roleId) ??
+    state.roles.find((r) => r.id === state.currentRoleId) ??
+    state.roles.find((r) => r.systemKey === "Owner");
+  state.currentUserId = user.id;
+  state.currentUser = user.name;
+  if (role) {
+    state.currentRoleId = role.id;
+    state.currentRole = role.name;
+  }
+}
 
 /** Upgrade legacy localStorage payloads without wiping demo data. */
 export function migrateState(raw: unknown): TlbState {
@@ -54,6 +124,10 @@ export function migrateState(raw: unknown): TlbState {
   const counters: DocumentCounters = {
     ...DEFAULT_COUNTERS,
     ...(parsed.counters ?? {}),
+    supplier: parsed.counters?.supplier ?? 0,
+    supplierPo: parsed.counters?.supplierPo ?? 0,
+    supplierReceipt: parsed.counters?.supplierReceipt ?? 0,
+    supplierPayment: parsed.counters?.supplierPayment ?? 0,
     invoice: parsed.counters?.invoice ?? 0,
     receipt: parsed.counters?.receipt ?? 0,
     delivery: parsed.counters?.delivery ?? 0,
@@ -71,12 +145,32 @@ export function migrateState(raw: unknown): TlbState {
   const needsCollectionSeed =
     priorVersion < 3 && !(parsed.payments?.length) && !(parsed.receipts?.length);
 
-  return {
-    version: 3,
+  // v4: seed supplier master + period-dated procurement activity.
+  const needsSupplierSeed = priorVersion < 4 || !(parsed.suppliers?.length);
+
+  // v5: owner-managed roles/users + correct owner identity (replace demo Kwame/Manager session).
+  const systemRoles = createSystemRoles();
+  const roles: RoleDefinition[] =
+    parsed.roles?.length
+      ? [
+          ...systemRoles.filter((sys) => !parsed.roles!.some((r) => r.id === sys.id || r.systemKey === sys.systemKey)),
+          ...parsed.roles,
+        ]
+      : systemRoles;
+  const users: AppUser[] = parsed.users?.length ? parsed.users : defaultUsers(roles);
+
+  const next: TlbState = {
+    version: 5,
     warehouses: parsed.warehouses?.length ? parsed.warehouses : seed.warehouses,
     products: parsed.products?.length ? parsed.products : seed.products,
     stock: parsed.stock?.length ? parsed.stock : seed.stock,
     customers: parsed.customers?.length ? parsed.customers : seed.customers,
+    suppliers: needsSupplierSeed ? seed.suppliers : (parsed.suppliers ?? []),
+    supplierPurchaseOrders: needsSupplierSeed
+      ? seed.supplierPurchaseOrders
+      : (parsed.supplierPurchaseOrders ?? []),
+    supplierReceipts: needsSupplierSeed ? seed.supplierReceipts : (parsed.supplierReceipts ?? []),
+    supplierPayments: needsSupplierSeed ? seed.supplierPayments : (parsed.supplierPayments ?? []),
     orders: (parsed.orders?.length ? parsed.orders : seed.orders).map((o) => ({ ...o })),
     orderLines: parsed.orderLines?.length ? parsed.orderLines : seed.orderLines,
     supplies: parsed.supplies ?? [],
@@ -91,19 +185,52 @@ export function migrateState(raw: unknown): TlbState {
     notifications: parsed.notifications ?? [],
     reservations: parsed.reservations ?? [],
     audit: parsed.audit ?? [],
-    counters: needsCollectionSeed
-      ? {
-          ...counters,
-          receipt: Math.max(counters.receipt, seed.counters.receipt),
-          payment: Math.max(counters.payment, seed.counters.payment),
-        }
-      : counters,
+    counters: {
+      ...(needsCollectionSeed
+        ? {
+            ...counters,
+            receipt: Math.max(counters.receipt, seed.counters.receipt),
+            payment: Math.max(counters.payment, seed.counters.payment),
+          }
+        : counters),
+      ...(needsSupplierSeed
+        ? {
+            supplier: Math.max(counters.supplier, seed.counters.supplier),
+            supplierPo: Math.max(counters.supplierPo, seed.counters.supplierPo),
+            supplierReceipt: Math.max(counters.supplierReceipt, seed.counters.supplierReceipt),
+            supplierPayment: Math.max(counters.supplierPayment, seed.counters.supplierPayment),
+          }
+        : {}),
+    },
     ageing,
     company: parsed.company ?? DEFAULT_COMPANY,
     vatRates: parsed.vatRates?.length ? parsed.vatRates : DEFAULT_VAT,
-    currentUser: parsed.currentUser ?? "Kwame Asare",
-    currentRole: (parsed.currentRole as AppRole) ?? "Manager",
+    roles,
+    users,
+    currentUserId: parsed.currentUserId ?? OWNER_USER_ID,
+    currentRoleId: parsed.currentRoleId ?? SYSTEM_ROLE_IDS.Owner,
+    currentUser: parsed.currentUser ?? "TLB Owner",
+    currentRole: parsed.currentRole ?? "Owner",
   };
+
+  // Fix wrong demo identity: Kwame Asare / Manager → Owner session.
+  const legacyDemoNames = new Set(["Kwame Asare", "John Doe", "Mary Smith", "John", "Mary"]);
+  if (
+    priorVersion < 5 ||
+    legacyDemoNames.has(next.currentUser) ||
+    !next.users.some((u) => u.id === next.currentUserId) ||
+    next.currentRole === "Manager" && !parsed.currentUserId
+  ) {
+    next.currentUserId = OWNER_USER_ID;
+    const owner = next.users.find((u) => u.id === OWNER_USER_ID);
+    if (owner) {
+      owner.name = "TLB Owner";
+      owner.roleId = SYSTEM_ROLE_IDS.Owner;
+    }
+  }
+
+  syncSessionIdentity(next);
+  return next;
 }
 
 export { DEFAULT_COMPANY, DEFAULT_VAT, DEFAULT_AGEING };

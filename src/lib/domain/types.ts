@@ -8,7 +8,23 @@ export type CustomerCategory =
   | "Educational"
   | "Other";
 
+export type SupplierCategory =
+  | "Chemical"
+  | "Packaging"
+  | "Equipment"
+  | "Logistics"
+  | "Other";
+
 export type PaymentTerms = "COD" | "Net 7" | "Net 15" | "Net 30" | "Net 45" | "Net 60";
+
+export type SupplierPoStatus =
+  | "Draft"
+  | "Open"
+  | "Ordered"
+  | "In transit"
+  | "Partially received"
+  | "Received"
+  | "Cancelled";
 
 export type CustomerOrderStatus =
   | "Draft"
@@ -51,28 +67,40 @@ export type NotificationType =
   | "stock_available"
   | "extended_unfulfilled";
 
-export type AppRole = "Sales" | "Warehouse" | "Finance" | "Manager" | "Admin";
+/** Built-in role keys used when seeding system roles (custom roles have no systemKey). */
+export type SystemRoleKey = "Owner" | "Sales" | "Warehouse" | "Finance" | "Manager" | "Admin";
+
+/** Role id string — system or custom. Display name lives on RoleDefinition.name. */
+export type AppRole = string;
 
 export type Permission =
+  | "dashboard.view"
   | "customers.manage"
+  | "suppliers.manage"
+  | "quotations.view"
   | "orders.create"
   | "orders.confirm"
   | "orders.cancel_line"
   | "supply.create"
+  | "stock.view"
   | "stock.receive"
   | "stock.reserve"
   | "invoice.create"
   | "receipt.create"
   | "delivery.manage"
   | "payment.record"
+  | "finance.view"
   | "reports.view"
   | "settings.manage"
   | "audit.view"
-  | "tin.update";
+  | "tin.update"
+  | "users.manage";
 
 export type AuditAction =
   | "customer.created"
   | "customer.updated"
+  | "supplier.created"
+  | "supplier.updated"
   | "order.created"
   | "order.status_changed"
   | "order.confirmed"
@@ -90,8 +118,33 @@ export type AuditAction =
   | "delivery.status_changed"
   | "payment.recorded"
   | "settings.updated"
-  | "role.switched";
+  | "role.switched"
+  | "role.created"
+  | "role.updated"
+  | "role.deactivated"
+  | "user.updated"
+  | "user.role_assigned"
+  | "session.user_switched";
 
+/** Owner-managed role definition (permissions drive nav + actions). */
+export interface RoleDefinition {
+  id: string;
+  name: string;
+  description: string;
+  permissions: Permission[];
+  active: boolean;
+  /** Present only for seeded system roles; custom roles omit this. */
+  systemKey?: SystemRoleKey;
+}
+
+/** Local mock-auth user — swap for Supabase auth user later. */
+export interface AppUser {
+  id: string;
+  name: string;
+  email: string;
+  roleId: string;
+  active: boolean;
+}
 export interface Warehouse {
   id: string;
   code: string;
@@ -133,6 +186,63 @@ export interface Customer {
   active: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface Supplier {
+  id: string;
+  code: string;
+  name: string;
+  category: SupplierCategory;
+  contactName: string;
+  phone: string;
+  email: string;
+  address: string;
+  tin?: string;
+  paymentTerms: PaymentTerms;
+  notes?: string;
+  active: boolean;
+  preferred?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Purchase order placed with a supplier (inbound procurement). */
+export interface SupplierPurchaseOrder {
+  id: string;
+  number: string;
+  supplierId: string;
+  status: SupplierPoStatus;
+  orderDate: string;
+  expectedDate?: string;
+  total: number;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Goods receipt / stock intake linked to a supplier. */
+export interface SupplierStockReceipt {
+  id: string;
+  number: string;
+  supplierId: string;
+  purchaseOrderId?: string;
+  receivedAt: string;
+  productId?: string;
+  quantity?: number;
+  warehouseId?: string;
+  notes?: string;
+}
+
+/** Outbound payment to a supplier. */
+export interface SupplierPayment {
+  id: string;
+  number: string;
+  supplierId: string;
+  purchaseOrderId?: string;
+  paymentDate: string;
+  amount: number;
+  method: PaymentMethod;
+  notes?: string;
 }
 
 export interface CustomerOrderLine {
@@ -365,6 +475,10 @@ export interface DocumentCounters {
   order: number;
   supply: number;
   customer: number;
+  supplier: number;
+  supplierPo: number;
+  supplierReceipt: number;
+  supplierPayment: number;
   invoice: number;
   receipt: number;
   delivery: number;
@@ -372,11 +486,15 @@ export interface DocumentCounters {
 }
 
 export interface TlbState {
-  version: 2;
+  version: number;
   warehouses: Warehouse[];
   products: Product[];
   stock: StockBalance[];
   customers: Customer[];
+  suppliers: Supplier[];
+  supplierPurchaseOrders: SupplierPurchaseOrder[];
+  supplierReceipts: SupplierStockReceipt[];
+  supplierPayments: SupplierPayment[];
   orders: CustomerPurchaseOrder[];
   orderLines: CustomerOrderLine[];
   supplies: SupplyHeader[];
@@ -395,7 +513,15 @@ export interface TlbState {
   ageing: AgeingSettings;
   company: CompanyProfile;
   vatRates: VatRate[];
+  /** Owner-managed role catalog (system + custom). */
+  roles: RoleDefinition[];
+  /** Local users with assigned role ids (mock auth → real auth later). */
+  users: AppUser[];
+  currentUserId: string;
+  currentRoleId: string;
+  /** Denormalized display name — kept in sync with currentUserId. */
   currentUser: string;
+  /** Denormalized role display name — kept in sync with currentRoleId. */
   currentRole: AppRole;
 }
 

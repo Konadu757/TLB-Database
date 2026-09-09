@@ -15,6 +15,7 @@ import { nextDocumentNumber } from "../domain/numbering";
 import { hasPermission } from "../domain/permissions";
 import type {
   AppRole,
+  AppUser,
   AuditEvent,
   CompanyProfile,
   Customer,
@@ -22,13 +23,15 @@ import type {
   CustomerPurchaseOrder,
   OutstandingRow,
   Permission,
+  RoleDefinition,
   StockBalance,
   StoreResult,
+  Supplier,
   SupplyRequestLine,
   TlbState,
   VatRate,
 } from "../domain/types";
-import { migrateState } from "./migrate";
+import { migrateState, syncSessionIdentity } from "./migrate";
 import { createSeedState } from "./seed";
 
 export const STORAGE_KEY = "tlb.enterprise.state.v1";
@@ -60,7 +63,7 @@ function pushAudit(
 }
 
 function requirePerm(state: TlbState, permission: Permission): string | null {
-  if (!hasPermission(state.currentRole, permission)) {
+  if (!hasPermission(state, permission)) {
     return `Role ${state.currentRole} cannot perform ${permission}.`;
   }
   return null;
@@ -273,6 +276,86 @@ export function upsertCustomer(
     summary: `Created customer ${customer.code} · ${customer.name}.`,
   });
   return { ok: true, data: { state: next, data: customer } };
+}
+
+export function upsertSupplier(
+  state: TlbState,
+  input: Omit<Supplier, "id" | "code" | "createdAt" | "updatedAt"> & { id?: string },
+): MutResult<Supplier> {
+  const blocked = requirePerm(state, "suppliers.manage");
+  if (blocked) return { ok: false, error: blocked };
+
+  const next = cloneState(state);
+  const now = new Date().toISOString();
+
+  if (!input.name.trim()) return { ok: false, error: "Supplier name is required." };
+
+  if (input.id) {
+    const idx = next.suppliers.findIndex((s) => s.id === input.id);
+    if (idx < 0) return { ok: false, error: "Supplier not found." };
+    const existing = next.suppliers[idx]!;
+    if ((input.tin ?? "") !== (existing.tin ?? "")) {
+      const tinBlocked = requirePerm(next, "tin.update");
+      if (tinBlocked) return { ok: false, error: tinBlocked };
+    }
+    const tin = input.tin?.trim();
+    const notes = input.notes?.trim();
+    const updated: Supplier = {
+      id: existing.id,
+      code: existing.code,
+      name: input.name.trim(),
+      category: input.category,
+      contactName: input.contactName,
+      phone: input.phone,
+      email: input.email,
+      address: input.address,
+      paymentTerms: input.paymentTerms,
+      active: input.active,
+      createdAt: existing.createdAt,
+      updatedAt: now,
+      ...(tin ? { tin } : {}),
+      ...(notes ? { notes } : {}),
+      ...(input.preferred ? { preferred: true } : {}),
+    };
+    next.suppliers[idx] = updated;
+    pushAudit(next, {
+      action: "supplier.updated",
+      entityType: "supplier",
+      entityId: existing.id,
+      summary: `Updated supplier ${existing.code} · ${input.name}.`,
+    });
+    return { ok: true, data: { state: next, data: updated } };
+  }
+
+  const numbered = nextDocumentNumber("supplier", next.counters);
+  next.counters = numbered.counters;
+  const tin = input.tin?.trim();
+  const notes = input.notes?.trim();
+  const supplier: Supplier = {
+    id: uid("sup"),
+    code: numbered.number,
+    name: input.name.trim(),
+    category: input.category,
+    contactName: input.contactName,
+    phone: input.phone,
+    email: input.email,
+    address: input.address,
+    paymentTerms: input.paymentTerms,
+    active: input.active,
+    createdAt: now,
+    updatedAt: now,
+    ...(tin ? { tin } : {}),
+    ...(notes ? { notes } : {}),
+    ...(input.preferred ? { preferred: true } : {}),
+  };
+  next.suppliers.unshift(supplier);
+  pushAudit(next, {
+    action: "supplier.created",
+    entityType: "supplier",
+    entityId: supplier.id,
+    summary: `Created supplier ${supplier.code} · ${supplier.name}.`,
+  });
+  return { ok: true, data: { state: next, data: supplier } };
 }
 
 export function createCustomerOrder(
@@ -761,16 +844,208 @@ export function upsertVatRate(
   return { ok: true, data: { state: next, data: created } };
 }
 
-export function switchRole(state: TlbState, role: AppRole): MutResult<AppRole> {
+export function switchRole(state: TlbState, roleIdOrName: AppRole): MutResult<AppRole> {
   const next = cloneState(state);
-  next.currentRole = role;
+  const role =
+    next.roles.find((r) => r.id === roleIdOrName) ??
+    next.roles.find((r) => r.name === roleIdOrName || r.systemKey === roleIdOrName);
+  if (!role) return { ok: false, error: "Role not found." };
+  if (!role.active) return { ok: false, error: "Role is inactive." };
+
+  const user = next.users.find((u) => u.id === next.currentUserId);
+  if (user) user.roleId = role.id;
+  next.currentRoleId = role.id;
+  next.currentRole = role.name;
+  syncSessionIdentity(next);
   pushAudit(next, {
     action: "role.switched",
     entityType: "session",
     entityId: "current",
-    summary: `Switched simulated role to ${role}.`,
+    summary: `Switched session role to ${role.name}.`,
+  });
+  return { ok: true, data: { state: next, data: role.name } };
+}
+
+export function switchSessionUser(state: TlbState, userId: string): MutResult<AppUser> {
+  const next = cloneState(state);
+  const user = next.users.find((u) => u.id === userId);
+  if (!user) return { ok: false, error: "User not found." };
+  if (!user.active) return { ok: false, error: "User is inactive." };
+  next.currentUserId = user.id;
+  syncSessionIdentity(next);
+  pushAudit(next, {
+    action: "session.user_switched",
+    entityType: "session",
+    entityId: user.id,
+    summary: `Signed in as ${user.name} (${next.currentRole}).`,
+  });
+  return { ok: true, data: { state: next, data: user } };
+}
+
+export function createRole(
+  state: TlbState,
+  input: { name: string; description?: string; permissions?: Permission[] },
+): MutResult<RoleDefinition> {
+  const blocked = requirePerm(state, "users.manage");
+  if (blocked) return { ok: false, error: blocked };
+  const name = input.name.trim();
+  if (!name) return { ok: false, error: "Role name is required." };
+  if (state.roles.some((r) => r.name.toLowerCase() === name.toLowerCase() && r.active)) {
+    return { ok: false, error: "An active role with this name already exists." };
+  }
+  const next = cloneState(state);
+  const created: RoleDefinition = {
+    id: uid("role"),
+    name,
+    description: (input.description ?? "").trim(),
+    permissions: [...(input.permissions ?? ["dashboard.view"])],
+    active: true,
+  };
+  next.roles.push(created);
+  pushAudit(next, {
+    action: "role.created",
+    entityType: "role",
+    entityId: created.id,
+    summary: `Created role ${created.name}.`,
+  });
+  return { ok: true, data: { state: next, data: created } };
+}
+
+export function updateRole(
+  state: TlbState,
+  roleId: string,
+  input: { name?: string; description?: string; permissions?: Permission[] },
+): MutResult<RoleDefinition> {
+  const blocked = requirePerm(state, "users.manage");
+  if (blocked) return { ok: false, error: blocked };
+  const next = cloneState(state);
+  const role = next.roles.find((r) => r.id === roleId);
+  if (!role) return { ok: false, error: "Role not found." };
+  if (!role.active) return { ok: false, error: "Cannot edit an inactive role." };
+
+  if (input.name !== undefined) {
+    const name = input.name.trim();
+    if (!name) return { ok: false, error: "Role name is required." };
+    if (
+      next.roles.some(
+        (r) => r.id !== roleId && r.active && r.name.toLowerCase() === name.toLowerCase(),
+      )
+    ) {
+      return { ok: false, error: "An active role with this name already exists." };
+    }
+    role.name = name;
+  }
+  if (input.description !== undefined) role.description = input.description.trim();
+  if (input.permissions !== undefined) role.permissions = [...input.permissions];
+
+  // Keep Owner/Admin system roles from losing users.manage accidentally
+  if ((role.systemKey === "Owner" || role.systemKey === "Admin") && !role.permissions.includes("users.manage")) {
+    role.permissions.push("users.manage");
+  }
+
+  syncSessionIdentity(next);
+  pushAudit(next, {
+    action: "role.updated",
+    entityType: "role",
+    entityId: role.id,
+    summary: `Updated role ${role.name}.`,
   });
   return { ok: true, data: { state: next, data: role } };
+}
+
+export function deactivateRole(state: TlbState, roleId: string): MutResult<RoleDefinition> {
+  const blocked = requirePerm(state, "users.manage");
+  if (blocked) return { ok: false, error: blocked };
+  const next = cloneState(state);
+  const role = next.roles.find((r) => r.id === roleId);
+  if (!role) return { ok: false, error: "Role not found." };
+  if (role.systemKey === "Owner") return { ok: false, error: "Cannot deactivate the Owner role." };
+  const assigned = next.users.filter((u) => u.roleId === roleId && u.active);
+  if (assigned.length > 0) {
+    return {
+      ok: false,
+      error: `Cannot deactivate — assigned to ${assigned.length} active user(s). Reassign them first.`,
+    };
+  }
+  role.active = false;
+  pushAudit(next, {
+    action: "role.deactivated",
+    entityType: "role",
+    entityId: role.id,
+    summary: `Deactivated role ${role.name}.`,
+  });
+  return { ok: true, data: { state: next, data: role } };
+}
+
+export function assignUserRole(state: TlbState, userId: string, roleId: string): MutResult<AppUser> {
+  const blocked = requirePerm(state, "users.manage");
+  if (blocked) return { ok: false, error: blocked };
+  const next = cloneState(state);
+  const user = next.users.find((u) => u.id === userId);
+  if (!user) return { ok: false, error: "User not found." };
+  const role = next.roles.find((r) => r.id === roleId);
+  if (!role) return { ok: false, error: "Role not found." };
+  if (!role.active) return { ok: false, error: "Cannot assign an inactive role." };
+  user.roleId = role.id;
+  if (next.currentUserId === user.id) syncSessionIdentity(next);
+  pushAudit(next, {
+    action: "user.role_assigned",
+    entityType: "user",
+    entityId: user.id,
+    summary: `Assigned ${user.name} to role ${role.name}.`,
+  });
+  return { ok: true, data: { state: next, data: user } };
+}
+
+export function upsertAppUser(
+  state: TlbState,
+  input: { id?: string; name: string; email: string; roleId: string; active?: boolean },
+): MutResult<AppUser> {
+  const blocked = requirePerm(state, "users.manage");
+  if (blocked) return { ok: false, error: blocked };
+  const name = input.name.trim();
+  const email = input.email.trim().toLowerCase();
+  if (!name) return { ok: false, error: "User name is required." };
+  if (!email) return { ok: false, error: "User email is required." };
+  const next = cloneState(state);
+  const role = next.roles.find((r) => r.id === input.roleId);
+  if (!role || !role.active) return { ok: false, error: "Select an active role." };
+
+  if (input.id) {
+    const user = next.users.find((u) => u.id === input.id);
+    if (!user) return { ok: false, error: "User not found." };
+    user.name = name;
+    user.email = email;
+    user.roleId = role.id;
+    if (input.active !== undefined) user.active = input.active;
+    if (next.currentUserId === user.id) syncSessionIdentity(next);
+    pushAudit(next, {
+      action: "user.updated",
+      entityType: "user",
+      entityId: user.id,
+      summary: `Updated user ${user.name}.`,
+    });
+    return { ok: true, data: { state: next, data: user } };
+  }
+
+  if (next.users.some((u) => u.email === email)) {
+    return { ok: false, error: "A user with this email already exists." };
+  }
+  const created: AppUser = {
+    id: uid("user"),
+    name,
+    email,
+    roleId: role.id,
+    active: input.active ?? true,
+  };
+  next.users.push(created);
+  pushAudit(next, {
+    action: "user.updated",
+    entityType: "user",
+    entityId: created.id,
+    summary: `Created user ${created.name}.`,
+  });
+  return { ok: true, data: { state: next, data: created } };
 }
 
 export function markNotificationRead(state: TlbState, id: string): MutResult<null> {
@@ -802,7 +1077,7 @@ export function formatMoney(amount: number): string {
 }
 
 export function can(state: TlbState, permission: Permission): boolean {
-  return hasPermission(state.currentRole, permission);
+  return hasPermission(state, permission);
 }
 
 // Re-export document mutations

@@ -40,7 +40,7 @@ function pushAudit(
 }
 
 function deny(state: TlbState, permission: Parameters<typeof hasPermission>[1]): string | null {
-  if (!hasPermission(state.currentRole, permission)) {
+  if (!hasPermission(state, permission)) {
     return `Role ${state.currentRole} cannot perform ${permission}.`;
   }
   return null;

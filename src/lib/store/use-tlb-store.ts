@@ -3,13 +3,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AppRole, DeliveryStatus, Permission, TlbState } from "@/lib/domain/types";
 import { can as canPerm } from "@/lib/store/tlb-store";
 import {
+  assignUserRole,
   cancelOrderLine,
   confirmCustomerOrder,
   createCustomerOrder,
   createDeliveryFromSupply,
   createInvoiceFromSupply,
   createOrdinaryReceipt,
+  createRole,
   createSupply,
+  deactivateRole,
   getOutstandingRows,
   loadState,
   markDelivered,
@@ -22,10 +25,14 @@ import {
   resetToSeed,
   saveState,
   switchRole,
+  switchSessionUser,
   updateAgeingSettings,
   updateCompanyProfile,
   updateDeliveryStatus,
+  updateRole,
+  upsertAppUser,
   upsertCustomer,
+  upsertSupplier,
   upsertVatRate,
 } from "@/lib/store/tlb-store";
 
@@ -90,6 +97,8 @@ export function useTlbStore() {
     },
     saveCustomer: (input: Parameters<typeof upsertCustomer>[1]) =>
       apply((s) => upsertCustomer(s, input), "Customer saved."),
+    saveSupplier: (input: Parameters<typeof upsertSupplier>[1]) =>
+      apply((s) => upsertSupplier(s, input), "Supplier saved."),
     createOrder: (input: Parameters<typeof createCustomerOrder>[1]) =>
       apply((s) => createCustomerOrder(s, input), "Customer order created."),
     confirmOrder: (orderId: string) =>
@@ -120,6 +129,17 @@ export function useTlbStore() {
     saveVatRate: (input: Parameters<typeof upsertVatRate>[1]) =>
       apply((s) => upsertVatRate(s, input), "VAT rate saved."),
     setRole: (role: AppRole) => apply((s) => switchRole(s, role), `Role set to ${role}.`),
+    switchUser: (userId: string) => apply((s) => switchSessionUser(s, userId), "Signed in as selected user."),
+    createRole: (input: Parameters<typeof createRole>[1]) =>
+      apply((s) => createRole(s, input), "Role created."),
+    updateRole: (roleId: string, input: Parameters<typeof updateRole>[2]) =>
+      apply((s) => updateRole(s, roleId, input), "Role updated."),
+    deactivateRole: (roleId: string) =>
+      apply((s) => deactivateRole(s, roleId), "Role deactivated."),
+    assignUserRole: (userId: string, roleId: string) =>
+      apply((s) => assignUserRole(s, userId, roleId), "User role assigned."),
+    saveUser: (input: Parameters<typeof upsertAppUser>[1]) =>
+      apply((s) => upsertAppUser(s, input), "User saved."),
     createInvoice: (input: Parameters<typeof createInvoiceFromSupply>[1]) =>
       apply((s) => createInvoiceFromSupply(s, input), "VAT invoice created."),
     createReceipt: (input: Parameters<typeof createOrdinaryReceipt>[1]) =>

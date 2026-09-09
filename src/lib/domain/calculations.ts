@@ -105,14 +105,19 @@ export function statusTone(status: CustomerOrderStatus | LineStatus | AgeingBand
     case "Normal":
     case "Active":
     case "Paid":
+    case "Received":
+    case "Preferred":
       return "success";
     case "Partially Supplied":
+    case "Partially received":
     case "Attention":
     case "Pending":
     case "Confirmed":
     case "Partial":
     case "Preparing":
     case "Dispatched":
+    case "In transit":
+    case "Ordered":
       return "warning";
     case "Awaiting Stock":
     case "Overdue":

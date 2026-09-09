@@ -24,6 +24,19 @@ export function globalSearch(state: TlbState, query: string, limit = 20): Search
     }
   }
 
+  for (const s of state.suppliers ?? []) {
+    const blob = `${s.name} ${s.code} ${s.tin ?? ""} ${s.contactName} ${s.phone} ${s.email} ${s.category} ${s.address}`.toLowerCase();
+    if (blob.includes(q)) {
+      push({
+        kind: "Supplier",
+        id: s.id,
+        label: `${s.code} — Supplier`,
+        subtitle: s.name,
+        nav: "Suppliers",
+      });
+    }
+  }
+
   for (const o of state.orders) {
     const cust = state.customers.find((c) => c.id === o.customerId);
     const blob = `${o.number} ${o.customerPoNumber ?? ""} ${cust?.name ?? ""} ${o.orderDate} ${o.requiredDate ?? ""}`.toLowerCase();
