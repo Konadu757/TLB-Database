@@ -1,4 +1,4 @@
-@import "tailwindcss" source(none);
+﻿@import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
 
@@ -75,7 +75,7 @@
 
 :root {
   --radius: 0.45rem;
-  /* Pure workspace white — never cream/muted as page fill */
+  /* Pure workspace white ΓÇö never cream/muted as page fill */
   --background: #ffffff;
   --color-background: #ffffff;
   --foreground: oklch(0.24 0.05 296);
@@ -90,7 +90,7 @@
   --primary-foreground: oklch(0.99 0.02 95);
   --secondary: oklch(0.96 0.05 92);
   --secondary-foreground: oklch(0.4 0.16 296);
-  /* Cool muted for chips only — not a warm page wash */
+  /* Cool muted for chips only ΓÇö not a warm page wash */
   --muted: oklch(0.965 0.006 92);
   --muted-foreground: oklch(0.46 0.05 296);
   --accent: oklch(0.94 0.08 92);
@@ -395,7 +395,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-inspector-list { margin: 0; padding-left: 18px; font-size: 12px; }
 .tlb-inspector-list li { margin: 6px 0; }
 
-/* Commerce / fulfilment modules — extend existing tlb patterns */
+/* Commerce / fulfilment modules ΓÇö extend existing tlb patterns */
 .status-danger { background: var(--danger-muted); color: var(--danger); }
 .tlb-module { margin-top: 14px; display: grid; gap: 14px; }
 .tlb-module-toolbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
@@ -495,8 +495,8 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-customers-table { min-width: 860px; }
 .tlb-customers-list-panel { width: 100%; }
 
-/* —— Customer detail page: color-coded identification —— */
-/* Shared full-page record detail (Customers + all list→detail modules) */
+/* ΓÇöΓÇö Customer detail page: color-coded identification ΓÇöΓÇö */
+/* Shared full-page record detail (Customers + all listΓåÆdetail modules) */
 .tlb-record-detail-page,
 .tlb-customer-detail-page { gap: 14px; }
 .tlb-record-detail-header,

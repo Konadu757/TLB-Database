@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, PackageSearch, Plus, Search, X } from "lucide-react";
 
+import {
+  RecordBackLink,
+  RecordDetailPage,
+  RecordDetailSection,
+} from "@/components/modules/record-browser";
 import { Button } from "@/components/ui/button";
 import { calcAvailable, calcOutstanding, statusTone } from "@/lib/domain/calculations";
 import type {
@@ -8,6 +13,7 @@ import type {
   CustomerCategory,
   CustomerPurchaseOrder,
   PaymentTerms,
+  TlbState,
 } from "@/lib/domain/types";
 import { getRelatedRecords } from "@/lib/domain/notifications";
 import {
@@ -25,6 +31,53 @@ import {
   orderValue,
 } from "@/lib/store/tlb-store";
 import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
+
+function orderPaymentBadge(state: TlbState, orderId: string): { label: string; tone: string } {
+  const invoices = state.invoices.filter((inv) => inv.orderId === orderId && inv.paymentStatus !== "Void");
+  if (invoices.length === 0) return { label: "No invoice", tone: "info" };
+  if (invoices.every((inv) => inv.paymentStatus === "Paid")) return { label: "Paid", tone: "success" };
+  if (invoices.some((inv) => inv.paymentStatus === "Partial" || inv.amountPaid > 0)) {
+    return { label: "Partial", tone: "partial" };
+  }
+  return { label: "Unpaid", tone: "danger" };
+}
+
+function fulfilmentCellClass(pct: number): string {
+  if (pct >= 100) return "tlb-fulfilment-cell tlb-fulfilment-cell--full";
+  if (pct > 0) return "tlb-fulfilment-cell tlb-fulfilment-cell--partial";
+  return "tlb-fulfilment-cell tlb-fulfilment-cell--empty";
+}
+
+function progressToneClass(pct: number): string {
+  if (pct >= 100) return "tlb-progress--full";
+  if (pct > 0) return "tlb-progress--partial";
+  return "tlb-progress--empty";
+}
+
+function orderLineRowClass(lineStatus: string, outstanding: number): string {
+  if (lineStatus === "Cancelled") return "tlb-order-line--cancelled";
+  if (outstanding > 0) return "tlb-order-line--outstanding";
+  if (lineStatus === "Fully Supplied") return "tlb-order-line--supplied";
+  return "";
+}
+
+function relatedKindTone(kind: string): string {
+  switch (kind) {
+    case "invoice":
+      return "invoice";
+    case "receipt":
+    case "payment":
+      return "receipt";
+    case "delivery":
+      return "delivery";
+    case "supply":
+      return "supply";
+    case "customer":
+      return "order";
+    default:
+      return "order";
+  }
+}
 
 function creditEligibility(customer: Customer): { label: string; tone: string } {
   if (!customer.active) return { label: "Inactive — no credit", tone: "warning" };
@@ -537,9 +590,9 @@ function CustomerDetailModule({
     return (
       <div className="tlb-module">
         <EmptyState title="Customer not found" detail="The selected customer account is no longer available." />
-        <Button type="button" onClick={onBack}>
-          Back to customers
-        </Button>
+        <div style={{ marginTop: 12 }}>
+          <RecordBackLink label="Customers" onBack={onBack} />
+        </div>
       </div>
     );
   }
@@ -552,34 +605,29 @@ function CustomerDetailModule({
     transactionSummary.outstandingOrders > 0 ? "tlb-customer-summary-tile--warning" : "tlb-customer-summary-tile--muted";
 
   return (
-    <div className="tlb-module tlb-customer-detail-page">
-      <Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />
-      <header className="tlb-customer-detail-header">
-        <button type="button" className="tlb-text-link" onClick={onBack}>
-          ← Customers
-        </button>
-        <div className="tlb-customer-detail-header-row">
-          <div className="tlb-customer-detail-identity">
-            <span className="tlb-customer-detail-code">{selected.code}</span>
-            <strong>{selected.name}</strong>
-            <p className="tlb-muted-line">{selected.category}</p>
-          </div>
-          <div className="tlb-customer-detail-actions">
-            <div className="tlb-customer-detail-badges">
-              <StatusBadge tone={selected.active ? "success" : "warning"}>
-                {selected.active ? "Active" : "Inactive"}
-              </StatusBadge>
-              {credit ? <StatusBadge tone={credit.tone}>{credit.label}</StatusBadge> : null}
-            </div>
-            {!editing ? (
-              <Button type="button" variant="outline" onClick={() => startEdit(selected)}>
-                Edit customer
-              </Button>
-            ) : null}
-          </div>
-        </div>
-      </header>
-
+    <RecordDetailPage
+      backLabel="Customers"
+      onBack={onBack}
+      code={selected.code}
+      title={selected.name}
+      subtitle={selected.category}
+      badges={
+        <>
+          <StatusBadge tone={selected.active ? "success" : "warning"}>
+            {selected.active ? "Active" : "Inactive"}
+          </StatusBadge>
+          {credit ? <StatusBadge tone={credit.tone}>{credit.label}</StatusBadge> : null}
+        </>
+      }
+      actions={
+        !editing ? (
+          <Button type="button" variant="outline" onClick={() => startEdit(selected)}>
+            Edit customer
+          </Button>
+        ) : null
+      }
+      flash={<Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />}
+    >
       {editing ? (
         <article className="tlb-panel tlb-form-panel tlb-customer-detail-section tlb-customer-detail-section--profile">
           <form
@@ -619,7 +667,7 @@ function CustomerDetailModule({
           </form>
         </article>
       ) : (
-        <section className="tlb-detail-sections tlb-customer-detail">
+        <>
           <article className="tlb-panel tlb-span-2 tlb-customer-detail-section tlb-customer-detail-section--summary">
             <div className="tlb-panel-heading">
               <div>
@@ -1064,9 +1112,9 @@ function CustomerDetailModule({
               </div>
             )}
           </article>
-        </section>
+        </>
       )}
-    </div>
+    </RecordDetailPage>
   );
 }
 
@@ -1123,7 +1171,7 @@ export function SalesOrdersModule({
   }
 
   return (
-    <div className="tlb-module">
+    <div className="tlb-module tlb-sales-orders-module">
       <Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />
       <div className="tlb-module-toolbar">
         <div>
@@ -1152,7 +1200,7 @@ export function SalesOrdersModule({
       </div>
 
       {creating && (
-        <article className="tlb-panel tlb-form-panel">
+        <article className="tlb-panel tlb-form-panel tlb-record-detail-section tlb-record-detail-section--orders">
           <div className="tlb-panel-heading">
             <div>
               <span>Customer purchase order</span>
@@ -1282,7 +1330,13 @@ export function SalesOrdersModule({
         </article>
       )}
 
-      <article className="tlb-panel tlb-orders-panel">
+      <article className="tlb-panel tlb-orders-panel tlb-sales-orders-list-panel">
+        <div className="tlb-panel-heading">
+          <div>
+            <span>Register</span>
+            <strong>Customer purchase orders</strong>
+          </div>
+        </div>
         <div className="tlb-table-scroll">
           {state.orders.length === 0 ? (
             <EmptyState title="No customer orders" detail="Create a customer purchase order to start fulfilment." />
@@ -1308,6 +1362,7 @@ export function SalesOrdersModule({
                 {filteredOrders.map((order) => {
                   const customer = state.customers.find((c) => c.id === order.customerId);
                   const isSelected = selectedOrderId === order.id;
+                  const fulfilment = orderFulfilment(state, order.id);
                   return (
                     <tr
                       key={order.id}
@@ -1325,7 +1380,7 @@ export function SalesOrdersModule({
                       <td>{customer?.name ?? "—"}</td>
                       <td>{order.orderDate.slice(0, 10)}</td>
                       <td>{formatMoney(orderValue(state, order.id))}</td>
-                      <td>{orderFulfilment(state, order.id)}%</td>
+                      <td className={fulfilmentCellClass(fulfilment)}>{fulfilment}%</td>
                       <td><StatusBadge tone={statusTone(order.status)}>{order.status}</StatusBadge></td>
                       <td>
                         <button type="button" aria-label={`Open ${order.number}`} onClick={(e) => { e.stopPropagation(); onSelectOrder(order.id); }}>
@@ -1373,7 +1428,9 @@ function OrderDetailModule({
     return (
       <div className="tlb-module">
         <EmptyState title="Order not found" detail="The selected customer order is no longer available." />
-        <Button type="button" onClick={onBack}>Back to orders</Button>
+        <div style={{ marginTop: 12 }}>
+          <RecordBackLink label="Sales Orders" onBack={onBack} />
+        </div>
       </div>
     );
   }
@@ -1388,6 +1445,11 @@ function OrderDetailModule({
       supplies.some((s) => s.id === a.entityId),
   );
   const fulfilment = orderFulfilment(state, order.id);
+  const payment = orderPaymentBadge(state, order.id);
+  const orderedQty = lines.reduce((s, l) => s + l.orderedQty, 0);
+  const suppliedQty = lines.reduce((s, l) => s + l.suppliedQty, 0);
+  const outstandingQty = lines.reduce((s, l) => s + calcOutstanding(l), 0);
+  const cancelledQty = lines.reduce((s, l) => s + l.cancelledQty, 0);
 
   const canSupply =
     order.status !== "Draft" &&
@@ -1396,227 +1458,300 @@ function OrderDetailModule({
     order.status !== "Delivered" &&
     order.status !== "Fully Supplied";
 
+  const outstandingLines = lines.filter((l) => calcOutstanding(l) > 0).length;
+  const linesSectionTone = outstandingQty > 0 ? "outstanding" : "lines";
+
   return (
-    <div className="tlb-module">
-      <Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />
-      <div className="tlb-module-toolbar">
-        <div>
-          <button type="button" className="tlb-text-link" onClick={onBack}>
-            ← Sales Orders
-          </button>
-          <strong>{order.number}</strong>
-          <p className="tlb-muted-line">Customer purchase order · {customer?.name}</p>
-        </div>
-        <div className="tlb-toolbar-actions">
+    <RecordDetailPage
+      backLabel="Sales Orders"
+      onBack={onBack}
+      code={order.number}
+      title={order.number}
+      subtitle={`Customer purchase order · ${customer?.name ?? "—"}`}
+      badges={
+        <>
+          <StatusBadge tone={statusTone(order.status)}>{order.status}</StatusBadge>
+          <StatusBadge tone={payment.tone}>{payment.label}</StatusBadge>
+        </>
+      }
+      actions={
+        <>
           {(order.status === "Draft" || order.status === "Pending") && (
-            <Button type="button" onClick={() => store.confirmOrder(order.id)}>Confirm order</Button>
+            <Button type="button" onClick={() => store.confirmOrder(order.id)}>
+              Confirm order
+            </Button>
           )}
           {order.status === "Fully Supplied" && (
-            <Button type="button" onClick={() => store.deliver(order.id)}>Mark delivered</Button>
+            <Button type="button" onClick={() => store.deliver(order.id)}>
+              Mark delivered
+            </Button>
           )}
-          <StatusBadge tone={statusTone(order.status)}>{order.status}</StatusBadge>
+        </>
+      }
+      flash={<Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />}
+    >
+      <RecordDetailSection tone="summary" kicker="Fulfilment" title={`${fulfilment}% supplied`} span2>
+        <div className="tlb-customer-summary" aria-label="Order fulfilment overview">
+          <div className={fulfilment >= 100 ? "tlb-customer-summary-tile--success" : "tlb-customer-summary-tile--info"}>
+            <span>Fulfilment</span>
+            <strong className={fulfilmentCellClass(fulfilment)}>{fulfilment}%</strong>
+          </div>
+          <div className="tlb-customer-summary-tile--gold">
+            <span>Ordered</span>
+            <strong>{orderedQty}</strong>
+          </div>
+          <div className={suppliedQty > 0 ? "tlb-customer-summary-tile--success" : "tlb-customer-summary-tile--muted"}>
+            <span>Supplied</span>
+            <strong>{suppliedQty}</strong>
+          </div>
+          <div className={outstandingQty > 0 ? "tlb-customer-summary-tile--warning" : "tlb-customer-summary-tile--muted"}>
+            <span>Outstanding</span>
+            <strong>
+              {outstandingQty}
+              <small>{outstandingLines} line{outstandingLines === 1 ? "" : "s"}</small>
+            </strong>
+          </div>
+          <div className={cancelledQty > 0 ? "tlb-customer-summary-tile--danger" : "tlb-customer-summary-tile--muted"}>
+            <span>Cancelled</span>
+            <strong>{cancelledQty}</strong>
+          </div>
+          <div className="tlb-customer-summary-tile--info">
+            <span>Value</span>
+            <strong>{formatMoney(orderValue(state, order.id))}</strong>
+          </div>
         </div>
-      </div>
+        <div className={`tlb-progress tlb-progress-lg ${progressToneClass(fulfilment)}`}>
+          <span className="bg-primary" style={{ width: `${fulfilment}%` }} />
+        </div>
+        <p className="tlb-muted-line" style={{ padding: "0 17px 14px" }}>
+          Outstanding never drops silently — cancelled quantities require a reason and remain in audit history.
+        </p>
+      </RecordDetailSection>
 
-      <section className="tlb-detail-sections">
-        <article className="tlb-panel">
-          <div className="tlb-panel-heading">
-            <div><span>Header</span><strong>Order summary</strong></div>
+      <RecordDetailSection tone="profile" kicker="Header" title="Order summary" span2>
+        <dl className="tlb-kv">
+          <div>
+            <dt>Customer</dt>
+            <dd>{customer?.name}</dd>
           </div>
-          <dl className="tlb-kv">
-            <div><dt>Customer</dt><dd>{customer?.name}</dd></div>
-            <div><dt>TIN</dt><dd>{customer?.tin || "—"}</dd></div>
-            <div><dt>Customer PO #</dt><dd>{order.customerPoNumber || "—"}</dd></div>
-            <div><dt>Order date</dt><dd>{new Date(order.orderDate).toLocaleString()}</dd></div>
-            <div><dt>Required</dt><dd>{order.requiredDate ?? "—"}</dd></div>
-            <div><dt>Value</dt><dd>{formatMoney(orderValue(state, order.id))}</dd></div>
-            <div><dt>Created by</dt><dd>{order.createdBy}</dd></div>
-            <div className="tlb-span-2"><dt>Notes</dt><dd>{order.notes || "—"}</dd></div>
-          </dl>
-        </article>
+          <div>
+            <dt>TIN</dt>
+            <dd>{customer?.tin || "—"}</dd>
+          </div>
+          <div>
+            <dt>Customer PO #</dt>
+            <dd>{order.customerPoNumber || "—"}</dd>
+          </div>
+          <div>
+            <dt>Order date</dt>
+            <dd>{new Date(order.orderDate).toLocaleString()}</dd>
+          </div>
+          <div>
+            <dt>Required</dt>
+            <dd>{order.requiredDate ?? "—"}</dd>
+          </div>
+          <div>
+            <dt>Payment</dt>
+            <dd>
+              <StatusBadge tone={payment.tone}>{payment.label}</StatusBadge>
+            </dd>
+          </div>
+          <div>
+            <dt>Status</dt>
+            <dd>
+              <StatusBadge tone={statusTone(order.status)}>{order.status}</StatusBadge>
+            </dd>
+          </div>
+          <div>
+            <dt>Created by</dt>
+            <dd>{order.createdBy}</dd>
+          </div>
+          <div className="tlb-span-2">
+            <dt>Notes</dt>
+            <dd>{order.notes || "—"}</dd>
+          </div>
+        </dl>
+      </RecordDetailSection>
 
-        <article className="tlb-panel">
-          <div className="tlb-panel-heading">
-            <div><span>Fulfilment overview</span><strong>{fulfilment}% supplied</strong></div>
-          </div>
-          <div className="tlb-progress tlb-progress-lg">
-            <span className="bg-primary" style={{ width: `${fulfilment}%` }} />
-          </div>
-          <p className="tlb-muted-line" style={{ padding: "12px 17px" }}>
-            Outstanding never drops silently — cancelled quantities require a reason and remain in audit history.
-          </p>
-        </article>
+      <RecordDetailSection
+        tone={linesSectionTone}
+        kicker="Line items"
+        title="Ordered / supplied / outstanding"
+        span2
+      >
+        <div className="tlb-table-scroll tlb-orders-panel">
+          <table>
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Warehouse</th>
+                <th>Ordered</th>
+                <th>Supplied</th>
+                <th>Cancelled</th>
+                <th>Outstanding</th>
+                <th>Reserved</th>
+                <th>Available</th>
+                <th>Status</th>
+                <th>Supply now</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((line) => {
+                const product = state.products.find((p) => p.id === line.productId);
+                const warehouse = state.warehouses.find((w) => w.id === line.warehouseId);
+                const bal = state.stock.find((s) => s.productId === line.productId && s.warehouseId === line.warehouseId);
+                const outstanding = calcOutstanding(line);
+                const available = bal ? calcAvailable(bal) : 0;
+                const usable = available + Math.min(line.reservedQty, outstanding);
+                return (
+                  <tr key={line.id} className={orderLineRowClass(line.lineStatus, outstanding)}>
+                    <td>
+                      <strong>{product?.name}</strong>
+                      <div className="tlb-muted-line">{product?.sku}</div>
+                    </td>
+                    <td>{warehouse?.name}</td>
+                    <td>{line.orderedQty}</td>
+                    <td>{line.suppliedQty}</td>
+                    <td>{line.cancelledQty}</td>
+                    <td>
+                      <strong>{outstanding}</strong>
+                    </td>
+                    <td>{line.reservedQty}</td>
+                    <td>{available}</td>
+                    <td>
+                      <StatusBadge tone={statusTone(line.lineStatus)}>{line.lineStatus}</StatusBadge>
+                    </td>
+                    <td>
+                      {canSupply && outstanding > 0 ? (
+                        <input
+                          className="tlb-qty-input"
+                          type="number"
+                          min={0}
+                          max={Math.min(outstanding, usable)}
+                          value={supplyQty[line.id] ?? Math.min(outstanding, usable)}
+                          onChange={(e) => setSupplyQty({ ...supplyQty, [line.id]: Number(e.target.value) })}
+                        />
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
 
-        <article className="tlb-panel tlb-orders-panel tlb-span-2">
-          <div className="tlb-panel-heading">
-            <div><span>Line items</span><strong>Ordered / supplied / outstanding</strong></div>
+        {canSupply && (
+          <div className="tlb-inline-actions">
+            <input
+              placeholder="Supply notes (optional)"
+              value={supplyNotes}
+              onChange={(e) => setSupplyNotes(e.target.value)}
+            />
+            <Button
+              type="button"
+              onClick={() => {
+                const payload = lines
+                  .map((line) => {
+                    const outstanding = calcOutstanding(line);
+                    if (outstanding <= 0) return null;
+                    const bal = state.stock.find((s) => s.productId === line.productId && s.warehouseId === line.warehouseId);
+                    const available = bal ? calcAvailable(bal) : 0;
+                    const usable = available + Math.min(line.reservedQty, outstanding);
+                    const qty = supplyQty[line.id] ?? Math.min(outstanding, usable);
+                    if (!qty || qty <= 0) return null;
+                    return { orderLineId: line.id, quantity: qty };
+                  })
+                  .filter(Boolean) as Array<{ orderLineId: string; quantity: number }>;
+                store.supply(order.id, payload, supplyNotes.trim() || undefined);
+              }}
+            >
+              Post supply
+            </Button>
           </div>
-          <div className="tlb-table-scroll">
+        )}
+
+        <div className="tlb-subheading" style={{ padding: "0 17px" }}>
+          Cancel outstanding (with reason)
+        </div>
+        <div className="tlb-cancel-grid">
+          {lines
+            .filter((l) => calcOutstanding(l) > 0)
+            .map((line) => {
+              const product = state.products.find((p) => p.id === line.productId);
+              return (
+                <div key={line.id} className="tlb-cancel-row">
+                  <span>
+                    {product?.name} · outstanding {calcOutstanding(line)}
+                  </span>
+                  <input
+                    placeholder="Reason required"
+                    value={cancelReason[line.id] ?? ""}
+                    onChange={(e) => setCancelReason({ ...cancelReason, [line.id]: e.target.value })}
+                  />
+                  <Button type="button" variant="outline" onClick={() => store.cancelLine(line.id, cancelReason[line.id] ?? "")}>
+                    Cancel outstanding
+                  </Button>
+                </div>
+              );
+            })}
+        </div>
+      </RecordDetailSection>
+
+      <RecordDetailSection tone="supplies" kicker="Supply history" title="Immutable fulfilment records" span2>
+        {supplies.length === 0 ? (
+          <EmptyState title="No supplies yet" detail="Partial and full supplies will remain listed here permanently." />
+        ) : (
+          <div className="tlb-table-scroll tlb-orders-panel">
             <table>
               <thead>
                 <tr>
-                  <th>Product</th>
-                  <th>Warehouse</th>
-                  <th>Ordered</th>
-                  <th>Supplied</th>
-                  <th>Cancelled</th>
-                  <th>Outstanding</th>
-                  <th>Reserved</th>
-                  <th>Available</th>
-                  <th>Status</th>
-                  <th>Supply now</th>
+                  <th>Supply #</th>
+                  <th>When</th>
+                  <th>By</th>
+                  <th>Lines</th>
+                  <th>Notes</th>
                 </tr>
               </thead>
               <tbody>
-                {lines.map((line) => {
-                  const product = state.products.find((p) => p.id === line.productId);
-                  const warehouse = state.warehouses.find((w) => w.id === line.warehouseId);
-                  const bal = state.stock.find((s) => s.productId === line.productId && s.warehouseId === line.warehouseId);
-                  const outstanding = calcOutstanding(line);
-                  const available = bal ? calcAvailable(bal) : 0;
-                  const usable = available + Math.min(line.reservedQty, outstanding);
+                {supplies.map((supply) => {
+                  const slines = state.supplyLines.filter((sl) => sl.supplyId === supply.id);
                   return (
-                    <tr key={line.id}>
+                    <tr key={supply.id}>
                       <td>
-                        <strong>{product?.name}</strong>
-                        <div className="tlb-muted-line">{product?.sku}</div>
+                        <strong>{supply.number}</strong>
                       </td>
-                      <td>{warehouse?.name}</td>
-                      <td>{line.orderedQty}</td>
-                      <td>{line.suppliedQty}</td>
-                      <td>{line.cancelledQty}</td>
-                      <td><strong>{outstanding}</strong></td>
-                      <td>{line.reservedQty}</td>
-                      <td>{available}</td>
-                      <td><StatusBadge tone={statusTone(line.lineStatus)}>{line.lineStatus}</StatusBadge></td>
+                      <td>{new Date(supply.suppliedAt).toLocaleString()}</td>
+                      <td>{supply.suppliedBy}</td>
                       <td>
-                        {canSupply && outstanding > 0 ? (
-                          <input
-                            className="tlb-qty-input"
-                            type="number"
-                            min={0}
-                            max={Math.min(outstanding, usable)}
-                            value={supplyQty[line.id] ?? Math.min(outstanding, usable)}
-                            onChange={(e) => setSupplyQty({ ...supplyQty, [line.id]: Number(e.target.value) })}
-                          />
-                        ) : (
-                          "—"
-                        )}
+                        {slines.map((sl) => {
+                          const product = state.products.find((p) => p.id === sl.productId);
+                          return (
+                            <div key={sl.id}>
+                              {product?.sku}: {sl.quantity}
+                            </div>
+                          );
+                        })}
                       </td>
+                      <td>{supply.notes || "—"}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
+        )}
+      </RecordDetailSection>
 
-          {canSupply && (
-            <div className="tlb-inline-actions">
-              <input
-                placeholder="Supply notes (optional)"
-                value={supplyNotes}
-                onChange={(e) => setSupplyNotes(e.target.value)}
-              />
-              <Button
-                type="button"
-                onClick={() => {
-                  const payload = lines
-                    .map((line) => {
-                      const outstanding = calcOutstanding(line);
-                      if (outstanding <= 0) return null;
-                      const bal = state.stock.find((s) => s.productId === line.productId && s.warehouseId === line.warehouseId);
-                      const available = bal ? calcAvailable(bal) : 0;
-                      const usable = available + Math.min(line.reservedQty, outstanding);
-                      const qty = supplyQty[line.id] ?? Math.min(outstanding, usable);
-                      if (!qty || qty <= 0) return null;
-                      return { orderLineId: line.id, quantity: qty };
-                    })
-                    .filter(Boolean) as Array<{ orderLineId: string; quantity: number }>;
-                  store.supply(order.id, payload, supplyNotes.trim() || undefined);
-                }}
-              >
-                Post supply
-              </Button>
-            </div>
-          )}
-
-          <div className="tlb-subheading" style={{ padding: "0 17px" }}>Cancel outstanding (with reason)</div>
-          <div className="tlb-cancel-grid">
-            {lines.filter((l) => calcOutstanding(l) > 0).map((line) => {
-              const product = state.products.find((p) => p.id === line.productId);
-              return (
-                <div key={line.id} className="tlb-cancel-row">
-                  <span>{product?.name} · outstanding {calcOutstanding(line)}</span>
-                  <input
-                    placeholder="Reason required"
-                    value={cancelReason[line.id] ?? ""}
-                    onChange={(e) => setCancelReason({ ...cancelReason, [line.id]: e.target.value })}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => store.cancelLine(line.id, cancelReason[line.id] ?? "")}
-                  >
-                    Cancel outstanding
-                  </Button>
-                </div>
-              );
-            })}
-          </div>
-        </article>
-
-        <article className="tlb-panel tlb-orders-panel">
-          <div className="tlb-panel-heading">
-            <div><span>Supply history</span><strong>Immutable fulfilment records</strong></div>
-          </div>
-          {supplies.length === 0 ? (
-            <EmptyState title="No supplies yet" detail="Partial and full supplies will remain listed here permanently." />
-          ) : (
-            <div className="tlb-table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Supply #</th>
-                    <th>When</th>
-                    <th>By</th>
-                    <th>Lines</th>
-                    <th>Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {supplies.map((supply) => {
-                    const slines = state.supplyLines.filter((sl) => sl.supplyId === supply.id);
-                    return (
-                      <tr key={supply.id}>
-                        <td><strong>{supply.number}</strong></td>
-                        <td>{new Date(supply.suppliedAt).toLocaleString()}</td>
-                        <td>{supply.suppliedBy}</td>
-                        <td>
-                          {slines.map((sl) => {
-                            const product = state.products.find((p) => p.id === sl.productId);
-                            return (
-                              <div key={sl.id}>{product?.sku}: {sl.quantity}</div>
-                            );
-                          })}
-                        </td>
-                        <td>{supply.notes || "—"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </article>
-
-        <article className="tlb-panel">
-          <div className="tlb-panel-heading">
-            <div><span>Related records</span><strong>Document chain</strong></div>
-          </div>
-          <p className="tlb-muted-line" style={{ padding: "0 17px 8px" }}>
-            Customer → Order → Supplies → Invoice / Receipt → Delivery → Complete
-          </p>
-          <ul className="tlb-inspector-list">
+      <RecordDetailSection tone="invoices" kicker="Related documents" title="Document chain" span2>
+        <p className="tlb-muted-line" style={{ padding: "0 17px 8px" }}>
+          Customer → Order → Supplies → Invoice / Receipt → Delivery → Complete
+        </p>
+        {related.length === 0 ? (
+          <EmptyState title="No related documents yet" detail="Invoices, receipts, and deliveries linked to this order will appear here." />
+        ) : (
+          <ul className="tlb-related-doc-list">
             {related.map((r) => {
               const nav =
                 r.kind === "customer"
@@ -1625,11 +1760,12 @@ function OrderDetailModule({
                     ? "Finance"
                     : r.kind === "delivery"
                       ? "Deliveries"
-                      : r.kind === "supply" || r.kind === "order" || r.kind === "reservation"
-                        ? "Sales Orders"
-                        : "Sales Orders";
+                      : "Sales Orders";
               return (
                 <li key={`${r.kind}-${r.id}`}>
+                  <span className={`status-badge tlb-activity-kind--${relatedKindTone(r.kind)}`}>
+                    {r.kind}
+                  </span>
                   <button
                     type="button"
                     className="tlb-text-link"
@@ -1644,62 +1780,60 @@ function OrderDetailModule({
                     {r.number} — {r.label}
                     {r.status ? ` · ${r.status}` : ""}
                   </button>
+                  {r.status ? <StatusBadge tone={statusTone(r.status)}>{r.status}</StatusBadge> : null}
                 </li>
               );
             })}
           </ul>
-          <div className="tlb-inline-actions" style={{ padding: 12, flexWrap: "wrap" }}>
-            {store.can("invoice.create") && supplies[0] && (
-              <Button type="button" variant="outline" onClick={() => onNavigateRelated?.("Finance", supplies[0]?.id)}>
-                Create invoice
-              </Button>
-            )}
-            {store.can("receipt.create") && (
-              <Button type="button" variant="outline" onClick={() => onNavigateRelated?.("Finance")}>
-                Create receipt
-              </Button>
-            )}
-            {store.can("delivery.manage") && supplies[0] && (
-              <Button type="button" variant="outline" onClick={() => onNavigateRelated?.("Deliveries", supplies[0]?.id)}>
-                Create delivery
-              </Button>
-            )}
-          </div>
-        </article>
-
-        <article className="tlb-panel tlb-orders-panel tlb-span-2">
-          <div className="tlb-panel-heading">
-            <div><span>Audit</span><strong>Major events for this order</strong></div>
-          </div>
-          {audit.length === 0 ? (
-            <EmptyState title="No audit events" detail="Actions on this order will be recorded here." />
-          ) : (
-            <div className="tlb-table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>When</th>
-                    <th>Actor</th>
-                    <th>Action</th>
-                    <th>Summary</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {audit.map((a) => (
-                    <tr key={a.id}>
-                      <td>{new Date(a.at).toLocaleString()}</td>
-                      <td>{a.actor}</td>
-                      <td>{a.action}</td>
-                      <td>{a.summary}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+        )}
+        <div className="tlb-inline-actions" style={{ padding: 12, flexWrap: "wrap" }}>
+          {store.can("invoice.create") && supplies[0] && (
+            <Button type="button" variant="outline" onClick={() => onNavigateRelated?.("Finance", supplies[0]?.id)}>
+              Create invoice
+            </Button>
           )}
-        </article>
-      </section>
-    </div>
+          {store.can("receipt.create") && (
+            <Button type="button" variant="outline" onClick={() => onNavigateRelated?.("Finance")}>
+              Create receipt
+            </Button>
+          )}
+          {store.can("delivery.manage") && supplies[0] && (
+            <Button type="button" variant="outline" onClick={() => onNavigateRelated?.("Deliveries", supplies[0]?.id)}>
+              Create delivery
+            </Button>
+          )}
+        </div>
+      </RecordDetailSection>
+
+      <RecordDetailSection tone="activity" kicker="Audit" title="Major events for this order" span2>
+        {audit.length === 0 ? (
+          <EmptyState title="No audit events" detail="Actions on this order will be recorded here." />
+        ) : (
+          <div className="tlb-table-scroll tlb-orders-panel">
+            <table>
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>Actor</th>
+                  <th>Action</th>
+                  <th>Summary</th>
+                </tr>
+              </thead>
+              <tbody>
+                {audit.map((a) => (
+                  <tr key={a.id}>
+                    <td>{new Date(a.at).toLocaleString()}</td>
+                    <td>{a.actor}</td>
+                    <td>{a.action}</td>
+                    <td>{a.summary}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </RecordDetailSection>
+    </RecordDetailPage>
   );
 }
 
@@ -2062,9 +2196,22 @@ export function LiveSearchResults({
           role="listitem"
           key={`${hit.kind}-${hit.id}`}
           onClick={() => {
-            if (hit.orderId) onOpenOrder(hit.orderId);
-            else if (hit.kind === "Customer" || hit.kind === "Supplier") onOpenNav(hit.nav, hit.id);
-            else onOpenNav(hit.nav);
+            if (hit.kind === "Order" || (hit.kind === "Supply" && hit.orderId)) {
+              onOpenOrder(hit.orderId ?? hit.id);
+            } else if (hit.kind === "Customer" || hit.kind === "Supplier") {
+              onOpenNav(hit.nav, hit.id);
+            } else if (
+              hit.kind === "Invoice" ||
+              hit.kind === "Receipt" ||
+              hit.kind === "Payment" ||
+              hit.kind === "Delivery" ||
+              hit.kind === "Product" ||
+              hit.kind === "Warehouse"
+            ) {
+              onOpenNav(hit.nav, hit.id);
+            } else {
+              onOpenNav(hit.nav);
+            }
           }}
         >
           <PackageSearch />

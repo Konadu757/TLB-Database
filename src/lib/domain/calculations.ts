@@ -98,36 +98,45 @@ export function fulfilmentPercent(lines: CustomerOrderLine[]): number {
 
 export function statusTone(status: CustomerOrderStatus | LineStatus | AgeingBand | string): string {
   switch (status) {
-    case "Fully Supplied":
-    case "Delivered":
-    case "Ready":
+    case "Draft":
+      return "draft";
+    case "Pending":
+      return "pending";
+    case "Confirmed":
+    case "Ordered":
+      return "confirmed";
+    case "Awaiting Stock":
+      return "awaiting";
+    case "Partially Supplied":
+    case "Partially received":
+    case "Partial":
+      return "partial";
     case "Ready for Supply":
+    case "Ready":
+      return "ready";
+    case "Fully Supplied":
+    case "Received":
+      return "supplied";
+    case "Delivered":
+      return "delivered";
+    case "Cancelled":
+    case "Void":
+      return "cancelled";
     case "Normal":
     case "Active":
     case "Paid":
-    case "Received":
     case "Preferred":
       return "success";
-    case "Partially Supplied":
-    case "Partially received":
     case "Attention":
-    case "Pending":
-    case "Confirmed":
-    case "Partial":
     case "Preparing":
     case "Dispatched":
     case "In transit":
-    case "Ordered":
       return "warning";
-    case "Awaiting Stock":
     case "Overdue":
-    case "Cancelled":
     case "Failed":
     case "Returned":
-    case "Void":
     case "Unpaid":
       return "danger";
-    case "Draft":
     case "Open":
     default:
       return "info";
