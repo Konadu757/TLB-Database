@@ -111,7 +111,7 @@ export function globalSearch(state: TlbState, query: string, limit = 20): Search
         id: p.id,
         label: `${p.sku} — Product`,
         subtitle: p.name,
-        nav: "Stock",
+        nav: "Products",
       });
     }
   }
@@ -123,7 +123,7 @@ export function globalSearch(state: TlbState, query: string, limit = 20): Search
         id: w.id,
         label: `${w.code} — Warehouse`,
         subtitle: w.name,
-        nav: "Stock",
+        nav: "Warehouses",
       });
     }
   }

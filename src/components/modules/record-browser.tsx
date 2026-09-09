@@ -82,6 +82,22 @@ export function filterByPeriodDate(
   return isoInRange(dateIso, range);
 }
 
+/** Shared list←detail back control — purple/TLB styled, keyboard accessible. */
+export function RecordBackLink({
+  label,
+  onBack,
+}: {
+  label: string;
+  onBack: () => void;
+}) {
+  return (
+    <button type="button" className="tlb-record-back" onClick={onBack} aria-label={`Back to ${label}`}>
+      <span aria-hidden="true">←</span>
+      <span>{label}</span>
+    </button>
+  );
+}
+
 export function RecordDetailHeader({
   backLabel,
   onBack,
@@ -101,9 +117,7 @@ export function RecordDetailHeader({
 }) {
   return (
     <header className="tlb-record-detail-header tlb-customer-detail-header">
-      <button type="button" className="tlb-text-link" onClick={onBack}>
-        ← {backLabel}
-      </button>
+      <RecordBackLink label={backLabel} onBack={onBack} />
       <div className="tlb-record-detail-header-row tlb-customer-detail-header-row">
         <div className="tlb-record-detail-identity tlb-customer-detail-identity">
           {code ? <span className="tlb-record-detail-code tlb-customer-detail-code">{code}</span> : null}
@@ -256,9 +270,9 @@ export function RecordBrowser<T extends { id: string }>({
       return (
         <div className="tlb-module">
           <EmptyState title="Record not found" detail="The selected record is no longer available." />
-          <button type="button" className="tlb-text-link" onClick={onBack}>
-            ← {backLabel ?? title}
-          </button>
+          <div style={{ marginTop: 12 }}>
+            <RecordBackLink label={backLabel ?? title} onBack={onBack} />
+          </div>
         </div>
       );
     }

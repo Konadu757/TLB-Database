@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, Plus, Search, X } from "lucide-react";
 
 import {
+  RecordBackLink,
   RecordDetailPage,
   RecordDetailSection,
   StatusBadge,
@@ -554,9 +555,9 @@ function SupplierDetailModule({
     return (
       <div className="tlb-module">
         <EmptyState title="Supplier not found" detail="The selected supplier account is no longer available." />
-        <Button type="button" onClick={onBack}>
-          Back to suppliers
-        </Button>
+        <div style={{ marginTop: 12 }}>
+          <RecordBackLink label="Suppliers" onBack={onBack} />
+        </div>
       </div>
     );
   }
@@ -566,9 +567,7 @@ function SupplierDetailModule({
       <div className="tlb-module tlb-record-detail-page">
         <Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />
         <header className="tlb-record-detail-header">
-          <button type="button" className="tlb-text-link" onClick={() => setEditing(false)}>
-            ← Cancel edit
-          </button>
+          <RecordBackLink label="Cancel edit" onBack={() => setEditing(false)} />
           <div className="tlb-record-detail-header-row">
             <div className="tlb-record-detail-identity">
               <span className="tlb-record-detail-code">{selected.code}</span>

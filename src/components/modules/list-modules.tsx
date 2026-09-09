@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   RecordBrowser,
@@ -397,7 +397,15 @@ type ProductRow = {
   warehouses: string;
 };
 
-export function ProductsModule({ store }: { store: TlbStoreApi }) {
+export function ProductsModule({
+  store,
+  focusId,
+  onFocusConsumed,
+}: {
+  store: TlbStoreApi;
+  focusId?: string | null;
+  onFocusConsumed?: () => void;
+}) {
   const { state } = store;
   const rows = useMemo<ProductRow[]>(() => {
     return state.products.map((p) => {
@@ -424,7 +432,13 @@ export function ProductsModule({ store }: { store: TlbStoreApi }) {
     });
   }, [state.products, state.stock, state.warehouses]);
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(focusId ?? null);
+  useEffect(() => {
+    if (!focusId) return;
+    setSelectedId(focusId);
+    onFocusConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-shot on focusId
+  }, [focusId]);
   const onSelect = useCallback((id: string) => setSelectedId(id), []);
   const onBack = useCallback(() => setSelectedId(null), []);
 
@@ -523,7 +537,15 @@ type WarehouseRow = {
   valueHint: string;
 };
 
-export function WarehousesModule({ store }: { store: TlbStoreApi }) {
+export function WarehousesModule({
+  store,
+  focusId,
+  onFocusConsumed,
+}: {
+  store: TlbStoreApi;
+  focusId?: string | null;
+  onFocusConsumed?: () => void;
+}) {
   const { state } = store;
   const rows = useMemo<WarehouseRow[]>(() => {
     return state.warehouses.map((w) => {
@@ -542,7 +564,13 @@ export function WarehousesModule({ store }: { store: TlbStoreApi }) {
     });
   }, [state.warehouses, state.stock]);
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(focusId ?? null);
+  useEffect(() => {
+    if (!focusId) return;
+    setSelectedId(focusId);
+    onFocusConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-shot on focusId
+  }, [focusId]);
   const onSelect = useCallback((id: string) => setSelectedId(id), []);
   const onBack = useCallback(() => setSelectedId(null), []);
 

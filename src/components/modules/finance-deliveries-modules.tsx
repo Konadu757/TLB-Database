@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, Plus, Search, X } from "lucide-react";
 
 import {
@@ -29,20 +29,45 @@ function Flash({ error, notice, onClear }: { error: string | null; notice: strin
 const METHODS: PaymentMethod[] = ["Cash", "Bank Transfer", "Mobile Money", "Cheque", "Card", "Other"];
 const DELIVERY_STATUSES: DeliveryStatus[] = ["Preparing", "Ready", "Dispatched", "Delivered", "Failed", "Returned"];
 
+function resolveFinanceFocus(
+  state: TlbStoreApi["state"],
+  focusId: string | null | undefined,
+): {
+  tab: "invoices" | "receipts" | "payments";
+  invoiceId: string | null;
+  receiptId: string | null;
+  paymentId: string | null;
+} | null {
+  if (!focusId) return null;
+  if (state.invoices.some((i) => i.id === focusId)) {
+    return { tab: "invoices", invoiceId: focusId, receiptId: null, paymentId: null };
+  }
+  if (state.receipts.some((r) => r.id === focusId)) {
+    return { tab: "receipts", invoiceId: null, receiptId: focusId, paymentId: null };
+  }
+  if (state.payments.some((p) => p.id === focusId)) {
+    return { tab: "payments", invoiceId: null, receiptId: null, paymentId: focusId };
+  }
+  return null;
+}
+
 export function FinanceModule({
   store,
   onOpenOrder,
   focusId,
+  onFocusConsumed,
 }: {
   store: TlbStoreApi;
   onOpenOrder: (orderId: string) => void;
   focusId?: string | null;
+  onFocusConsumed?: () => void;
 }) {
   const { state } = store;
-  const [tab, setTab] = useState<"invoices" | "receipts" | "payments">("invoices");
-  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(focusId ?? null);
-  const [selectedReceiptId, setSelectedReceiptId] = useState<string | null>(null);
-  const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(null);
+  const initialFocus = resolveFinanceFocus(state, focusId);
+  const [tab, setTab] = useState<"invoices" | "receipts" | "payments">(initialFocus?.tab ?? "invoices");
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(initialFocus?.invoiceId ?? null);
+  const [selectedReceiptId, setSelectedReceiptId] = useState<string | null>(initialFocus?.receiptId ?? null);
+  const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(initialFocus?.paymentId ?? null);
   const [creatingInvoice, setCreatingInvoice] = useState(false);
   const [creatingReceipt, setCreatingReceipt] = useState(false);
   const [invoiceSearch, setInvoiceSearch] = useState("");
@@ -63,6 +88,18 @@ export function FinanceModule({
     amountPaid: 0,
     notes: "",
   });
+
+  useEffect(() => {
+    const next = resolveFinanceFocus(state, focusId);
+    if (!next) return;
+    setTab(next.tab);
+    setSelectedInvoiceId(next.invoiceId);
+    setSelectedReceiptId(next.receiptId);
+    setSelectedPaymentId(next.paymentId);
+    onFocusConsumed?.();
+    // Apply deep-link focus once; parent clears focusId via onFocusConsumed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-shot on focusId
+  }, [focusId]);
 
   const orderSupplies = state.supplies.filter((s) => s.orderId === invoiceForm.orderId);
 
@@ -830,10 +867,12 @@ export function DeliveriesModule({
   store,
   onOpenOrder,
   focusId,
+  onFocusConsumed,
 }: {
   store: TlbStoreApi;
   onOpenOrder: (orderId: string) => void;
   focusId?: string | null;
+  onFocusConsumed?: () => void;
 }) {
   const { state } = store;
   const [selectedId, setSelectedId] = useState<string | null>(focusId ?? null);
@@ -850,6 +889,13 @@ export function DeliveriesModule({
     receiverContact: "",
     notes: "",
   });
+
+  useEffect(() => {
+    if (!focusId) return;
+    setSelectedId(focusId);
+    onFocusConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-shot on focusId
+  }, [focusId]);
 
   const supplies = state.supplies.filter((s) => s.orderId === form.orderId);
   const selected = state.deliveries.find((d) => d.id === selectedId) ?? null;

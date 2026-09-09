@@ -635,7 +635,7 @@ export function TLBDashboard() {
                       onClick={() => {
                         store.readNotification(n.id);
                         setNotificationsOpen(false);
-                        if (n.orderId) openLiveModule("Sales Orders", n.orderId);
+                        if (n.orderId) openOrderDetail(n.orderId);
                         else openLiveModule("Outstanding Supplies");
                       }}
                     >
@@ -882,7 +882,11 @@ export function TLBDashboard() {
                 onOpenOrder={(id) => openOrderDetail(id, "Outstanding Supplies")}
               />
             ) : activeNav === "Products" ? (
-              <ProductsModule store={store} focusId={moduleFocusId} />
+              <ProductsModule
+                store={store}
+                focusId={moduleFocusId}
+                onFocusConsumed={() => setModuleFocusId(null)}
+              />
             ) : activeNav === "Stock" ? (
               <StockModule
                 store={store}
@@ -891,7 +895,11 @@ export function TLBDashboard() {
             ) : activeNav === "Batches" ? (
               <BatchesModule range={listRange} periodLabel={listPeriodLabel} />
             ) : activeNav === "Warehouses" ? (
-              <WarehousesModule store={store} focusId={moduleFocusId} />
+              <WarehousesModule
+                store={store}
+                focusId={moduleFocusId}
+                onFocusConsumed={() => setModuleFocusId(null)}
+              />
             ) : activeNav === "Stock Movements" ? (
               <StockMovementsModule range={listRange} periodLabel={listPeriodLabel} />
             ) : activeNav === "Procurement" ? (
@@ -906,12 +914,14 @@ export function TLBDashboard() {
               <DeliveriesModule
                 store={store}
                 focusId={moduleFocusId}
+                onFocusConsumed={() => setModuleFocusId(null)}
                 onOpenOrder={(id) => openOrderDetail(id, "Deliveries")}
               />
             ) : activeNav === "Finance" ? (
               <FinanceModule
                 store={store}
                 focusId={moduleFocusId}
+                onFocusConsumed={() => setModuleFocusId(null)}
                 onOpenOrder={(id) => openOrderDetail(id, "Finance")}
               />
             ) : activeNav === "Reports" ? (
@@ -1209,11 +1219,13 @@ export function TLBDashboard() {
               <LiveSearchResults
                 store={store}
                 query={searchQuery}
-                onOpenOrder={(id) => openLiveModule("Sales Orders", id)}
+                onOpenOrder={(id) => openOrderDetail(id)}
                 onOpenNav={(nav, entityId) => {
                   if (nav === "Customers") openLiveModule("Customers", null, null, entityId ?? null);
                   else if (nav === "Suppliers") openLiveModule("Suppliers", null, null, null, entityId ?? null);
-                  else openLiveModule(nav);
+                  else if (nav === "Finance" || nav === "Deliveries" || nav === "Products" || nav === "Warehouses") {
+                    openLiveModule(nav, null, null, null, null, entityId ?? null);
+                  } else openLiveModule(nav);
                 }}
               />
             </div>
