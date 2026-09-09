@@ -1960,7 +1960,18 @@ export function OutstandingSuppliesModule({
               </thead>
               <tbody>
                 {sorted.map((row) => (
-                  <tr key={row.lineId}>
+                  <tr
+                    key={row.lineId}
+                    className="tlb-row-clickable"
+                    tabIndex={0}
+                    onClick={() => onOpenOrder(row.orderId)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onOpenOrder(row.orderId);
+                      }
+                    }}
+                  >
                     <td><strong>{row.orderNumber}</strong></td>
                     <td>{row.customerName}</td>
                     <td>{row.productName}<div className="tlb-muted-line">{row.productSku}</div></td>
@@ -1971,7 +1982,14 @@ export function OutstandingSuppliesModule({
                     <td><StatusBadge tone={statusTone(row.ageingBand)}>{row.ageingBand}</StatusBadge></td>
                     <td><StatusBadge tone={statusTone(row.orderStatus)}>{row.orderStatus}</StatusBadge></td>
                     <td>
-                      <button type="button" aria-label={`Open ${row.orderNumber}`} onClick={() => onOpenOrder(row.orderId)}>
+                      <button
+                        type="button"
+                        aria-label={`Open ${row.orderNumber}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenOrder(row.orderId);
+                        }}
+                      >
                         <ChevronRight />
                       </button>
                     </td>
