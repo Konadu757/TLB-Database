@@ -546,33 +546,44 @@ function CustomerDetailModule({
     );
   }
 
+  const outstandingTone =
+    transactionSummary.outstandingLines > 0 ? "tlb-customer-summary-tile--warning" : "tlb-customer-summary-tile--muted";
+  const invoiceTone =
+    transactionSummary.invoiceBalance > 0 ? "tlb-customer-summary-tile--danger" : "tlb-customer-summary-tile--muted";
+  const openOrdersTone =
+    transactionSummary.outstandingOrders > 0 ? "tlb-customer-summary-tile--warning" : "tlb-customer-summary-tile--muted";
+
   return (
-    <div className="tlb-module">
+    <div className="tlb-module tlb-customer-detail-page">
       <Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />
-      <div className="tlb-module-toolbar">
-        <div>
-          <button type="button" className="tlb-text-link" onClick={onBack}>
-            ← Customers
-          </button>
-          <strong>{selected.name}</strong>
-          <p className="tlb-muted-line">
-            {selected.code} · {selected.category}
-          </p>
+      <header className="tlb-customer-detail-header">
+        <button type="button" className="tlb-text-link" onClick={onBack}>
+          ← Customers
+        </button>
+        <div className="tlb-customer-detail-header-row">
+          <div className="tlb-customer-detail-identity">
+            <span className="tlb-customer-detail-code">{selected.code}</span>
+            <strong>{selected.name}</strong>
+            <p className="tlb-muted-line">{selected.category}</p>
+          </div>
+          <div className="tlb-customer-detail-actions">
+            <div className="tlb-customer-detail-badges">
+              <StatusBadge tone={selected.active ? "success" : "warning"}>
+                {selected.active ? "Active" : "Inactive"}
+              </StatusBadge>
+              {credit ? <StatusBadge tone={credit.tone}>{credit.label}</StatusBadge> : null}
+            </div>
+            {!editing ? (
+              <Button type="button" variant="outline" onClick={() => startEdit(selected)}>
+                Edit customer
+              </Button>
+            ) : null}
+          </div>
         </div>
-        <div className="tlb-toolbar-actions">
-          {!editing ? (
-            <Button type="button" variant="outline" onClick={() => startEdit(selected)}>
-              Edit customer
-            </Button>
-          ) : null}
-          <StatusBadge tone={selected.active ? "success" : "warning"}>
-            {selected.active ? "Active" : "Inactive"}
-          </StatusBadge>
-        </div>
-      </div>
+      </header>
 
       {editing ? (
-        <article className="tlb-panel tlb-form-panel">
+        <article className="tlb-panel tlb-form-panel tlb-customer-detail-section tlb-customer-detail-section--profile">
           <form
             className="tlb-form-grid"
             onSubmit={(e) => {
@@ -611,7 +622,7 @@ function CustomerDetailModule({
         </article>
       ) : (
         <section className="tlb-detail-sections tlb-customer-detail">
-          <article className="tlb-panel tlb-span-2">
+          <article className="tlb-panel tlb-span-2 tlb-customer-detail-section tlb-customer-detail-section--summary">
             <div className="tlb-panel-heading">
               <div>
                 <span>Overview</span>
@@ -619,11 +630,11 @@ function CustomerDetailModule({
               </div>
             </div>
             <div className="tlb-customer-summary" aria-label="Customer transaction summary">
-              <div>
+              <div className="tlb-customer-summary-tile--info">
                 <span>Orders</span>
                 <strong>{transactionSummary.orders}</strong>
               </div>
-              <div>
+              <div className={outstandingTone}>
                 <span>Outstanding</span>
                 <strong>
                   {transactionSummary.outstandingLines}
@@ -632,43 +643,43 @@ function CustomerDetailModule({
                   </small>
                 </strong>
               </div>
-              <div>
+              <div className="tlb-customer-summary-tile--gold">
                 <span>Supplies</span>
                 <strong>{transactionSummary.supplies}</strong>
               </div>
-              <div>
+              <div className={invoiceTone}>
                 <span>Invoices</span>
                 <strong>
                   {transactionSummary.invoices}
                   <small>{formatMoney(transactionSummary.invoiceBalance)} due</small>
                 </strong>
               </div>
-              <div>
+              <div className="tlb-customer-summary-tile--success">
                 <span>Receipts</span>
                 <strong>{transactionSummary.receipts}</strong>
               </div>
-              <div>
+              <div className="tlb-customer-summary-tile--info">
                 <span>Deliveries</span>
                 <strong>{transactionSummary.deliveries}</strong>
               </div>
-              <div>
+              <div className="tlb-customer-summary-tile--success">
                 <span>Payments</span>
                 <strong>
                   {transactionSummary.payments}
                   <small>{formatMoney(transactionSummary.paymentsTotal)}</small>
                 </strong>
               </div>
-              <div>
+              <div className={openOrdersTone}>
                 <span>Open orders</span>
                 <strong>{transactionSummary.outstandingOrders}</strong>
               </div>
             </div>
           </article>
 
-          <article className="tlb-panel">
+          <article className="tlb-panel tlb-customer-detail-section tlb-customer-detail-section--profile">
             <div className="tlb-panel-heading">
               <div>
-                <span>Account</span>
+                <span>Profile</span>
                 <strong>Customer details</strong>
               </div>
             </div>
@@ -735,7 +746,7 @@ function CustomerDetailModule({
             </dl>
           </article>
 
-          <article className="tlb-panel">
+          <article className="tlb-panel tlb-customer-detail-section tlb-customer-detail-section--activity">
             <div className="tlb-panel-heading">
               <div>
                 <span>Timeline</span>
@@ -751,7 +762,7 @@ function CustomerDetailModule({
               <ul className="tlb-activity-list">
                 {recentActivity.map((item) => (
                   <li key={`${item.kind}-${item.detail}-${item.at}`}>
-                    <span>{item.kind}</span>
+                    <span className={`tlb-activity-kind--${item.kind.toLowerCase()}`}>{item.kind}</span>
                     <strong>{item.detail}</strong>
                     <small>{new Date(item.at).toLocaleString()}</small>
                   </li>
@@ -760,10 +771,10 @@ function CustomerDetailModule({
             )}
           </article>
 
-          <article className="tlb-panel tlb-orders-panel tlb-span-2">
+          <article className="tlb-panel tlb-orders-panel tlb-span-2 tlb-customer-detail-section tlb-customer-detail-section--orders">
             <div className="tlb-panel-heading">
               <div>
-                <span>History</span>
+                <span>Orders</span>
                 <strong>Orders / purchase orders</strong>
               </div>
             </div>
@@ -807,10 +818,10 @@ function CustomerDetailModule({
             )}
           </article>
 
-          <article className="tlb-panel tlb-orders-panel tlb-span-2">
+          <article className="tlb-panel tlb-orders-panel tlb-span-2 tlb-customer-detail-section tlb-customer-detail-section--supplies">
             <div className="tlb-panel-heading">
               <div>
-                <span>History</span>
+                <span>Supplies</span>
                 <strong>Partial supplies</strong>
               </div>
             </div>
@@ -847,10 +858,10 @@ function CustomerDetailModule({
             )}
           </article>
 
-          <article className="tlb-panel tlb-orders-panel tlb-span-2">
+          <article className="tlb-panel tlb-orders-panel tlb-span-2 tlb-customer-detail-section tlb-customer-detail-section--outstanding">
             <div className="tlb-panel-heading">
               <div>
-                <span>History</span>
+                <span>Outstanding</span>
                 <strong>Outstanding items</strong>
               </div>
             </div>
@@ -901,10 +912,10 @@ function CustomerDetailModule({
             )}
           </article>
 
-          <article className="tlb-panel tlb-orders-panel tlb-span-2">
+          <article className="tlb-panel tlb-orders-panel tlb-span-2 tlb-customer-detail-section tlb-customer-detail-section--invoices">
             <div className="tlb-panel-heading">
               <div>
-                <span>History</span>
+                <span>Invoices</span>
                 <strong>Invoices</strong>
               </div>
             </div>
@@ -940,10 +951,10 @@ function CustomerDetailModule({
             )}
           </article>
 
-          <article className="tlb-panel tlb-orders-panel">
+          <article className="tlb-panel tlb-orders-panel tlb-customer-detail-section tlb-customer-detail-section--receipts">
             <div className="tlb-panel-heading">
               <div>
-                <span>History</span>
+                <span>Receipts</span>
                 <strong>Receipts</strong>
               </div>
             </div>
@@ -977,10 +988,10 @@ function CustomerDetailModule({
             )}
           </article>
 
-          <article className="tlb-panel tlb-orders-panel">
+          <article className="tlb-panel tlb-orders-panel tlb-customer-detail-section tlb-customer-detail-section--deliveries">
             <div className="tlb-panel-heading">
               <div>
-                <span>History</span>
+                <span>Deliveries</span>
                 <strong>Deliveries</strong>
               </div>
             </div>
@@ -1019,10 +1030,10 @@ function CustomerDetailModule({
             )}
           </article>
 
-          <article className="tlb-panel tlb-orders-panel tlb-span-2">
+          <article className="tlb-panel tlb-orders-panel tlb-span-2 tlb-customer-detail-section tlb-customer-detail-section--payments">
             <div className="tlb-panel-heading">
               <div>
-                <span>History</span>
+                <span>Payments</span>
                 <strong>Payments</strong>
               </div>
             </div>

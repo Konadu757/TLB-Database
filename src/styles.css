@@ -464,8 +464,197 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-activity-list small { color: var(--muted-foreground); font-size: 9px; white-space: nowrap; }
 .tlb-customers-table { min-width: 860px; }
 .tlb-customers-list-panel { width: 100%; }
+
+/* —— Customer detail page: color-coded identification —— */
+.tlb-customer-detail-page { gap: 14px; }
+.tlb-customer-detail-header {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(180deg, var(--cream) 0%, var(--cream-light) 72%, #fff 100%);
+  border-left: 4px solid var(--primary);
+  box-shadow: 0 2px 8px color-mix(in oklab, var(--foreground) 4%, transparent);
+}
+.tlb-customer-detail-header .tlb-text-link { color: var(--primary); }
+.tlb-customer-detail-header-row {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+}
+.tlb-customer-detail-identity { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.tlb-customer-detail-code {
+  display: inline-flex; width: fit-content;
+  padding: 2px 8px; border-radius: 4px;
+  background: color-mix(in oklab, var(--primary) 12%, white);
+  color: var(--primary); font-size: 10px; font-weight: 800; letter-spacing: 0.04em;
+}
+.tlb-customer-detail-identity strong {
+  display: block; font-size: 20px; line-height: 1.2; color: var(--foreground);
+}
+.tlb-customer-detail-identity .tlb-muted-line { margin: 0; }
+.tlb-customer-detail-actions {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end;
+}
+.tlb-customer-detail-badges { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
 .tlb-customer-detail { gap: 16px; }
 .tlb-customer-detail > .tlb-panel { min-width: 0; }
+.tlb-customer-detail-section {
+  border-left: 3px solid var(--primary);
+  background: #fff;
+}
+.tlb-customer-detail-section .tlb-panel-heading {
+  background: color-mix(in oklab, var(--info-muted) 55%, white);
+  border-bottom-color: color-mix(in oklab, var(--primary) 18%, var(--border));
+}
+.tlb-customer-detail-section .tlb-panel-heading span {
+  color: var(--primary); letter-spacing: 0.04em;
+}
+.tlb-customer-detail-section--summary {
+  border-left-color: var(--brand-gold);
+}
+.tlb-customer-detail-section--summary .tlb-panel-heading {
+  background: color-mix(in oklab, var(--brand-gold-muted) 70%, white);
+}
+.tlb-customer-detail-section--summary .tlb-panel-heading span { color: var(--warning-foreground); }
+.tlb-customer-detail-section--profile {
+  border-left-color: var(--primary);
+}
+.tlb-customer-detail-section--profile .tlb-panel-heading {
+  background: color-mix(in oklab, var(--info-muted) 70%, white);
+}
+.tlb-customer-detail-section--activity {
+  border-left-color: var(--info);
+}
+.tlb-customer-detail-section--activity .tlb-panel-heading {
+  background: color-mix(in oklab, var(--info-muted) 65%, white);
+}
+.tlb-customer-detail-section--orders {
+  border-left-color: var(--primary);
+}
+.tlb-customer-detail-section--orders .tlb-panel-heading {
+  background: color-mix(in oklab, var(--info-muted) 60%, white);
+}
+.tlb-customer-detail-section--supplies {
+  border-left-color: var(--brand-gold);
+}
+.tlb-customer-detail-section--supplies .tlb-panel-heading {
+  background: color-mix(in oklab, var(--brand-gold-muted) 65%, white);
+}
+.tlb-customer-detail-section--supplies .tlb-panel-heading span { color: var(--warning-foreground); }
+.tlb-customer-detail-section--outstanding {
+  border-left-color: var(--warning);
+}
+.tlb-customer-detail-section--outstanding .tlb-panel-heading {
+  background: color-mix(in oklab, var(--warning-muted) 75%, white);
+}
+.tlb-customer-detail-section--outstanding .tlb-panel-heading span { color: var(--warning-foreground); }
+.tlb-customer-detail-section--invoices {
+  border-left-color: var(--info);
+}
+.tlb-customer-detail-section--invoices .tlb-panel-heading {
+  background: color-mix(in oklab, var(--info-muted) 70%, white);
+}
+.tlb-customer-detail-section--receipts {
+  border-left-color: var(--success);
+}
+.tlb-customer-detail-section--receipts .tlb-panel-heading {
+  background: color-mix(in oklab, var(--success-muted) 70%, white);
+}
+.tlb-customer-detail-section--receipts .tlb-panel-heading span { color: var(--success); }
+.tlb-customer-detail-section--deliveries {
+  border-left-color: var(--info);
+}
+.tlb-customer-detail-section--deliveries .tlb-panel-heading {
+  background: color-mix(in oklab, var(--info-muted) 55%, white);
+}
+.tlb-customer-detail-section--payments {
+  border-left-color: var(--success);
+}
+.tlb-customer-detail-section--payments .tlb-panel-heading {
+  background: color-mix(in oklab, var(--success-muted) 65%, white);
+}
+.tlb-customer-detail-section--payments .tlb-panel-heading span { color: var(--success); }
+
+.tlb-customer-detail .tlb-customer-summary {
+  background: color-mix(in oklab, var(--cream-light) 80%, white);
+}
+.tlb-customer-detail .tlb-customer-summary > div {
+  background: #fff;
+}
+.tlb-customer-summary-tile--info { border-top: 2px solid var(--info); }
+.tlb-customer-summary-tile--warning {
+  border-top: 2px solid var(--warning);
+  background: color-mix(in oklab, var(--warning-muted) 45%, white) !important;
+}
+.tlb-customer-summary-tile--danger {
+  border-top: 2px solid var(--danger);
+  background: color-mix(in oklab, var(--danger-muted) 40%, white) !important;
+}
+.tlb-customer-summary-tile--success {
+  border-top: 2px solid var(--success);
+  background: color-mix(in oklab, var(--success-muted) 35%, white) !important;
+}
+.tlb-customer-summary-tile--gold {
+  border-top: 2px solid var(--brand-gold);
+}
+.tlb-customer-summary-tile--muted {
+  border-top: 2px solid color-mix(in oklab, var(--muted-foreground) 35%, var(--border));
+}
+.tlb-customer-summary-tile--warning strong,
+.tlb-customer-summary-tile--danger strong { color: var(--warning-foreground); }
+.tlb-customer-summary-tile--danger strong { color: var(--danger); }
+.tlb-customer-summary-tile--success strong { color: var(--success); }
+
+.tlb-customer-detail .tlb-kv {
+  background: color-mix(in oklab, var(--cream-light) 50%, white);
+}
+.tlb-customer-detail .tlb-kv dt { color: var(--primary); }
+
+.tlb-customer-detail .tlb-activity-list span {
+  display: inline-flex; width: fit-content; padding: 2px 6px; border-radius: 4px;
+  background: var(--info-muted); color: var(--info);
+}
+.tlb-activity-kind--order { background: var(--info-muted) !important; color: var(--info) !important; }
+.tlb-activity-kind--supply { background: var(--brand-gold-muted) !important; color: var(--warning-foreground) !important; }
+.tlb-activity-kind--invoice { background: var(--info-muted) !important; color: var(--primary) !important; }
+.tlb-activity-kind--receipt,
+.tlb-activity-kind--payment { background: var(--success-muted) !important; color: var(--success) !important; }
+.tlb-activity-kind--delivery { background: color-mix(in oklab, var(--info-muted) 70%, var(--brand-gold-muted)) !important; color: var(--info) !important; }
+
+.tlb-customer-detail .tlb-orders-panel th {
+  background: color-mix(in oklab, var(--info-muted) 45%, var(--muted));
+  color: var(--primary); font-weight: 800; letter-spacing: 0.03em;
+}
+.tlb-customer-detail-section--outstanding .tlb-orders-panel th,
+.tlb-customer-detail-section--outstanding th {
+  background: color-mix(in oklab, var(--warning-muted) 55%, var(--muted));
+  color: var(--warning-foreground);
+}
+.tlb-customer-detail-section--receipts .tlb-orders-panel th,
+.tlb-customer-detail-section--payments .tlb-orders-panel th,
+.tlb-customer-detail-section--receipts th,
+.tlb-customer-detail-section--payments th {
+  background: color-mix(in oklab, var(--success-muted) 50%, var(--muted));
+  color: var(--success);
+}
+.tlb-customer-detail-section--supplies .tlb-orders-panel th,
+.tlb-customer-detail-section--supplies th {
+  background: color-mix(in oklab, var(--brand-gold-muted) 55%, var(--muted));
+  color: var(--warning-foreground);
+}
+.tlb-customer-detail .tlb-orders-panel tbody tr:hover {
+  background: color-mix(in oklab, var(--brand-gold-muted) 40%, white);
+}
+.tlb-customer-detail .status-badge {
+  border: 1px solid color-mix(in oklab, currentColor 18%, transparent);
+}
+
+@media (max-width: 640px) {
+  .tlb-customer-detail-header { padding: 12px; }
+  .tlb-customer-detail-identity strong { font-size: 17px; }
+  .tlb-customer-detail-actions { width: 100%; justify-content: flex-start; }
+}
 .tlb-line-editor { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--cream-light); }
 .tlb-qty-input { width: 72px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 8px; font-size: 12px; }
 .tlb-inline-actions { display: flex; gap: 8px; align-items: center; padding: 12px 17px 16px; flex-wrap: wrap; }
