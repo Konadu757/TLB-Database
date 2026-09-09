@@ -784,11 +784,9 @@ function TLBDashboardInner() {
             <div>
               <p className="tlb-eyebrow">Wednesday, 09 September 2026 · {periodCaption} · {warehouse}</p>
               <h1>{activeNav === "Dashboard" ? `Good evening, ${firstName(store.state.currentUser)}` : activeNav}</h1>
-              <p>
-                {activeNav === "Dashboard"
-                  ? "Operational position for the selected period — sales KPIs use collections (payments & receipts dated in range), defaulting to this month."
-                  : (MODULE_BLURBS[activeNav] ?? "Operational records for this module.")}
-              </p>
+              {activeNav !== "Dashboard" && (
+                <p>{MODULE_BLURBS[activeNav] ?? "Operational records for this module."}</p>
+              )}
             </div>
             <div className="tlb-heading-actions">
               <div className="tlb-popover-wrap" ref={quickWrapRef}>
