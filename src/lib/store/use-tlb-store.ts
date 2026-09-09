@@ -17,6 +17,7 @@ import {
   loadState,
   markDelivered,
   markNotificationRead,
+  markNotificationsRead,
   receiveStock,
   recordPayment,
   refreshOpsNotifications,
@@ -151,6 +152,8 @@ export function useTlbStore() {
     recordPayment: (input: Parameters<typeof recordPayment>[1]) =>
       apply((s) => recordPayment(s, input), "Payment recorded."),
     readNotification: (id: string) => apply((s) => markNotificationRead(s, id)),
+    /** Mark visible/open-panel notifications as viewed so the header unread badge decreases. */
+    readNotifications: (ids: string[]) => apply((s) => markNotificationsRead(s, ids)),
     refreshNotifications: () => apply((s) => refreshOpsNotifications(s)),
   };
 }

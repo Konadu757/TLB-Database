@@ -1056,6 +1056,21 @@ export function markNotificationRead(state: TlbState, id: string): MutResult<nul
   return { ok: true, data: { state: next, data: null } };
 }
 
+export function markNotificationsRead(state: TlbState, ids: string[]): MutResult<number> {
+  if (ids.length === 0) return { ok: true, data: { state, data: 0 } };
+  const next = cloneState(state);
+  const idSet = new Set(ids);
+  const now = new Date().toISOString();
+  let marked = 0;
+  for (const n of next.notifications) {
+    if (idSet.has(n.id) && !n.readAt) {
+      n.readAt = now;
+      marked += 1;
+    }
+  }
+  return { ok: true, data: { state: next, data: marked } };
+}
+
 export function refreshOpsNotifications(state: TlbState): MutResult<number> {
   const next = cloneState(state);
   refreshNotifications(next);

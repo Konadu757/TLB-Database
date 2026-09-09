@@ -220,4 +220,14 @@ export function markNotificationRead(state: TlbState, id: string): AppNotificati
   );
 }
 
+/** Mark multiple notifications viewed; preserves existing readAt timestamps. */
+export function markNotificationsRead(state: TlbState, ids: string[]): AppNotification[] {
+  if (ids.length === 0) return state.notifications;
+  const idSet = new Set(ids);
+  const now = new Date().toISOString();
+  return state.notifications.map((n) =>
+    idSet.has(n.id) && !n.readAt ? { ...n, readAt: now } : n,
+  );
+}
+
 export { calcOutstanding, ageingBand };

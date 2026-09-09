@@ -187,6 +187,8 @@ export function TLBDashboard() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [selectedSupplierId, setSelectedSupplierId] = useState<string | null>(null);
   const [outstandingProductFilter, setOutstandingProductFilter] = useState<string | null>(null);
+  const [moduleFocusId, setModuleFocusId] = useState<string | null>(null);
+  const [orderReturnNav, setOrderReturnNav] = useState<string | null>(null);
 
   const [isNavMobile, setIsNavMobile] = useState(false);
   const sidebarOpenRef = useRef(sidebarOpen);
@@ -245,18 +247,41 @@ export function TLBDashboard() {
     productId?: string | null,
     customerId?: string | null,
     supplierId?: string | null,
+    focusEntityId?: string | null,
   ) => {
     setActiveNav(nav);
     setSelectedOrderId(orderId ?? null);
     setSelectedCustomerId(nav === "Customers" ? customerId ?? null : null);
     setSelectedSupplierId(nav === "Suppliers" ? supplierId ?? null : null);
     setOutstandingProductFilter(nav === "Outstanding Supplies" ? productId ?? null : null);
+    setModuleFocusId(
+      nav === "Finance" || nav === "Deliveries" || nav === "Products" || nav === "Warehouses"
+        ? focusEntityId ?? null
+        : null,
+    );
+    setOrderReturnNav(null);
     setMobileOpen(false);
     setInspector(null);
     setSearchOpen(false);
     setNotificationsOpen(false);
     setQuickOpen(false);
     setUserOpen(false);
+  };
+
+  const openOrderDetail = (orderId: string, returnNav?: string) => {
+    openLiveModule("Sales Orders", orderId);
+    setOrderReturnNav(returnNav ?? null);
+  };
+
+  const handleSelectOrder = (id: string | null) => {
+    if (id == null) {
+      const ret = orderReturnNav;
+      setOrderReturnNav(null);
+      setSelectedOrderId(null);
+      if (ret) setActiveNav(ret);
+      return;
+    }
+    setSelectedOrderId(id);
   };
 
   const liveModuleNav =
@@ -288,6 +313,8 @@ export function TLBDashboard() {
   const listPeriodLabel = selectionLabel(rangeSelection);
 
   const unreadNotifications = store.state.notifications.filter((n) => !n.readAt).length;
+  const unreadBadgeLabel =
+    unreadNotifications > 99 ? "99+" : unreadNotifications > 0 ? String(unreadNotifications) : "";
 
   const sidebarIsOpen = isNavMobile ? true : sidebarOpen;
 
@@ -508,8 +535,8 @@ export function TLBDashboard() {
                   key={item.label}
                   className={cn("tlb-nav-item", active && "tlb-nav-active")}
                   onClick={() => {
-                    openLiveModule(item.label, item.label === "Sales Orders" ? selectedOrderId : null);
-                    if (item.label !== "Sales Orders") setSelectedOrderId(null);
+                    // Sidebar always returns to the module list (clears nested detail selection).
+                    openLiveModule(item.label);
                   }}
                   title={!sidebarIsOpen ? item.label : undefined}
                 >
@@ -567,21 +594,35 @@ export function TLBDashboard() {
                 variant="ghost"
                 size="icon"
                 onClick={() => {
-                  setNotificationsOpen((value) => {
-                    const next = !value;
-                    if (next) {
-                      setQuickOpen(false);
-                      setSearchOpen(false);
-                      setUserOpen(false);
-                    }
-                    return next;
-                  });
+                  const opening = !notificationsOpen;
+                  setNotificationsOpen(opening);
+                  if (opening) {
+                    setQuickOpen(false);
+                    setSearchOpen(false);
+                    setUserOpen(false);
+                    // Unread decreases when items are shown in the open panel (first 6).
+                    // Clicking a row also marks that item read (persisted via readAt).
+                    const visibleIds = store.state.notifications
+                      .slice(0, 6)
+                      .filter((n) => !n.readAt)
+                      .map((n) => n.id);
+                    if (visibleIds.length > 0) store.readNotifications(visibleIds);
+                  }
                 }}
-                aria-label="Open notifications"
+                aria-label={
+                  unreadNotifications > 0
+                    ? `Open notifications, ${unreadNotifications} unread`
+                    : "Open notifications"
+                }
                 aria-expanded={notificationsOpen}
                 className="relative"
               >
-                <Bell />{unreadNotifications > 0 && <span className="tlb-notification-dot" />}
+                <Bell />
+                {unreadBadgeLabel ? (
+                  <span className="tlb-notification-badge" aria-hidden="true">
+                    {unreadBadgeLabel}
+                  </span>
+                ) : null}
               </Button>
               {notificationsOpen && (
                 <div className="tlb-popover tlb-notification-panel" role="region" aria-label="Notifications">
@@ -589,7 +630,7 @@ export function TLBDashboard() {
                   {store.state.notifications.slice(0, 6).map((n) => (
                     <button
                       type="button"
-                      className="tlb-mini-alert"
+                      className={`tlb-mini-alert${n.readAt ? "" : " tlb-mini-alert-unread"}`}
                       key={n.id}
                       onClick={() => {
                         store.readNotification(n.id);
@@ -811,7 +852,7 @@ export function TLBDashboard() {
                 store={store}
                 selectedCustomerId={selectedCustomerId}
                 onSelectCustomer={setSelectedCustomerId}
-                onOpenOrder={(id) => openLiveModule("Sales Orders", id)}
+                onOpenOrder={(id) => openOrderDetail(id, "Customers")}
               />
             ) : activeNav === "Suppliers" ? (
               <SuppliersModule
@@ -826,7 +867,7 @@ export function TLBDashboard() {
               <SalesOrdersModule
                 store={store}
                 selectedOrderId={selectedOrderId}
-                onSelectOrder={(id) => setSelectedOrderId(id)}
+                onSelectOrder={handleSelectOrder}
                 range={listRange}
                 periodLabel={listPeriodLabel}
                 onNavigateRelated={(nav, id) => {
@@ -838,10 +879,10 @@ export function TLBDashboard() {
               <OutstandingSuppliesModule
                 store={store}
                 productFilterId={outstandingProductFilter}
-                onOpenOrder={(id) => openLiveModule("Sales Orders", id)}
+                onOpenOrder={(id) => openOrderDetail(id, "Outstanding Supplies")}
               />
             ) : activeNav === "Products" ? (
-              <ProductsModule store={store} />
+              <ProductsModule store={store} focusId={moduleFocusId} />
             ) : activeNav === "Stock" ? (
               <StockModule
                 store={store}
@@ -850,7 +891,7 @@ export function TLBDashboard() {
             ) : activeNav === "Batches" ? (
               <BatchesModule range={listRange} periodLabel={listPeriodLabel} />
             ) : activeNav === "Warehouses" ? (
-              <WarehousesModule store={store} />
+              <WarehousesModule store={store} focusId={moduleFocusId} />
             ) : activeNav === "Stock Movements" ? (
               <StockMovementsModule range={listRange} periodLabel={listPeriodLabel} />
             ) : activeNav === "Procurement" ? (
@@ -862,9 +903,17 @@ export function TLBDashboard() {
             ) : activeNav === "Quality Control" ? (
               <QualityControlModule range={listRange} periodLabel={listPeriodLabel} />
             ) : activeNav === "Deliveries" ? (
-              <DeliveriesModule store={store} onOpenOrder={(id) => openLiveModule("Sales Orders", id)} />
+              <DeliveriesModule
+                store={store}
+                focusId={moduleFocusId}
+                onOpenOrder={(id) => openOrderDetail(id, "Deliveries")}
+              />
             ) : activeNav === "Finance" ? (
-              <FinanceModule store={store} onOpenOrder={(id) => openLiveModule("Sales Orders", id)} />
+              <FinanceModule
+                store={store}
+                focusId={moduleFocusId}
+                onOpenOrder={(id) => openOrderDetail(id, "Finance")}
+              />
             ) : activeNav === "Reports" ? (
               <ReportsModule store={store} />
             ) : activeNav === "Audit Log" ? (
