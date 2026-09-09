@@ -795,10 +795,6 @@ export function TLBDashboard() {
               <div className="tlb-history-copy">
                 <span className="tlb-eyebrow">Collected sales history</span>
                 <strong>Review previous month or any custom dates</strong>
-                <p>
-                  Live KPIs default to this month’s collections (money received). Use presets above for week/quarter/year,
-                  or look up an earlier period here — figures recompute from payment and receipt dates.
-                </p>
               </div>
               <div className="tlb-history-controls">
                 <button
