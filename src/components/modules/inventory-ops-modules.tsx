@@ -932,7 +932,7 @@ export function AskTlbModule({
           </div>
         </div>
         {hits.length === 0 ? (
-          <EmptyState title="No matching records" detail="This preset returned an empty result from the live store." />
+          <EmptyState title="No matching records were found." detail="This preset returned an empty result from the live store." />
         ) : (
           <div className="tlb-table-scroll">
             <table>

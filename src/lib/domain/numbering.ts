@@ -19,7 +19,12 @@ export type DocumentKind =
   | "stockIssue"
   | "transfer"
   | "adjustment"
-  | "batch";
+  | "batch"
+  | "customerReturn"
+  | "supplierReturn"
+  | "nonPoPurchase"
+  | "importShipment"
+  | "exportShipment";
 
 /** Document numbering — TLB-ORD / TLB-QTE / TLB-SUP / TLB-CUS / TLB-VEN / TLB-PO / TLB-GRN / TLB-SPAY / … */
 export function nextDocumentNumber(
@@ -94,6 +99,26 @@ export function nextDocumentNumber(
   if (kind === "batch") {
     next.batch = (next.batch ?? 0) + 1;
     return { number: `TLB-BAT-${yy}${mm}-${pad(next.batch)}`, counters: next };
+  }
+  if (kind === "customerReturn") {
+    next.customerReturn = (next.customerReturn ?? 0) + 1;
+    return { number: `TLB-CRT-${yy}${mm}-${pad(next.customerReturn)}`, counters: next };
+  }
+  if (kind === "supplierReturn") {
+    next.supplierReturn = (next.supplierReturn ?? 0) + 1;
+    return { number: `TLB-SRT-${yy}${mm}-${pad(next.supplierReturn)}`, counters: next };
+  }
+  if (kind === "nonPoPurchase") {
+    next.nonPoPurchase = (next.nonPoPurchase ?? 0) + 1;
+    return { number: `TLB-NPO-${yy}${mm}-${pad(next.nonPoPurchase)}`, counters: next };
+  }
+  if (kind === "importShipment") {
+    next.importShipment = (next.importShipment ?? 0) + 1;
+    return { number: `TLB-IMP-${yy}${mm}-${pad(next.importShipment)}`, counters: next };
+  }
+  if (kind === "exportShipment") {
+    next.exportShipment = (next.exportShipment ?? 0) + 1;
+    return { number: `TLB-EXP-${yy}${mm}-${pad(next.exportShipment)}`, counters: next };
   }
   next.customer += 1;
   return { number: `TLB-CUS-${pad(next.customer, 4)}`, counters: next };

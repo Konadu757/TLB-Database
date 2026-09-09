@@ -69,8 +69,13 @@ import {
   TransfersModule,
 } from "@/components/modules/inventory-ops-modules";
 import {
+  LiveImportExportModule,
+  NonPoPurchasesModule,
+  ReturnsModule,
+  StockAgeingModule,
+} from "@/components/modules/deferred-ops-modules";
+import {
   FactoryModule,
-  ImportExportModule,
   ProductsModule,
   ProcurementModule,
   QualityControlModule,
@@ -130,9 +135,11 @@ const navGroups: NavGroup[] = [
       { label: "Warehouses", icon: Warehouse },
       { label: "Goods In", icon: PackagePlus },
       { label: "Goods Out", icon: PackageMinus },
+      { label: "Returns", icon: PackageCheck },
       { label: "Transfers", icon: ArrowLeftRight },
       { label: "Adjustments", icon: SlidersHorizontal },
       { label: "Stock Movements", icon: ArrowUpRight },
+      { label: "Stock Ageing", icon: Gauge },
       { label: "Trace Product", icon: Route },
     ],
   },
@@ -140,6 +147,7 @@ const navGroups: NavGroup[] = [
     label: "Operations",
     items: [
       { label: "Procurement", icon: ClipboardCheck, badge: "5" },
+      { label: "Non-PO Purchases", icon: ClipboardCheck },
       { label: "Import & Export", icon: Ship, badge: "3" },
       { label: "Factory", icon: Factory },
       { label: "Quality Control", icon: ShieldCheck, badge: "8" },
@@ -172,14 +180,17 @@ const PERIOD_SCOPED_NAV = new Set([
   "Stock Movements",
   "Goods In",
   "Goods Out",
+  "Returns",
   "Transfers",
   "Procurement",
+  "Non-PO Purchases",
   "Import & Export",
   "Factory",
   "Quality Control",
   "Finance",
   "Deliveries",
   "Reports",
+  "Stock Ageing",
 ]);
 
 const MODULE_BLURBS: Record<string, string> = {
@@ -194,12 +205,15 @@ const MODULE_BLURBS: Record<string, string> = {
   Warehouses: "Storage locations with live stock balances from the product master.",
   "Goods In": "GRN goods receipts — PO / Non-PO with accepted, rejected, and damaged qty.",
   "Goods Out": "Stock issues with reasons and FEFO/FIFO batch picks.",
+  Returns: "Customer and supplier returns with disposition and ledger movements.",
   Transfers: "Warehouse transfers — destination stock only on receive confirmation.",
   Adjustments: "Counts and variances with approval when over threshold.",
-  "Stock Movements": "Immutable ledger — receipts, issues, transfers, adjustments.",
+  "Stock Movements": "Immutable ledger — receipts, issues, transfers, adjustments, returns.",
+  "Stock Ageing": "Batch age bands and fast / slow / dead velocity.",
   "Trace Product": "Clickable product timeline from supplier through customer payment.",
   Procurement: "Purchase orders awaiting receipt or approval — filtered by order date.",
-  "Import & Export": "Shipments moving through Tema — filtered by shipment date.",
+  "Non-PO Purchases": "Non-PO request → approval → GRN goods-in workflow.",
+  "Import & Export": "Import/export shipment tracking with clearance and GRN links.",
   Factory: "Production orders on the factory floor — filtered by run date.",
   "Quality Control": "Laboratory holds and releases — filtered by QC event date.",
   Deliveries: "Deliveries linked to supplies — order stays open while outstanding remains.",
@@ -208,7 +222,7 @@ const MODULE_BLURBS: Record<string, string> = {
   "Accounts Payable": "Supplier PO balances ageing by due date.",
   Approvals: "Credit overrides, Non-PO, adjustments, transfers, and high-value checks.",
   "Ask TLB": "Structured BI question presets over live store records.",
-  Reports: "Outstanding, partial supply, fulfilment performance, and customer outstanding.",
+  Reports: "Deep operational reports with filters and CSV export.",
   "Audit Log": "Append-only audit trail — users cannot delete history.",
   Trash: "Soft-deleted records — restore or permanently delete with confirmation.",
   Settings: "Company letterhead, configurable VAT rates, roles, and reminder thresholds.",
@@ -381,11 +395,14 @@ function TLBDashboardInner() {
     activeNav === "Warehouses" ||
     activeNav === "Goods In" ||
     activeNav === "Goods Out" ||
+    activeNav === "Returns" ||
     activeNav === "Transfers" ||
     activeNav === "Adjustments" ||
     activeNav === "Stock Movements" ||
+    activeNav === "Stock Ageing" ||
     activeNav === "Trace Product" ||
     activeNav === "Procurement" ||
+    activeNav === "Non-PO Purchases" ||
     activeNav === "Import & Export" ||
     activeNav === "Factory" ||
     activeNav === "Quality Control" ||
@@ -1032,12 +1049,20 @@ function TLBDashboardInner() {
               <GoodsInModule store={store} />
             ) : activeNav === "Goods Out" ? (
               <GoodsOutModule store={store} />
+            ) : activeNav === "Returns" ? (
+              <ReturnsModule
+                store={store}
+                focusId={moduleFocusId}
+                onFocusConsumed={() => setModuleFocusId(null)}
+              />
             ) : activeNav === "Transfers" ? (
               <TransfersModule store={store} />
             ) : activeNav === "Adjustments" ? (
               <AdjustmentsModule store={store} />
             ) : activeNav === "Stock Movements" ? (
               <LiveStockMovementsModule range={listRange} periodLabel={listPeriodLabel} store={store} />
+            ) : activeNav === "Stock Ageing" ? (
+              <StockAgeingModule store={store} />
             ) : activeNav === "Trace Product" ? (
               <TraceProductModule
                 store={store}
@@ -1046,8 +1071,20 @@ function TLBDashboardInner() {
               />
             ) : activeNav === "Procurement" ? (
               <ProcurementModule range={listRange} periodLabel={listPeriodLabel} store={store} />
+            ) : activeNav === "Non-PO Purchases" ? (
+              <NonPoPurchasesModule
+                store={store}
+                focusId={moduleFocusId}
+                onFocusConsumed={() => setModuleFocusId(null)}
+                onOpenGrn={(id) => openLiveModule("Goods In", id)}
+              />
             ) : activeNav === "Import & Export" ? (
-              <ImportExportModule range={listRange} periodLabel={listPeriodLabel} store={store} />
+              <LiveImportExportModule
+                store={store}
+                focusId={moduleFocusId}
+                onFocusConsumed={() => setModuleFocusId(null)}
+                onOpenGrn={(id) => openLiveModule("Goods In", id)}
+              />
             ) : activeNav === "Factory" ? (
               <FactoryModule range={listRange} periodLabel={listPeriodLabel} store={store} />
             ) : activeNav === "Quality Control" ? (

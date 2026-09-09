@@ -44,6 +44,16 @@ export function trashTypeLabel(entityType: TrashEntityType, module?: string): st
       return "Sales Order";
     case "catalog":
       return module ?? "Catalog";
+    case "customer_return":
+      return "Customer Return";
+    case "supplier_return":
+      return "Supplier Return";
+    case "non_po_purchase":
+      return "Non-PO Purchase";
+    case "import_shipment":
+      return "Import Shipment";
+    case "export_shipment":
+      return "Export Shipment";
     default:
       return entityType;
   }
@@ -125,6 +135,77 @@ export function listTrashItems(state: TlbState): TrashListItem[] {
       deletedAt: o.deletedAt,
       deletedBy: o.deletedBy ?? "—",
       ...(o.deletedReason ? { deletedReason: o.deletedReason } : {}),
+    });
+  }
+
+  for (const r of state.customerReturns ?? []) {
+    if (!r.deletedAt) continue;
+    items.push({
+      id: `customer_return:${r.id}`,
+      entityType: "customer_return",
+      entityId: r.id,
+      typeLabel: "Customer Return",
+      label: r.number,
+      subtitle: r.disposition,
+      deletedAt: r.deletedAt,
+      deletedBy: r.deletedBy ?? "—",
+      ...(r.deletedReason ? { deletedReason: r.deletedReason } : {}),
+    });
+  }
+  for (const r of state.supplierReturns ?? []) {
+    if (!r.deletedAt) continue;
+    items.push({
+      id: `supplier_return:${r.id}`,
+      entityType: "supplier_return",
+      entityId: r.id,
+      typeLabel: "Supplier Return",
+      label: r.number,
+      subtitle: r.status,
+      deletedAt: r.deletedAt,
+      deletedBy: r.deletedBy ?? "—",
+      ...(r.deletedReason ? { deletedReason: r.deletedReason } : {}),
+    });
+  }
+  for (const n of state.nonPoPurchases ?? []) {
+    if (!n.deletedAt) continue;
+    items.push({
+      id: `non_po_purchase:${n.id}`,
+      entityType: "non_po_purchase",
+      entityId: n.id,
+      typeLabel: "Non-PO Purchase",
+      label: n.number,
+      subtitle: n.reason,
+      deletedAt: n.deletedAt,
+      deletedBy: n.deletedBy ?? "—",
+      ...(n.deletedReason ? { deletedReason: n.deletedReason } : {}),
+    });
+  }
+  for (const s of state.importShipments ?? []) {
+    if (!s.deletedAt) continue;
+    items.push({
+      id: `import_shipment:${s.id}`,
+      entityType: "import_shipment",
+      entityId: s.id,
+      typeLabel: "Import Shipment",
+      label: s.number,
+      subtitle: s.originCountry,
+      deletedAt: s.deletedAt,
+      deletedBy: s.deletedBy ?? "—",
+      ...(s.deletedReason ? { deletedReason: s.deletedReason } : {}),
+    });
+  }
+  for (const s of state.exportShipments ?? []) {
+    if (!s.deletedAt) continue;
+    items.push({
+      id: `export_shipment:${s.id}`,
+      entityType: "export_shipment",
+      entityId: s.id,
+      typeLabel: "Export Shipment",
+      label: s.number,
+      subtitle: s.destinationCountry,
+      deletedAt: s.deletedAt,
+      deletedBy: s.deletedBy ?? "—",
+      ...(s.deletedReason ? { deletedReason: s.deletedReason } : {}),
     });
   }
 

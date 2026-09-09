@@ -786,6 +786,16 @@ export function decideApproval(
     if (advanced.ok) return { ok: true, data: { state: advanced.data.state, data: appr } };
   }
 
+  if (appr.refType === "non_po_purchase") {
+    const npo = (next.nonPoPurchases ?? []).find((n) => n.id === appr.refId);
+    if (npo && npo.status === "Pending Approval") {
+      npo.status = decision === "Approved" ? "Approved" : "Rejected";
+      npo.approvedBy = next.currentUser;
+      npo.approvedAt = now;
+      if (note) npo.notes = [npo.notes, note].filter(Boolean).join(" · ");
+    }
+  }
+
   pushAudit(next, {
     action: "approval.decided",
     entityType: "approval",

@@ -21,6 +21,8 @@ import {
   runAskTlbPreset,
   verifyLedgerTip,
 } from "../src/lib/domain/inventory";
+import { stockAgeBand, stockAgeingReport } from "../src/lib/domain/analytics-pack";
+import { deepReportRows, toCsv } from "../src/lib/domain/reports";
 import { canAccessNav, hasPermission } from "../src/lib/domain/permissions";
 import { nextDocumentNumber } from "../src/lib/domain/numbering";
 import { globalSearch } from "../src/lib/domain/search";
@@ -32,6 +34,14 @@ import {
   postStockAdjustment,
   requestWarehouseTransfer,
 } from "../src/lib/store/inventory-store";
+import {
+  createCustomerReturn,
+  createNonPoPurchase,
+  decideNonPoPurchase,
+  receiveImportShipment,
+  receiveNonPoPurchase,
+  upsertImportShipment,
+} from "../src/lib/store/ops-extended-store";
 import {
   assignUserRole,
   confirmCustomerOrder,
@@ -366,6 +376,80 @@ function testInventoryEngine() {
   assert.ok(outstanding.every((r) => r.demandFlag));
 }
 
+function testDeferredOpsPack() {
+  const state = createSeedState();
+  assert.equal(state.version, 10);
+  assert.ok((state.customerReturns ?? []).length >= 1, "seed customer returns");
+  assert.ok((state.nonPoPurchases ?? []).length >= 1, "seed non-po");
+  assert.ok((state.importShipments ?? []).length >= 1, "seed imports");
+
+  assert.equal(stockAgeBand(10), "0-30");
+  assert.equal(stockAgeBand(45), "31-90");
+  assert.equal(stockAgeBand(100), "91-180");
+  assert.equal(stockAgeBand(200), "181-365");
+  assert.equal(stockAgeBand(400), "365+");
+
+  const ageing = stockAgeingReport(state);
+  assert.ok(ageing.length >= 1);
+
+  let next = state;
+  const crt = createCustomerReturn(next, {
+    customerId: "cus-demo",
+    productId: "prod-hcl",
+    batchId: "bat-hcl-26001",
+    quantity: 1,
+    reason: "Test return",
+    condition: "Sellable",
+    warehouseId: "wh-main",
+    disposition: "usable",
+  });
+  assert.equal(crt.ok, true);
+  if (!crt.ok) return;
+  next = crt.data.state;
+  assert.ok(next.stockMovements.some((m) => m.type === "return_customer" && m.refId === crt.data.data.returnId));
+
+  const npo = createNonPoPurchase(next, {
+    supplierId: "sup-ningbo",
+    warehouseId: "wh-main",
+    reason: "Emergency top-up for test",
+    lines: [{ productId: "prod-eth", quantity: 1, unitPrice: 400 }],
+  });
+  assert.equal(npo.ok, true);
+  if (!npo.ok) return;
+  next = npo.data.state;
+  const decided = decideNonPoPurchase(next, npo.data.data.nonPoId, "Approved");
+  assert.equal(decided.ok, true);
+  if (!decided.ok) return;
+  next = decided.data.state;
+  const received = receiveNonPoPurchase(next, npo.data.data.nonPoId);
+  assert.equal(received.ok, true);
+  if (!received.ok) return;
+  next = received.data.state;
+  assert.equal(next.nonPoPurchases.find((n) => n.id === npo.data.data.nonPoId)?.status, "Goods Received");
+
+  const imp = upsertImportShipment(next, {
+    supplierId: "sup-ningbo",
+    originCountry: "China",
+    warehouseId: "wh-main",
+    status: "Customs Cleared",
+    lines: [{ productId: "prod-chem-a", quantity: 2, unitCost: 800 }],
+  });
+  assert.equal(imp.ok, true);
+  if (!imp.ok) return;
+  next = imp.data.state;
+  const receivedImp = receiveImportShipment(next, imp.data.data.shipmentId);
+  assert.equal(receivedImp.ok, true);
+
+  const returnsAsk = runAskTlbPreset(createSeedState(), "returns");
+  assert.ok(returnsAsk.length >= 1);
+  const slowAsk = runAskTlbPreset(createSeedState(), "slow_dead_stock");
+  assert.ok(Array.isArray(slowAsk));
+
+  const csvRows = deepReportRows(createSeedState(), "ageing");
+  assert.ok(csvRows.length >= 1);
+  assert.ok(toCsv(csvRows).includes("batchCode") || toCsv(csvRows).includes("band"));
+}
+
 testOutstandingNeverNegative();
 testSupplyValidation();
 testAgeing();
@@ -373,4 +457,5 @@ testNumbering();
 testPermissions();
 testPhase30Scenario();
 testInventoryEngine();
-console.log("phase30-verify: all assertions passed (P0 inventory + P1 + Ask TLB)");
+testDeferredOpsPack();
+console.log("phase30-verify: all assertions passed (P0 inventory + P1 + Ask TLB + deferred ops)");

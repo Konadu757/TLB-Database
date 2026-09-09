@@ -204,7 +204,13 @@ export type AuditAction =
   | "session.user_switched"
   | "record.trashed"
   | "record.restored"
-  | "record.purged";
+  | "record.purged"
+  | "return.customer_created"
+  | "return.supplier_created"
+  | "non_po.created"
+  | "non_po.status_changed"
+  | "shipment.import_upserted"
+  | "shipment.export_upserted";
 
 /** Soft-delete metadata applied to domain records moved to Trash. */
 export interface SoftDeleteFields {
@@ -219,7 +225,12 @@ export type TrashEntityType =
   | "product"
   | "warehouse"
   | "order"
-  | "catalog";
+  | "catalog"
+  | "customer_return"
+  | "supplier_return"
+  | "non_po_purchase"
+  | "import_shipment"
+  | "export_shipment";
 
 /** Soft-deleted catalog (quotations / sandbox list) rows. */
 export interface CatalogDeletion {
@@ -810,7 +821,179 @@ export interface DocumentCounters {
   transfer: number;
   adjustment: number;
   batch: number;
+  customerReturn: number;
+  supplierReturn: number;
+  nonPoPurchase: number;
+  importShipment: number;
+  exportShipment: number;
 }
+
+/** Customer goods return disposition after QC. */
+export type ReturnDisposition = "usable" | "quarantine" | "damage" | "supplier_return";
+
+export type CustomerReturnStatus = "Draft" | "Received" | "Approved" | "Posted" | "Cancelled";
+
+export interface CustomerReturn extends SoftDeleteFields {
+  id: string;
+  number: string;
+  customerId: string;
+  orderId?: string;
+  invoiceId?: string;
+  productId: string;
+  batchId?: string;
+  quantity: number;
+  reason: string;
+  condition: "Sellable" | "Damaged" | "Opened" | "Expired" | "Other";
+  warehouseId: string;
+  disposition: ReturnDisposition;
+  status: CustomerReturnStatus;
+  receivedBy: string;
+  receivedAt: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export type SupplierReturnStatus = "Draft" | "Approved" | "Shipped" | "Credited" | "Replaced" | "Cancelled";
+
+export interface SupplierReturn extends SoftDeleteFields {
+  id: string;
+  number: string;
+  supplierId: string;
+  productId: string;
+  batchId?: string;
+  quantity: number;
+  reason: string;
+  grnId?: string;
+  creditNoteRef?: string;
+  replacementExpected: boolean;
+  status: SupplierReturnStatus;
+  warehouseId: string;
+  requestedBy: string;
+  requestedAt: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export type NonPoPurchaseStatus =
+  | "Draft"
+  | "Pending Approval"
+  | "Approved"
+  | "Rejected"
+  | "Goods Received"
+  | "Cancelled";
+
+export interface NonPoPurchaseLine {
+  id: string;
+  nonPoId: string;
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+  batchCode?: string;
+}
+
+/** Full Non-PO procurement request before / linked to GRN. */
+export interface NonPoPurchase extends SoftDeleteFields {
+  id: string;
+  number: string;
+  supplierId: string;
+  warehouseId: string;
+  reason: string;
+  status: NonPoPurchaseStatus;
+  requestedBy: string;
+  requestedAt: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  invoiceRef?: string;
+  receiptRef?: string;
+  grnId?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export type ImportShipmentStatus =
+  | "Ordered"
+  | "In Transit"
+  | "Arrived Port"
+  | "Clearance"
+  | "Customs Cleared"
+  | "Warehouse Received"
+  | "Cancelled";
+
+export interface ImportShipmentLine {
+  id: string;
+  shipmentId: string;
+  productId: string;
+  quantity: number;
+  unitCost?: number;
+}
+
+export interface ImportShipment extends SoftDeleteFields {
+  id: string;
+  number: string;
+  supplierId: string;
+  originCountry: string;
+  purchaseOrderId?: string;
+  containerRef?: string;
+  shippingLine?: string;
+  orderedAt: string;
+  etd?: string;
+  eta?: string;
+  clearedAt?: string;
+  receivedAt?: string;
+  clearanceNotes?: string;
+  customsDocs?: string;
+  warehouseId: string;
+  status: ImportShipmentStatus;
+  freightCost?: number;
+  dutyCost?: number;
+  grnId?: string;
+  notes?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ExportShipmentStatus =
+  | "Preparing"
+  | "Docs Ready"
+  | "Dispatched"
+  | "In Transit"
+  | "Delivered"
+  | "Cancelled";
+
+export interface ExportShipmentLine {
+  id: string;
+  shipmentId: string;
+  productId: string;
+  batchId?: string;
+  quantity: number;
+}
+
+export interface ExportShipment extends SoftDeleteFields {
+  id: string;
+  number: string;
+  customerId: string;
+  destinationCountry: string;
+  carrier?: string;
+  docsRef?: string;
+  status: ExportShipmentStatus;
+  dispatchedAt?: string;
+  deliveredAt?: string;
+  goodsOutId?: string;
+  staffName: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Inventory age bands for stock ageing reports. */
+export type StockAgeBand = "0-30" | "31-90" | "91-180" | "181-365" | "365+";
+
+export type StockVelocityClass = "Fast" | "Slow" | "Dead";
 
 /** User-created commercial quotations (unique TLB-QTE numbers). */
 export interface Quotation {
@@ -866,6 +1049,14 @@ export interface TlbState {
   deliveryItems: DeliveryItem[];
   payments: Payment[];
   quotations: Quotation[];
+  customerReturns: CustomerReturn[];
+  supplierReturns: SupplierReturn[];
+  nonPoPurchases: NonPoPurchase[];
+  nonPoPurchaseLines: NonPoPurchaseLine[];
+  importShipments: ImportShipment[];
+  importShipmentLines: ImportShipmentLine[];
+  exportShipments: ExportShipment[];
+  exportShipmentLines: ExportShipmentLine[];
   notifications: AppNotification[];
   reservations: StockReservation[];
   audit: AuditEvent[];

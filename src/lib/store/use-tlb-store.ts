@@ -48,6 +48,17 @@ import {
   postStockAdjustment,
   requestWarehouseTransfer,
 } from "@/lib/store/inventory-store";
+import {
+  createCustomerReturn,
+  createNonPoPurchase,
+  createSupplierReturn,
+  decideNonPoPurchase,
+  receiveImportShipment,
+  receiveNonPoPurchase,
+  softDeleteOpsRecord,
+  upsertExportShipment,
+  upsertImportShipment,
+} from "@/lib/store/ops-extended-store";
 import type { TransferStatus } from "@/lib/domain/types";
 
 type MutFn = (state: TlbState) =>
@@ -137,6 +148,24 @@ export function useTlbStore() {
       apply((s) => postStockAdjustment(s, input), "Adjustment saved."),
     decideApproval: (approvalId: string, decision: "Approved" | "Rejected", note?: string) =>
       apply((s) => decideApproval(s, approvalId, decision, note), `Approval ${decision.toLowerCase()}.`),
+    postCustomerReturn: (input: Parameters<typeof createCustomerReturn>[1]) =>
+      apply((s) => createCustomerReturn(s, input), "Customer return posted to ledger."),
+    postSupplierReturn: (input: Parameters<typeof createSupplierReturn>[1]) =>
+      apply((s) => createSupplierReturn(s, input), "Supplier return posted to ledger."),
+    createNonPo: (input: Parameters<typeof createNonPoPurchase>[1]) =>
+      apply((s) => createNonPoPurchase(s, input), "Non-PO submitted for approval."),
+    decideNonPo: (nonPoId: string, decision: "Approved" | "Rejected", note?: string) =>
+      apply((s) => decideNonPoPurchase(s, nonPoId, decision, note), `Non-PO ${decision.toLowerCase()}.`),
+    receiveNonPo: (nonPoId: string) =>
+      apply((s) => receiveNonPoPurchase(s, nonPoId), "Non-PO goods received (GRN)."),
+    upsertImport: (input: Parameters<typeof upsertImportShipment>[1]) =>
+      apply((s) => upsertImportShipment(s, input), "Import shipment saved."),
+    receiveImport: (shipmentId: string) =>
+      apply((s) => receiveImportShipment(s, shipmentId), "Import received to warehouse."),
+    upsertExport: (input: Parameters<typeof upsertExportShipment>[1]) =>
+      apply((s) => upsertExportShipment(s, input), "Export shipment saved."),
+    moveOpsToTrash: (input: Parameters<typeof softDeleteOpsRecord>[1]) =>
+      apply((s) => softDeleteOpsRecord(s, input), "Moved to trash."),
     reserve: (productId: string, warehouseId: string) =>
       apply((s) => reserveForOutstanding(s, productId, warehouseId), "Stock reserved against outstanding orders."),
     releaseReservation: (id: string, reason?: string) =>

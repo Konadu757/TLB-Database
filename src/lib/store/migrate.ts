@@ -63,6 +63,11 @@ const DEFAULT_COUNTERS: DocumentCounters = {
   transfer: 0,
   adjustment: 0,
   batch: 0,
+  customerReturn: 0,
+  supplierReturn: 0,
+  nonPoPurchase: 0,
+  importShipment: 0,
+  exportShipment: 0,
 };
 
 function defaultUsers(roles: RoleDefinition[]): AppUser[] {
@@ -154,6 +159,11 @@ export function migrateState(raw: unknown): TlbState {
     transfer: parsed.counters?.transfer ?? 0,
     adjustment: parsed.counters?.adjustment ?? 0,
     batch: parsed.counters?.batch ?? 0,
+    customerReturn: parsed.counters?.customerReturn ?? 0,
+    supplierReturn: parsed.counters?.supplierReturn ?? 0,
+    nonPoPurchase: parsed.counters?.nonPoPurchase ?? 0,
+    importShipment: parsed.counters?.importShipment ?? 0,
+    exportShipment: parsed.counters?.exportShipment ?? 0,
   };
 
   const ageing: AgeingSettings = {
@@ -193,6 +203,8 @@ export function migrateState(raw: unknown): TlbState {
 
   // v9: inventory engine collections (ledger, batches, GRN, transfers, approvals).
   const needsInventorySeed = priorVersion < 9;
+  // v10: returns, Non-PO workflow, import/export shipments, ageing/profit packs.
+  const needsOpsPackSeed = priorVersion < 10;
 
   const inventorySettings: InventorySettings = {
     ...DEFAULT_INVENTORY_SETTINGS,
@@ -204,7 +216,7 @@ export function migrateState(raw: unknown): TlbState {
   };
 
   const next: TlbState = {
-    version: 9,
+    version: 10,
     warehouses: parsed.warehouses?.length ? parsed.warehouses : seed.warehouses,
     products: needsInventorySeed
       ? mergeById(parsed.products?.length ? parsed.products : seed.products, seed.products)
@@ -257,6 +269,30 @@ export function migrateState(raw: unknown): TlbState {
     deliveryItems: parsed.deliveryItems ?? [],
     payments: needsPeriodSpanSeed ? mergeById(basePayments, seed.payments) : basePayments,
     quotations: parsed.quotations ?? [],
+    customerReturns: needsOpsPackSeed
+      ? mergeById(parsed.customerReturns ?? [], seed.customerReturns)
+      : (parsed.customerReturns ?? []),
+    supplierReturns: needsOpsPackSeed
+      ? mergeById(parsed.supplierReturns ?? [], seed.supplierReturns)
+      : (parsed.supplierReturns ?? []),
+    nonPoPurchases: needsOpsPackSeed
+      ? mergeById(parsed.nonPoPurchases ?? [], seed.nonPoPurchases)
+      : (parsed.nonPoPurchases ?? []),
+    nonPoPurchaseLines: needsOpsPackSeed
+      ? mergeById(parsed.nonPoPurchaseLines ?? [], seed.nonPoPurchaseLines)
+      : (parsed.nonPoPurchaseLines ?? []),
+    importShipments: needsOpsPackSeed
+      ? mergeById(parsed.importShipments ?? [], seed.importShipments)
+      : (parsed.importShipments ?? []),
+    importShipmentLines: needsOpsPackSeed
+      ? mergeById(parsed.importShipmentLines ?? [], seed.importShipmentLines)
+      : (parsed.importShipmentLines ?? []),
+    exportShipments: needsOpsPackSeed
+      ? mergeById(parsed.exportShipments ?? [], seed.exportShipments)
+      : (parsed.exportShipments ?? []),
+    exportShipmentLines: needsOpsPackSeed
+      ? mergeById(parsed.exportShipmentLines ?? [], seed.exportShipmentLines)
+      : (parsed.exportShipmentLines ?? []),
     notifications: parsed.notifications ?? [],
     reservations: parsed.reservations ?? [],
     audit: parsed.audit ?? [],
@@ -283,6 +319,15 @@ export function migrateState(raw: unknown): TlbState {
             transfer: Math.max(counters.transfer ?? 0, seed.counters.transfer ?? 0),
             batch: Math.max(counters.batch ?? 0, seed.counters.batch ?? 0),
             supplierReceipt: Math.max(counters.supplierReceipt ?? 0, seed.counters.supplierReceipt ?? 0),
+          }
+        : {}),
+      ...(needsOpsPackSeed
+        ? {
+            customerReturn: Math.max(counters.customerReturn ?? 0, seed.counters.customerReturn ?? 0),
+            supplierReturn: Math.max(counters.supplierReturn ?? 0, seed.counters.supplierReturn ?? 0),
+            nonPoPurchase: Math.max(counters.nonPoPurchase ?? 0, seed.counters.nonPoPurchase ?? 0),
+            importShipment: Math.max(counters.importShipment ?? 0, seed.counters.importShipment ?? 0),
+            exportShipment: Math.max(counters.exportShipment ?? 0, seed.counters.exportShipment ?? 0),
           }
         : {}),
       quotation: Math.max(counters.quotation ?? 0, seed.counters.quotation ?? 0, parsed.quotations?.length ?? 0),
@@ -317,7 +362,7 @@ export function migrateState(raw: unknown): TlbState {
   }
 
   // v7: trash permissions — keep system roles aligned with the latest capability matrix.
-  if (priorVersion < 7 || priorVersion < 9) {
+  if (priorVersion < 7 || priorVersion < 10) {
     for (const role of next.roles) {
       if (!role.systemKey) continue;
       const defaults = SYSTEM_ROLE_PERMISSIONS[role.systemKey] as Permission[] | undefined;

@@ -3,6 +3,13 @@
  * expiry alerts, AR/AP ageing, product/batch traceability, Ask TLB presets.
  */
 import { calcAvailable, calcUnavailable, daysBetween } from "./calculations";
+import {
+  customerPerformanceReport,
+  productProfitability,
+  stockAgeingReport,
+  stockVelocityReport,
+  supplierPerformanceReport,
+} from "./analytics-pack";
 import type {
   BatchLot,
   FinanceAgeingBucket,
@@ -467,7 +474,13 @@ export type AskTlbPresetId =
   | "non_po"
   | "adjustments"
   | "transfers"
-  | "incoming_shipments";
+  | "incoming_shipments"
+  | "slow_dead_stock"
+  | "returns"
+  | "customer_performance"
+  | "supplier_performance"
+  | "stock_ageing_old"
+  | "profitability";
 
 export interface AskTlbPreset {
   id: AskTlbPresetId;
@@ -485,10 +498,16 @@ export const ASK_TLB_PRESETS: AskTlbPreset[] = [
   { id: "suppliers_owed", label: "Suppliers Owed", description: "Accounts payable open balances" },
   { id: "pending_approvals", label: "Pending Approvals", description: "Approvals awaiting decision" },
   { id: "incomplete_deliveries", label: "Incomplete Deliveries", description: "Not yet delivered" },
-  { id: "non_po", label: "Non-PO Purchases", description: "Goods in without supplier PO" },
+  { id: "non_po", label: "Non-PO Purchases", description: "Non-PO requests and GRNs without PO" },
   { id: "adjustments", label: "Stock Adjustments", description: "Posted and pending adjustments" },
   { id: "transfers", label: "Warehouse Transfers", description: "Open and recent transfers" },
-  { id: "incoming_shipments", label: "Incoming Shipments", description: "Supplier POs in transit / open" },
+  { id: "incoming_shipments", label: "Incoming Shipments", description: "Import shipments and open supplier POs" },
+  { id: "slow_dead_stock", label: "Slow / Dead Stock", description: "Low or zero 30-day outbound velocity" },
+  { id: "returns", label: "Returns", description: "Customer and supplier returns" },
+  { id: "customer_performance", label: "Customer Performance", description: "Revenue, outstanding, credit utilisation" },
+  { id: "supplier_performance", label: "Supplier Performance", description: "Purchase value, on-time, rejections" },
+  { id: "stock_ageing_old", label: "Aged Stock 91+", description: "Batches older than 90 days" },
+  { id: "profitability", label: "Product Profitability", description: "Gross profit where cost + sales exist" },
 ];
 
 export interface AskTlbHit {
@@ -587,16 +606,27 @@ export function runAskTlbPreset(state: TlbState, presetId: AskTlbPresetId, asOf 
           nav: "Deliveries",
           entityId: d.id,
         }));
-    case "non_po":
-      return state.goodsReceipts
+    case "non_po": {
+      const purchases = (state.nonPoPurchases ?? [])
+        .filter((n) => !n.deletedAt)
+        .map((n) => ({
+          id: n.id,
+          label: n.number,
+          subtitle: `${n.status} · ${n.reason}`,
+          nav: "Non-PO Purchases",
+          entityId: n.id,
+        }));
+      const grns = state.goodsReceipts
         .filter((g) => g.nonPo)
         .map((g) => ({
           id: g.id,
           label: g.number,
-          subtitle: g.status,
+          subtitle: `GRN · ${g.status}`,
           nav: "Goods In",
           entityId: g.id,
         }));
+      return [...purchases, ...grns];
+    }
     case "adjustments":
       return state.adjustments.map((a) => ({
         id: a.id,
@@ -613,8 +643,17 @@ export function runAskTlbPreset(state: TlbState, presetId: AskTlbPresetId, asOf 
         nav: "Transfers",
         entityId: t.id,
       }));
-    case "incoming_shipments":
-      return state.supplierPurchaseOrders
+    case "incoming_shipments": {
+      const imports = (state.importShipments ?? [])
+        .filter((s) => !s.deletedAt && s.status !== "Warehouse Received" && s.status !== "Cancelled")
+        .map((s) => ({
+          id: s.id,
+          label: s.number,
+          subtitle: `${s.status} · ${s.originCountry}`,
+          nav: "Import & Export",
+          entityId: s.id,
+        }));
+      const pos = state.supplierPurchaseOrders
         .filter((p) => ["Ordered", "In transit", "Open", "Partially received"].includes(p.status))
         .map((p) => ({
           id: p.id,
@@ -623,6 +662,73 @@ export function runAskTlbPreset(state: TlbState, presetId: AskTlbPresetId, asOf 
           nav: "Procurement",
           entityId: p.id,
         }));
+      return [...imports, ...pos];
+    }
+    case "slow_dead_stock":
+      return stockVelocityReport(state, asOf)
+        .filter((r) => r.velocity === "Slow" || r.velocity === "Dead")
+        .map((r) => ({
+          id: r.productId,
+          label: `${r.productSku} · ${r.productName}`,
+          subtitle: `${r.velocity} · on hand ${r.onHand} · out 30d ${r.outbound30d}`,
+          nav: "Stock",
+          entityId: r.productId,
+        }));
+    case "returns": {
+      const cust = (state.customerReturns ?? [])
+        .filter((r) => !r.deletedAt)
+        .map((r) => ({
+          id: r.id,
+          label: r.number,
+          subtitle: `Customer · ${r.disposition} · ${r.status}`,
+          nav: "Returns",
+          entityId: r.id,
+        }));
+      const sup = (state.supplierReturns ?? [])
+        .filter((r) => !r.deletedAt)
+        .map((r) => ({
+          id: r.id,
+          label: r.number,
+          subtitle: `Supplier · ${r.status}`,
+          nav: "Returns",
+          entityId: r.id,
+        }));
+      return [...cust, ...sup];
+    }
+    case "customer_performance":
+      return customerPerformanceReport(state, asOf).map((r) => ({
+        id: r.customerId,
+        label: r.customerName,
+        subtitle: `Revenue ${r.revenue} · outstanding ${r.outstandingBalance} · util ${r.creditUtilisationPct}%`,
+        nav: "Customers",
+        entityId: r.customerId,
+      }));
+    case "supplier_performance":
+      return supplierPerformanceReport(state).map((r) => ({
+        id: r.supplierId,
+        label: r.supplierName,
+        subtitle: `Purchases ${r.purchaseValue} · on-time ${r.onTimePct}% · rejected ${r.rejectedQty}`,
+        nav: "Suppliers",
+        entityId: r.supplierId,
+      }));
+    case "stock_ageing_old":
+      return stockAgeingReport(state, asOf)
+        .filter((r) => r.ageDays > 90)
+        .map((r) => ({
+          id: r.batchId,
+          label: r.batchCode,
+          subtitle: `${r.productSku} · ${r.band} · ${r.ageDays}d · qty ${r.remainingQty}`,
+          nav: "Batches",
+          entityId: r.batchId,
+        }));
+    case "profitability":
+      return productProfitability(state).map((r) => ({
+        id: r.key,
+        label: r.label,
+        subtitle: `GP ${r.grossProfit} · margin ${r.marginPct}% · rev ${r.revenue}`,
+        nav: "Reports",
+        entityId: r.key,
+      }));
     default:
       return [];
   }

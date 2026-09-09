@@ -1317,6 +1317,36 @@ export function softDeleteRecord(
     next.catalogDeletions.unshift(deletion);
     summary = `Moved ${deletion.module} ${deletion.label} to trash.`;
     entityTypeLabel = "catalog";
+  } else if (input.entityType === "customer_return") {
+    const row = (next.customerReturns ?? []).find((r) => r.id === input.entityId);
+    if (!row) return { ok: false, error: "Customer return not found." };
+    if (isSoftDeleted(row)) return { ok: false, error: "Already in trash." };
+    applySoftDeleteMeta(row, actor, reason);
+    summary = `Moved customer return ${row.number} to trash.`;
+  } else if (input.entityType === "supplier_return") {
+    const row = (next.supplierReturns ?? []).find((r) => r.id === input.entityId);
+    if (!row) return { ok: false, error: "Supplier return not found." };
+    if (isSoftDeleted(row)) return { ok: false, error: "Already in trash." };
+    applySoftDeleteMeta(row, actor, reason);
+    summary = `Moved supplier return ${row.number} to trash.`;
+  } else if (input.entityType === "non_po_purchase") {
+    const row = (next.nonPoPurchases ?? []).find((r) => r.id === input.entityId);
+    if (!row) return { ok: false, error: "Non-PO not found." };
+    if (isSoftDeleted(row)) return { ok: false, error: "Already in trash." };
+    applySoftDeleteMeta(row, actor, reason);
+    summary = `Moved Non-PO ${row.number} to trash.`;
+  } else if (input.entityType === "import_shipment") {
+    const row = (next.importShipments ?? []).find((r) => r.id === input.entityId);
+    if (!row) return { ok: false, error: "Import not found." };
+    if (isSoftDeleted(row)) return { ok: false, error: "Already in trash." };
+    applySoftDeleteMeta(row, actor, reason);
+    summary = `Moved import ${row.number} to trash.`;
+  } else if (input.entityType === "export_shipment") {
+    const row = (next.exportShipments ?? []).find((r) => r.id === input.entityId);
+    if (!row) return { ok: false, error: "Export not found." };
+    if (isSoftDeleted(row)) return { ok: false, error: "Already in trash." };
+    applySoftDeleteMeta(row, actor, reason);
+    summary = `Moved export ${row.number} to trash.`;
   } else {
     return { ok: false, error: "Unsupported record type." };
   }
@@ -1381,6 +1411,31 @@ export function restoreTrashItem(
     if (idx < 0) return { ok: false, error: "Trashed catalog record not found." };
     const [removed] = next.catalogDeletions.splice(idx, 1);
     summary = `Restored ${removed?.module ?? "catalog"} ${removed?.label ?? input.entityId} from trash.`;
+  } else if (input.entityType === "customer_return") {
+    const row = (next.customerReturns ?? []).find((r) => r.id === input.entityId);
+    if (!row || !isSoftDeleted(row)) return { ok: false, error: "Trashed customer return not found." };
+    clearSoftDeleteMeta(row);
+    summary = `Restored customer return ${row.number} from trash.`;
+  } else if (input.entityType === "supplier_return") {
+    const row = (next.supplierReturns ?? []).find((r) => r.id === input.entityId);
+    if (!row || !isSoftDeleted(row)) return { ok: false, error: "Trashed supplier return not found." };
+    clearSoftDeleteMeta(row);
+    summary = `Restored supplier return ${row.number} from trash.`;
+  } else if (input.entityType === "non_po_purchase") {
+    const row = (next.nonPoPurchases ?? []).find((r) => r.id === input.entityId);
+    if (!row || !isSoftDeleted(row)) return { ok: false, error: "Trashed Non-PO not found." };
+    clearSoftDeleteMeta(row);
+    summary = `Restored Non-PO ${row.number} from trash.`;
+  } else if (input.entityType === "import_shipment") {
+    const row = (next.importShipments ?? []).find((r) => r.id === input.entityId);
+    if (!row || !isSoftDeleted(row)) return { ok: false, error: "Trashed import not found." };
+    clearSoftDeleteMeta(row);
+    summary = `Restored import ${row.number} from trash.`;
+  } else if (input.entityType === "export_shipment") {
+    const row = (next.exportShipments ?? []).find((r) => r.id === input.entityId);
+    if (!row || !isSoftDeleted(row)) return { ok: false, error: "Trashed export not found." };
+    clearSoftDeleteMeta(row);
+    summary = `Restored export ${row.number} from trash.`;
   } else {
     return { ok: false, error: "Unsupported record type." };
   }
@@ -1445,6 +1500,24 @@ export function purgeTrashItem(
       next.catalogPurgedIds.push(input.entityId);
     }
     summary = `Permanently deleted ${removed?.module ?? "catalog"} ${removed?.label ?? input.entityId}.`;
+  } else if (input.entityType === "customer_return") {
+    next.customerReturns = (next.customerReturns ?? []).filter((r) => !(r.id === input.entityId && isSoftDeleted(r)));
+    summary = `Permanently deleted customer return ${input.entityId}.`;
+  } else if (input.entityType === "supplier_return") {
+    next.supplierReturns = (next.supplierReturns ?? []).filter((r) => !(r.id === input.entityId && isSoftDeleted(r)));
+    summary = `Permanently deleted supplier return ${input.entityId}.`;
+  } else if (input.entityType === "non_po_purchase") {
+    next.nonPoPurchases = (next.nonPoPurchases ?? []).filter((r) => !(r.id === input.entityId && isSoftDeleted(r)));
+    next.nonPoPurchaseLines = (next.nonPoPurchaseLines ?? []).filter((l) => l.nonPoId !== input.entityId);
+    summary = `Permanently deleted Non-PO ${input.entityId}.`;
+  } else if (input.entityType === "import_shipment") {
+    next.importShipments = (next.importShipments ?? []).filter((r) => !(r.id === input.entityId && isSoftDeleted(r)));
+    next.importShipmentLines = (next.importShipmentLines ?? []).filter((l) => l.shipmentId !== input.entityId);
+    summary = `Permanently deleted import ${input.entityId}.`;
+  } else if (input.entityType === "export_shipment") {
+    next.exportShipments = (next.exportShipments ?? []).filter((r) => !(r.id === input.entityId && isSoftDeleted(r)));
+    next.exportShipmentLines = (next.exportShipmentLines ?? []).filter((l) => l.shipmentId !== input.entityId);
+    summary = `Permanently deleted export ${input.entityId}.`;
   } else {
     return { ok: false, error: "Unsupported record type." };
   }
