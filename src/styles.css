@@ -330,8 +330,42 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-page-heading { margin-top: 13px; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; position: relative; z-index: 40; overflow: visible; }
 .tlb-eyebrow { margin: 0 0 5px; color: var(--primary); font-size: 11px; font-weight: 700; text-transform: uppercase; }
 .tlb-page-heading h1 { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; }.tlb-page-heading p:last-child { margin: 7px 0 0; color: var(--muted-foreground); font-size: 13px; }
-.tlb-filter-bar { margin-top: 22px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 12px; border: 1px solid var(--border); background: var(--cream); border-radius: var(--radius-md); box-shadow: 0 2px 8px color-mix(in oklab, var(--foreground) 4%, transparent); transition: box-shadow 180ms ease; }
-.tlb-filter-bar:hover { box-shadow: 0 8px 22px color-mix(in oklab, var(--foreground) 10%, transparent); }
+/* Sticky below .tlb-header (64px). Scroll ancestor: .tlb-main on desktop, viewport on mobile. */
+.tlb-filter-bar {
+  margin-top: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  background: var(--cream);
+  background-color: var(--cream);
+  border-radius: var(--radius-md);
+  box-shadow:
+    0 2px 8px color-mix(in oklab, var(--foreground) 4%, transparent),
+    0 -12px 0 0 #ffffff;
+  position: sticky;
+  top: 64px;
+  z-index: 50;
+  transition: box-shadow 180ms ease;
+}
+.tlb-filter-bar:hover {
+  box-shadow:
+    0 8px 22px color-mix(in oklab, var(--foreground) 10%, transparent),
+    0 -12px 0 0 #ffffff;
+}
+/* Module-local chip bars (Outstanding / Reports tabs) stay in document flow. */
+.tlb-module-filters {
+  margin-top: 0;
+  position: static;
+  top: auto;
+  z-index: auto;
+  box-shadow: 0 2px 8px color-mix(in oklab, var(--foreground) 4%, transparent);
+}
+.tlb-module-filters:hover {
+  box-shadow: 0 8px 22px color-mix(in oklab, var(--foreground) 10%, transparent);
+}
 .tlb-periods { display: flex; gap: 3px; }
 .tlb-periods button {
   height: 30px;
@@ -866,7 +900,6 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-cancel-row input { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; font-size: 12px; }
 .tlb-progress-lg { margin: 16px 17px; height: 10px; }
 .tlb-text-link { border: 0; background: transparent; color: var(--primary); font-size: 11px; font-weight: 700; padding: 0; text-align: left; }
-.tlb-module-filters { margin-top: 0; }
 .tlb-form-panel { margin-bottom: 14px; }
 
 @media (max-width: 1100px) {
@@ -901,6 +934,6 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   .tlb-desktop-sidebar { display: none; }.tlb-mobile-menu { display: inline-flex; }.tlb-mobile-overlay { display: block; position: fixed; inset: 0; z-index: 60; background: color-mix(in oklab, var(--foreground) 35%, transparent); }.tlb-mobile-sidebar { display: block; position: fixed; left: 0; top: 0; z-index: 70; transform: translateX(-100%); transition: transform 180ms ease; }.tlb-mobile-sidebar-open { transform: translateX(0); }.tlb-mobile-sidebar .tlb-sidebar { width: 270px; }.tlb-dashboard-grid { grid-template-columns: 1fr; }.tlb-user-copy { display: none; }.tlb-header { padding-inline: 18px; }.tlb-content { padding-inline: 18px; }
 }
 @media (max-width: 640px) {
-  .tlb-header { height: 58px; gap: 8px; padding-inline: 12px; }.tlb-global-search-wrap { width: auto; flex: 1; }.tlb-global-search kbd { display: none; }.tlb-user { padding-left: 8px; }.tlb-user > svg { display: none; }.tlb-content { padding: 17px 12px 32px; }.tlb-page-heading { align-items: flex-start; flex-direction: column; gap: 14px; }.tlb-page-heading h1 { font-size: 23px; }.tlb-heading-actions, .tlb-heading-actions button { width: 100%; }.tlb-filter-bar { align-items: stretch; flex-direction: column; overflow: hidden; }.tlb-periods { overflow-x: auto; padding-bottom: 2px; }.tlb-periods button { flex: none; }.tlb-select { border-left: 0; border-top: 1px solid var(--border); padding-top: 9px; }.tlb-history-controls { flex-direction: column; align-items: stretch; }.tlb-history-controls label { width: 100%; }.tlb-history-controls input[type="date"] { width: 100%; }.tlb-metrics { grid-template-columns: repeat(2, 1fr); }.tlb-chart { height: 200px; padding-inline: 10px; }.tlb-chart-axis { display: none; }.tlb-bars { gap: 4px; }.tlb-panel-heading { min-height: 58px; padding-inline: 12px; }.tlb-operation-row { grid-template-columns: 34px 1fr; }.tlb-operation-progress { grid-column: 2; }.tlb-receivable-legend { grid-template-columns: 1fr; }.tlb-popover { position: fixed; top: 64px; right: 12px; left: 12px; width: auto; }.tlb-search-dropdown { left: 12px; right: 12px; width: auto; }.tlb-breadcrumb { display: none; }
+  .tlb-header { height: 58px; gap: 8px; padding-inline: 12px; }.tlb-global-search-wrap { width: auto; flex: 1; }.tlb-global-search kbd { display: none; }.tlb-user { padding-left: 8px; }.tlb-user > svg { display: none; }.tlb-content { padding: 17px 12px 32px; }.tlb-page-heading { align-items: flex-start; flex-direction: column; gap: 14px; }.tlb-page-heading h1 { font-size: 23px; }.tlb-heading-actions, .tlb-heading-actions button { width: 100%; }.tlb-filter-bar { top: 58px; align-items: stretch; flex-direction: column; overflow: hidden; }.tlb-periods { overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }.tlb-periods button { flex: none; }.tlb-select { border-left: 0; border-top: 1px solid var(--border); padding-top: 9px; }.tlb-history-controls { flex-direction: column; align-items: stretch; }.tlb-history-controls label { width: 100%; }.tlb-history-controls input[type="date"] { width: 100%; }.tlb-metrics { grid-template-columns: repeat(2, 1fr); }.tlb-chart { height: 200px; padding-inline: 10px; }.tlb-chart-axis { display: none; }.tlb-bars { gap: 4px; }.tlb-panel-heading { min-height: 58px; padding-inline: 12px; }.tlb-operation-row { grid-template-columns: 34px 1fr; }.tlb-operation-progress { grid-column: 2; }.tlb-receivable-legend { grid-template-columns: 1fr; }.tlb-popover { position: fixed; top: 64px; right: 12px; left: 12px; width: auto; }.tlb-search-dropdown { left: 12px; right: 12px; width: auto; }.tlb-breadcrumb { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }
