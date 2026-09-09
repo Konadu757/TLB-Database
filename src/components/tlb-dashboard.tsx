@@ -35,6 +35,11 @@ import {
 
 import logoUrl from "@/assets/tlb-logo.png";
 import {
+  DetailBackProvider,
+  useDetailBack,
+} from "@/components/modules/detail-back-context";
+import { RecordBackLink } from "@/components/modules/record-browser";
+import {
   CustomersModule,
   LiveSearchResults,
   OutstandingDashboardWidget,
@@ -166,12 +171,32 @@ const MODULE_BLURBS: Record<string, string> = {
 
 type Inspector = { title: string; kicker: string; lines: string[] };
 
+function HeaderDetailBack() {
+  const { detailBack } = useDetailBack();
+  if (!detailBack) return null;
+  return (
+    <div className="tlb-header-back-slot">
+      <RecordBackLink label={detailBack.label} onBack={detailBack.onBack} />
+    </div>
+  );
+}
+
 function StatusBadge({ children, tone }: { children: React.ReactNode; tone: string }) {
   return <span className={`status-badge status-${tone}`}>{children}</span>;
 }
 
 export function TLBDashboard() {
+  return (
+    <DetailBackProvider>
+      <TLBDashboardInner />
+    </DetailBackProvider>
+  );
+}
+
+function TLBDashboardInner() {
   const store = useTlbStore();
+  const { detailBack } = useDetailBack();
+  const detailOpen = Boolean(detailBack);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [rangeSelection, setRangeSelection] = useState<DashboardRangeSelection>({
@@ -530,7 +555,7 @@ export function TLBDashboard() {
       {mobileOpen && <div className="tlb-mobile-overlay" onClick={() => setMobileOpen(false)} aria-hidden="true" />}
       <div className={cn("tlb-mobile-sidebar", mobileOpen && "tlb-mobile-sidebar-open")}>{sidebar}</div>
 
-      <div className="tlb-main">
+      <div className={cn("tlb-main", detailOpen && "tlb-main--detail-open")}>
         <header className="tlb-header">
           <Button
             variant="ghost"
@@ -546,6 +571,7 @@ export function TLBDashboard() {
           >
             <Menu />
           </Button>
+          <HeaderDetailBack />
           <div className="tlb-popover-wrap tlb-global-search-wrap" ref={searchWrapRef}>
             <label className={cn("tlb-global-search", searchOpen && "tlb-global-search-active")}>
               <Search aria-hidden="true" />
@@ -736,8 +762,9 @@ export function TLBDashboard() {
           </div>
         </header>
 
-        <main className="tlb-content">
+        <main className={cn("tlb-content", detailOpen && "tlb-content--detail-open")}>
           <div className="tlb-breadcrumb"><span>TLB Enterprise</span><ChevronRight /><span>{activeNav === "Dashboard" ? "Executive Dashboard" : activeNav}</span></div>
+          {!detailOpen && (
           <div className="tlb-page-heading">
             <div>
               <p className="tlb-eyebrow">Wednesday, 09 September 2026 · {periodCaption} · {warehouse}</p>
@@ -798,8 +825,9 @@ export function TLBDashboard() {
               </div>
             </div>
           </div>
+          )}
 
-          {showPeriodBar && (
+          {showPeriodBar && !detailOpen && (
             <section className="tlb-filter-bar" aria-label="Period filters">
               <div className="tlb-periods">
                 {DASHBOARD_PERIODS.map((item) => (
