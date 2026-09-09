@@ -953,6 +953,12 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-inline-actions { display: flex; gap: 8px; align-items: center; padding: 12px 17px 16px; flex-wrap: wrap; }
 .tlb-inline-actions input { flex: 1; min-width: 160px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; font-size: 12px; }
 .tlb-inline-actions.compact { padding: 0; }
+.tlb-trash-dialog .tlb-trash-confirm-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 0 2px;
+}
 .tlb-trash-dialog .tlb-trash-reason { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
 .tlb-trash-dialog .tlb-trash-reason textarea {
   width: 100%;
@@ -962,6 +968,31 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   font: inherit;
   resize: vertical;
   min-height: 72px;
+}
+.tlb-trash-dialog .tlb-trash-purge-warning {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--destructive, #b42318) 35%, var(--border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--destructive, #b42318) 8%, transparent);
+  color: var(--foreground);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.tlb-trash-dialog .tlb-trash-type-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+.tlb-trash-dialog .tlb-trash-type-confirm label strong {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  letter-spacing: 0.02em;
+}
+.tlb-trash-dialog .tlb-trash-type-hint {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.4;
 }
 .tlb-cancel-grid { display: grid; gap: 8px; padding: 0 17px 16px; }
 .tlb-cancel-row { display: grid; grid-template-columns: minmax(140px, .8fr) minmax(0, 1.2fr) auto; gap: 8px; align-items: center; }
