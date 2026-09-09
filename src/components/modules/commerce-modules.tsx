@@ -2122,7 +2122,7 @@ export function StockModule({
         <div>
           <span className="tlb-eyebrow">Inventory</span>
           <strong>Stock</strong>
-          <p className="tlb-muted-line">Available = physical − reserved</p>
+          <p className="tlb-muted-line">Available = physical − reserved − damaged − expired − quarantine</p>
         </div>
       </div>
       <article className="tlb-panel tlb-orders-panel">
@@ -2134,7 +2134,9 @@ export function StockModule({
                 <th>Warehouse</th>
                 <th>Physical</th>
                 <th>Reserved</th>
+                <th>Damaged</th>
                 <th>Available</th>
+                <th>Strategy</th>
                 <th>Outstanding demand</th>
                 <th>Receive</th>
               </tr>
@@ -2152,7 +2154,9 @@ export function StockModule({
                     <td>{warehouse?.name}</td>
                     <td>{bal.physicalQty}</td>
                     <td>{bal.reservedQty}</td>
+                    <td>{bal.damagedQty ?? 0}</td>
                     <td><strong>{calcAvailable(bal)}</strong></td>
+                    <td>{product?.issueStrategy ?? "FEFO"}</td>
                     <td>
                       {requiredBy > 0 ? (
                         <button type="button" className="tlb-text-link" onClick={() => onViewOutstanding(bal.productId)}>

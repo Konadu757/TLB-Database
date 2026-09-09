@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowDownRight,
+  ArrowLeftRight,
   ArrowUpRight,
   Bell,
   Boxes,
@@ -16,16 +17,21 @@ import {
   Gauge,
   LayoutDashboard,
   Menu,
+  MessageSquareText,
   PackageCheck,
+  PackageMinus,
+  PackagePlus,
   PackageSearch,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
+  Route,
   Search,
   Settings,
   ShieldCheck,
   Ship,
   ShoppingCart,
+  SlidersHorizontal,
   Trash2,
   Truck,
   Users,
@@ -49,14 +55,26 @@ import {
   SuppliersModule,
 } from "@/components/modules/commerce-modules";
 import {
-  BatchesModule,
+  AccountsPayableModule,
+  AccountsReceivableModule,
+  AdjustmentsModule,
+  ApprovalsModule,
+  AskTlbModule,
+  GoodsInModule,
+  GoodsOutModule,
+  InventoryAlertsWidget,
+  LiveBatchesModule,
+  LiveStockMovementsModule,
+  TraceProductModule,
+  TransfersModule,
+} from "@/components/modules/inventory-ops-modules";
+import {
   FactoryModule,
   ImportExportModule,
   ProductsModule,
   ProcurementModule,
   QualityControlModule,
   QuotationsModule,
-  StockMovementsModule,
   WarehousesModule,
 } from "@/components/modules/list-modules";
 import {
@@ -110,7 +128,12 @@ const navGroups: NavGroup[] = [
       { label: "Stock", icon: Boxes },
       { label: "Batches", icon: PackageSearch },
       { label: "Warehouses", icon: Warehouse },
+      { label: "Goods In", icon: PackagePlus },
+      { label: "Goods Out", icon: PackageMinus },
+      { label: "Transfers", icon: ArrowLeftRight },
+      { label: "Adjustments", icon: SlidersHorizontal },
       { label: "Stock Movements", icon: ArrowUpRight },
+      { label: "Trace Product", icon: Route },
     ],
   },
   {
@@ -127,6 +150,10 @@ const navGroups: NavGroup[] = [
     label: "Control",
     items: [
       { label: "Finance", icon: CircleDollarSign },
+      { label: "Accounts Receivable", icon: ArrowDownRight },
+      { label: "Accounts Payable", icon: ArrowUpRight },
+      { label: "Approvals", icon: ClipboardCheck },
+      { label: "Ask TLB", icon: MessageSquareText },
       { label: "Reports", icon: Gauge },
       { label: "Audit Log", icon: ShieldCheck },
       { label: "Trash", icon: Trash2 },
@@ -143,6 +170,9 @@ const PERIOD_SCOPED_NAV = new Set([
   "Outstanding Supplies",
   "Batches",
   "Stock Movements",
+  "Goods In",
+  "Goods Out",
+  "Transfers",
   "Procurement",
   "Import & Export",
   "Factory",
@@ -159,18 +189,27 @@ const MODULE_BLURBS: Record<string, string> = {
   "Sales Orders": "Customer purchase orders with partial supply and fulfilment history.",
   "Outstanding Supplies": "Open ordered quantities that still need supply — never silently cleared.",
   Products: "Finished goods and raw chemicals in the product master.",
-  Stock: "Physical, reserved, and available stock with outstanding demand links.",
-  Batches: "Traceable production and import batches filtered by event date.",
+  Stock: "Physical, reserved, available, damaged, and outstanding demand links.",
+  Batches: "Live lots with remaining qty, expiry alerts, and recall timelines.",
   Warehouses: "Storage locations with live stock balances from the product master.",
-  "Stock Movements": "Receipts, issues, and transfers scoped to the selected period.",
+  "Goods In": "GRN goods receipts — PO / Non-PO with accepted, rejected, and damaged qty.",
+  "Goods Out": "Stock issues with reasons and FEFO/FIFO batch picks.",
+  Transfers: "Warehouse transfers — destination stock only on receive confirmation.",
+  Adjustments: "Counts and variances with approval when over threshold.",
+  "Stock Movements": "Immutable ledger — receipts, issues, transfers, adjustments.",
+  "Trace Product": "Clickable product timeline from supplier through customer payment.",
   Procurement: "Purchase orders awaiting receipt or approval — filtered by order date.",
   "Import & Export": "Shipments moving through Tema — filtered by shipment date.",
   Factory: "Production orders on the factory floor — filtered by run date.",
   "Quality Control": "Laboratory holds and releases — filtered by QC event date.",
   Deliveries: "Deliveries linked to supplies — order stays open while outstanding remains.",
   Finance: "VAT invoices, ordinary receipts (TLB-RCT), and payments.",
+  "Accounts Receivable": "Customer invoice ageing 0–30 / 31–60 / 61–90 / 90+.",
+  "Accounts Payable": "Supplier PO balances ageing by due date.",
+  Approvals: "Credit overrides, Non-PO, adjustments, transfers, and high-value checks.",
+  "Ask TLB": "Structured BI question presets over live store records.",
   Reports: "Outstanding, partial supply, fulfilment performance, and customer outstanding.",
-  "Audit Log": "Append-only audit trail for supplies, invoices, receipts, deliveries, and payments.",
+  "Audit Log": "Append-only audit trail — users cannot delete history.",
   Trash: "Soft-deleted records — restore or permanently delete with confirmation.",
   Settings: "Company letterhead, configurable VAT rates, roles, and reminder thresholds.",
 };
@@ -340,13 +379,22 @@ function TLBDashboardInner() {
     activeNav === "Stock" ||
     activeNav === "Batches" ||
     activeNav === "Warehouses" ||
+    activeNav === "Goods In" ||
+    activeNav === "Goods Out" ||
+    activeNav === "Transfers" ||
+    activeNav === "Adjustments" ||
     activeNav === "Stock Movements" ||
+    activeNav === "Trace Product" ||
     activeNav === "Procurement" ||
     activeNav === "Import & Export" ||
     activeNav === "Factory" ||
     activeNav === "Quality Control" ||
     activeNav === "Deliveries" ||
     activeNav === "Finance" ||
+    activeNav === "Accounts Receivable" ||
+    activeNav === "Accounts Payable" ||
+    activeNav === "Approvals" ||
+    activeNav === "Ask TLB" ||
     activeNav === "Reports" ||
     activeNav === "Audit Log" ||
     activeNav === "Trash" ||
@@ -973,15 +1021,29 @@ function TLBDashboardInner() {
                 onViewOutstanding={(productId) => openLiveModule("Outstanding Supplies", null, productId)}
               />
             ) : activeNav === "Batches" ? (
-              <BatchesModule range={listRange} periodLabel={listPeriodLabel} store={store} />
+              <LiveBatchesModule store={store} />
             ) : activeNav === "Warehouses" ? (
               <WarehousesModule
                 store={store}
                 focusId={moduleFocusId}
                 onFocusConsumed={() => setModuleFocusId(null)}
               />
+            ) : activeNav === "Goods In" ? (
+              <GoodsInModule store={store} />
+            ) : activeNav === "Goods Out" ? (
+              <GoodsOutModule store={store} />
+            ) : activeNav === "Transfers" ? (
+              <TransfersModule store={store} />
+            ) : activeNav === "Adjustments" ? (
+              <AdjustmentsModule store={store} />
             ) : activeNav === "Stock Movements" ? (
-              <StockMovementsModule range={listRange} periodLabel={listPeriodLabel} store={store} />
+              <LiveStockMovementsModule range={listRange} periodLabel={listPeriodLabel} store={store} />
+            ) : activeNav === "Trace Product" ? (
+              <TraceProductModule
+                store={store}
+                initialProductId={moduleFocusId}
+                onNavigate={(nav, id) => openLiveModule(nav, id ?? null)}
+              />
             ) : activeNav === "Procurement" ? (
               <ProcurementModule range={listRange} periodLabel={listPeriodLabel} store={store} />
             ) : activeNav === "Import & Export" ? (
@@ -1007,6 +1069,17 @@ function TLBDashboardInner() {
                 onOpenOrder={(id) => openOrderDetail(id, "Finance")}
                 range={listRange}
                 periodLabel={listPeriodLabel}
+              />
+            ) : activeNav === "Accounts Receivable" ? (
+              <AccountsReceivableModule store={store} />
+            ) : activeNav === "Accounts Payable" ? (
+              <AccountsPayableModule store={store} />
+            ) : activeNav === "Approvals" ? (
+              <ApprovalsModule store={store} />
+            ) : activeNav === "Ask TLB" ? (
+              <AskTlbModule
+                store={store}
+                onNavigate={(nav, entityId) => openLiveModule(nav, entityId ?? null)}
               />
             ) : activeNav === "Reports" ? (
               <ReportsModule store={store} range={listRange} periodLabel={listPeriodLabel} />
@@ -1166,6 +1239,8 @@ function TLBDashboardInner() {
               dateFilter={dash.range}
               onOpen={() => openLiveModule("Outstanding Supplies")}
             />
+
+            <InventoryAlertsWidget store={store} onOpenNav={(nav) => openLiveModule(nav)} />
 
             <article className="tlb-panel tlb-alerts-panel">
               <div className="tlb-panel-heading">
