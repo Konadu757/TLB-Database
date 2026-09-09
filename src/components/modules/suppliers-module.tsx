@@ -241,6 +241,10 @@ export function SuppliersModule({
     });
   }, [activeSuppliers, search]);
 
+  const canBulkTrash = store.can("records.delete");
+  const filteredIds = useMemo(() => filteredSuppliers.map((s) => s.id), [filteredSuppliers]);
+  const selection = useListSelection(canBulkTrash ? filteredIds : []);
+
   if (selectedSupplierId) {
     return (
       <SupplierDetailModule
@@ -253,9 +257,6 @@ export function SuppliersModule({
   }
 
   const hasSearch = search.trim().length > 0;
-  const canBulkTrash = store.can("records.delete");
-  const filteredIds = useMemo(() => filteredSuppliers.map((s) => s.id), [filteredSuppliers]);
-  const selection = useListSelection(canBulkTrash ? filteredIds : []);
 
   return (
     <div className="tlb-module">

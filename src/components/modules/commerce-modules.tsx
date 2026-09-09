@@ -265,6 +265,10 @@ export function CustomersModule({
     });
   }, [activeCustomers, search]);
 
+  const canBulkTrash = store.can("records.delete");
+  const filteredIds = useMemo(() => filteredCustomers.map((c) => c.id), [filteredCustomers]);
+  const selection = useListSelection(canBulkTrash ? filteredIds : []);
+
   if (selectedCustomerId) {
     return (
       <CustomerDetailModule
@@ -277,9 +281,6 @@ export function CustomersModule({
   }
 
   const hasSearch = search.trim().length > 0;
-  const canBulkTrash = store.can("records.delete");
-  const filteredIds = useMemo(() => filteredCustomers.map((c) => c.id), [filteredCustomers]);
-  const selection = useListSelection(canBulkTrash ? filteredIds : []);
 
   return (
     <div className="tlb-module">
