@@ -251,13 +251,62 @@
 .tlb-sidebar-collapsed .tlb-collapse { margin-left: 0; flex: none; }
 .tlb-sidebar-collapsed .tlb-brand-mark { width: 48px; height: 48px; }
 .tlb-nav { flex: 1; overflow-y: auto; padding: 13px 10px; scrollbar-width: thin; }
-.tlb-nav-group + .tlb-nav-group { margin-top: 14px; }
-.tlb-nav-label { margin: 0 8px 5px; color: color-mix(in oklab, var(--sidebar-foreground) 48%, transparent); font-size: 10px; font-weight: 700; text-transform: uppercase; }
+.tlb-nav-group + .tlb-nav-group { margin-top: 8px; }
+.tlb-nav-group-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: color-mix(in oklab, var(--sidebar-foreground) 48%, transparent);
+  cursor: pointer;
+  text-align: left;
+}
+.tlb-nav-group-toggle:hover {
+  background: color-mix(in oklab, var(--sidebar-accent) 45%, transparent);
+  color: color-mix(in oklab, var(--sidebar-foreground) 72%, transparent);
+}
+.tlb-nav-label {
+  margin: 0;
+  flex: 1;
+  color: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.tlb-nav-group-chevron {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  opacity: 0.75;
+  transition: transform 160ms ease;
+  transform: rotate(-90deg);
+}
+.tlb-nav-group-expanded .tlb-nav-group-chevron {
+  transform: rotate(0deg);
+}
+.tlb-nav-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 2px;
+}
+.tlb-nav-group-items-collapsed {
+  display: none;
+}
 .tlb-nav-item { width: 100%; min-height: 36px; display: flex; align-items: center; gap: 11px; padding: 8px 10px; border: 0; border-radius: var(--radius-sm); background: transparent; color: color-mix(in oklab, var(--sidebar-foreground) 83%, transparent); font-size: 13px; text-align: left; }
 .tlb-nav-item:hover { background: color-mix(in oklab, var(--sidebar-accent) 68%, transparent); color: var(--sidebar-accent-foreground); }
 .tlb-nav-item svg { width: 17px; height: 17px; flex: none; }
 .tlb-nav-active { background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); box-shadow: inset 3px 0 var(--brand-gold); }
 .tlb-nav-badge { margin-left: auto; min-width: 20px; padding: 1px 5px; border-radius: 4px; background: color-mix(in oklab, var(--brand-gold) 18%, transparent); color: var(--brand-gold); font-size: 10px; text-align: center; }
+.tlb-sidebar-collapsed .tlb-nav-group-toggle { display: none; }
+.tlb-sidebar-collapsed .tlb-nav-group-items,
+.tlb-sidebar-collapsed .tlb-nav-group-items-collapsed { display: flex; }
 .tlb-sidebar-collapsed .tlb-nav-item { justify-content: center; padding-inline: 8px; }
 .tlb-desktop-sidebar { flex-shrink: 0; z-index: 30; }
 .tlb-mobile-sidebar, .tlb-mobile-overlay { display: none; }

@@ -114,6 +114,29 @@ function countBadgeLabel(count: number): string | undefined {
 type NavItem = { label: string; icon: typeof LayoutDashboard; badge?: string };
 type NavGroup = { label?: string; items: NavItem[] };
 
+const NAV_GROUPS_STORAGE_KEY = "tlb-sidebar-nav-groups";
+
+function readStoredOpenNavGroups(): Record<string, boolean> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = sessionStorage.getItem(NAV_GROUPS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    return parsed as Record<string, boolean>;
+  } catch {
+    return {};
+  }
+}
+
+function writeStoredOpenNavGroups(next: Record<string, boolean>) {
+  try {
+    sessionStorage.setItem(NAV_GROUPS_STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
 const navGroups: NavGroup[] = [
   { items: [{ label: "Dashboard", icon: LayoutDashboard }] },
   {
@@ -282,6 +305,7 @@ function TLBDashboardInner() {
   const clearQuoteCreateRequest = useCallback(() => setQuoteCreateRequest(false), []);
 
   const [isNavMobile, setIsNavMobile] = useState(false);
+  const [openNavGroups, setOpenNavGroups] = useState<Record<string, boolean>>(readStoredOpenNavGroups);
   const sidebarOpenRef = useRef(sidebarOpen);
   const desktopSidebarOpenRef = useRef(sidebarOpen);
 
@@ -337,6 +361,20 @@ function TLBDashboardInner() {
       setActiveNav("Dashboard");
     }
   }, [store.state.currentRoleId, store.state.currentUserId, activeNav, store.state]);
+
+  // Keep the group that owns the active page expanded (and persist that choice).
+  useEffect(() => {
+    const activeGroup = navGroupsLive.find(
+      (group) => group.label && group.items.some((item) => item.label === activeNav),
+    );
+    if (!activeGroup?.label) return;
+    setOpenNavGroups((prev) => {
+      if (prev[activeGroup.label!] === true) return prev;
+      const next = { ...prev, [activeGroup.label!]: true };
+      writeStoredOpenNavGroups(next);
+      return next;
+    });
+  }, [activeNav, navGroupsLive]);
 
   const openLiveModule = (
     nav: string,
@@ -430,6 +468,25 @@ function TLBDashboardInner() {
     unreadNotifications > 99 ? "99+" : unreadNotifications > 0 ? String(unreadNotifications) : "";
 
   const sidebarIsOpen = isNavMobile ? true : sidebarOpen;
+
+  const isNavGroupExpanded = useCallback(
+    (group: NavGroup) => {
+      if (!group.label) return true;
+      // Icon rail: keep every item reachable without opening a dropdown.
+      if (!sidebarIsOpen) return true;
+      if (group.label in openNavGroups) return openNavGroups[group.label] === true;
+      return group.items.some((item) => item.label === activeNav);
+    },
+    [activeNav, openNavGroups, sidebarIsOpen],
+  );
+
+  const toggleNavGroup = useCallback((label: string, currentlyExpanded: boolean) => {
+    setOpenNavGroups((prev) => {
+      const next = { ...prev, [label]: !currentlyExpanded };
+      writeStoredOpenNavGroups(next);
+      return next;
+    });
+  }, []);
 
   const focusHeaderSearch = () => {
     setSearchOpen(true);
@@ -600,31 +657,57 @@ function TLBDashboardInner() {
         </Button>
       </div>
       <nav className="tlb-nav">
-        {navGroupsLive.map((group, groupIndex) => (
-          <div className="tlb-nav-group" key={group.label ?? groupIndex}>
-            {group.label && <p className="tlb-nav-label">{group.label}</p>}
-            {group.items.map((item) => {
-              const Icon = item.icon;
-              const active = item.label === activeNav;
-              return (
+        {navGroupsLive.map((group, groupIndex) => {
+          const expanded = isNavGroupExpanded(group);
+          const groupId = group.label
+            ? `tlb-nav-group-${group.label.toLowerCase().replace(/\s+/g, "-")}`
+            : undefined;
+          return (
+            <div
+              className={cn("tlb-nav-group", group.label && expanded && "tlb-nav-group-expanded")}
+              key={group.label ?? groupIndex}
+            >
+              {group.label && (
                 <button
                   type="button"
-                  key={item.label}
-                  className={cn("tlb-nav-item", active && "tlb-nav-active")}
-                  onClick={() => {
-                    // Sidebar always returns to the module list (clears nested detail selection).
-                    openLiveModule(item.label);
-                  }}
-                  title={!sidebarIsOpen ? item.label : undefined}
+                  className="tlb-nav-group-toggle"
+                  aria-expanded={expanded}
+                  aria-controls={groupId}
+                  onClick={() => toggleNavGroup(group.label!, expanded)}
                 >
-                  <Icon aria-hidden="true" />
-                  <span>{item.label}</span>
-                  {item.badge && <span className="tlb-nav-badge">{item.badge}</span>}
+                  <span className="tlb-nav-label">{group.label}</span>
+                  <ChevronDown className="tlb-nav-group-chevron" aria-hidden="true" />
                 </button>
-              );
-            })}
-          </div>
-        ))}
+              )}
+              <div
+                id={groupId}
+                className={cn("tlb-nav-group-items", !expanded && "tlb-nav-group-items-collapsed")}
+                hidden={!expanded}
+              >
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const active = item.label === activeNav;
+                  return (
+                    <button
+                      type="button"
+                      key={item.label}
+                      className={cn("tlb-nav-item", active && "tlb-nav-active")}
+                      onClick={() => {
+                        // Sidebar always returns to the module list (clears nested detail selection).
+                        openLiveModule(item.label);
+                      }}
+                      title={!sidebarIsOpen ? item.label : undefined}
+                    >
+                      <Icon aria-hidden="true" />
+                      <span>{item.label}</span>
+                      {item.badge && <span className="tlb-nav-badge">{item.badge}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </nav>
     </aside>
   );
