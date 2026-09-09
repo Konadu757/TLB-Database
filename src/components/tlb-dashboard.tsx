@@ -80,7 +80,13 @@ import {
 import { formatMoney } from "@/lib/store/tlb-store";
 import { useTlbStore } from "@/lib/store/use-tlb-store";
 import { canAccessNav, firstName, userInitials } from "@/lib/domain/permissions";
+import { listTrashItems } from "@/lib/domain/trash";
 import { cn } from "@/lib/utils";
+
+function countBadgeLabel(count: number): string | undefined {
+  if (count <= 0) return undefined;
+  return count > 99 ? "99+" : String(count);
+}
 
 type NavItem = { label: string; icon: typeof LayoutDashboard; badge?: string };
 type NavGroup = { label?: string; items: NavItem[] };
@@ -238,6 +244,7 @@ function TLBDashboardInner() {
   }, []);
 
   const outstandingBadge = store.outstanding.length;
+  const trashBadge = listTrashItems(store.state).length;
 
   const navGroupsLive = useMemo(
     () =>
@@ -246,27 +253,30 @@ function TLBDashboardInner() {
           ...group,
           items: group.items
             .filter((item) => canAccessNav(store.state, item.label))
-            .map((item) =>
-              item.label === "Outstanding Supplies"
-                ? { ...item, badge: outstandingBadge > 0 ? String(outstandingBadge) : undefined }
-                : item.label === "Sales Orders"
-                  ? {
-                      ...item,
-                      badge: (() => {
-                        const count = store.state.orders.filter(
-                          (o) =>
-                            !o.deletedAt &&
-                            o.status !== "Delivered" &&
-                            o.status !== "Cancelled",
-                        ).length;
-                        return count > 0 ? String(count) : undefined;
-                      })(),
-                    }
-                  : item,
-            ),
+            .map((item) => {
+              if (item.label === "Outstanding Supplies") {
+                return {
+                  ...item,
+                  badge: outstandingBadge > 0 ? String(outstandingBadge) : undefined,
+                };
+              }
+              if (item.label === "Sales Orders") {
+                const count = store.state.orders.filter(
+                  (o) =>
+                    !o.deletedAt &&
+                    o.status !== "Delivered" &&
+                    o.status !== "Cancelled",
+                ).length;
+                return { ...item, badge: count > 0 ? String(count) : undefined };
+              }
+              if (item.label === "Trash") {
+                return { ...item, badge: countBadgeLabel(trashBadge) };
+              }
+              return item;
+            }),
         }))
         .filter((group) => group.items.length > 0),
-    [outstandingBadge, store.state],
+    [outstandingBadge, trashBadge, store.state],
   );
 
   useEffect(() => {
