@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -36,12 +37,16 @@ export function useDetailBack() {
 /** Registers a detail-page back target in the app header while mounted. */
 export function useRegisterDetailBack(label: string, onBack: () => void, enabled = true) {
   const { setDetailBack } = useDetailBack();
+  const onBackRef = useRef(onBack);
+  onBackRef.current = onBack;
+
   useEffect(() => {
     if (!enabled) {
       setDetailBack(null);
       return;
     }
-    setDetailBack({ label, onBack });
+    const stableBack = () => onBackRef.current();
+    setDetailBack({ label, onBack: stableBack });
     return () => setDetailBack(null);
-  }, [label, onBack, enabled, setDetailBack]);
+  }, [label, enabled, setDetailBack]);
 }
