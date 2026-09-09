@@ -325,7 +325,37 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-page-heading h1 { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; }.tlb-page-heading p:last-child { margin: 7px 0 0; color: var(--muted-foreground); font-size: 13px; }
 .tlb-filter-bar { margin-top: 22px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 12px; border: 1px solid var(--border); background: var(--cream); border-radius: var(--radius-md); box-shadow: 0 2px 8px color-mix(in oklab, var(--foreground) 4%, transparent); transition: box-shadow 180ms ease; }
 .tlb-filter-bar:hover { box-shadow: 0 8px 22px color-mix(in oklab, var(--foreground) 10%, transparent); }
-.tlb-periods { display: flex; gap: 3px; }.tlb-periods button { height: 30px; padding: 0 12px; border: 0; border-radius: 5px; background: transparent; color: var(--muted-foreground); font-size: 11px; font-weight: 600; }.tlb-periods button:hover { background: var(--muted); }.tlb-periods button.active { background: var(--secondary); color: var(--primary); }
+.tlb-periods { display: flex; gap: 3px; }
+.tlb-periods button {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+.tlb-periods button:hover:not(.active) {
+  background: var(--muted);
+  color: var(--foreground);
+}
+.tlb-periods button.active {
+  background: var(--sidebar);
+  color: var(--cream);
+  border-color: var(--brand-gold);
+  font-weight: 700;
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--sidebar) 40%, transparent);
+}
+.tlb-periods button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.tlb-periods button.active:focus-visible {
+  outline-color: var(--brand-gold);
+}
 .tlb-history-lookup { margin-top: 12px; display: grid; gap: 12px; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--cream-light); }
 .tlb-history-copy .tlb-eyebrow { display: block; margin-bottom: 4px; }
 .tlb-history-copy strong { display: block; font-size: 15px; }
