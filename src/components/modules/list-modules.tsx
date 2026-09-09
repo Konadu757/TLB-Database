@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import {
   RecordBrowser,
@@ -21,14 +21,20 @@ function formatWhen(iso: string): string {
   }
 }
 
+function money(n: number): string {
+  return `GHS ${n.toLocaleString("en-GH", { minimumFractionDigits: 2 })}`;
+}
+
 function CatalogModule({
   module,
   range,
   periodLabel,
+  listColumns,
 }: {
   module: string;
   range?: DateRange | null | undefined;
   periodLabel?: string | undefined;
+  listColumns?: BrowserColumn<CatalogRecord>[];
 }) {
   const meta = MODULE_META[module] ?? {
     kicker: "TLB",
@@ -39,30 +45,28 @@ function CatalogModule({
   };
 
   const rows = useMemo(() => recordsForModule(module, range), [module, range]);
-  const [selectedId, setSelectedId] = useState<string | null>(rows[0]?.id ?? null);
-
-  useEffect(() => {
-    if (!rows.some((r) => r.id === selectedId)) {
-      setSelectedId(rows[0]?.id ?? null);
-    }
-  }, [rows, selectedId]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const onSelect = useCallback((id: string) => setSelectedId(id), []);
+  const onBack = useCallback(() => setSelectedId(null), []);
 
-  const columns: BrowserColumn<CatalogRecord>[] = [
+  const columns: BrowserColumn<CatalogRecord>[] = listColumns ?? [
     {
       key: "primary",
-      header: "Record",
+      header: "Reference",
+      className: "tlb-col-priority",
       render: (row) => <strong>{row.primary}</strong>,
     },
     {
       key: "secondary",
-      header: "Detail",
+      header: "Summary",
+      className: "tlb-col-priority",
       render: (row) => row.secondary,
     },
     {
       key: "date",
       header: "Date",
+      className: "tlb-col-priority",
       render: (row) => row.date.slice(0, 10),
     },
   ];
@@ -81,9 +85,12 @@ function CatalogModule({
       getSearchValues={(row) => [row.searchText, row.primary, row.secondary, row.status]}
       selectedId={selectedId}
       onSelect={onSelect}
+      onBack={onBack}
+      backLabel={module}
       statusOf={(row) => ({ label: row.status, tone: row.tone })}
       detailTitle={(row) => row.primary}
       detailSubtitle={(row) => row.secondary}
+      detailCode={(row) => row.primary}
       {...(periodLabel ? { periodLabel } : {})}
       detailSummary={(row) =>
         (row.summary ?? []).map((s) => ({
@@ -103,15 +110,14 @@ function CatalogModule({
         {
           title: "Line items",
           empty: "No line items on this record.",
+          tone: "lines" as const,
           headers: ["Item", "Qty", "Amount", "Note"],
           rows: (row.lines ?? []).map((line) => ({
             id: line.id,
             cells: [
               <strong key="l">{line.label}</strong>,
               line.qty ?? "—",
-              line.amount != null
-                ? `GHS ${line.amount.toLocaleString("en-GH", { minimumFractionDigits: 2 })}`
-                : "—",
+              line.amount != null ? money(line.amount) : "—",
               line.note ?? "—",
             ],
           })),
@@ -119,6 +125,7 @@ function CatalogModule({
         {
           title: "Activity",
           empty: "No activity yet.",
+          tone: "activity" as const,
           headers: ["When", "Event", "Detail"],
           rows: (row.history ?? []).map((h) => ({
             id: h.id,
@@ -130,53 +137,251 @@ function CatalogModule({
   );
 }
 
+const quotationColumns: BrowserColumn<CatalogRecord>[] = [
+  {
+    key: "primary",
+    header: "Quote #",
+    className: "tlb-col-priority",
+    render: (row) => <strong>{row.primary}</strong>,
+  },
+  {
+    key: "customer",
+    header: "Customer / item",
+    className: "tlb-col-priority",
+    render: (row) => row.secondary,
+  },
+  {
+    key: "total",
+    header: "Total",
+    className: "tlb-col-priority",
+    render: (row) => row.summary?.find((s) => s.label === "Total")?.value ?? "—",
+  },
+  {
+    key: "date",
+    header: "Date",
+    className: "tlb-col-priority",
+    render: (row) => row.date.slice(0, 10),
+  },
+];
+
 export function QuotationsModule(props: {
   range?: DateRange | null | undefined;
   periodLabel?: string | undefined;
 }) {
-  return <CatalogModule module="Quotations" range={props.range} periodLabel={props.periodLabel} />;
+  return (
+    <CatalogModule
+      module="Quotations"
+      range={props.range}
+      periodLabel={props.periodLabel}
+      listColumns={quotationColumns}
+    />
+  );
 }
+
+const batchColumns: BrowserColumn<CatalogRecord>[] = [
+  {
+    key: "primary",
+    header: "Batch",
+    className: "tlb-col-priority",
+    render: (row) => <strong>{row.primary}</strong>,
+  },
+  {
+    key: "secondary",
+    header: "Location / note",
+    className: "tlb-col-priority",
+    render: (row) => row.secondary,
+  },
+  {
+    key: "date",
+    header: "Date",
+    className: "tlb-col-priority",
+    render: (row) => row.date.slice(0, 10),
+  },
+];
 
 export function BatchesModule(props: {
   range?: DateRange | null | undefined;
   periodLabel?: string | undefined;
 }) {
-  return <CatalogModule module="Batches" range={props.range} periodLabel={props.periodLabel} />;
+  return (
+    <CatalogModule module="Batches" range={props.range} periodLabel={props.periodLabel} listColumns={batchColumns} />
+  );
 }
+
+const movementColumns: BrowserColumn<CatalogRecord>[] = [
+  {
+    key: "primary",
+    header: "Movement #",
+    className: "tlb-col-priority",
+    render: (row) => <strong>{row.primary}</strong>,
+  },
+  {
+    key: "secondary",
+    header: "Detail",
+    className: "tlb-col-priority",
+    render: (row) => row.secondary,
+  },
+  {
+    key: "date",
+    header: "Date",
+    className: "tlb-col-priority",
+    render: (row) => row.date.slice(0, 10),
+  },
+];
 
 export function StockMovementsModule(props: {
   range?: DateRange | null | undefined;
   periodLabel?: string | undefined;
 }) {
-  return <CatalogModule module="Stock Movements" range={props.range} periodLabel={props.periodLabel} />;
+  return (
+    <CatalogModule
+      module="Stock Movements"
+      range={props.range}
+      periodLabel={props.periodLabel}
+      listColumns={movementColumns}
+    />
+  );
 }
+
+const procurementColumns: BrowserColumn<CatalogRecord>[] = [
+  {
+    key: "primary",
+    header: "PO #",
+    className: "tlb-col-priority",
+    render: (row) => <strong>{row.primary}</strong>,
+  },
+  {
+    key: "secondary",
+    header: "Supplier",
+    className: "tlb-col-priority",
+    render: (row) => row.secondary,
+  },
+  {
+    key: "value",
+    header: "Value",
+    className: "tlb-col-priority",
+    render: (row) => row.summary?.find((s) => s.label === "Value")?.value ?? "—",
+  },
+  {
+    key: "date",
+    header: "Date",
+    className: "tlb-col-priority",
+    render: (row) => row.date.slice(0, 10),
+  },
+];
 
 export function ProcurementModule(props: {
   range?: DateRange | null | undefined;
   periodLabel?: string | undefined;
 }) {
-  return <CatalogModule module="Procurement" range={props.range} periodLabel={props.periodLabel} />;
+  return (
+    <CatalogModule
+      module="Procurement"
+      range={props.range}
+      periodLabel={props.periodLabel}
+      listColumns={procurementColumns}
+    />
+  );
 }
+
+const shipmentColumns: BrowserColumn<CatalogRecord>[] = [
+  {
+    key: "primary",
+    header: "Shipment #",
+    className: "tlb-col-priority",
+    render: (row) => <strong>{row.primary}</strong>,
+  },
+  {
+    key: "secondary",
+    header: "Lane / commodity",
+    className: "tlb-col-priority",
+    render: (row) => row.secondary,
+  },
+  {
+    key: "date",
+    header: "Date",
+    className: "tlb-col-priority",
+    render: (row) => row.date.slice(0, 10),
+  },
+];
 
 export function ImportExportModule(props: {
   range?: DateRange | null | undefined;
   periodLabel?: string | undefined;
 }) {
-  return <CatalogModule module="Import & Export" range={props.range} periodLabel={props.periodLabel} />;
+  return (
+    <CatalogModule
+      module="Import & Export"
+      range={props.range}
+      periodLabel={props.periodLabel}
+      listColumns={shipmentColumns}
+    />
+  );
 }
+
+const factoryColumns: BrowserColumn<CatalogRecord>[] = [
+  {
+    key: "primary",
+    header: "Production #",
+    className: "tlb-col-priority",
+    render: (row) => <strong>{row.primary}</strong>,
+  },
+  {
+    key: "secondary",
+    header: "Product / batch",
+    className: "tlb-col-priority",
+    render: (row) => row.secondary,
+  },
+  {
+    key: "date",
+    header: "Date",
+    className: "tlb-col-priority",
+    render: (row) => row.date.slice(0, 10),
+  },
+];
 
 export function FactoryModule(props: {
   range?: DateRange | null | undefined;
   periodLabel?: string | undefined;
 }) {
-  return <CatalogModule module="Factory" range={props.range} periodLabel={props.periodLabel} />;
+  return (
+    <CatalogModule module="Factory" range={props.range} periodLabel={props.periodLabel} listColumns={factoryColumns} />
+  );
 }
+
+const qcColumns: BrowserColumn<CatalogRecord>[] = [
+  {
+    key: "primary",
+    header: "Batch",
+    className: "tlb-col-priority",
+    render: (row) => <strong>{row.primary}</strong>,
+  },
+  {
+    key: "secondary",
+    header: "Product / note",
+    className: "tlb-col-priority",
+    render: (row) => row.secondary,
+  },
+  {
+    key: "date",
+    header: "Date",
+    className: "tlb-col-priority",
+    render: (row) => row.date.slice(0, 10),
+  },
+];
 
 export function QualityControlModule(props: {
   range?: DateRange | null | undefined;
   periodLabel?: string | undefined;
 }) {
-  return <CatalogModule module="Quality Control" range={props.range} periodLabel={props.periodLabel} />;
+  return (
+    <CatalogModule
+      module="Quality Control"
+      range={props.range}
+      periodLabel={props.periodLabel}
+      listColumns={qcColumns}
+    />
+  );
 }
 
 type ProductRow = {
@@ -219,14 +424,16 @@ export function ProductsModule({ store }: { store: TlbStoreApi }) {
     });
   }, [state.products, state.stock, state.warehouses]);
 
-  const [selectedId, setSelectedId] = useState<string | null>(rows[0]?.id ?? null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const onSelect = useCallback((id: string) => setSelectedId(id), []);
+  const onBack = useCallback(() => setSelectedId(null), []);
 
   const columns: BrowserColumn<ProductRow>[] = [
-    { key: "sku", header: "SKU", render: (r) => <strong>{r.sku}</strong> },
+    { key: "sku", header: "SKU", className: "tlb-col-priority", render: (r) => <strong>{r.sku}</strong> },
     {
       key: "name",
       header: "Product",
+      className: "tlb-col-priority",
       render: (r) => (
         <>
           {r.name}
@@ -234,8 +441,8 @@ export function ProductsModule({ store }: { store: TlbStoreApi }) {
         </>
       ),
     },
-    { key: "onHand", header: "On hand", render: (r) => r.onHand },
-    { key: "available", header: "Available", render: (r) => r.available },
+    { key: "onHand", header: "On hand", className: "tlb-col-priority", render: (r) => r.onHand },
+    { key: "available", header: "Available", className: "tlb-col-priority", render: (r) => r.available },
   ];
 
   return (
@@ -252,6 +459,8 @@ export function ProductsModule({ store }: { store: TlbStoreApi }) {
       getSearchValues={(r) => [r.sku, r.name, r.category, r.unit, r.warehouses]}
       selectedId={selectedId}
       onSelect={onSelect}
+      onBack={onBack}
+      backLabel="Products"
       statusOf={(r) =>
         r.active
           ? r.available <= 0
@@ -263,10 +472,15 @@ export function ProductsModule({ store }: { store: TlbStoreApi }) {
       }
       detailTitle={(r) => r.name}
       detailSubtitle={(r) => `${r.sku} · ${r.unit}`}
+      detailCode={(r) => r.sku}
       detailSummary={(r) => [
-        { label: "On hand", value: r.onHand },
-        { label: "Reserved", value: r.reserved },
-        { label: "Available", value: r.available },
+        { label: "On hand", value: r.onHand, tileClass: "tlb-customer-summary-tile--info" },
+        { label: "Reserved", value: r.reserved, tileClass: "tlb-customer-summary-tile--gold" },
+        {
+          label: "Available",
+          value: r.available,
+          tileClass: r.available <= 0 ? "tlb-customer-summary-tile--danger" : "tlb-customer-summary-tile--success",
+        },
         { label: "Category", value: r.category },
       ]}
       detailFields={(r) => [
@@ -282,6 +496,7 @@ export function ProductsModule({ store }: { store: TlbStoreApi }) {
           {
             title: "Stock by warehouse",
             empty: "No stock balances for this product.",
+            tone: "stock" as const,
             headers: ["Warehouse", "Physical", "Reserved", "Available"],
             rows: bals.map((b) => {
               const wh = state.warehouses.find((w) => w.id === b.warehouseId);
@@ -327,8 +542,9 @@ export function WarehousesModule({ store }: { store: TlbStoreApi }) {
     });
   }, [state.warehouses, state.stock]);
 
-  const [selectedId, setSelectedId] = useState<string | null>(rows[0]?.id ?? null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const onSelect = useCallback((id: string) => setSelectedId(id), []);
+  const onBack = useCallback(() => setSelectedId(null), []);
 
   return (
     <RecordBrowser
@@ -341,10 +557,11 @@ export function WarehousesModule({ store }: { store: TlbStoreApi }) {
       noMatchDetail="Try another code, name, or location."
       rows={rows}
       columns={[
-        { key: "code", header: "Code", render: (r) => <strong>{r.code}</strong> },
+        { key: "code", header: "Code", className: "tlb-col-priority", render: (r) => <strong>{r.code}</strong> },
         {
           key: "name",
           header: "Warehouse",
+          className: "tlb-col-priority",
           render: (r) => (
             <>
               {r.name}
@@ -352,18 +569,21 @@ export function WarehousesModule({ store }: { store: TlbStoreApi }) {
             </>
           ),
         },
-        { key: "skus", header: "SKUs", render: (r) => r.skuCount },
-        { key: "units", header: "Units", render: (r) => r.units },
+        { key: "skus", header: "SKUs", className: "tlb-col-priority", render: (r) => r.skuCount },
+        { key: "units", header: "Units", className: "tlb-col-priority", render: (r) => r.units },
       ]}
       getSearchValues={(r) => [r.code, r.name, r.location]}
       selectedId={selectedId}
       onSelect={onSelect}
+      onBack={onBack}
+      backLabel="Warehouses"
       statusOf={(r) => ({ label: r.active ? "Open" : "Closed", tone: r.active ? "success" : "warning" })}
       detailTitle={(r) => r.name}
       detailSubtitle={(r) => r.location}
+      detailCode={(r) => r.code}
       detailSummary={(r) => [
-        { label: "SKUs", value: r.skuCount },
-        { label: "Units", value: r.units },
+        { label: "SKUs", value: r.skuCount, tileClass: "tlb-customer-summary-tile--info" },
+        { label: "Units", value: r.units, tileClass: "tlb-customer-summary-tile--gold" },
         { label: "Code", value: r.code },
         { label: "Status", value: r.active ? "Open" : "Closed" },
       ]}
@@ -371,7 +591,7 @@ export function WarehousesModule({ store }: { store: TlbStoreApi }) {
         { label: "Code", value: r.code },
         { label: "Location", value: r.location },
         { label: "Active", value: r.active ? "Yes" : "No" },
-        { label: "Stock summary", value: r.valueHint },
+        { label: "Stock summary", value: r.valueHint, span: 2 },
       ]}
       historyGroups={(r) => {
         const bals = state.stock.filter((s) => s.warehouseId === r.id);
@@ -379,6 +599,7 @@ export function WarehousesModule({ store }: { store: TlbStoreApi }) {
           {
             title: "Stock on hand",
             empty: "No stock in this warehouse.",
+            tone: "stock" as const,
             headers: ["Product", "SKU", "Physical", "Reserved", "Available"],
             rows: bals.map((b) => {
               const p = state.products.find((x) => x.id === b.productId);

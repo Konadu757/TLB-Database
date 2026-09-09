@@ -818,6 +818,7 @@ export function TLBDashboard() {
                 store={store}
                 rangeSelection={rangeSelection}
                 selectedSupplierId={selectedSupplierId}
+                onSelectSupplier={setSelectedSupplierId}
               />
             ) : activeNav === "Quotations" ? (
               <QuotationsModule range={listRange} periodLabel={listPeriodLabel} />

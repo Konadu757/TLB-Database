@@ -1,10 +1,25 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { ChevronRight, Search } from "lucide-react";
 
 import type { DateRange } from "@/lib/domain/period-range";
 import { isoInRange } from "@/lib/domain/period-range";
 
 export type RecordTone = "success" | "warning" | "info" | "danger" | "neutral";
+
+export type DetailSectionTone =
+  | "summary"
+  | "profile"
+  | "activity"
+  | "orders"
+  | "lines"
+  | "history"
+  | "stock"
+  | "outstanding"
+  | "invoices"
+  | "receipts"
+  | "payments"
+  | "deliveries"
+  | "supplies";
 
 export interface BrowserColumn<T> {
   key: string;
@@ -24,6 +39,14 @@ export interface BrowserHistoryGroup {
   empty: string;
   rows: Array<{ id: string; cells: ReactNode[] }>;
   headers?: string[];
+  tone?: DetailSectionTone;
+}
+
+export interface DetailSummaryItem {
+  label: string;
+  value: ReactNode;
+  note?: string;
+  tileClass?: string;
 }
 
 function StatusBadge({ children, tone }: { children: ReactNode; tone: string }) {
@@ -59,7 +82,115 @@ export function filterByPeriodDate(
   return isoInRange(dateIso, range);
 }
 
-/** Shared list + detail pane used by Quotations and other list modules. */
+export function RecordDetailHeader({
+  backLabel,
+  onBack,
+  code,
+  title,
+  subtitle,
+  badges,
+  actions,
+}: {
+  backLabel: string;
+  onBack: () => void;
+  code?: ReactNode;
+  title: ReactNode;
+  subtitle?: ReactNode;
+  badges?: ReactNode;
+  actions?: ReactNode;
+}) {
+  return (
+    <header className="tlb-record-detail-header tlb-customer-detail-header">
+      <button type="button" className="tlb-text-link" onClick={onBack}>
+        ← {backLabel}
+      </button>
+      <div className="tlb-record-detail-header-row tlb-customer-detail-header-row">
+        <div className="tlb-record-detail-identity tlb-customer-detail-identity">
+          {code ? <span className="tlb-record-detail-code tlb-customer-detail-code">{code}</span> : null}
+          <strong>{title}</strong>
+          {subtitle ? <p className="tlb-muted-line">{subtitle}</p> : null}
+        </div>
+        <div className="tlb-record-detail-actions tlb-customer-detail-actions">
+          {badges ? <div className="tlb-record-detail-badges tlb-customer-detail-badges">{badges}</div> : null}
+          {actions}
+        </div>
+      </div>
+    </header>
+  );
+}
+
+export function RecordDetailSection({
+  tone = "profile",
+  kicker,
+  title,
+  actions,
+  span2,
+  children,
+}: {
+  tone?: DetailSectionTone;
+  kicker: string;
+  title: string;
+  actions?: ReactNode;
+  span2?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <article
+      className={`tlb-panel tlb-record-detail-section tlb-customer-detail-section tlb-record-detail-section--${tone} tlb-customer-detail-section--${tone}${span2 ? " tlb-span-2" : ""}`}
+    >
+      <div className="tlb-panel-heading">
+        <div>
+          <span>{kicker}</span>
+          <strong>{title}</strong>
+        </div>
+        {actions}
+      </div>
+      {children}
+    </article>
+  );
+}
+
+export function RecordDetailPage({
+  backLabel,
+  onBack,
+  code,
+  title,
+  subtitle,
+  badges,
+  actions,
+  children,
+  flash,
+}: {
+  backLabel: string;
+  onBack: () => void;
+  code?: ReactNode;
+  title: ReactNode;
+  subtitle?: ReactNode;
+  badges?: ReactNode;
+  actions?: ReactNode;
+  children: ReactNode;
+  flash?: ReactNode;
+}) {
+  return (
+    <div className="tlb-module tlb-record-detail-page tlb-customer-detail-page">
+      {flash}
+      <RecordDetailHeader
+        backLabel={backLabel}
+        onBack={onBack}
+        {...(code !== undefined ? { code } : {})}
+        title={title}
+        {...(subtitle !== undefined ? { subtitle } : {})}
+        {...(badges !== undefined ? { badges } : {})}
+        {...(actions !== undefined ? { actions } : {})}
+      />
+      <section className="tlb-detail-sections tlb-record-detail tlb-customer-detail">{children}</section>
+    </div>
+  );
+}
+
+/**
+ * Full-width list → dedicated full-page detail (replaces side-pane RecordBrowser).
+ */
 export function RecordBrowser<T extends { id: string }>({
   kicker,
   title,
@@ -73,14 +204,18 @@ export function RecordBrowser<T extends { id: string }>({
   getSearchValues,
   selectedId,
   onSelect,
+  onBack,
+  backLabel,
   statusOf,
   detailTitle,
   detailSubtitle,
+  detailCode,
   detailFields,
   detailSummary,
   historyGroups,
   periodLabel,
   toolbarExtra,
+  listExtra,
 }: {
   kicker: string;
   title: string;
@@ -94,37 +229,119 @@ export function RecordBrowser<T extends { id: string }>({
   getSearchValues: (row: T) => Array<string | number | null | undefined>;
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onBack: () => void;
+  backLabel?: string;
   statusOf?: (row: T) => { label: string; tone: string };
   detailTitle: (row: T) => string;
   detailSubtitle?: (row: T) => string;
+  detailCode?: (row: T) => ReactNode;
   detailFields: (row: T) => BrowserField[];
-  detailSummary?: (row: T) => Array<{ label: string; value: ReactNode; note?: string }>;
+  detailSummary?: (row: T) => DetailSummaryItem[];
   historyGroups?: (row: T) => BrowserHistoryGroup[];
   periodLabel?: string;
   toolbarExtra?: ReactNode;
+  listExtra?: ReactNode;
 }) {
-  const detailRef = useRef<HTMLElement | null>(null);
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
     return rows.filter((row) => matchesSearch(getSearchValues(row), search));
   }, [rows, search, getSearchValues]);
 
-  useEffect(() => {
-    if (selectedId && !filtered.some((r) => r.id === selectedId) && filtered[0]) {
-      onSelect(filtered[0].id);
-    }
-  }, [filtered, selectedId, onSelect]);
-
-  const selected = filtered.find((r) => r.id === selectedId) ?? rows.find((r) => r.id === selectedId) ?? null;
+  const selected = rows.find((r) => r.id === selectedId) ?? null;
   const hasSearch = search.trim().length > 0;
 
-  const selectRow = (id: string) => {
-    onSelect(id);
-    requestAnimationFrame(() => {
-      detailRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    });
-  };
+  if (selectedId) {
+    if (!selected) {
+      return (
+        <div className="tlb-module">
+          <EmptyState title="Record not found" detail="The selected record is no longer available." />
+          <button type="button" className="tlb-text-link" onClick={onBack}>
+            ← {backLabel ?? title}
+          </button>
+        </div>
+      );
+    }
+
+    const status = statusOf?.(selected);
+    const groups = historyGroups?.(selected) ?? [];
+    const summary = detailSummary?.(selected) ?? [];
+
+    return (
+      <RecordDetailPage
+        backLabel={backLabel ?? title}
+        onBack={onBack}
+        code={detailCode?.(selected) ?? selected.id.slice(0, 12)}
+        title={detailTitle(selected)}
+        subtitle={detailSubtitle?.(selected) ?? kicker}
+        badges={status ? <StatusBadge tone={status.tone}>{status.label}</StatusBadge> : null}
+      >
+        {summary.length > 0 ? (
+          <RecordDetailSection tone="summary" kicker="Overview" title="Summary" span2>
+            <div className="tlb-customer-summary" aria-label="Record summary">
+              {summary.map((item) => (
+                <div key={item.label} className={item.tileClass}>
+                  <span>{item.label}</span>
+                  <strong>
+                    {item.value}
+                    {item.note ? <small>{item.note}</small> : null}
+                  </strong>
+                </div>
+              ))}
+            </div>
+          </RecordDetailSection>
+        ) : null}
+
+        <RecordDetailSection tone="profile" kicker={kicker} title="Details" span2>
+          <dl className="tlb-kv">
+            {detailFields(selected).map((field) => (
+              <div key={field.label} className={field.span === 2 ? "tlb-span-2" : undefined}>
+                <dt>{field.label}</dt>
+                <dd>{field.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </RecordDetailSection>
+
+        {groups.map((group) => (
+          <RecordDetailSection
+            key={group.title}
+            tone={group.tone ?? (group.title.toLowerCase().includes("line") ? "lines" : "history")}
+            kicker="Related"
+            title={group.title}
+            span2
+          >
+            {group.rows.length === 0 ? (
+              <EmptyState title={group.empty} detail="Nothing linked for this record yet." />
+            ) : (
+              <div className="tlb-table-scroll tlb-orders-panel">
+                <table>
+                  {group.headers ? (
+                    <thead>
+                      <tr>
+                        {group.headers.map((h) => (
+                          <th key={h}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                  ) : null}
+                  <tbody>
+                    {group.rows.map((r) => (
+                      <tr key={r.id}>
+                        {r.cells.map((cell, i) => (
+                          <td key={`${r.id}-${i}`}>{cell}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </RecordDetailSection>
+        ))}
+      </RecordDetailPage>
+    );
+  }
 
   return (
     <div className="tlb-module">
@@ -149,158 +366,86 @@ export function RecordBrowser<T extends { id: string }>({
         </div>
       </div>
 
-      <div className="tlb-split">
-        <article className="tlb-panel tlb-orders-panel">
-          <div className="tlb-table-scroll">
-            {rows.length === 0 ? (
-              <EmptyState title={emptyTitle} detail={emptyDetail} />
-            ) : filtered.length === 0 ? (
-              <EmptyState title="No records match your search." detail={noMatchDetail} />
-            ) : (
-              <table>
-                <thead>
-                  <tr>
-                    {columns.map((col) => (
-                      <th key={col.key} className={col.className}>
-                        {col.header}
-                      </th>
-                    ))}
-                    {statusOf ? <th>Status</th> : null}
-                    <th>
-                      <span className="sr-only">Open</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((row) => {
-                    const isSelected = selected?.id === row.id;
-                    const status = statusOf?.(row);
-                    return (
-                      <tr
-                        key={row.id}
-                        className={`tlb-row-clickable${isSelected ? " tlb-row-active" : ""}`}
-                        tabIndex={0}
-                        aria-selected={isSelected}
-                        onClick={() => selectRow(row.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            selectRow(row.id);
-                          }
-                        }}
-                      >
-                        {columns.map((col) => (
-                          <td key={col.key} className={col.className}>
-                            {col.render(row)}
-                          </td>
-                        ))}
-                        {status ? (
-                          <td>
-                            <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
-                          </td>
-                        ) : null}
-                        <td>
-                          <button
-                            type="button"
-                            aria-label={`View ${detailTitle(row)}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              selectRow(row.id);
-                            }}
-                          >
-                            <ChevronRight />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
-          {hasSearch && filtered.length > 0 ? (
-            <div className="tlb-list-meta">
-              Showing {filtered.length} of {rows.length} records
-            </div>
-          ) : periodLabel && rows.length > 0 ? (
-            <div className="tlb-list-meta">{rows.length} record{rows.length === 1 ? "" : "s"} in period</div>
-          ) : null}
-        </article>
+      {listExtra}
 
-        <article className="tlb-panel tlb-detail-panel" ref={detailRef} key={selected?.id ?? "none"}>
-          {selected ? (
-            <>
-              <div className="tlb-panel-heading">
-                <div>
-                  <span>{kicker}</span>
-                  <strong>{detailTitle(selected)}</strong>
-                  {detailSubtitle ? <p className="tlb-muted-line">{detailSubtitle(selected)}</p> : null}
-                </div>
-                {statusOf ? (
-                  <StatusBadge tone={statusOf(selected).tone}>{statusOf(selected).label}</StatusBadge>
-                ) : null}
-              </div>
-
-              {detailSummary ? (
-                <div className="tlb-customer-summary">
-                  {detailSummary(selected).map((item) => (
-                    <div key={item.label}>
-                      <span>{item.label}</span>
-                      <strong>
-                        {item.value}
-                        {item.note ? <small>{item.note}</small> : null}
-                      </strong>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-
-              <dl className="tlb-kv">
-                {detailFields(selected).map((field) => (
-                  <div key={field.label} className={field.span === 2 ? "tlb-span-2" : undefined}>
-                    <dt>{field.label}</dt>
-                    <dd>{field.value}</dd>
-                  </div>
-                ))}
-              </dl>
-
-              {(historyGroups?.(selected) ?? []).map((group) => (
-                <div key={group.title}>
-                  <div className="tlb-subheading">{group.title}</div>
-                  {group.rows.length === 0 ? (
-                    <EmptyState title={group.empty} detail="Nothing linked for this record yet." />
-                  ) : (
-                    <div className="tlb-table-scroll">
-                      <table>
-                        {group.headers ? (
-                          <thead>
-                            <tr>
-                              {group.headers.map((h) => (
-                                <th key={h}>{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                        ) : null}
-                        <tbody>
-                          {group.rows.map((r) => (
-                            <tr key={r.id}>
-                              {r.cells.map((cell, i) => (
-                                <td key={`${r.id}-${i}`}>{cell}</td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </>
+      <article className="tlb-panel tlb-orders-panel tlb-customers-list-panel">
+        <div className="tlb-table-scroll">
+          {rows.length === 0 ? (
+            <EmptyState title={emptyTitle} detail={emptyDetail} />
+          ) : filtered.length === 0 ? (
+            <EmptyState title="No records match your search." detail={noMatchDetail} />
           ) : (
-            <EmptyState title="Select a record" detail="Choose a row to open full details and related history." />
+            <table className="tlb-customers-table">
+              <thead>
+                <tr>
+                  {columns.map((col) => (
+                    <th key={col.key} className={col.className}>
+                      {col.header}
+                    </th>
+                  ))}
+                  {statusOf ? <th className="tlb-col-priority">Status</th> : null}
+                  <th>
+                    <span className="sr-only">Open</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((row) => {
+                  const status = statusOf?.(row);
+                  return (
+                    <tr
+                      key={row.id}
+                      className="tlb-row-clickable"
+                      tabIndex={0}
+                      onClick={() => onSelect(row.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onSelect(row.id);
+                        }
+                      }}
+                    >
+                      {columns.map((col) => (
+                        <td key={col.key} className={col.className}>
+                          {col.render(row)}
+                        </td>
+                      ))}
+                      {status ? (
+                        <td className="tlb-col-priority">
+                          <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                        </td>
+                      ) : null}
+                      <td>
+                        <button
+                          type="button"
+                          aria-label={`View ${detailTitle(row)}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelect(row.id);
+                          }}
+                        >
+                          <ChevronRight />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
-        </article>
-      </div>
+        </div>
+        {hasSearch && filtered.length > 0 ? (
+          <div className="tlb-list-meta">
+            Showing {filtered.length} of {rows.length} records
+          </div>
+        ) : periodLabel && rows.length > 0 ? (
+          <div className="tlb-list-meta">
+            {rows.length} record{rows.length === 1 ? "" : "s"} in period
+          </div>
+        ) : null}
+      </article>
     </div>
   );
 }
+
+export { StatusBadge, EmptyState };

@@ -466,7 +466,10 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-customers-list-panel { width: 100%; }
 
 /* —— Customer detail page: color-coded identification —— */
+/* Shared full-page record detail (Customers + all list→detail modules) */
+.tlb-record-detail-page,
 .tlb-customer-detail-page { gap: 14px; }
+.tlb-record-detail-header,
 .tlb-customer-detail-header {
   display: flex; flex-direction: column; gap: 12px;
   padding: 14px 16px 16px;
@@ -477,108 +480,155 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   border-left: 4px solid var(--primary);
   box-shadow: 0 2px 8px color-mix(in oklab, var(--foreground) 4%, transparent);
 }
+.tlb-record-detail-header .tlb-text-link,
 .tlb-customer-detail-header .tlb-text-link { color: var(--primary); }
+.tlb-record-detail-header-row,
 .tlb-customer-detail-header-row {
   display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap;
 }
+.tlb-record-detail-identity,
 .tlb-customer-detail-identity { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.tlb-record-detail-code,
 .tlb-customer-detail-code {
   display: inline-flex; width: fit-content;
   padding: 2px 8px; border-radius: 4px;
   background: color-mix(in oklab, var(--primary) 12%, white);
   color: var(--primary); font-size: 10px; font-weight: 800; letter-spacing: 0.04em;
 }
+.tlb-record-detail-identity strong,
 .tlb-customer-detail-identity strong {
   display: block; font-size: 20px; line-height: 1.2; color: var(--foreground);
 }
+.tlb-record-detail-identity .tlb-muted-line,
 .tlb-customer-detail-identity .tlb-muted-line { margin: 0; }
+.tlb-record-detail-actions,
 .tlb-customer-detail-actions {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end;
 }
+.tlb-record-detail-badges,
 .tlb-customer-detail-badges { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
+.tlb-record-detail,
 .tlb-customer-detail { gap: 16px; }
+.tlb-record-detail > .tlb-panel,
 .tlb-customer-detail > .tlb-panel { min-width: 0; }
+.tlb-record-detail-section,
 .tlb-customer-detail-section {
   border-left: 3px solid var(--primary);
   background: #fff;
 }
+.tlb-record-detail-section .tlb-panel-heading,
 .tlb-customer-detail-section .tlb-panel-heading {
   background: color-mix(in oklab, var(--info-muted) 55%, white);
   border-bottom-color: color-mix(in oklab, var(--primary) 18%, var(--border));
 }
+.tlb-record-detail-section .tlb-panel-heading span,
 .tlb-customer-detail-section .tlb-panel-heading span {
   color: var(--primary); letter-spacing: 0.04em;
 }
+.tlb-record-detail-section--summary,
 .tlb-customer-detail-section--summary {
   border-left-color: var(--brand-gold);
 }
+.tlb-record-detail-section--summary .tlb-panel-heading,
 .tlb-customer-detail-section--summary .tlb-panel-heading {
   background: color-mix(in oklab, var(--brand-gold-muted) 70%, white);
 }
+.tlb-record-detail-section--summary .tlb-panel-heading span,
 .tlb-customer-detail-section--summary .tlb-panel-heading span { color: var(--warning-foreground); }
+.tlb-record-detail-section--profile,
 .tlb-customer-detail-section--profile {
   border-left-color: var(--primary);
 }
+.tlb-record-detail-section--profile .tlb-panel-heading,
 .tlb-customer-detail-section--profile .tlb-panel-heading {
   background: color-mix(in oklab, var(--info-muted) 70%, white);
 }
+.tlb-record-detail-section--activity,
+.tlb-record-detail-section--history,
 .tlb-customer-detail-section--activity {
   border-left-color: var(--info);
 }
+.tlb-record-detail-section--activity .tlb-panel-heading,
+.tlb-record-detail-section--history .tlb-panel-heading,
 .tlb-customer-detail-section--activity .tlb-panel-heading {
   background: color-mix(in oklab, var(--info-muted) 65%, white);
 }
+.tlb-record-detail-section--orders,
+.tlb-record-detail-section--lines,
 .tlb-customer-detail-section--orders {
   border-left-color: var(--primary);
 }
+.tlb-record-detail-section--orders .tlb-panel-heading,
+.tlb-record-detail-section--lines .tlb-panel-heading,
 .tlb-customer-detail-section--orders .tlb-panel-heading {
   background: color-mix(in oklab, var(--info-muted) 60%, white);
 }
+.tlb-record-detail-section--stock,
+.tlb-record-detail-section--supplies,
 .tlb-customer-detail-section--supplies {
   border-left-color: var(--brand-gold);
 }
+.tlb-record-detail-section--stock .tlb-panel-heading,
+.tlb-record-detail-section--supplies .tlb-panel-heading,
 .tlb-customer-detail-section--supplies .tlb-panel-heading {
   background: color-mix(in oklab, var(--brand-gold-muted) 65%, white);
 }
+.tlb-record-detail-section--stock .tlb-panel-heading span,
+.tlb-record-detail-section--supplies .tlb-panel-heading span,
 .tlb-customer-detail-section--supplies .tlb-panel-heading span { color: var(--warning-foreground); }
+.tlb-record-detail-section--outstanding,
 .tlb-customer-detail-section--outstanding {
   border-left-color: var(--warning);
 }
+.tlb-record-detail-section--outstanding .tlb-panel-heading,
 .tlb-customer-detail-section--outstanding .tlb-panel-heading {
   background: color-mix(in oklab, var(--warning-muted) 75%, white);
 }
+.tlb-record-detail-section--outstanding .tlb-panel-heading span,
 .tlb-customer-detail-section--outstanding .tlb-panel-heading span { color: var(--warning-foreground); }
+.tlb-record-detail-section--invoices,
 .tlb-customer-detail-section--invoices {
   border-left-color: var(--info);
 }
+.tlb-record-detail-section--invoices .tlb-panel-heading,
 .tlb-customer-detail-section--invoices .tlb-panel-heading {
   background: color-mix(in oklab, var(--info-muted) 70%, white);
 }
+.tlb-record-detail-section--receipts,
 .tlb-customer-detail-section--receipts {
   border-left-color: var(--success);
 }
+.tlb-record-detail-section--receipts .tlb-panel-heading,
 .tlb-customer-detail-section--receipts .tlb-panel-heading {
   background: color-mix(in oklab, var(--success-muted) 70%, white);
 }
+.tlb-record-detail-section--receipts .tlb-panel-heading span,
 .tlb-customer-detail-section--receipts .tlb-panel-heading span { color: var(--success); }
+.tlb-record-detail-section--deliveries,
 .tlb-customer-detail-section--deliveries {
   border-left-color: var(--info);
 }
+.tlb-record-detail-section--deliveries .tlb-panel-heading,
 .tlb-customer-detail-section--deliveries .tlb-panel-heading {
   background: color-mix(in oklab, var(--info-muted) 55%, white);
 }
+.tlb-record-detail-section--payments,
 .tlb-customer-detail-section--payments {
   border-left-color: var(--success);
 }
+.tlb-record-detail-section--payments .tlb-panel-heading,
 .tlb-customer-detail-section--payments .tlb-panel-heading {
   background: color-mix(in oklab, var(--success-muted) 65%, white);
 }
+.tlb-record-detail-section--payments .tlb-panel-heading span,
 .tlb-customer-detail-section--payments .tlb-panel-heading span { color: var(--success); }
 
+.tlb-record-detail .tlb-customer-summary,
 .tlb-customer-detail .tlb-customer-summary {
   background: color-mix(in oklab, var(--cream-light) 80%, white);
 }
+.tlb-record-detail .tlb-customer-summary > div,
 .tlb-customer-detail .tlb-customer-summary > div {
   background: #fff;
 }
@@ -606,11 +656,14 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-customer-summary-tile--danger strong { color: var(--danger); }
 .tlb-customer-summary-tile--success strong { color: var(--success); }
 
+.tlb-record-detail .tlb-kv,
 .tlb-customer-detail .tlb-kv {
   background: color-mix(in oklab, var(--cream-light) 50%, white);
 }
+.tlb-record-detail .tlb-kv dt,
 .tlb-customer-detail .tlb-kv dt { color: var(--primary); }
 
+.tlb-record-detail .tlb-activity-list span,
 .tlb-customer-detail .tlb-activity-list span {
   display: inline-flex; width: fit-content; padding: 2px 6px; border-radius: 4px;
   background: var(--info-muted); color: var(--info);
@@ -622,15 +675,22 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-activity-kind--payment { background: var(--success-muted) !important; color: var(--success) !important; }
 .tlb-activity-kind--delivery { background: color-mix(in oklab, var(--info-muted) 70%, var(--brand-gold-muted)) !important; color: var(--info) !important; }
 
+.tlb-record-detail .tlb-orders-panel th,
 .tlb-customer-detail .tlb-orders-panel th {
   background: color-mix(in oklab, var(--info-muted) 45%, var(--muted));
   color: var(--primary); font-weight: 800; letter-spacing: 0.03em;
 }
+.tlb-record-detail-section--outstanding .tlb-orders-panel th,
+.tlb-record-detail-section--outstanding th,
 .tlb-customer-detail-section--outstanding .tlb-orders-panel th,
 .tlb-customer-detail-section--outstanding th {
   background: color-mix(in oklab, var(--warning-muted) 55%, var(--muted));
   color: var(--warning-foreground);
 }
+.tlb-record-detail-section--receipts .tlb-orders-panel th,
+.tlb-record-detail-section--payments .tlb-orders-panel th,
+.tlb-record-detail-section--receipts th,
+.tlb-record-detail-section--payments th,
 .tlb-customer-detail-section--receipts .tlb-orders-panel th,
 .tlb-customer-detail-section--payments .tlb-orders-panel th,
 .tlb-customer-detail-section--receipts th,
@@ -638,21 +698,30 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   background: color-mix(in oklab, var(--success-muted) 50%, var(--muted));
   color: var(--success);
 }
+.tlb-record-detail-section--stock .tlb-orders-panel th,
+.tlb-record-detail-section--supplies .tlb-orders-panel th,
+.tlb-record-detail-section--stock th,
+.tlb-record-detail-section--supplies th,
 .tlb-customer-detail-section--supplies .tlb-orders-panel th,
 .tlb-customer-detail-section--supplies th {
   background: color-mix(in oklab, var(--brand-gold-muted) 55%, var(--muted));
   color: var(--warning-foreground);
 }
+.tlb-record-detail .tlb-orders-panel tbody tr:hover,
 .tlb-customer-detail .tlb-orders-panel tbody tr:hover {
   background: color-mix(in oklab, var(--brand-gold-muted) 40%, white);
 }
+.tlb-record-detail .status-badge,
 .tlb-customer-detail .status-badge {
   border: 1px solid color-mix(in oklab, currentColor 18%, transparent);
 }
 
 @media (max-width: 640px) {
+  .tlb-record-detail-header,
   .tlb-customer-detail-header { padding: 12px; }
+  .tlb-record-detail-identity strong,
   .tlb-customer-detail-identity strong { font-size: 17px; }
+  .tlb-record-detail-actions,
   .tlb-customer-detail-actions { width: 100%; justify-content: flex-start; }
 }
 .tlb-line-editor { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--cream-light); }
