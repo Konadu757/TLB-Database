@@ -8,8 +8,10 @@ import {
   StatusBadge,
   EmptyState,
 } from "@/components/modules/record-browser";
+import { MoveToTrashButton } from "@/components/modules/move-to-trash-button";
 import { Button } from "@/components/ui/button";
 import { statusTone } from "@/lib/domain/calculations";
+import { isSoftDeleted, notSoftDeleted } from "@/lib/domain/trash";
 import type { PaymentTerms, Supplier, SupplierCategory } from "@/lib/domain/types";
 import {
   type DashboardRangeSelection,
@@ -209,10 +211,12 @@ export function SuppliersModule({
     return { pos, poValue, receipts, spend };
   }, [periodStatsBySupplier]);
 
+  const activeSuppliers = useMemo(() => notSoftDeleted(state.suppliers), [state.suppliers]);
+
   const filteredSuppliers = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return state.suppliers;
-    return state.suppliers.filter((s) => {
+    if (!q) return activeSuppliers;
+    return activeSuppliers.filter((s) => {
       const hay = [
         s.code,
         s.name,
@@ -229,7 +233,7 @@ export function SuppliersModule({
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [state.suppliers, search]);
+  }, [activeSuppliers, search]);
 
   if (selectedSupplierId) {
     return (
@@ -339,7 +343,7 @@ export function SuppliersModule({
 
       <article className="tlb-panel tlb-orders-panel tlb-customers-panel tlb-customers-list-panel">
         <div className="tlb-table-scroll">
-          {state.suppliers.length === 0 ? (
+          {activeSuppliers.length === 0 ? (
             <EmptyState title="No suppliers" detail="Create a supplier account to track procurement." />
           ) : filteredSuppliers.length === 0 ? (
             <EmptyState
@@ -430,7 +434,7 @@ export function SuppliersModule({
         </div>
         {hasSearch && filteredSuppliers.length > 0 ? (
           <div className="tlb-list-meta">
-            Showing {filteredSuppliers.length} of {state.suppliers.length} suppliers
+            Showing {filteredSuppliers.length} of {activeSuppliers.length} suppliers
           </div>
         ) : null}
       </article>
@@ -450,7 +454,7 @@ function SupplierDetailModule({
   onBack: () => void;
 }) {
   const { state } = store;
-  const selected = state.suppliers.find((s) => s.id === supplierId) ?? null;
+  const selected = state.suppliers.find((s) => s.id === supplierId && !isSoftDeleted(s)) ?? null;
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(emptySupplierForm);
 
@@ -630,9 +634,18 @@ function SupplierDetailModule({
         </>
       }
       actions={
-        <Button type="button" variant="outline" onClick={() => startEdit(selected)}>
-          Edit supplier
-        </Button>
+        <>
+          <Button type="button" variant="outline" onClick={() => startEdit(selected)}>
+            Edit supplier
+          </Button>
+          <MoveToTrashButton
+            store={store}
+            entityType="supplier"
+            entityId={selected.id}
+            recordLabel={`${selected.code} · ${selected.name}`}
+            onTrashed={onBack}
+          />
+        </>
       }
       flash={<Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />}
     >

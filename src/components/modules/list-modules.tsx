@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { MoveToTrashButton } from "@/components/modules/move-to-trash-button";
 import {
   RecordBrowser,
   type BrowserColumn,
@@ -11,7 +12,14 @@ import {
 } from "@/lib/domain/list-catalog";
 import type { DateRange } from "@/lib/domain/period-range";
 import { calcAvailable } from "@/lib/domain/calculations";
+import { catalogDeletionSet, catalogPurgedSet, notSoftDeleted } from "@/lib/domain/trash";
 import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
+
+type CatalogModuleProps = {
+  range?: DateRange | null | undefined;
+  periodLabel?: string | undefined;
+  store?: TlbStoreApi;
+};
 
 function formatWhen(iso: string): string {
   try {
@@ -30,11 +38,13 @@ function CatalogModule({
   range,
   periodLabel,
   listColumns,
+  store,
 }: {
   module: string;
   range?: DateRange | null | undefined;
   periodLabel?: string | undefined;
   listColumns?: BrowserColumn<CatalogRecord>[];
+  store?: TlbStoreApi;
 }) {
   const meta = MODULE_META[module] ?? {
     kicker: "TLB",
@@ -44,11 +54,16 @@ function CatalogModule({
     emptyDetail: "Nothing to show for this filter.",
   };
 
+  const hideIds = useMemo(() => {
+    if (!store) return undefined;
+    return new Set([...catalogDeletionSet(store.state), ...catalogPurgedSet(store.state)]);
+  }, [store, store?.state.catalogDeletions, store?.state.catalogPurgedIds]);
+
   const rows = useMemo(
-    () => recordsForModule(module, range),
+    () => recordsForModule(module, range, hideIds ? { hideIds } : undefined),
     // Depend on range bounds so period chip changes always refilter lists.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- range object identity is unstable
-    [module, range?.from, range?.to],
+    [module, range?.from, range?.to, hideIds],
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -97,6 +112,19 @@ function CatalogModule({
       detailSubtitle={(row) => row.secondary}
       detailCode={(row) => row.primary}
       {...(periodLabel ? { periodLabel } : {})}
+      {...(store
+        ? {
+            detailActions: (row: CatalogRecord) => (
+              <MoveToTrashButton
+                store={store}
+                entityType="catalog"
+                entityId={row.id}
+                recordLabel={`${module} ${row.primary}`}
+                onTrashed={onBack}
+              />
+            ),
+          }
+        : {})}
       detailSummary={(row) =>
         (row.summary ?? []).map((s) => ({
           label: s.label,
@@ -169,16 +197,14 @@ const quotationColumns: BrowserColumn<CatalogRecord>[] = [
   },
 ];
 
-export function QuotationsModule(props: {
-  range?: DateRange | null | undefined;
-  periodLabel?: string | undefined;
-}) {
+export function QuotationsModule(props: CatalogModuleProps) {
   return (
     <CatalogModule
       module="Quotations"
-      range={props.range}
-      periodLabel={props.periodLabel}
       listColumns={quotationColumns}
+      {...(props.range !== undefined ? { range: props.range } : {})}
+      {...(props.periodLabel !== undefined ? { periodLabel: props.periodLabel } : {})}
+      {...(props.store ? { store: props.store } : {})}
     />
   );
 }
@@ -204,12 +230,15 @@ const batchColumns: BrowserColumn<CatalogRecord>[] = [
   },
 ];
 
-export function BatchesModule(props: {
-  range?: DateRange | null | undefined;
-  periodLabel?: string | undefined;
-}) {
+export function BatchesModule(props: CatalogModuleProps) {
   return (
-    <CatalogModule module="Batches" range={props.range} periodLabel={props.periodLabel} listColumns={batchColumns} />
+    <CatalogModule
+      module="Batches"
+      listColumns={batchColumns}
+      {...(props.range !== undefined ? { range: props.range } : {})}
+      {...(props.periodLabel !== undefined ? { periodLabel: props.periodLabel } : {})}
+      {...(props.store ? { store: props.store } : {})}
+    />
   );
 }
 
@@ -234,16 +263,14 @@ const movementColumns: BrowserColumn<CatalogRecord>[] = [
   },
 ];
 
-export function StockMovementsModule(props: {
-  range?: DateRange | null | undefined;
-  periodLabel?: string | undefined;
-}) {
+export function StockMovementsModule(props: CatalogModuleProps) {
   return (
     <CatalogModule
       module="Stock Movements"
-      range={props.range}
-      periodLabel={props.periodLabel}
       listColumns={movementColumns}
+      {...(props.range !== undefined ? { range: props.range } : {})}
+      {...(props.periodLabel !== undefined ? { periodLabel: props.periodLabel } : {})}
+      {...(props.store ? { store: props.store } : {})}
     />
   );
 }
@@ -275,16 +302,14 @@ const procurementColumns: BrowserColumn<CatalogRecord>[] = [
   },
 ];
 
-export function ProcurementModule(props: {
-  range?: DateRange | null | undefined;
-  periodLabel?: string | undefined;
-}) {
+export function ProcurementModule(props: CatalogModuleProps) {
   return (
     <CatalogModule
       module="Procurement"
-      range={props.range}
-      periodLabel={props.periodLabel}
       listColumns={procurementColumns}
+      {...(props.range !== undefined ? { range: props.range } : {})}
+      {...(props.periodLabel !== undefined ? { periodLabel: props.periodLabel } : {})}
+      {...(props.store ? { store: props.store } : {})}
     />
   );
 }
@@ -310,16 +335,14 @@ const shipmentColumns: BrowserColumn<CatalogRecord>[] = [
   },
 ];
 
-export function ImportExportModule(props: {
-  range?: DateRange | null | undefined;
-  periodLabel?: string | undefined;
-}) {
+export function ImportExportModule(props: CatalogModuleProps) {
   return (
     <CatalogModule
       module="Import & Export"
-      range={props.range}
-      periodLabel={props.periodLabel}
       listColumns={shipmentColumns}
+      {...(props.range !== undefined ? { range: props.range } : {})}
+      {...(props.periodLabel !== undefined ? { periodLabel: props.periodLabel } : {})}
+      {...(props.store ? { store: props.store } : {})}
     />
   );
 }
@@ -345,12 +368,15 @@ const factoryColumns: BrowserColumn<CatalogRecord>[] = [
   },
 ];
 
-export function FactoryModule(props: {
-  range?: DateRange | null | undefined;
-  periodLabel?: string | undefined;
-}) {
+export function FactoryModule(props: CatalogModuleProps) {
   return (
-    <CatalogModule module="Factory" range={props.range} periodLabel={props.periodLabel} listColumns={factoryColumns} />
+    <CatalogModule
+      module="Factory"
+      listColumns={factoryColumns}
+      {...(props.range !== undefined ? { range: props.range } : {})}
+      {...(props.periodLabel !== undefined ? { periodLabel: props.periodLabel } : {})}
+      {...(props.store ? { store: props.store } : {})}
+    />
   );
 }
 
@@ -375,16 +401,14 @@ const qcColumns: BrowserColumn<CatalogRecord>[] = [
   },
 ];
 
-export function QualityControlModule(props: {
-  range?: DateRange | null | undefined;
-  periodLabel?: string | undefined;
-}) {
+export function QualityControlModule(props: CatalogModuleProps) {
   return (
     <CatalogModule
       module="Quality Control"
-      range={props.range}
-      periodLabel={props.periodLabel}
       listColumns={qcColumns}
+      {...(props.range !== undefined ? { range: props.range } : {})}
+      {...(props.periodLabel !== undefined ? { periodLabel: props.periodLabel } : {})}
+      {...(props.store ? { store: props.store } : {})}
     />
   );
 }
@@ -413,13 +437,13 @@ export function ProductsModule({
 }) {
   const { state } = store;
   const rows = useMemo<ProductRow[]>(() => {
-    return state.products.map((p) => {
+    return notSoftDeleted(state.products).map((p) => {
       const bals = state.stock.filter((s) => s.productId === p.id);
       const onHand = bals.reduce((n, b) => n + b.physicalQty, 0);
       const reserved = bals.reduce((n, b) => n + b.reservedQty, 0);
       const available = bals.reduce((n, b) => n + calcAvailable(b), 0);
       const warehouses = bals
-        .map((b) => state.warehouses.find((w) => w.id === b.warehouseId)?.name)
+        .map((b) => notSoftDeleted(state.warehouses).find((w) => w.id === b.warehouseId)?.name)
         .filter(Boolean)
         .join(", ");
       return {
@@ -492,6 +516,15 @@ export function ProductsModule({
       detailTitle={(r) => r.name}
       detailSubtitle={(r) => `${r.sku} · ${r.unit}`}
       detailCode={(r) => r.sku}
+      detailActions={(r) => (
+        <MoveToTrashButton
+          store={store}
+          entityType="product"
+          entityId={r.id}
+          recordLabel={`${r.sku} · ${r.name}`}
+          onTrashed={onBack}
+        />
+      )}
       detailSummary={(r) => [
         { label: "On hand", value: r.onHand, tileClass: "tlb-customer-summary-tile--info" },
         { label: "Reserved", value: r.reserved, tileClass: "tlb-customer-summary-tile--gold" },
@@ -553,7 +586,7 @@ export function WarehousesModule({
 }) {
   const { state } = store;
   const rows = useMemo<WarehouseRow[]>(() => {
-    return state.warehouses.map((w) => {
+    return notSoftDeleted(state.warehouses).map((w) => {
       const bals = state.stock.filter((s) => s.warehouseId === w.id);
       const units = bals.reduce((n, b) => n + b.physicalQty, 0);
       return {
@@ -614,6 +647,15 @@ export function WarehousesModule({
       detailTitle={(r) => r.name}
       detailSubtitle={(r) => r.location}
       detailCode={(r) => r.code}
+      detailActions={(r) => (
+        <MoveToTrashButton
+          store={store}
+          entityType="warehouse"
+          entityId={r.id}
+          recordLabel={`${r.code} · ${r.name}`}
+          onTrashed={onBack}
+        />
+      )}
       detailSummary={(r) => [
         { label: "SKUs", value: r.skuCount, tileClass: "tlb-customer-summary-tile--info" },
         { label: "Units", value: r.units, tileClass: "tlb-customer-summary-tile--gold" },

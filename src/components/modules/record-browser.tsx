@@ -234,6 +234,7 @@ export function RecordBrowser<T extends { id: string }>({
   periodLabel,
   toolbarExtra,
   listExtra,
+  detailActions,
 }: {
   kicker: string;
   title: string;
@@ -259,6 +260,7 @@ export function RecordBrowser<T extends { id: string }>({
   periodLabel?: string;
   toolbarExtra?: ReactNode;
   listExtra?: ReactNode;
+  detailActions?: (row: T) => ReactNode;
 }) {
   const [search, setSearch] = useState("");
 
@@ -293,6 +295,7 @@ export function RecordBrowser<T extends { id: string }>({
         title={detailTitle(selected)}
         subtitle={detailSubtitle?.(selected) ?? kicker}
         badges={status ? <StatusBadge tone={status.tone}>{status.label}</StatusBadge> : null}
+        {...(detailActions ? { actions: detailActions(selected) } : {})}
       >
         {summary.length > 0 ? (
           <RecordDetailSection tone="summary" kicker="Overview" title="Summary" span2>

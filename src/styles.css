@@ -916,6 +916,16 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-inline-actions { display: flex; gap: 8px; align-items: center; padding: 12px 17px 16px; flex-wrap: wrap; }
 .tlb-inline-actions input { flex: 1; min-width: 160px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; font-size: 12px; }
 .tlb-inline-actions.compact { padding: 0; }
+.tlb-trash-dialog .tlb-trash-reason { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.tlb-trash-dialog .tlb-trash-reason textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font: inherit;
+  resize: vertical;
+  min-height: 72px;
+}
 .tlb-cancel-grid { display: grid; gap: 8px; padding: 0 17px 16px; }
 .tlb-cancel-row { display: grid; grid-template-columns: minmax(140px, .8fr) minmax(0, 1.2fr) auto; gap: 8px; align-items: center; }
 .tlb-cancel-row input { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; font-size: 12px; }

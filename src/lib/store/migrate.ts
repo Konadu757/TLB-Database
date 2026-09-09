@@ -1,13 +1,16 @@
 import {
+  ALL_PERMISSIONS,
   createSystemRoles,
   OWNER_USER_ID,
   SYSTEM_ROLE_IDS,
+  SYSTEM_ROLE_PERMISSIONS,
 } from "../domain/permissions";
 import type {
   AgeingSettings,
   AppUser,
   CompanyProfile,
   DocumentCounters,
+  Permission,
   RoleDefinition,
   TlbState,
   VatRate,
@@ -175,7 +178,7 @@ export function migrateState(raw: unknown): TlbState {
   const basePayments = needsCollectionSeed ? seed.payments : (parsed.payments ?? []);
 
   const next: TlbState = {
-    version: 6,
+    version: 7,
     warehouses: parsed.warehouses?.length ? parsed.warehouses : seed.warehouses,
     products: parsed.products?.length ? parsed.products : seed.products,
     stock: parsed.stock?.length ? parsed.stock : seed.stock,
@@ -221,6 +224,8 @@ export function migrateState(raw: unknown): TlbState {
     ageing,
     company: parsed.company ?? DEFAULT_COMPANY,
     vatRates: parsed.vatRates?.length ? parsed.vatRates : DEFAULT_VAT,
+    catalogDeletions: parsed.catalogDeletions ?? [],
+    catalogPurgedIds: parsed.catalogPurgedIds ?? [],
     roles,
     users,
     currentUserId: parsed.currentUserId ?? OWNER_USER_ID,
@@ -242,6 +247,24 @@ export function migrateState(raw: unknown): TlbState {
     if (owner) {
       owner.name = "TLB Owner";
       owner.roleId = SYSTEM_ROLE_IDS.Owner;
+    }
+  }
+
+  // v7: trash permissions — keep system roles aligned with the latest capability matrix.
+  if (priorVersion < 7) {
+    for (const role of next.roles) {
+      if (!role.systemKey) continue;
+      const defaults = SYSTEM_ROLE_PERMISSIONS[role.systemKey] as Permission[] | undefined;
+      if (!defaults) continue;
+      const missing = defaults.filter((p) => !role.permissions.includes(p));
+      if (missing.length) role.permissions = [...role.permissions, ...missing];
+    }
+    // Owner/Admin always receive the full matrix (including trash caps).
+    for (const role of next.roles) {
+      if (role.systemKey === "Owner" || role.systemKey === "Admin") {
+        const missing = ALL_PERMISSIONS.filter((p) => !role.permissions.includes(p));
+        if (missing.length) role.permissions = [...role.permissions, ...missing];
+      }
     }
   }
 

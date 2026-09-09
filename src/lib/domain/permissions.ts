@@ -28,6 +28,9 @@ export const ALL_PERMISSIONS: Permission[] = [
   "audit.view",
   "tin.update",
   "users.manage",
+  "trash.view",
+  "records.delete",
+  "trash.purge",
 ];
 
 export const PERMISSION_LABELS: Record<Permission, { module: string; label: string }> = {
@@ -52,6 +55,9 @@ export const PERMISSION_LABELS: Record<Permission, { module: string; label: stri
   "settings.manage": { module: "Settings", label: "Manage company settings" },
   "tin.update": { module: "Settings", label: "Update TIN fields" },
   "users.manage": { module: "Users & Roles", label: "Manage users and roles" },
+  "trash.view": { module: "Trash", label: "View trash" },
+  "records.delete": { module: "Trash", label: "Move records to trash" },
+  "trash.purge": { module: "Trash", label: "Permanently delete from trash" },
 };
 
 /** Default permission sets for seeded system roles. */
@@ -170,6 +176,7 @@ export const NAV_PERMISSIONS: Record<string, Permission[]> = {
   Finance: ["finance.view", "invoice.create", "receipt.create", "payment.record"],
   Reports: ["reports.view"],
   "Audit Log": ["audit.view"],
+  Trash: ["trash.view"],
   Settings: ["settings.manage", "users.manage"],
 };
 

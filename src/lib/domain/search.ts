@@ -1,4 +1,5 @@
 import type { SearchHit, TlbState } from "./types";
+import { isSoftDeleted } from "./trash";
 
 /** Typed global search across customers, documents, products, warehouses, dates. */
 export function globalSearch(state: TlbState, query: string, limit = 20): SearchHit[] {
@@ -12,6 +13,7 @@ export function globalSearch(state: TlbState, query: string, limit = 20): Search
   };
 
   for (const c of state.customers) {
+    if (isSoftDeleted(c)) continue;
     const blob = `${c.name} ${c.code} ${c.tin ?? ""} ${c.contactName} ${c.address}`.toLowerCase();
     if (blob.includes(q)) {
       push({
@@ -25,6 +27,7 @@ export function globalSearch(state: TlbState, query: string, limit = 20): Search
   }
 
   for (const s of state.suppliers ?? []) {
+    if (isSoftDeleted(s)) continue;
     const blob = `${s.name} ${s.code} ${s.tin ?? ""} ${s.contactName} ${s.phone} ${s.email} ${s.category} ${s.address}`.toLowerCase();
     if (blob.includes(q)) {
       push({
@@ -38,6 +41,7 @@ export function globalSearch(state: TlbState, query: string, limit = 20): Search
   }
 
   for (const o of state.orders) {
+    if (isSoftDeleted(o)) continue;
     const cust = state.customers.find((c) => c.id === o.customerId);
     const blob = `${o.number} ${o.customerPoNumber ?? ""} ${cust?.name ?? ""} ${o.orderDate} ${o.requiredDate ?? ""}`.toLowerCase();
     if (blob.includes(q) || o.number.toLowerCase().includes(q)) {
@@ -105,6 +109,7 @@ export function globalSearch(state: TlbState, query: string, limit = 20): Search
   }
 
   for (const p of state.products) {
+    if (isSoftDeleted(p)) continue;
     if (`${p.name} ${p.sku}`.toLowerCase().includes(q)) {
       push({
         kind: "Product",
@@ -117,6 +122,7 @@ export function globalSearch(state: TlbState, query: string, limit = 20): Search
   }
 
   for (const w of state.warehouses) {
+    if (isSoftDeleted(w)) continue;
     if (`${w.name} ${w.code} ${w.location}`.toLowerCase().includes(q)) {
       push({
         kind: "Warehouse",

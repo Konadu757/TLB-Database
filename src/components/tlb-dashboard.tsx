@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   Ship,
   ShoppingCart,
+  Trash2,
   Truck,
   Users,
   Warehouse,
@@ -60,6 +61,7 @@ import {
   ReportsModule,
   SettingsModule,
 } from "@/components/modules/p1-modules";
+import { TrashModule } from "@/components/modules/trash-module";
 import { Button } from "@/components/ui/button";
 import { buildDashboardSnapshot } from "@/lib/domain/dashboard-metrics";
 import {
@@ -116,6 +118,7 @@ const navGroups: NavGroup[] = [
       { label: "Finance", icon: CircleDollarSign },
       { label: "Reports", icon: Gauge },
       { label: "Audit Log", icon: ShieldCheck },
+      { label: "Trash", icon: Trash2 },
       { label: "Settings", icon: Settings },
     ],
   },
@@ -157,6 +160,7 @@ const MODULE_BLURBS: Record<string, string> = {
   Finance: "VAT invoices, ordinary receipts (TLB-RCT), and payments.",
   Reports: "Outstanding, partial supply, fulfilment performance, and customer outstanding.",
   "Audit Log": "Append-only audit trail for supplies, invoices, receipts, deliveries, and payments.",
+  Trash: "Soft-deleted records — restore or permanently delete with confirmation.",
   Settings: "Company letterhead, configurable VAT rates, roles, and reminder thresholds.",
 };
 
@@ -222,7 +226,10 @@ export function TLBDashboard() {
                       ...item,
                       badge: (() => {
                         const count = store.state.orders.filter(
-                          (o) => o.status !== "Delivered" && o.status !== "Cancelled",
+                          (o) =>
+                            !o.deletedAt &&
+                            o.status !== "Delivered" &&
+                            o.status !== "Cancelled",
                         ).length;
                         return count > 0 ? String(count) : undefined;
                       })(),
@@ -303,6 +310,7 @@ export function TLBDashboard() {
     activeNav === "Finance" ||
     activeNav === "Reports" ||
     activeNav === "Audit Log" ||
+    activeNav === "Trash" ||
     activeNav === "Settings";
 
   const showPeriodBar = PERIOD_SCOPED_NAV.has(activeNav);
@@ -880,7 +888,7 @@ export function TLBDashboard() {
                 onSelectSupplier={setSelectedSupplierId}
               />
             ) : activeNav === "Quotations" ? (
-              <QuotationsModule range={listRange} periodLabel={listPeriodLabel} />
+              <QuotationsModule range={listRange} periodLabel={listPeriodLabel} store={store} />
             ) : activeNav === "Sales Orders" ? (
               <SalesOrdersModule
                 store={store}
@@ -913,7 +921,7 @@ export function TLBDashboard() {
                 onViewOutstanding={(productId) => openLiveModule("Outstanding Supplies", null, productId)}
               />
             ) : activeNav === "Batches" ? (
-              <BatchesModule range={listRange} periodLabel={listPeriodLabel} />
+              <BatchesModule range={listRange} periodLabel={listPeriodLabel} store={store} />
             ) : activeNav === "Warehouses" ? (
               <WarehousesModule
                 store={store}
@@ -921,15 +929,15 @@ export function TLBDashboard() {
                 onFocusConsumed={() => setModuleFocusId(null)}
               />
             ) : activeNav === "Stock Movements" ? (
-              <StockMovementsModule range={listRange} periodLabel={listPeriodLabel} />
+              <StockMovementsModule range={listRange} periodLabel={listPeriodLabel} store={store} />
             ) : activeNav === "Procurement" ? (
-              <ProcurementModule range={listRange} periodLabel={listPeriodLabel} />
+              <ProcurementModule range={listRange} periodLabel={listPeriodLabel} store={store} />
             ) : activeNav === "Import & Export" ? (
-              <ImportExportModule range={listRange} periodLabel={listPeriodLabel} />
+              <ImportExportModule range={listRange} periodLabel={listPeriodLabel} store={store} />
             ) : activeNav === "Factory" ? (
-              <FactoryModule range={listRange} periodLabel={listPeriodLabel} />
+              <FactoryModule range={listRange} periodLabel={listPeriodLabel} store={store} />
             ) : activeNav === "Quality Control" ? (
-              <QualityControlModule range={listRange} periodLabel={listPeriodLabel} />
+              <QualityControlModule range={listRange} periodLabel={listPeriodLabel} store={store} />
             ) : activeNav === "Deliveries" ? (
               <DeliveriesModule
                 store={store}
@@ -952,6 +960,8 @@ export function TLBDashboard() {
               <ReportsModule store={store} range={listRange} periodLabel={listPeriodLabel} />
             ) : activeNav === "Audit Log" ? (
               <AuditModule store={store} />
+            ) : activeNav === "Trash" ? (
+              <TrashModule store={store} />
             ) : activeNav === "Settings" ? (
               <SettingsModule store={store} />
             ) : null

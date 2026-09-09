@@ -18,13 +18,16 @@ import {
   markDelivered,
   markNotificationRead,
   markNotificationsRead,
+  purgeTrashItem,
   receiveStock,
   recordPayment,
   refreshOpsNotifications,
   releaseReservation,
   reserveForOutstanding,
   resetToSeed,
+  restoreTrashItem,
   saveState,
+  softDeleteRecord,
   switchRole,
   switchSessionUser,
   updateAgeingSettings,
@@ -155,6 +158,12 @@ export function useTlbStore() {
     /** Mark visible/open-panel notifications as viewed so the header unread badge decreases. */
     readNotifications: (ids: string[]) => apply((s) => markNotificationsRead(s, ids)),
     refreshNotifications: () => apply((s) => refreshOpsNotifications(s)),
+    moveToTrash: (input: Parameters<typeof softDeleteRecord>[1]) =>
+      apply((s) => softDeleteRecord(s, input), "Moved to trash."),
+    restoreFromTrash: (input: Parameters<typeof restoreTrashItem>[1]) =>
+      apply((s) => restoreTrashItem(s, input), "Restored from trash."),
+    purgeFromTrash: (input: Parameters<typeof purgeTrashItem>[1]) =>
+      apply((s) => purgeTrashItem(s, input), "Permanently deleted."),
   };
 }
 

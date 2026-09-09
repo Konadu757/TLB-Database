@@ -82,7 +82,7 @@ test("v6 migrate merges missing period-spanning orders into stale v5 state", () 
     orderLines: seed.orderLines.filter((l) => l.orderId === "ord-phase30"),
   };
   const migrated = migrateState(stale);
-  assert(migrated.version === 6, "bumped to v6");
+  assert(migrated.version === 7, "bumped to v7");
   assert(migrated.orders.length >= 5, `expected ≥5 orders, got ${migrated.orders.length}`);
   assert(migrated.orders.some((o) => o.id === "ord-today"), "has today order");
   assert(migrated.orders.some((o) => o.id === "ord-year"), "has year order");

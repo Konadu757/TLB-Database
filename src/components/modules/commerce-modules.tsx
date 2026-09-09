@@ -6,8 +6,10 @@ import {
   RecordDetailPage,
   RecordDetailSection,
 } from "@/components/modules/record-browser";
+import { MoveToTrashButton } from "@/components/modules/move-to-trash-button";
 import { Button } from "@/components/ui/button";
 import { calcAvailable, calcOutstanding, statusTone } from "@/lib/domain/calculations";
+import { isSoftDeleted, notSoftDeleted } from "@/lib/domain/trash";
 import type {
   Customer,
   CustomerCategory,
@@ -224,9 +226,11 @@ export function CustomersModule({
   const [search, setSearch] = useState("");
   const [form, setForm] = useState(emptyCustomerForm);
 
+  const activeCustomers = useMemo(() => notSoftDeleted(state.customers), [state.customers]);
+
   const customerStats = useMemo(() => {
     const map = new Map<string, { outstandingOrders: number; outstandingLines: number; outstandingQty: number }>();
-    for (const c of state.customers) {
+    for (const c of activeCustomers) {
       map.set(c.id, { outstandingOrders: 0, outstandingLines: 0, outstandingQty: 0 });
     }
     const seenOrders = new Set<string>();
@@ -242,18 +246,18 @@ export function CustomersModule({
       map.set(row.customerId, cur);
     }
     return map;
-  }, [state.customers, store.outstanding]);
+  }, [activeCustomers, store.outstanding]);
 
   const filteredCustomers = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return state.customers;
-    return state.customers.filter((c) => {
+    if (!q) return activeCustomers;
+    return activeCustomers.filter((c) => {
       const hay = [c.code, c.name, c.contactName, c.phone, c.email, c.tin ?? "", c.category]
         .join(" ")
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [state.customers, search]);
+  }, [activeCustomers, search]);
 
   if (selectedCustomerId) {
     return (
@@ -343,7 +347,7 @@ export function CustomersModule({
 
       <article className="tlb-panel tlb-orders-panel tlb-customers-panel tlb-customers-list-panel">
         <div className="tlb-table-scroll">
-          {state.customers.length === 0 ? (
+          {activeCustomers.length === 0 ? (
             <EmptyState title="No customers" detail="Create a customer account to begin trading." />
           ) : filteredCustomers.length === 0 ? (
             <EmptyState title="No customers match your search." detail="Try another name, code, contact, phone, email, TIN, or category." />
@@ -432,7 +436,7 @@ export function CustomersModule({
         </div>
         {hasSearch && filteredCustomers.length > 0 ? (
           <div className="tlb-list-meta">
-            Showing {filteredCustomers.length} of {state.customers.length} customers
+            Showing {filteredCustomers.length} of {activeCustomers.length} customers
           </div>
         ) : null}
       </article>
@@ -452,7 +456,7 @@ function CustomerDetailModule({
   onOpenOrder: (orderId: string) => void;
 }) {
   const { state } = store;
-  const selected = state.customers.find((c) => c.id === customerId) ?? null;
+  const selected = state.customers.find((c) => c.id === customerId && !isSoftDeleted(c)) ?? null;
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(emptyCustomerForm);
 
@@ -621,9 +625,18 @@ function CustomerDetailModule({
       }
       actions={
         !editing ? (
-          <Button type="button" variant="outline" onClick={() => startEdit(selected)}>
-            Edit customer
-          </Button>
+          <>
+            <Button type="button" variant="outline" onClick={() => startEdit(selected)}>
+              Edit customer
+            </Button>
+            <MoveToTrashButton
+              store={store}
+              entityType="customer"
+              entityId={selected.id}
+              recordLabel={`${selected.code} · ${selected.name}`}
+              onTrashed={onBack}
+            />
+          </>
         ) : null
       }
       flash={<Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />}
@@ -1138,16 +1151,23 @@ export function SalesOrdersModule({
   const { state } = store;
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState("");
-  const [customerId, setCustomerId] = useState(state.customers[0]?.id ?? "");
+  const [customerId, setCustomerId] = useState(
+    () => notSoftDeleted(state.customers).find((c) => c.active)?.id ?? notSoftDeleted(state.customers)[0]?.id ?? "",
+  );
   const [notes, setNotes] = useState("");
   const [customerPoNumber, setCustomerPoNumber] = useState("");
   const [draftLines, setDraftLines] = useState([
-    { productId: state.products[0]?.id ?? "", warehouseId: state.warehouses[0]?.id ?? "", orderedQty: 1, unitPrice: 1000 },
+    {
+      productId: notSoftDeleted(state.products)[0]?.id ?? "",
+      warehouseId: notSoftDeleted(state.warehouses)[0]?.id ?? "",
+      orderedQty: 1,
+      unitPrice: 1000,
+    },
   ]);
 
   const filteredOrders = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return state.orders.filter((order) => {
+    return notSoftDeleted(state.orders).filter((order) => {
       if (range && !isoInRange(order.orderDate, range)) return false;
       if (!q) return true;
       const customer = state.customers.find((c) => c.id === order.customerId);
@@ -1158,6 +1178,8 @@ export function SalesOrdersModule({
       return hay.includes(q);
     });
   }, [state.orders, state.customers, range?.from, range?.to, search]);
+
+  const activeOrderCount = useMemo(() => notSoftDeleted(state.orders).length, [state.orders]);
 
   if (selectedOrderId) {
     return (
@@ -1232,7 +1254,9 @@ export function SalesOrdersModule({
             <label>
               Customer
               <select required value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-                {state.customers.filter((c) => c.active).map((c) => (
+                {notSoftDeleted(state.customers)
+                  .filter((c) => c.active)
+                  .map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
@@ -1258,7 +1282,7 @@ export function SalesOrdersModule({
                       setDraftLines(next);
                     }}
                   >
-                    {state.products.map((p) => (
+                    {notSoftDeleted(state.products).map((p) => (
                       <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>
                     ))}
                   </select>
@@ -1273,7 +1297,7 @@ export function SalesOrdersModule({
                       setDraftLines(next);
                     }}
                   >
-                    {state.warehouses.map((w) => (
+                    {notSoftDeleted(state.warehouses).map((w) => (
                       <option key={w.id} value={w.id}>{w.name}</option>
                     ))}
                   </select>
@@ -1314,8 +1338,8 @@ export function SalesOrdersModule({
                   setDraftLines([
                     ...draftLines,
                     {
-                      productId: state.products[0]?.id ?? "",
-                      warehouseId: state.warehouses[0]?.id ?? "",
+                      productId: notSoftDeleted(state.products)[0]?.id ?? "",
+                      warehouseId: notSoftDeleted(state.warehouses)[0]?.id ?? "",
                       orderedQty: 1,
                       unitPrice: 1000,
                     },
@@ -1338,7 +1362,7 @@ export function SalesOrdersModule({
           </div>
         </div>
         <div className="tlb-table-scroll">
-          {state.orders.length === 0 ? (
+          {activeOrderCount === 0 ? (
             <EmptyState title="No customer orders" detail="Create a customer purchase order to start fulfilment." />
           ) : filteredOrders.length === 0 ? (
             <EmptyState
@@ -1396,7 +1420,7 @@ export function SalesOrdersModule({
         </div>
         {search.trim() && filteredOrders.length > 0 ? (
           <div className="tlb-list-meta">
-            Showing {filteredOrders.length} of {state.orders.length} orders
+            Showing {filteredOrders.length} of {activeOrderCount} orders
           </div>
         ) : periodLabel && filteredOrders.length > 0 ? (
           <div className="tlb-list-meta">{filteredOrders.length} order{filteredOrders.length === 1 ? "" : "s"} in {periodLabel}</div>
@@ -1418,7 +1442,7 @@ function OrderDetailModule({
   onNavigateRelated?: (nav: string, id?: string) => void;
 }) {
   const { state } = store;
-  const order = state.orders.find((o) => o.id === orderId);
+  const order = state.orders.find((o) => o.id === orderId && !isSoftDeleted(o));
   const [supplyQty, setSupplyQty] = useState<Record<string, number>>({});
   const [cancelReason, setCancelReason] = useState<Record<string, string>>({});
   const [supplyNotes, setSupplyNotes] = useState("");
@@ -1486,6 +1510,13 @@ function OrderDetailModule({
               Mark delivered
             </Button>
           )}
+          <MoveToTrashButton
+            store={store}
+            entityType="order"
+            entityId={order.id}
+            recordLabel={order.number}
+            onTrashed={onBack}
+          />
         </>
       }
       flash={<Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />}
@@ -1922,7 +1953,7 @@ export function OutstandingSuppliesModule({
         <label className="tlb-select">
           <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} aria-label="Warehouse filter">
             <option value="all">All warehouses</option>
-            {store.state.warehouses.map((w) => (
+            {notSoftDeleted(store.state.warehouses).map((w) => (
               <option key={w.id} value={w.id}>{w.name}</option>
             ))}
           </select>
@@ -1930,7 +1961,7 @@ export function OutstandingSuppliesModule({
         <label className="tlb-select">
           <select value={productId} onChange={(e) => setProductId(e.target.value)} aria-label="Product filter">
             <option value="all">All products</option>
-            {store.state.products.map((p) => (
+            {notSoftDeleted(store.state.products).map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
@@ -2048,6 +2079,7 @@ export function StockModule({
               {state.stock.map((bal) => {
                 const product = state.products.find((p) => p.id === bal.productId);
                 const warehouse = state.warehouses.find((w) => w.id === bal.warehouseId);
+                if (!product || isSoftDeleted(product) || !warehouse || isSoftDeleted(warehouse)) return null;
                 const requiredBy = countOutstandingOrdersForProduct(state, bal.productId);
                 const key = bal.id;
                 return (

@@ -701,8 +701,19 @@ export const MODULE_META: Record<
   },
 };
 
-export function recordsForModule(module: string, range?: DateRange | null): CatalogRecord[] {
+export function recordsForModule(
+  module: string,
+  range?: DateRange | null,
+  opts?: { hideIds?: ReadonlySet<string> },
+): CatalogRecord[] {
   const source = module === "Quotations" ? QUOTATION_RECORDS : SANDBOX_RECORDS.filter((r) => r.module === module);
-  if (!range) return source;
-  return source.filter((r) => isoInRange(r.date, range));
+  const hide = opts?.hideIds;
+  const visible = hide?.size ? source.filter((r) => !hide.has(r.id)) : source;
+  if (!range) return visible;
+  return visible.filter((r) => isoInRange(r.date, range));
+}
+
+/** Lookup any catalog/sandbox record by id (quotations + ops sandbox modules). */
+export function findCatalogRecord(id: string): CatalogRecord | undefined {
+  return QUOTATION_RECORDS.find((r) => r.id === id) ?? SANDBOX_RECORDS.find((r) => r.id === id);
 }

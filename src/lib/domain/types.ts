@@ -94,7 +94,10 @@ export type Permission =
   | "settings.manage"
   | "audit.view"
   | "tin.update"
-  | "users.manage";
+  | "users.manage"
+  | "trash.view"
+  | "records.delete"
+  | "trash.purge";
 
 export type AuditAction =
   | "customer.created"
@@ -124,8 +127,50 @@ export type AuditAction =
   | "role.deactivated"
   | "user.updated"
   | "user.role_assigned"
-  | "session.user_switched";
+  | "session.user_switched"
+  | "record.trashed"
+  | "record.restored"
+  | "record.purged";
 
+/** Soft-delete metadata applied to domain records moved to Trash. */
+export interface SoftDeleteFields {
+  deletedAt?: string;
+  deletedBy?: string;
+  deletedReason?: string;
+}
+
+export type TrashEntityType =
+  | "customer"
+  | "supplier"
+  | "product"
+  | "warehouse"
+  | "order"
+  | "catalog";
+
+/** Soft-deleted catalog (quotations / sandbox list) rows. */
+export interface CatalogDeletion {
+  catalogId: string;
+  module: string;
+  label: string;
+  subtitle?: string;
+  deletedAt: string;
+  deletedBy: string;
+  deletedReason?: string;
+}
+
+/** Unified trash list row for the Trash module UI. */
+export interface TrashListItem {
+  id: string;
+  entityType: TrashEntityType;
+  entityId: string;
+  typeLabel: string;
+  label: string;
+  subtitle?: string;
+  deletedAt: string;
+  deletedBy: string;
+  deletedReason?: string;
+  module?: string;
+}
 /** Owner-managed role definition (permissions drive nav + actions). */
 export interface RoleDefinition {
   id: string;
@@ -145,7 +190,7 @@ export interface AppUser {
   roleId: string;
   active: boolean;
 }
-export interface Warehouse {
+export interface Warehouse extends SoftDeleteFields {
   id: string;
   code: string;
   name: string;
@@ -153,7 +198,7 @@ export interface Warehouse {
   active: boolean;
 }
 
-export interface Product {
+export interface Product extends SoftDeleteFields {
   id: string;
   sku: string;
   name: string;
@@ -170,7 +215,7 @@ export interface StockBalance {
   reservedQty: number;
 }
 
-export interface Customer {
+export interface Customer extends SoftDeleteFields {
   id: string;
   code: string;
   name: string;
@@ -188,7 +233,7 @@ export interface Customer {
   updatedAt: string;
 }
 
-export interface Supplier {
+export interface Supplier extends SoftDeleteFields {
   id: string;
   code: string;
   name: string;
@@ -261,7 +306,7 @@ export interface CustomerOrderLine {
   cancelledBy?: string;
 }
 
-export interface CustomerPurchaseOrder {
+export interface CustomerPurchaseOrder extends SoftDeleteFields {
   id: string;
   number: string;
   customerId: string;
@@ -513,6 +558,10 @@ export interface TlbState {
   ageing: AgeingSettings;
   company: CompanyProfile;
   vatRates: VatRate[];
+  /** Soft-deleted catalog / sandbox list records (still restorable). */
+  catalogDeletions: CatalogDeletion[];
+  /** Permanently purged catalog ids — never shown again. */
+  catalogPurgedIds: string[];
   /** Owner-managed role catalog (system + custom). */
   roles: RoleDefinition[];
   /** Local users with assigned role ids (mock auth → real auth later). */

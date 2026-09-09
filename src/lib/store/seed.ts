@@ -15,7 +15,7 @@ const THIS_YEAR = "2026-03-18T10:00:00.000Z";
 export function createSeedState(): TlbState {
   const roles = createSystemRoles();
   return {
-    version: 6,
+    version: 7,
     currentUserId: OWNER_USER_ID,
     currentUser: "TLB Owner",
     currentRoleId: SYSTEM_ROLE_IDS.Owner,
@@ -639,6 +639,8 @@ export function createSeedState(): TlbState {
     ],
     notifications: [],
     reservations: [],
+    catalogDeletions: [],
+    catalogPurgedIds: [],
     audit: [
       {
         id: "aud-1",
