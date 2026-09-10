@@ -11,11 +11,14 @@ import {
   ChevronRight,
   CircleDollarSign,
   ClipboardCheck,
+  ClipboardList,
   Factory,
   FileText,
   FlaskConical,
   Gauge,
+  Kanban,
   LayoutDashboard,
+  ListTodo,
   Menu,
   MessageSquareText,
   PackageCheck,
@@ -28,12 +31,14 @@ import {
   Route,
   Search,
   Settings,
+  ShieldAlert,
   ShieldCheck,
   Ship,
   ShoppingCart,
   SlidersHorizontal,
   Trash2,
   Truck,
+  UserRound,
   Users,
   Warehouse,
   X,
@@ -76,6 +81,16 @@ import {
   ReturnsModule,
   StockAgeingModule,
 } from "@/components/modules/deferred-ops-modules";
+import {
+  OpsDispatchModule,
+  OpsDriversModule,
+  OpsExceptionsModule,
+  OpsLiveBoardModule,
+  OpsMyActionsModule,
+  OpsOutstandingModule,
+  OpsRequestsModule,
+  OpsWarehouseActionsModule,
+} from "@/components/modules/ops-hub-modules";
 import {
   FactoryModule,
   ProductsModule,
@@ -169,6 +184,19 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
+    label: "Operations Hub",
+    items: [
+      { label: "My Actions", icon: ListTodo },
+      { label: "Requests", icon: ClipboardList },
+      { label: "Warehouse Actions", icon: PackageCheck },
+      { label: "Dispatch", icon: Truck },
+      { label: "Drivers", icon: UserRound },
+      { label: "Outstanding Requests", icon: AlertTriangle },
+      { label: "Exceptions / Discrepancies", icon: ShieldAlert },
+      { label: "Live Operations Board", icon: Kanban },
+    ],
+  },
+  {
     label: "Operations",
     items: [
       { label: "Procurement", icon: ClipboardCheck, badge: "5" },
@@ -214,6 +242,7 @@ const PERIOD_SCOPED_NAV = new Set([
   "Quality Control",
   "Finance",
   "Deliveries",
+  "Requests",
   "Reports",
   "Stock Ageing",
 ]);
@@ -242,10 +271,18 @@ const MODULE_BLURBS: Record<string, string> = {
   Factory: "Production orders on the factory floor — filtered by run date.",
   "Quality Control": "Laboratory holds and releases — filtered by QC event date.",
   Deliveries: "Deliveries linked to supplies — order stays open while outstanding remains.",
+  "My Actions": "Role-aware ops tasks — acknowledge, approve, prepare, drive, receive.",
+  Requests: "Operations requests from draft through delivery with line-level shortage tracking.",
+  "Warehouse Actions": "Review availability, prepare picks, ready for collection, and release goods.",
+  Dispatch: "Assign drivers to release-ready and in-transit ops requests.",
+  Drivers: "Driver roster and today's jobs with mobile-friendly status actions.",
+  "Outstanding Requests": "Warehouse shortage outstanding — kept separate from delivery missing.",
+  "Exceptions / Discrepancies": "Delivery missing, damaged, wrong, and rejected exceptions.",
+  "Live Operations Board": "Kanban board across submit → approve → prepare → transit → delivered.",
   Finance: "VAT invoices, ordinary receipts (TLB-RCT), and payments.",
   "Accounts Receivable": "Customer invoice ageing 0–30 / 31–60 / 61–90 / 90+.",
   "Accounts Payable": "Supplier PO balances ageing by due date.",
-  Approvals: "Credit overrides, Non-PO, adjustments, transfers, and high-value checks.",
+  Approvals: "Credit overrides, Non-PO, adjustments, transfers, ops requests, and high-value checks.",
   "Ask TLB": "Structured BI question presets over live store records.",
   Reports: "Deep operational reports with filters and CSV export.",
   "Audit Log": "Append-only audit trail — users cannot delete history.",
@@ -331,6 +368,10 @@ function TLBDashboardInner() {
         "Goods In",
         "Transfers",
         "Trace Product",
+        "Requests",
+        "Warehouse Actions",
+        "Dispatch",
+        "Drivers",
       ]),
     [],
   );
@@ -478,6 +519,14 @@ function TLBDashboardInner() {
     activeNav === "Factory" ||
     activeNav === "Quality Control" ||
     activeNav === "Deliveries" ||
+    activeNav === "My Actions" ||
+    activeNav === "Requests" ||
+    activeNav === "Warehouse Actions" ||
+    activeNav === "Dispatch" ||
+    activeNav === "Drivers" ||
+    activeNav === "Outstanding Requests" ||
+    activeNav === "Exceptions / Discrepancies" ||
+    activeNav === "Live Operations Board" ||
     activeNav === "Finance" ||
     activeNav === "Accounts Receivable" ||
     activeNav === "Accounts Payable" ||
@@ -1261,6 +1310,62 @@ function TLBDashboardInner() {
                 onOpenOrder={(id) => openOrderDetail(id, "Deliveries")}
                 range={listRange}
                 periodLabel={listPeriodLabel}
+              />
+            ) : activeNav === "My Actions" ? (
+              <OpsMyActionsModule
+                store={store}
+                onOpenRequest={(id) => openLiveModule("Requests", null, null, null, null, id)}
+                onNavigateAction={(nav, id) => {
+                  if (nav === "Approvals") openLiveModule("Approvals");
+                  else if (nav === "Warehouse Actions") openLiveModule("Warehouse Actions", null, null, null, null, id);
+                  else if (nav === "Drivers") openLiveModule("Drivers", null, null, null, null, id);
+                  else if (nav === "Exceptions / Discrepancies") openLiveModule("Exceptions / Discrepancies");
+                  else openLiveModule("Requests", null, null, null, null, id);
+                }}
+              />
+            ) : activeNav === "Requests" ? (
+              <OpsRequestsModule
+                store={store}
+                focusId={moduleFocusId}
+                onFocusConsumed={() => setModuleFocusId(null)}
+                range={listRange}
+                periodLabel={listPeriodLabel}
+              />
+            ) : activeNav === "Warehouse Actions" ? (
+              <OpsWarehouseActionsModule
+                store={store}
+                focusId={moduleFocusId}
+                onFocusConsumed={() => setModuleFocusId(null)}
+                onOpenRequest={(id) => openLiveModule("Requests", null, null, null, null, id)}
+              />
+            ) : activeNav === "Dispatch" ? (
+              <OpsDispatchModule
+                store={store}
+                focusId={moduleFocusId}
+                onFocusConsumed={() => setModuleFocusId(null)}
+                onOpenRequest={(id) => openLiveModule("Requests", null, null, null, null, id)}
+              />
+            ) : activeNav === "Drivers" ? (
+              <OpsDriversModule
+                store={store}
+                focusId={moduleFocusId}
+                onFocusConsumed={() => setModuleFocusId(null)}
+                onOpenRequest={(id) => openLiveModule("Requests", null, null, null, null, id)}
+              />
+            ) : activeNav === "Outstanding Requests" ? (
+              <OpsOutstandingModule
+                store={store}
+                onOpenRequest={(id) => openLiveModule("Requests", null, null, null, null, id)}
+              />
+            ) : activeNav === "Exceptions / Discrepancies" ? (
+              <OpsExceptionsModule
+                store={store}
+                onOpenRequest={(id) => openLiveModule("Requests", null, null, null, null, id)}
+              />
+            ) : activeNav === "Live Operations Board" ? (
+              <OpsLiveBoardModule
+                store={store}
+                onOpenRequest={(id) => openLiveModule("Requests", null, null, null, null, id)}
               />
             ) : activeNav === "Finance" ? (
               <FinanceModule

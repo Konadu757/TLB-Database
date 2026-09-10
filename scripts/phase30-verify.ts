@@ -43,6 +43,21 @@ import {
   upsertImportShipment,
 } from "../src/lib/store/ops-extended-store";
 import {
+  acknowledgeOpsRequest,
+  advanceOpsDriverStatus,
+  assignOpsDriver,
+  autoReviewOpsLines,
+  confirmOpsDeliveryReceipt,
+  confirmOpsWarehouseCollection,
+  createOpsRequest,
+  decideOpsRequestApproval,
+  markOpsReadyForCollection,
+  prepareOpsRequest,
+  releaseOpsGoods,
+  submitOpsRequest,
+} from "../src/lib/store/ops-hub-store";
+import { opsDiscrepancyMissing, opsOutstandingShortage, listOutstandingOpsRows } from "../src/lib/domain/ops-hub";
+import {
   assignUserRole,
   confirmCustomerOrder,
   createDeliveryFromSupply,
@@ -59,6 +74,7 @@ import {
   updateDeliveryStatus,
 } from "../src/lib/store/tlb-store";
 import type { CustomerOrderLine, StockBalance } from "../src/lib/domain/types";
+import { getOrCreateBalance } from "../src/lib/store/inventory-store";
 
 function testOutstandingNeverNegative() {
   const line: CustomerOrderLine = {
@@ -378,7 +394,7 @@ function testInventoryEngine() {
 
 function testDeferredOpsPack() {
   const state = createSeedState();
-  assert.equal(state.version, 10);
+  assert.equal(state.version, 11);
   assert.ok((state.customerReturns ?? []).length >= 1, "seed customer returns");
   assert.ok((state.nonPoPurchases ?? []).length >= 1, "seed non-po");
   assert.ok((state.importShipments ?? []).length >= 1, "seed imports");
@@ -450,6 +466,197 @@ function testDeferredOpsPack() {
   assert.ok(toCsv(csvRows).includes("batchCode") || toCsv(csvRows).includes("band"));
 }
 
+/**
+ * §49 Operations Hub workflow:
+ * Factory requests Chemical A 50 + Material B 20; stock A=50 B=15 → A full / B partial;
+ * approve A50 B15; outstanding B=5; prepare FEFO; release; driver collect → In Transit;
+ * receive A50 B14 → discrepancy B missing 1; outstanding shortage remains 5.
+ * Do not merge shortage 5 and missing 1.
+ */
+function testSection49OpsHubWorkflow() {
+  let state = createSeedState();
+  assert.ok(state.opsDrivers.length >= 1, "seed drivers");
+  assert.ok(state.products.some((p) => p.id === "prod-mat-b"), "Material B product");
+  assert.match(nextDocumentNumber("opsRequest", { ...state.counters }).number, /^TLB-REQ-/);
+
+  // Set stock: Chemical A = 50, Material B = 15 at main (and FEFO batches).
+  const balA = getOrCreateBalance(state, "prod-chem-a", "wh-main");
+  balA.physicalQty = 50;
+  balA.reservedQty = 0;
+  const balB = getOrCreateBalance(state, "prod-mat-b", "wh-main");
+  balB.physicalQty = 15;
+  balB.reservedQty = 0;
+  // Ensure FEFO batches cover release qty.
+  const batA = state.batches.find((b) => b.productId === "prod-chem-a" && b.warehouseId === "wh-main");
+  if (batA) {
+    batA.remainingQty = 50;
+    batA.receivedQty = 50;
+    batA.status = "Open";
+  } else {
+    state.batches.push({
+      id: "bat-chema-49",
+      code: "CHEMA-49",
+      productId: "prod-chem-a",
+      warehouseId: "wh-main",
+      receivedQty: 50,
+      remainingQty: 50,
+      unitCost: 850,
+      receivedAt: new Date().toISOString(),
+      status: "Open",
+    });
+  }
+  const batB = state.batches.find((b) => b.productId === "prod-mat-b" && b.warehouseId === "wh-main");
+  if (batB) {
+    batB.remainingQty = 15;
+    batB.receivedQty = 15;
+    batB.status = "Open";
+  }
+
+  const created = createOpsRequest(state, {
+    type: "Factory Draw",
+    priority: "High",
+    title: "§49 Factory draw A+B",
+    destination: "Factory line 2",
+    warehouseId: "wh-main",
+    lines: [
+      { productId: "prod-chem-a", quantity: 50 },
+      { productId: "prod-mat-b", quantity: 20 },
+    ],
+    submit: true,
+  });
+  assert.equal(created.ok, true, created.ok ? "" : created.error);
+  if (!created.ok) return;
+  state = created.data.state;
+  const requestId = created.data.data.requestId;
+  assert.match(created.data.data.number, /^TLB-REQ-/);
+  assert.equal(state.opsRequests.find((r) => r.id === requestId)?.status, "Pending Approval");
+
+  const ack = acknowledgeOpsRequest(state, requestId);
+  assert.equal(ack.ok, true);
+  if (!ack.ok) return;
+  state = ack.data.state;
+
+  const lines = state.opsRequestLines.filter((l) => l.requestId === requestId);
+  const lineA = lines.find((l) => l.productId === "prod-chem-a")!;
+  const lineB = lines.find((l) => l.productId === "prod-mat-b")!;
+  assert.ok(lineA && lineB);
+
+  // Availability intelligence: A full (50), B partial (15 of 20).
+  assert.equal(calcAvailable(getOrCreateBalance(state, "prod-chem-a", "wh-main")), 50);
+  assert.equal(calcAvailable(getOrCreateBalance(state, "prod-mat-b", "wh-main")), 15);
+
+  const approved = decideOpsRequestApproval(state, requestId, "Partial", {
+    note: "Approve available stock only",
+    lineApprovals: [
+      { lineId: lineA.id, approvedQty: 50 },
+      { lineId: lineB.id, approvedQty: 15 },
+    ],
+  });
+  assert.equal(approved.ok, true, approved.ok ? "" : approved.error);
+  if (!approved.ok) return;
+  state = approved.data.state;
+  const afterApprA = state.opsRequestLines.find((l) => l.id === lineA.id)!;
+  const afterApprB = state.opsRequestLines.find((l) => l.id === lineB.id)!;
+  assert.equal(afterApprA.approvedQty, 50);
+  assert.equal(afterApprB.approvedQty, 15);
+  assert.equal(opsOutstandingShortage(afterApprB), 5, "Material B outstanding shortage = 5");
+  assert.equal(opsOutstandingShortage(afterApprA), 0);
+  assert.equal(opsDiscrepancyMissing(afterApprB), 0, "no delivery discrepancy yet");
+
+  const reviewed = autoReviewOpsLines(state, requestId);
+  assert.equal(reviewed.ok, true);
+  if (!reviewed.ok) return;
+  state = reviewed.data.state;
+
+  const prepared = prepareOpsRequest(state, requestId, {
+    lines: [
+      { lineId: lineA.id, preparedQty: 50 },
+      { lineId: lineB.id, preparedQty: 15 },
+    ],
+  });
+  assert.equal(prepared.ok, true, prepared.ok ? "" : prepared.error);
+  if (!prepared.ok) return;
+  state = prepared.data.state;
+
+  const ready = markOpsReadyForCollection(state, requestId);
+  assert.equal(ready.ok, true);
+  if (!ready.ok) return;
+  state = ready.data.state;
+
+  const driverId = state.opsDrivers[0]!.id;
+  const released = releaseOpsGoods(state, requestId, { driverId });
+  assert.equal(released.ok, true, released.ok ? "" : released.error);
+  if (!released.ok) return;
+  state = released.data.state;
+  assert.ok(state.stockMovements.some((m) => m.refType === "ops_request" && m.refId === requestId));
+  assert.ok(state.stockMovements.some((m) => m.refId === requestId && m.qtyBefore !== m.qtyAfter));
+  assert.equal(state.opsRequests.find((r) => r.id === requestId)?.status, "Issued");
+
+  const whCollect = confirmOpsWarehouseCollection(state, requestId);
+  assert.equal(whCollect.ok, true);
+  if (!whCollect.ok) return;
+  state = whCollect.data.state;
+
+  let drv = advanceOpsDriverStatus(state, requestId, "En Route Warehouse");
+  assert.equal(drv.ok, true);
+  if (!drv.ok) return;
+  state = drv.data.state;
+  drv = advanceOpsDriverStatus(state, requestId, "Arrived Warehouse");
+  assert.equal(drv.ok, true);
+  if (!drv.ok) return;
+  state = drv.data.state;
+  drv = advanceOpsDriverStatus(state, requestId, "Collected");
+  assert.equal(drv.ok, true);
+  if (!drv.ok) return;
+  state = drv.data.state;
+  drv = advanceOpsDriverStatus(state, requestId, "Departed");
+  assert.equal(drv.ok, true);
+  if (!drv.ok) return;
+  state = drv.data.state;
+  assert.equal(state.opsRequests.find((r) => r.id === requestId)?.status, "In Transit");
+
+  drv = advanceOpsDriverStatus(state, requestId, "Arrived Destination");
+  assert.equal(drv.ok, true);
+  if (!drv.ok) return;
+  state = drv.data.state;
+
+  const receipt = confirmOpsDeliveryReceipt(state, requestId, {
+    outcome: "Partial",
+    receivedBy: "Factory receiver",
+    notes: "Material B short one bag on arrival",
+    lines: [
+      { lineId: lineA.id, receivedQty: 50, missingQty: 0 },
+      { lineId: lineB.id, receivedQty: 14, missingQty: 1 },
+    ],
+  });
+  assert.equal(receipt.ok, true, receipt.ok ? "" : receipt.error);
+  if (!receipt.ok) return;
+  state = receipt.data.state;
+
+  const finalA = state.opsRequestLines.find((l) => l.id === lineA.id)!;
+  const finalB = state.opsRequestLines.find((l) => l.id === lineB.id)!;
+  assert.equal(finalA.receivedQty, 50);
+  assert.equal(finalB.receivedQty, 14);
+  assert.equal(opsDiscrepancyMissing(finalB), 1, "delivery missing discrepancy = 1");
+  assert.equal(opsOutstandingShortage(finalB), 5, "warehouse outstanding shortage remains 5");
+  assert.notEqual(opsOutstandingShortage(finalB), opsDiscrepancyMissing(finalB), "must not merge 5 and 1");
+
+  const outstandingRows = listOutstandingOpsRows(state).filter((r) => r.requestId === requestId);
+  assert.ok(outstandingRows.some((r) => r.productId === "prod-mat-b" && r.outstandingQty === 5));
+  assert.ok(outstandingRows.some((r) => r.productId === "prod-mat-b" && r.missingDiscrepancyQty === 1));
+
+  const disc = state.opsDiscrepancies.filter((d) => d.requestId === requestId && d.kind === "missing");
+  assert.ok(disc.some((d) => d.productId === "prod-mat-b" && d.quantity === 1));
+
+  const searchHits = globalSearch(state, created.data.data.number);
+  assert.ok(searchHits.some((h) => h.kind === "Ops Request"));
+
+  const askOut = runAskTlbPreset(state, "ops_outstanding");
+  assert.ok(askOut.some((h) => h.entityId === requestId));
+  const askDisc = runAskTlbPreset(state, "ops_discrepancies");
+  assert.ok(askDisc.some((h) => h.entityId === requestId));
+}
+
 testOutstandingNeverNegative();
 testSupplyValidation();
 testAgeing();
@@ -458,4 +665,5 @@ testPermissions();
 testPhase30Scenario();
 testInventoryEngine();
 testDeferredOpsPack();
-console.log("phase30-verify: all assertions passed (P0 inventory + P1 + Ask TLB + deferred ops)");
+testSection49OpsHubWorkflow();
+console.log("phase30-verify: all assertions passed (P0 inventory + P1 + Ask TLB + deferred ops + §49 Ops Hub)");
