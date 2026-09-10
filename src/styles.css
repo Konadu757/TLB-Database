@@ -263,19 +263,20 @@
   border-radius: var(--radius-sm);
   background: transparent;
   color: #F9CD5B;
+  font-weight: 800;
   cursor: pointer;
   text-align: left;
 }
 .tlb-nav-group-toggle:hover {
   background: color-mix(in oklab, var(--sidebar-accent) 45%, transparent);
-  color: #F9CD5B;
+  color: #FFE08A;
 }
 .tlb-nav-label {
   margin: 0;
   flex: 1;
   color: inherit;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -302,6 +303,17 @@
 }
 .tlb-nav-group-items .tlb-nav-item {
   padding-left: 14px;
+  color: #ffffff;
+  font-weight: 700;
+}
+.tlb-nav-group-items .tlb-nav-item:hover {
+  background: color-mix(in oklab, var(--sidebar-accent) 68%, transparent);
+  color: #ffffff;
+}
+.tlb-nav-group-items .tlb-nav-item.tlb-nav-active {
+  background: var(--sidebar-accent);
+  color: #ffffff;
+  box-shadow: inset 3px 0 var(--brand-gold);
 }
 .tlb-nav-item { width: 100%; min-height: 36px; display: flex; align-items: center; gap: 11px; padding: 8px 10px; border: 0; border-radius: var(--radius-sm); background: transparent; color: color-mix(in oklab, var(--sidebar-foreground) 72%, transparent); font-size: 13px; font-weight: 500; text-align: left; }
 .tlb-nav-item:hover { background: color-mix(in oklab, var(--sidebar-accent) 68%, transparent); color: var(--sidebar-accent-foreground); }
