@@ -1889,8 +1889,6 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [vehicle, setVehicle] = useState("");
-  const [filterDriverId, setFilterDriverId] = useState<string | "all">("all");
-
   useEffect(() => {
     if (!focusId) return;
     const asRequest = liveOpsRequests(store).find((r) => r.id === focusId);
@@ -1912,14 +1910,19 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
     );
   }, [store.state.opsDrivers, search]);
 
+  /** Chip bar names: full live roster (not search-filtered), so add/remove stays in sync. */
+  const chipDrivers = useMemo(() => {
+    return (store.state.opsDrivers ?? []).filter((d) => !d.deletedAt);
+  }, [store.state.opsDrivers]);
+
   const canBulkTrash = store.can("records.delete");
   const driverIds = useMemo(() => drivers.map((d) => d.id), [drivers]);
   const selection = useListSelection(canBulkTrash ? driverIds : []);
 
   const jobs = useMemo(() => {
-    const all = listDriverTodayJobs(store.state, filterDriverId === "all" ? undefined : filterDriverId);
+    const all = listDriverTodayJobs(store.state, undefined);
     return all.filter((r) => matchesSearch([r.number, r.title, r.destination, r.driverName, r.driverStatus], search));
-  }, [store.state.opsRequests, filterDriverId, search]);
+  }, [store.state.opsRequests, search]);
 
   const profileDriver = (store.state.opsDrivers ?? []).find((d) => d.id === profileDriverId) ?? null;
   const requestDetail = liveOpsRequests(store).find((r) => r.id === requestDetailId) ?? null;
@@ -2016,17 +2019,17 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
         <div className="tlb-periods">
           <button
             type="button"
-            className={filterDriverId === "all" ? "active" : ""}
-            onClick={() => setFilterDriverId("all")}
+            className={!profileDriverId ? "active" : ""}
+            onClick={() => setProfileDriverId(null)}
           >
             All drivers
           </button>
-          {drivers.map((d) => (
+          {chipDrivers.map((d) => (
             <button
               key={d.id}
               type="button"
-              className={filterDriverId === d.id ? "active" : ""}
-              onClick={() => setFilterDriverId(d.id)}
+              className={profileDriverId === d.id ? "active" : ""}
+              onClick={() => setProfileDriverId(d.id)}
             >
               {d.name}
             </button>
@@ -2124,7 +2127,6 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
                             disabled={Boolean(blocking)}
                             disabledReason={blockReason}
                             onTrashed={() => {
-                              if (filterDriverId === d.id) setFilterDriverId("all");
                               if (profileDriverId === d.id) setProfileDriverId(null);
                               selection.clear();
                             }}
