@@ -313,7 +313,7 @@
 .tlb-nav-group-items .tlb-nav-item {
   padding-left: 14px;
   color: #ffffff;
-  font-weight: 700;
+  font-weight: 400;
 }
 .tlb-nav-group-items .tlb-nav-item:hover {
   background: color-mix(in oklab, var(--sidebar-accent) 68%, transparent);
