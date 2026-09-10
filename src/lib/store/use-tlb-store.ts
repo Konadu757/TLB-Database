@@ -59,6 +59,25 @@ import {
   upsertExportShipment,
   upsertImportShipment,
 } from "@/lib/store/ops-extended-store";
+import {
+  acknowledgeOpsRequest,
+  advanceOpsDriverStatus,
+  assignOpsDriver,
+  autoReviewOpsLines,
+  cancelOpsRequest,
+  confirmOpsDeliveryReceipt,
+  confirmOpsWarehouseCollection,
+  createOpsRequest,
+  decideOpsRequestApproval,
+  markOpsReadyForCollection,
+  postOpsMessage,
+  prepareOpsRequest,
+  releaseOpsGoods,
+  reviewOpsWarehouse,
+  submitOpsRequest,
+  updateOpsRequestDraft,
+  upsertOpsDriver,
+} from "@/lib/store/ops-hub-store";
 import type { TransferStatus } from "@/lib/domain/types";
 
 type MutFn = (state: TlbState) =>
@@ -198,7 +217,50 @@ export function useTlbStore() {
     postAdjustment: (input: Parameters<typeof postStockAdjustment>[1]) =>
       apply((s) => postStockAdjustment(s, input), "Adjustment saved."),
     decideApproval: (approvalId: string, decision: "Approved" | "Rejected", note?: string) =>
-      apply((s) => decideApproval(s, approvalId, decision, note), `Approval ${decision.toLowerCase()}.`),
+      apply((s) => {
+        const appr = s.approvals.find((a) => a.id === approvalId);
+        if (appr?.refType === "ops_request" && appr.status === "Pending") {
+          return decideOpsRequestApproval(s, appr.refId, decision, { note });
+        }
+        return decideApproval(s, approvalId, decision, note);
+      }, `Approval ${decision.toLowerCase()}.`),
+    createOpsRequest: (input: Parameters<typeof createOpsRequest>[1]) =>
+      apply((s) => createOpsRequest(s, input), "Ops request saved."),
+    updateOpsDraft: (requestId: string, input: Parameters<typeof updateOpsRequestDraft>[2]) =>
+      apply((s) => updateOpsRequestDraft(s, requestId, input), "Draft updated."),
+    submitOpsRequest: (requestId: string) =>
+      apply((s) => submitOpsRequest(s, requestId), "Request submitted."),
+    acknowledgeOpsRequest: (requestId: string) =>
+      apply((s) => acknowledgeOpsRequest(s, requestId), "Request acknowledged."),
+    decideOpsApproval: (
+      requestId: string,
+      decision: "Approved" | "Rejected" | "Partial",
+      input?: Parameters<typeof decideOpsRequestApproval>[3],
+    ) => apply((s) => decideOpsRequestApproval(s, requestId, decision, input), `Ops ${decision.toLowerCase()}.`),
+    autoReviewOps: (requestId: string) =>
+      apply((s) => autoReviewOpsLines(s, requestId), "Warehouse availability reviewed."),
+    reviewOpsWarehouse: (requestId: string, input: Parameters<typeof reviewOpsWarehouse>[2]) =>
+      apply((s) => reviewOpsWarehouse(s, requestId, input), "Warehouse review saved."),
+    prepareOps: (requestId: string, input: Parameters<typeof prepareOpsRequest>[2]) =>
+      apply((s) => prepareOpsRequest(s, requestId, input), "Preparation saved."),
+    markOpsReady: (requestId: string) =>
+      apply((s) => markOpsReadyForCollection(s, requestId), "Ready for collection."),
+    releaseOpsGoods: (requestId: string, input?: Parameters<typeof releaseOpsGoods>[2]) =>
+      apply((s) => releaseOpsGoods(s, requestId, input), "Goods released — ledger posted."),
+    assignOpsDriver: (requestId: string, driverId: string, vehicle?: string) =>
+      apply((s) => assignOpsDriver(s, requestId, driverId, vehicle), "Driver assigned."),
+    advanceOpsDriver: (requestId: string, toStatus: Parameters<typeof advanceOpsDriverStatus>[2], note?: string) =>
+      apply((s) => advanceOpsDriverStatus(s, requestId, toStatus, note), "Driver status updated."),
+    confirmOpsWarehouseCollect: (requestId: string) =>
+      apply((s) => confirmOpsWarehouseCollection(s, requestId), "Warehouse collection confirmed."),
+    confirmOpsDelivery: (requestId: string, input: Parameters<typeof confirmOpsDeliveryReceipt>[2]) =>
+      apply((s) => confirmOpsDeliveryReceipt(s, requestId, input), "Delivery receipt recorded."),
+    postOpsMessage: (requestId: string, body: string, chip?: Parameters<typeof postOpsMessage>[3]) =>
+      apply((s) => postOpsMessage(s, requestId, body, chip), "Message posted."),
+    cancelOpsRequest: (requestId: string, reason: string) =>
+      apply((s) => cancelOpsRequest(s, requestId, reason), "Request cancelled."),
+    saveOpsDriver: (input: Parameters<typeof upsertOpsDriver>[1]) =>
+      apply((s) => upsertOpsDriver(s, input), "Driver saved."),
     postCustomerReturn: (input: Parameters<typeof createCustomerReturn>[1]) =>
       apply((s) => createCustomerReturn(s, input), "Customer return posted to ledger."),
     postSupplierReturn: (input: Parameters<typeof createSupplierReturn>[1]) =>

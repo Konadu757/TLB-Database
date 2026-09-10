@@ -249,6 +249,46 @@ export function buildSearchIndex(state: TlbState): SearchDocument[] {
     });
   }
 
+  for (const r of state.opsRequests ?? []) {
+    if (r.deletedAt) continue;
+    push({
+      kind: "Ops Request",
+      id: r.id,
+      label: `${r.number} — Ops Request`,
+      subtitle: `${r.title} · ${r.status}`,
+      nav: "Requests",
+      fields: fields(
+        field(r.number, 10),
+        field(r.title, 8),
+        field(r.driverName, 8),
+        field(r.vehicle, 7),
+        field(r.destination, 6),
+        field(r.status, 5),
+        field(r.priority, 5),
+        field(r.type, 4),
+        field(r.requestedBy, 4),
+        field(r.stockIssueNumber, 6),
+      ),
+    });
+  }
+
+  for (const drv of state.opsDrivers ?? []) {
+    if (!drv.active) continue;
+    push({
+      kind: "Driver",
+      id: drv.id,
+      label: `${drv.code} — Driver`,
+      subtitle: `${drv.name}${drv.vehicle ? ` · ${drv.vehicle}` : ""}`,
+      nav: "Drivers",
+      fields: fields(
+        field(drv.code, 10),
+        field(drv.name, 9),
+        field(drv.phone, 7),
+        field(drv.vehicle, 8),
+      ),
+    });
+  }
+
   for (const s of state.supplies) {
     push({
       kind: "Supply",

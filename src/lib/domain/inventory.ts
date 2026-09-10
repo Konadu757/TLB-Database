@@ -480,7 +480,12 @@ export type AskTlbPresetId =
   | "customer_performance"
   | "supplier_performance"
   | "stock_ageing_old"
-  | "profitability";
+  | "profitability"
+  | "ops_pending_approvals"
+  | "ops_outstanding"
+  | "ops_in_transit"
+  | "ops_discrepancies"
+  | "ops_ready_collection";
 
 export interface AskTlbPreset {
   id: AskTlbPresetId;
@@ -508,6 +513,11 @@ export const ASK_TLB_PRESETS: AskTlbPreset[] = [
   { id: "supplier_performance", label: "Supplier Performance", description: "Purchase value, on-time, rejections" },
   { id: "stock_ageing_old", label: "Aged Stock 91+", description: "Batches older than 90 days" },
   { id: "profitability", label: "Product Profitability", description: "Gross profit where cost + sales exist" },
+  { id: "ops_pending_approvals", label: "Ops Pending Approvals", description: "Operations Hub requests awaiting approval" },
+  { id: "ops_outstanding", label: "Ops Outstanding Shortage", description: "Warehouse shortage outstanding (not delivery missing)" },
+  { id: "ops_in_transit", label: "Ops In Transit", description: "Requests collected / in transit" },
+  { id: "ops_discrepancies", label: "Ops Discrepancies", description: "Delivery missing / damaged / wrong / rejected" },
+  { id: "ops_ready_collection", label: "Ops Ready for Collection", description: "Prepared and ready for driver pickup" },
 ];
 
 export interface AskTlbHit {
@@ -729,6 +739,68 @@ export function runAskTlbPreset(state: TlbState, presetId: AskTlbPresetId, asOf 
         nav: "Reports",
         entityId: r.key,
       }));
+    case "ops_pending_approvals":
+      return (state.opsRequests ?? [])
+        .filter((r) => !r.deletedAt && (r.status === "Pending Approval" || r.status === "Partially Approved"))
+        .map((r) => ({
+          id: r.id,
+          label: r.number,
+          subtitle: `${r.title} · ${r.priority}`,
+          nav: "Requests",
+          entityId: r.id,
+        }));
+    case "ops_outstanding":
+      return (state.opsRequestLines ?? [])
+        .filter((l) => {
+          const shortage = Math.max(0, l.requestedQty - l.approvedQty - l.cancelledQty);
+          return shortage > 0;
+        })
+        .map((l) => {
+          const req = (state.opsRequests ?? []).find((r) => r.id === l.requestId);
+          const product = state.products.find((p) => p.id === l.productId);
+          const shortage = Math.max(0, l.requestedQty - l.approvedQty - l.cancelledQty);
+          return {
+            id: l.id,
+            label: req?.number ?? l.requestId,
+            subtitle: `${product?.name ?? l.productId} shortage ${shortage} (missing disc. ${l.missingQty})`,
+            nav: "Outstanding Requests",
+            entityId: l.requestId,
+          };
+        });
+    case "ops_in_transit":
+      return (state.opsRequests ?? [])
+        .filter((r) => !r.deletedAt && ["Collected", "In Transit", "Issued"].includes(r.status))
+        .map((r) => ({
+          id: r.id,
+          label: r.number,
+          subtitle: `${r.driverName ?? "unassigned"} · ${r.destination}`,
+          nav: "Requests",
+          entityId: r.id,
+        }));
+    case "ops_discrepancies":
+      return (state.opsDiscrepancies ?? [])
+        .filter((d) => !d.resolvedAt)
+        .map((d) => {
+          const req = (state.opsRequests ?? []).find((r) => r.id === d.requestId);
+          const product = state.products.find((p) => p.id === d.productId);
+          return {
+            id: d.id,
+            label: req?.number ?? d.requestId,
+            subtitle: `${d.kind} × ${d.quantity} · ${product?.name ?? d.productId}`,
+            nav: "Exceptions / Discrepancies",
+            entityId: d.requestId,
+          };
+        });
+    case "ops_ready_collection":
+      return (state.opsRequests ?? [])
+        .filter((r) => !r.deletedAt && r.status === "Ready for Collection")
+        .map((r) => ({
+          id: r.id,
+          label: r.number,
+          subtitle: r.title,
+          nav: "Warehouse Actions",
+          entityId: r.id,
+        }));
     default:
       return [];
   }

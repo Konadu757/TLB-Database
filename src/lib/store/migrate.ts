@@ -68,6 +68,7 @@ const DEFAULT_COUNTERS: DocumentCounters = {
   nonPoPurchase: 0,
   importShipment: 0,
   exportShipment: 0,
+  opsRequest: 0,
 };
 
 function defaultUsers(roles: RoleDefinition[]): AppUser[] {
@@ -106,6 +107,20 @@ function defaultUsers(roles: RoleDefinition[]): AppUser[] {
       name: "Yaw Mensah",
       email: "manager@tlb.gh",
       roleId: byKey("Manager"),
+      active: true,
+    },
+    {
+      id: "user-driver",
+      name: "Kwesi Owusu",
+      email: "driver@tlb.gh",
+      roleId: byKey("Driver"),
+      active: true,
+    },
+    {
+      id: "user-requester",
+      name: "Abena Factory",
+      email: "factory@tlb.gh",
+      roleId: byKey("Requester"),
       active: true,
     },
   ];
@@ -164,6 +179,7 @@ export function migrateState(raw: unknown): TlbState {
     nonPoPurchase: parsed.counters?.nonPoPurchase ?? 0,
     importShipment: parsed.counters?.importShipment ?? 0,
     exportShipment: parsed.counters?.exportShipment ?? 0,
+    opsRequest: parsed.counters?.opsRequest ?? 0,
   };
 
   const ageing: AgeingSettings = {
@@ -193,7 +209,9 @@ export function migrateState(raw: unknown): TlbState {
           ...parsed.roles,
         ]
       : systemRoles;
-  const users: AppUser[] = parsed.users?.length ? parsed.users : defaultUsers(roles);
+  const users: AppUser[] = parsed.users?.length
+    ? mergeById(parsed.users, defaultUsers(roles))
+    : defaultUsers(roles);
 
   const baseOrders = parsed.orders?.length ? parsed.orders.map((o) => ({ ...o })) : seed.orders.map((o) => ({ ...o }));
   const baseOrderLines = parsed.orderLines?.length ? parsed.orderLines : seed.orderLines;
@@ -205,6 +223,8 @@ export function migrateState(raw: unknown): TlbState {
   const needsInventorySeed = priorVersion < 9;
   // v10: returns, Non-PO workflow, import/export shipments, ageing/profit packs.
   const needsOpsPackSeed = priorVersion < 10;
+  // v11: Operations Hub (requests, drivers, discrepancies, approval rules).
+  const needsOpsHubSeed = priorVersion < 11;
 
   const inventorySettings: InventorySettings = {
     ...DEFAULT_INVENTORY_SETTINGS,
@@ -216,15 +236,23 @@ export function migrateState(raw: unknown): TlbState {
   };
 
   const next: TlbState = {
-    version: 10,
-    warehouses: parsed.warehouses?.length ? parsed.warehouses : seed.warehouses,
-    products: needsInventorySeed
+    version: 11,
+    warehouses: needsOpsHubSeed
+      ? mergeById(parsed.warehouses?.length ? parsed.warehouses : seed.warehouses, seed.warehouses)
+      : parsed.warehouses?.length
+        ? parsed.warehouses
+        : seed.warehouses,
+    products: needsInventorySeed || needsOpsHubSeed
       ? mergeById(parsed.products?.length ? parsed.products : seed.products, seed.products)
       : parsed.products?.length
         ? parsed.products
         : seed.products,
-    stock: parsed.stock?.length ? parsed.stock.map((s) => ({ ...s })) : seed.stock,
-    batches: needsInventorySeed
+    stock: needsOpsHubSeed
+      ? mergeById(parsed.stock?.length ? parsed.stock.map((s) => ({ ...s })) : seed.stock, seed.stock)
+      : parsed.stock?.length
+        ? parsed.stock.map((s) => ({ ...s }))
+        : seed.stock,
+    batches: needsInventorySeed || needsOpsHubSeed
       ? mergeById(parsed.batches ?? [], seed.batches)
       : (parsed.batches ?? []),
     stockMovements: needsInventorySeed
@@ -293,6 +321,16 @@ export function migrateState(raw: unknown): TlbState {
     exportShipmentLines: needsOpsPackSeed
       ? mergeById(parsed.exportShipmentLines ?? [], seed.exportShipmentLines)
       : (parsed.exportShipmentLines ?? []),
+    opsRequests: parsed.opsRequests ?? [],
+    opsRequestLines: parsed.opsRequestLines ?? [],
+    opsDrivers: needsOpsHubSeed
+      ? mergeById(parsed.opsDrivers ?? [], seed.opsDrivers)
+      : (parsed.opsDrivers ?? seed.opsDrivers),
+    opsMessages: parsed.opsMessages ?? [],
+    opsActivity: parsed.opsActivity ?? [],
+    opsCustody: parsed.opsCustody ?? [],
+    opsDiscrepancies: parsed.opsDiscrepancies ?? [],
+    opsApprovalRules: parsed.opsApprovalRules?.length ? parsed.opsApprovalRules : seed.opsApprovalRules,
     notifications: parsed.notifications ?? [],
     reservations: parsed.reservations ?? [],
     audit: parsed.audit ?? [],
@@ -330,6 +368,7 @@ export function migrateState(raw: unknown): TlbState {
             exportShipment: Math.max(counters.exportShipment ?? 0, seed.counters.exportShipment ?? 0),
           }
         : {}),
+      opsRequest: Math.max(counters.opsRequest ?? 0, seed.counters.opsRequest ?? 0),
       quotation: Math.max(counters.quotation ?? 0, seed.counters.quotation ?? 0, parsed.quotations?.length ?? 0),
     },
     ageing,
@@ -362,7 +401,7 @@ export function migrateState(raw: unknown): TlbState {
   }
 
   // v7: trash permissions — keep system roles aligned with the latest capability matrix.
-  if (priorVersion < 7 || priorVersion < 10) {
+  if (priorVersion < 7 || priorVersion < 11) {
     for (const role of next.roles) {
       if (!role.systemKey) continue;
       const defaults = SYSTEM_ROLE_PERMISSIONS[role.systemKey] as Permission[] | undefined;

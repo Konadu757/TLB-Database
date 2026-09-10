@@ -37,6 +37,14 @@ export const ALL_PERMISSIONS: Permission[] = [
   "trash.view",
   "records.delete",
   "trash.purge",
+  "ops.request",
+  "ops.approve",
+  "ops.warehouse",
+  "ops.dispatch",
+  "ops.drive",
+  "ops.receive",
+  "ops.communicate",
+  "ops.view",
 ];
 
 export const PERMISSION_LABELS: Record<Permission, { module: string; label: string }> = {
@@ -70,6 +78,14 @@ export const PERMISSION_LABELS: Record<Permission, { module: string; label: stri
   "trash.view": { module: "Trash", label: "View trash" },
   "records.delete": { module: "Trash", label: "Move records to trash" },
   "trash.purge": { module: "Trash", label: "Permanently delete from trash" },
+  "ops.request": { module: "Operations Hub", label: "Create / submit requests" },
+  "ops.approve": { module: "Operations Hub", label: "Approve ops requests" },
+  "ops.warehouse": { module: "Operations Hub", label: "Warehouse review / release" },
+  "ops.dispatch": { module: "Operations Hub", label: "Dispatch & assign drivers" },
+  "ops.drive": { module: "Operations Hub", label: "Driver job actions" },
+  "ops.receive": { module: "Operations Hub", label: "Confirm delivery receipt" },
+  "ops.communicate": { module: "Operations Hub", label: "Request communication" },
+  "ops.view": { module: "Operations Hub", label: "View operations hub" },
 };
 
 /** Default permission sets for seeded system roles. */
@@ -103,6 +119,13 @@ export const SYSTEM_ROLE_PERMISSIONS: Record<SystemRoleKey, Permission[]> = {
     "reports.view",
     "settings.manage",
     "audit.view",
+    "ops.request",
+    "ops.approve",
+    "ops.warehouse",
+    "ops.dispatch",
+    "ops.receive",
+    "ops.communicate",
+    "ops.view",
   ],
   Sales: [
     "dashboard.view",
@@ -119,6 +142,10 @@ export const SYSTEM_ROLE_PERMISSIONS: Record<SystemRoleKey, Permission[]> = {
     "bi.view",
     "reports.view",
     "audit.view",
+    "ops.request",
+    "ops.communicate",
+    "ops.view",
+    "ops.receive",
   ],
   Warehouse: [
     "dashboard.view",
@@ -132,6 +159,10 @@ export const SYSTEM_ROLE_PERMISSIONS: Record<SystemRoleKey, Permission[]> = {
     "delivery.manage",
     "bi.view",
     "audit.view",
+    "ops.warehouse",
+    "ops.dispatch",
+    "ops.communicate",
+    "ops.view",
   ],
   Finance: [
     "dashboard.view",
@@ -144,6 +175,30 @@ export const SYSTEM_ROLE_PERMISSIONS: Record<SystemRoleKey, Permission[]> = {
     "bi.view",
     "reports.view",
     "audit.view",
+    "ops.approve",
+    "ops.view",
+  ],
+  Driver: [
+    "dashboard.view",
+    "ops.drive",
+    "ops.communicate",
+    "ops.view",
+    "delivery.manage",
+  ],
+  Requester: [
+    "dashboard.view",
+    "ops.request",
+    "ops.communicate",
+    "ops.view",
+    "ops.receive",
+    "bi.view",
+  ],
+  Receiver: [
+    "dashboard.view",
+    "ops.receive",
+    "ops.communicate",
+    "ops.view",
+    "delivery.manage",
   ],
 };
 
@@ -157,6 +212,9 @@ export const SYSTEM_ROLE_IDS: Record<SystemRoleKey, string> = {
   Sales: "role-sales",
   Warehouse: "role-warehouse",
   Finance: "role-finance",
+  Driver: "role-driver",
+  Requester: "role-requester",
+  Receiver: "role-receiver",
 };
 
 export const OWNER_USER_ID = "user-owner";
@@ -169,6 +227,9 @@ export function createSystemRoles(): RoleDefinition[] {
     Sales: "Customers, quotations, orders, and commercial documents.",
     Warehouse: "Stock, supplies, and deliveries.",
     Finance: "Invoices, receipts, payments, and financial reports.",
+    Driver: "Driver jobs — collect, transit, and delivery confirmation.",
+    Requester: "Create and track operational requests.",
+    Receiver: "Confirm delivery receipts and report discrepancies.",
   };
   return (Object.keys(SYSTEM_ROLE_PERMISSIONS) as SystemRoleKey[]).map((key) => ({
     id: SYSTEM_ROLE_IDS[key],
@@ -210,6 +271,14 @@ export const NAV_PERMISSIONS: Record<string, Permission[]> = {
   Factory: ["stock.view", "stock.receive"],
   "Quality Control": ["stock.view"],
   Deliveries: ["delivery.manage"],
+  Requests: ["ops.request", "ops.view"],
+  "Warehouse Actions": ["ops.warehouse", "stock.issue"],
+  Dispatch: ["ops.dispatch", "delivery.manage", "ops.warehouse"],
+  Drivers: ["ops.drive", "ops.dispatch", "delivery.manage"],
+  "Outstanding Requests": ["ops.view", "ops.request", "ops.warehouse"],
+  "Exceptions / Discrepancies": ["ops.view", "ops.receive", "ops.warehouse", "ops.approve"],
+  "My Actions": ["ops.view", "ops.request", "ops.approve", "ops.warehouse", "ops.drive", "ops.receive"],
+  "Live Operations Board": ["ops.view", "ops.dispatch", "ops.warehouse"],
   Finance: ["finance.view", "invoice.create", "receipt.create", "payment.record"],
   Reports: ["reports.view"],
   "Audit Log": ["audit.view"],
@@ -258,7 +327,17 @@ export function listAssignableRoles(roles: RoleDefinition[]): RoleDefinition[] {
 }
 
 /** @deprecated Prefer listAssignableRoles(state.roles) — fixed system keys only. */
-export const ALL_ROLES: SystemRoleKey[] = ["Owner", "Sales", "Warehouse", "Finance", "Manager", "Admin"];
+export const ALL_ROLES: SystemRoleKey[] = [
+  "Owner",
+  "Sales",
+  "Warehouse",
+  "Finance",
+  "Manager",
+  "Admin",
+  "Driver",
+  "Requester",
+  "Receiver",
+];
 
 export function userInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);

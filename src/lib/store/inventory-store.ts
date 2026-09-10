@@ -157,7 +157,7 @@ export function postStockMovement(
   return move;
 }
 
-function consumeBatch(state: TlbState, batchId: string, qty: number): void {
+export function consumeBatch(state: TlbState, batchId: string, qty: number): void {
   const batch = state.batches.find((b) => b.id === batchId);
   if (!batch) throw new Error("Batch not found.");
   if (batch.remainingQty < qty) throw new Error(`Batch ${batch.code} only has ${batch.remainingQty} remaining.`);

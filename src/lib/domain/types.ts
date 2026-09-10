@@ -65,10 +65,28 @@ export type NotificationType =
   | "expected_date_reached"
   | "overdue"
   | "stock_available"
-  | "extended_unfulfilled";
+  | "extended_unfulfilled"
+  | "ops_request_submitted"
+  | "ops_approval_needed"
+  | "ops_ready_collection"
+  | "ops_driver_assigned"
+  | "ops_in_transit"
+  | "ops_delivery_confirmed"
+  | "ops_discrepancy"
+  | "ops_outstanding"
+  | "ops_message";
 
 /** Built-in role keys used when seeding system roles (custom roles have no systemKey). */
-export type SystemRoleKey = "Owner" | "Sales" | "Warehouse" | "Finance" | "Manager" | "Admin";
+export type SystemRoleKey =
+  | "Owner"
+  | "Sales"
+  | "Warehouse"
+  | "Finance"
+  | "Manager"
+  | "Admin"
+  | "Driver"
+  | "Requester"
+  | "Receiver";
 
 /** Role id string — system or custom. Display name lives on RoleDefinition.name. */
 export type AppRole = string;
@@ -103,7 +121,15 @@ export type Permission =
   | "users.manage"
   | "trash.view"
   | "records.delete"
-  | "trash.purge";
+  | "trash.purge"
+  | "ops.request"
+  | "ops.approve"
+  | "ops.warehouse"
+  | "ops.dispatch"
+  | "ops.drive"
+  | "ops.receive"
+  | "ops.communicate"
+  | "ops.view";
 
 /** Immutable stock ledger movement kinds. */
 export type StockMovementType =
@@ -145,7 +171,8 @@ export type ApprovalKind =
   | "write_off"
   | "transfer"
   | "cancellation"
-  | "high_value";
+  | "high_value"
+  | "ops_request";
 
 export type ApprovalStatus = "Pending" | "Approved" | "Rejected" | "Cancelled";
 
@@ -210,7 +237,24 @@ export type AuditAction =
   | "non_po.created"
   | "non_po.status_changed"
   | "shipment.import_upserted"
-  | "shipment.export_upserted";
+  | "shipment.export_upserted"
+  | "ops.request_created"
+  | "ops.request_submitted"
+  | "ops.request_acknowledged"
+  | "ops.request_approved"
+  | "ops.request_rejected"
+  | "ops.warehouse_reviewed"
+  | "ops.prepared"
+  | "ops.ready_collection"
+  | "ops.released"
+  | "ops.driver_assigned"
+  | "ops.driver_status"
+  | "ops.collected"
+  | "ops.delivery_confirmed"
+  | "ops.discrepancy_logged"
+  | "ops.message_posted"
+  | "ops.request_cancelled"
+  | "ops.custody_changed";
 
 /** Soft-delete metadata applied to domain records moved to Trash. */
 export interface SoftDeleteFields {
@@ -230,7 +274,8 @@ export type TrashEntityType =
   | "supplier_return"
   | "non_po_purchase"
   | "import_shipment"
-  | "export_shipment";
+  | "export_shipment"
+  | "ops_request";
 
 /** Soft-deleted catalog (quotations / sandbox list) rows. */
 export interface CatalogDeletion {
@@ -414,6 +459,8 @@ export interface StockIssue {
   orderId?: string;
   supplyId?: string;
   deliveryId?: string;
+  /** Linked Operations Hub request when released from warehouse actions. */
+  opsRequestId?: string;
   notes?: string;
 }
 
@@ -482,9 +529,9 @@ export interface ApprovalRequest {
   amount?: number;
   requestedAt: string;
   requestedBy: string;
-  decidedAt?: string;
-  decidedBy?: string;
-  decisionNote?: string;
+  decidedAt?: string | undefined;
+  decidedBy?: string | undefined;
+  decisionNote?: string | undefined;
 }
 
 export interface InventorySettings {
@@ -763,11 +810,17 @@ export interface AppNotification {
   type: NotificationType;
   title: string;
   body: string;
-  orderId?: string;
-  productId?: string;
+  orderId?: string | undefined;
+  productId?: string | undefined;
+  /** Ops request link for Operations Hub notifications. */
+  opsRequestId?: string | undefined;
+  /** Optional target user — undefined = role/broadcast style. */
+  targetUserId?: string | undefined;
+  /** Optional target role name/key for role-targeted alerts. */
+  targetRole?: string | undefined;
   dedupeKey: string;
   createdAt: string;
-  readAt?: string;
+  readAt?: string | undefined;
 }
 
 export interface StockReservation {
@@ -791,7 +844,7 @@ export interface AuditEvent {
   entityType: string;
   entityId: string;
   summary: string;
-  meta?: Record<string, string | number | boolean | null>;
+  meta?: Record<string, string | number | boolean | null> | undefined;
 }
 
 export interface AgeingSettings {
@@ -826,6 +879,7 @@ export interface DocumentCounters {
   nonPoPurchase: number;
   importShipment: number;
   exportShipment: number;
+  opsRequest: number;
 }
 
 /** Customer goods return disposition after QC. */
@@ -995,6 +1049,251 @@ export type StockAgeBand = "0-30" | "31-90" | "91-180" | "181-365" | "365+";
 
 export type StockVelocityClass = "Fast" | "Slow" | "Dead";
 
+/** ─── Operations Hub: Request → Approval → Issue → Dispatch → Delivery ─── */
+
+export type OpsRequestType =
+  | "Factory Draw"
+  | "Internal Use"
+  | "Customer Supply"
+  | "Sample"
+  | "Emergency Top-up"
+  | "Transfer Prep"
+  | "Other";
+
+export type OpsRequestPriority = "Low" | "Normal" | "High" | "Critical";
+
+export type OpsRequestStatus =
+  | "Draft"
+  | "Submitted"
+  | "Acknowledged"
+  | "Pending Approval"
+  | "Partially Approved"
+  | "Approved"
+  | "Rejected"
+  | "Warehouse Review"
+  | "Preparing"
+  | "Ready for Collection"
+  | "Issued"
+  | "Collected"
+  | "In Transit"
+  | "Delivered"
+  | "Partially Delivered"
+  | "Closed"
+  | "Cancelled";
+
+export type OpsWarehouseAvailability = "Available" | "Partial" | "Out of Stock" | "Clarification";
+
+export type OpsDriverJobStatus =
+  | "Assigned"
+  | "En Route Warehouse"
+  | "Arrived Warehouse"
+  | "Collected"
+  | "Departed"
+  | "Arrived Destination"
+  | "Delivered"
+  | "Problem";
+
+export type OpsReceiptOutcome =
+  | "Full"
+  | "Partial"
+  | "Damaged"
+  | "Wrong"
+  | "Missing"
+  | "Rejected";
+
+export type OpsDiscrepancyKind = "missing" | "damaged" | "wrong" | "rejected" | "short_delivery";
+
+export type OpsCustodyHolder = "warehouse" | "driver" | "destination" | "requester";
+
+export type OpsMessageChip =
+  | "Need clarification"
+  | "Ready to collect"
+  | "Delay expected"
+  | "Stock confirmed"
+  | "Urgent"
+  | "Partial OK"
+  | "Problem reported";
+
+export interface OpsDriver {
+  id: string;
+  code: string;
+  name: string;
+  phone: string;
+  vehicle?: string | undefined;
+  active: boolean;
+  userId?: string | undefined;
+  notes?: string | undefined;
+}
+
+export interface OpsRequestLine {
+  id: string;
+  requestId: string;
+  productId: string;
+  warehouseId: string;
+  /** Preferred fulfilment warehouse after review. */
+  fulfilWarehouseId?: string | undefined;
+  requestedQty: number;
+  approvedQty: number;
+  preparedQty: number;
+  issuedQty: number;
+  receivedQty: number;
+  cancelledQty: number;
+  /** Warehouse shortage outstanding = requested − approved − cancelled (never merged with delivery missing). */
+  /** Damaged / wrong / missing from delivery receipt — separate from shortage. */
+  missingQty: number;
+  damagedQty: number;
+  wrongQty: number;
+  rejectedQty: number;
+  unit?: string | undefined;
+  notes?: string | undefined;
+  availability?: OpsWarehouseAvailability | undefined;
+  availabilityNote?: string | undefined;
+  fefoBatchId?: string | undefined;
+  fefoOverrideReason?: string | undefined;
+  clarificationNote?: string | undefined;
+}
+
+export interface OpsRequest extends SoftDeleteFields {
+  id: string;
+  number: string;
+  type: OpsRequestType;
+  priority: OpsRequestPriority;
+  priorityReason?: string | undefined;
+  status: OpsRequestStatus;
+  title: string;
+  destination: string;
+  requestedBy: string;
+  requestedByUserId: string;
+  requestedAt: string;
+  neededBy?: string | undefined;
+  submittedAt?: string | undefined;
+  acknowledgedAt?: string | undefined;
+  acknowledgedBy?: string | undefined;
+  /** Minutes from submit → first acknowledge. */
+  responseMinutes?: number | undefined;
+  approvedAt?: string | undefined;
+  approvedBy?: string | undefined;
+  rejectedAt?: string | undefined;
+  rejectedBy?: string | undefined;
+  rejectionReason?: string | undefined;
+  warehouseReviewedAt?: string | undefined;
+  warehouseReviewedBy?: string | undefined;
+  preparedAt?: string | undefined;
+  preparedBy?: string | undefined;
+  readyAt?: string | undefined;
+  releasedAt?: string | undefined;
+  releasedBy?: string | undefined;
+  stockIssueId?: string | undefined;
+  stockIssueNumber?: string | undefined;
+  driverId?: string | undefined;
+  driverName?: string | undefined;
+  vehicle?: string | undefined;
+  driverStatus?: OpsDriverJobStatus | undefined;
+  assignedAt?: string | undefined;
+  collectedAt?: string | undefined;
+  collectedByWarehouse?: string | undefined;
+  collectedByDriver?: string | undefined;
+  warehouseCollectConfirmed?: boolean | undefined;
+  driverCollectConfirmed?: boolean | undefined;
+  departedAt?: string | undefined;
+  arrivedDestAt?: string | undefined;
+  deliveredAt?: string | undefined;
+  receiptOutcome?: OpsReceiptOutcome | undefined;
+  receivedBy?: string | undefined;
+  receiptNotes?: string | undefined;
+  notes?: string | undefined;
+  customerId?: string | undefined;
+  orderId?: string | undefined;
+  approvalId?: string | undefined;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OpsRequestMessage {
+  id: string;
+  requestId: string;
+  at: string;
+  actor: string;
+  actorUserId?: string | undefined;
+  body: string;
+  chip?: OpsMessageChip | undefined;
+}
+
+export interface OpsActivityEvent {
+  id: string;
+  requestId: string;
+  at: string;
+  actor: string;
+  action: string;
+  summary: string;
+  meta?: Record<string, string | number | boolean | null> | undefined;
+}
+
+export interface OpsCustodyEvent {
+  id: string;
+  requestId: string;
+  at: string;
+  actor: string;
+  fromHolder: OpsCustodyHolder;
+  toHolder: OpsCustodyHolder;
+  summary: string;
+  holderName?: string | undefined;
+}
+
+export interface OpsDiscrepancy {
+  id: string;
+  requestId: string;
+  lineId: string;
+  productId: string;
+  kind: OpsDiscrepancyKind;
+  quantity: number;
+  /** Explicitly NOT warehouse outstanding shortage. */
+  notes?: string | undefined;
+  loggedAt: string;
+  loggedBy: string;
+  resolvedAt?: string | undefined;
+  resolvedBy?: string | undefined;
+}
+
+export interface OpsApprovalRule {
+  id: string;
+  name: string;
+  active: boolean;
+  /** Match any of these types (empty = all). */
+  types?: OpsRequestType[];
+  /** Match when priority is in this list. */
+  priorities?: OpsRequestPriority[];
+  /** Match when estimated line value ≥ this (qty × standardCost). */
+  minValue?: number;
+  /** Always require approval when true. */
+  requireApproval: boolean;
+  note?: string;
+}
+
+/** My Actions task board row. */
+export interface OpsActionItem {
+  id: string;
+  kind:
+    | "acknowledge"
+    | "approve"
+    | "warehouse_review"
+    | "prepare"
+    | "release"
+    | "collect"
+    | "drive"
+    | "receive"
+    | "clarify"
+    | "resolve_discrepancy";
+  title: string;
+  subtitle: string;
+  requestId: string;
+  requestNumber: string;
+  priority: OpsRequestPriority;
+  status: OpsRequestStatus;
+  dueHint?: string;
+  nav: string;
+}
+
 /** User-created commercial quotations (unique TLB-QTE numbers). */
 export interface Quotation {
   id: string;
@@ -1057,6 +1356,15 @@ export interface TlbState {
   importShipmentLines: ImportShipmentLine[];
   exportShipments: ExportShipment[];
   exportShipmentLines: ExportShipmentLine[];
+  /** Operations Hub */
+  opsRequests: OpsRequest[];
+  opsRequestLines: OpsRequestLine[];
+  opsDrivers: OpsDriver[];
+  opsMessages: OpsRequestMessage[];
+  opsActivity: OpsActivityEvent[];
+  opsCustody: OpsCustodyEvent[];
+  opsDiscrepancies: OpsDiscrepancy[];
+  opsApprovalRules: OpsApprovalRule[];
   notifications: AppNotification[];
   reservations: StockReservation[];
   audit: AuditEvent[];

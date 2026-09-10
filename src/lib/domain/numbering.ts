@@ -24,7 +24,8 @@ export type DocumentKind =
   | "supplierReturn"
   | "nonPoPurchase"
   | "importShipment"
-  | "exportShipment";
+  | "exportShipment"
+  | "opsRequest";
 
 /** Document numbering — TLB-ORD / TLB-QTE / TLB-SUP / TLB-CUS / TLB-VEN / TLB-PO / TLB-GRN / TLB-SPAY / … */
 export function nextDocumentNumber(
@@ -119,6 +120,10 @@ export function nextDocumentNumber(
   if (kind === "exportShipment") {
     next.exportShipment = (next.exportShipment ?? 0) + 1;
     return { number: `TLB-EXP-${yy}${mm}-${pad(next.exportShipment)}`, counters: next };
+  }
+  if (kind === "opsRequest") {
+    next.opsRequest = (next.opsRequest ?? 0) + 1;
+    return { number: `TLB-REQ-${yy}${mm}-${pad(next.opsRequest)}`, counters: next };
   }
   next.customer += 1;
   return { number: `TLB-CUS-${pad(next.customer, 4)}`, counters: next };
