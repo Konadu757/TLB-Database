@@ -5,6 +5,13 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, Search, X } from "lucide-react";
 
 import {
+  BulkTrashToolbar,
+  SelectAllHeader,
+  SelectRowCell,
+  useListSelection,
+} from "@/components/modules/list-bulk-trash";
+import { MoveToTrashButton } from "@/components/modules/move-to-trash-button";
+import {
   EmptyState,
   RecordDetailPage,
   RecordDetailSection,
@@ -33,7 +40,7 @@ import type {
   OpsRequestType,
   OpsWarehouseAvailability,
 } from "@/lib/domain/types";
-import { listDriverTodayJobs } from "@/lib/store/ops-hub-store";
+import { findDriverBlockingAssignment, listDriverTodayJobs } from "@/lib/store/ops-hub-store";
 import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
 
 function Flash({ error, notice, onClear }: { error: string | null; notice: string | null; onClear: () => void }) {
@@ -186,7 +193,7 @@ export function OpsRequestDetail({
   const [receiptOutcome, setReceiptOutcome] = useState<OpsReceiptOutcome>(request.receiptOutcome ?? "Full");
   const [receivedBy, setReceivedBy] = useState(request.receivedBy ?? state.currentUser);
   const [receiptNotes, setReceiptNotes] = useState(request.receiptNotes ?? "");
-  const [driverId, setDriverId] = useState(request.driverId ?? state.opsDrivers.find((d) => d.active)?.id ?? "");
+  const [driverId, setDriverId] = useState(request.driverId ?? state.opsDrivers.find((d) => d.active && !d.deletedAt)?.id ?? "");
   const [vehicle, setVehicle] = useState(request.vehicle ?? "");
   const [chatBody, setChatBody] = useState("");
   const [cancelReason, setCancelReason] = useState("");
@@ -675,7 +682,7 @@ export function OpsRequestDetail({
               <select value={driverId} onChange={(e) => setDriverId(e.target.value)}>
                 <option value="">— Select —</option>
                 {(state.opsDrivers ?? [])
-                  .filter((d) => d.active)
+                  .filter((d) => d.active && !d.deletedAt)
                   .map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.code} · {d.name}
@@ -1465,7 +1472,7 @@ export function OpsDispatchModule({ store, focusId, onFocusConsumed, onOpenReque
     });
   }, [store.state.opsRequests, search]);
 
-  const drivers = (store.state.opsDrivers ?? []).filter((d) => d.active);
+  const drivers = (store.state.opsDrivers ?? []).filter((d) => d.active && !d.deletedAt);
   const detail = liveOpsRequests(store).find((r) => r.id === detailId) ?? null;
   if (detail) {
     return (
@@ -1582,10 +1589,14 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
   }, [focusId]);
 
   const drivers = useMemo(() => {
-    return (store.state.opsDrivers ?? []).filter((d) =>
-      matchesSearch([d.code, d.name, d.phone, d.vehicle], search),
+    return (store.state.opsDrivers ?? []).filter(
+      (d) => !d.deletedAt && matchesSearch([d.code, d.name, d.phone, d.vehicle], search),
     );
   }, [store.state.opsDrivers, search]);
+
+  const canBulkTrash = store.can("records.delete");
+  const driverIds = useMemo(() => drivers.map((d) => d.id), [drivers]);
+  const selection = useListSelection(canBulkTrash ? driverIds : []);
 
   const jobs = useMemo(() => {
     const all = listDriverTodayJobs(store.state, selectedDriverId === "all" ? undefined : selectedDriverId);
@@ -1610,6 +1621,14 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
         </div>
         <div className="tlb-toolbar-actions">
           <ModuleSearch value={search} onChange={setSearch} placeholder="Search drivers or jobs…" />
+          {canBulkTrash ? (
+            <BulkTrashToolbar
+              store={store}
+              entityType="ops_driver"
+              selectedIds={selection.selectedIds}
+              onDone={selection.clear}
+            />
+          ) : null}
           {(store.can("ops.dispatch") || store.can("ops.drive")) && (
             <Button type="button" onClick={() => setShowForm((v) => !v)}>
               {showForm ? "Close" : "Add driver"}
@@ -1692,27 +1711,65 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
             <table>
               <thead>
                 <tr>
+                  {canBulkTrash ? (
+                    <SelectAllHeader
+                      allSelected={selection.allVisibleSelected}
+                      someSelected={selection.someVisibleSelected}
+                      onToggle={selection.toggleAllVisible}
+                    />
+                  ) : null}
                   <th>Code</th>
                   <th>Name</th>
                   <th>Phone</th>
                   <th>Vehicle</th>
                   <th>Active</th>
+                  {canBulkTrash ? <th>Actions</th> : null}
                 </tr>
               </thead>
               <tbody>
-                {drivers.map((d) => (
-                  <tr key={d.id}>
-                    <td>
-                      <strong>{d.code}</strong>
-                    </td>
-                    <td>{d.name}</td>
-                    <td>{d.phone}</td>
-                    <td>{d.vehicle ?? "—"}</td>
-                    <td>
-                      <StatusBadge tone={d.active ? "success" : "neutral"}>{d.active ? "Active" : "Off"}</StatusBadge>
-                    </td>
-                  </tr>
-                ))}
+                {drivers.map((d) => {
+                  const blocking = findDriverBlockingAssignment(store.state, d.id);
+                  const blockReason = blocking
+                    ? `Assigned to active request ${blocking.number} (${blocking.status}). Reassign or complete first.`
+                    : undefined;
+                  return (
+                    <tr key={d.id} className={selection.isSelected(d.id) ? "tlb-row-selected" : undefined}>
+                      {canBulkTrash ? (
+                        <SelectRowCell
+                          id={d.id}
+                          checked={selection.isSelected(d.id)}
+                          onToggle={selection.toggle}
+                          label={`Select ${d.name}`}
+                        />
+                      ) : null}
+                      <td>
+                        <strong>{d.code}</strong>
+                      </td>
+                      <td>{d.name}</td>
+                      <td>{d.phone}</td>
+                      <td>{d.vehicle ?? "—"}</td>
+                      <td>
+                        <StatusBadge tone={d.active ? "success" : "neutral"}>{d.active ? "Active" : "Off"}</StatusBadge>
+                      </td>
+                      {canBulkTrash ? (
+                        <td>
+                          <MoveToTrashButton
+                            store={store}
+                            entityType="ops_driver"
+                            entityId={d.id}
+                            recordLabel={`${d.code} · ${d.name}`}
+                            disabled={Boolean(blocking)}
+                            disabledReason={blockReason}
+                            onTrashed={() => {
+                              if (selectedDriverId === d.id) setSelectedDriverId("all");
+                              selection.clear();
+                            }}
+                          />
+                        </td>
+                      ) : null}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

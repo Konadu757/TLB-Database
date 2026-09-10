@@ -275,7 +275,8 @@ export type TrashEntityType =
   | "non_po_purchase"
   | "import_shipment"
   | "export_shipment"
-  | "ops_request";
+  | "ops_request"
+  | "ops_driver";
 
 /** Soft-deleted catalog (quotations / sandbox list) rows. */
 export interface CatalogDeletion {
@@ -1114,7 +1115,7 @@ export type OpsMessageChip =
   | "Partial OK"
   | "Problem reported";
 
-export interface OpsDriver {
+export interface OpsDriver extends SoftDeleteFields {
   id: string;
   code: string;
   name: string;

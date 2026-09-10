@@ -14,6 +14,7 @@ import { buildNotifications } from "../domain/notifications";
 import { nextDocumentNumber } from "../domain/numbering";
 import { hasPermission } from "../domain/permissions";
 import { buildCatalogDeletion, isSoftDeleted, listTrashItems as collectTrashItems } from "../domain/trash";
+import { findDriverBlockingAssignment } from "./ops-hub-store";
 import type {
   AppRole,
   AppUser,
@@ -1379,6 +1380,20 @@ export function softDeleteRecord(
     if (isSoftDeleted(row)) return { ok: false, error: "Already in trash." };
     applySoftDeleteMeta(row, actor, reason);
     summary = `Moved export ${row.number} to trash.`;
+  } else if (input.entityType === "ops_driver") {
+    const row = (next.opsDrivers ?? []).find((d) => d.id === input.entityId);
+    if (!row) return { ok: false, error: "Driver not found." };
+    if (isSoftDeleted(row)) return { ok: false, error: "Driver is already in trash." };
+    const blocking = findDriverBlockingAssignment(next, row.id);
+    if (blocking) {
+      return {
+        ok: false,
+        error: `Cannot remove driver ${row.code} — assigned to active request ${blocking.number} (${blocking.status}${blocking.driverStatus ? ` · ${blocking.driverStatus}` : ""}). Reassign or complete the job first.`,
+      };
+    }
+    applySoftDeleteMeta(row, actor, reason);
+    row.active = false;
+    summary = `Moved driver ${row.code} · ${row.name} to trash.`;
   } else {
     return { ok: false, error: "Unsupported record type." };
   }
@@ -1468,6 +1483,12 @@ export function restoreTrashItem(
     if (!row || !isSoftDeleted(row)) return { ok: false, error: "Trashed export not found." };
     clearSoftDeleteMeta(row);
     summary = `Restored export ${row.number} from trash.`;
+  } else if (input.entityType === "ops_driver") {
+    const row = (next.opsDrivers ?? []).find((d) => d.id === input.entityId);
+    if (!row || !isSoftDeleted(row)) return { ok: false, error: "Trashed driver not found." };
+    clearSoftDeleteMeta(row);
+    row.active = true;
+    summary = `Restored driver ${row.code} · ${row.name} from trash.`;
   } else {
     return { ok: false, error: "Unsupported record type." };
   }
@@ -1550,6 +1571,11 @@ export function purgeTrashItem(
     next.exportShipments = (next.exportShipments ?? []).filter((r) => !(r.id === input.entityId && isSoftDeleted(r)));
     next.exportShipmentLines = (next.exportShipmentLines ?? []).filter((l) => l.shipmentId !== input.entityId);
     summary = `Permanently deleted export ${input.entityId}.`;
+  } else if (input.entityType === "ops_driver") {
+    const idx = (next.opsDrivers ?? []).findIndex((d) => d.id === input.entityId && isSoftDeleted(d));
+    if (idx < 0) return { ok: false, error: "Trashed driver not found." };
+    const [removed] = next.opsDrivers.splice(idx, 1);
+    summary = `Permanently deleted driver ${removed?.code ?? input.entityId}.`;
   } else {
     return { ok: false, error: "Unsupported record type." };
   }

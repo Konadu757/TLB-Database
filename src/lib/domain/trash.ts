@@ -54,6 +54,10 @@ export function trashTypeLabel(entityType: TrashEntityType, module?: string): st
       return "Import Shipment";
     case "export_shipment":
       return "Export Shipment";
+    case "ops_request":
+      return "Ops Request";
+    case "ops_driver":
+      return "Driver";
     default:
       return entityType;
   }
@@ -206,6 +210,21 @@ export function listTrashItems(state: TlbState): TrashListItem[] {
       deletedAt: s.deletedAt,
       deletedBy: s.deletedBy ?? "—",
       ...(s.deletedReason ? { deletedReason: s.deletedReason } : {}),
+    });
+  }
+
+  for (const d of state.opsDrivers ?? []) {
+    if (!d.deletedAt) continue;
+    items.push({
+      id: `ops_driver:${d.id}`,
+      entityType: "ops_driver",
+      entityId: d.id,
+      typeLabel: "Driver",
+      label: `${d.code} · ${d.name}`,
+      subtitle: d.vehicle ?? d.phone,
+      deletedAt: d.deletedAt,
+      deletedBy: d.deletedBy ?? "—",
+      ...(d.deletedReason ? { deletedReason: d.deletedReason } : {}),
     });
   }
 

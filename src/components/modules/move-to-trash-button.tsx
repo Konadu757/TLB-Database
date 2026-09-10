@@ -14,6 +14,8 @@ export function MoveToTrashButton({
   recordLabel,
   onTrashed,
   variant = "outline",
+  disabled = false,
+  disabledReason,
 }: {
   store: TlbStoreApi;
   entityType: TrashEntityType;
@@ -21,13 +23,22 @@ export function MoveToTrashButton({
   recordLabel: string;
   onTrashed?: () => void;
   variant?: "outline" | "destructive" | "default";
+  /** When true, button is shown but cannot open the confirm dialog. */
+  disabled?: boolean | undefined;
+  disabledReason?: string | undefined;
 }) {
   const [open, setOpen] = useState(false);
   if (!store.can("records.delete")) return null;
 
   return (
     <>
-      <Button type="button" variant={variant} onClick={() => setOpen(true)}>
+      <Button
+        type="button"
+        variant={variant}
+        disabled={disabled}
+        title={disabled ? disabledReason : undefined}
+        onClick={() => setOpen(true)}
+      >
         <Trash2 /> Move to Trash
       </Button>
       <TrashConfirmDialog

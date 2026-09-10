@@ -273,7 +273,7 @@ export function buildSearchIndex(state: TlbState): SearchDocument[] {
   }
 
   for (const drv of state.opsDrivers ?? []) {
-    if (!drv.active) continue;
+    if (!drv.active || drv.deletedAt) continue;
     push({
       kind: "Driver",
       id: drv.id,

@@ -893,8 +893,8 @@ export function releaseOpsGoods(
   touch(req, now);
 
   if (input?.driverId) {
-    const driver = next.opsDrivers.find((d) => d.id === input.driverId);
-    if (!driver) return { ok: false, error: "Driver not found." };
+    const driver = next.opsDrivers.find((d) => d.id === input.driverId && !d.deletedAt && d.active);
+    if (!driver) return { ok: false, error: "Driver not found or inactive." };
     req.driverId = driver.id;
     req.driverName = driver.name;
     req.vehicle = input.vehicle ?? driver.vehicle;
@@ -945,7 +945,7 @@ export function assignOpsDriver(
   ensureOpsCollections(next);
   const req = getRequest(next, requestId);
   if (!req) return { ok: false, error: "Request not found." };
-  const driver = next.opsDrivers.find((d) => d.id === driverId && d.active);
+  const driver = next.opsDrivers.find((d) => d.id === driverId && d.active && !d.deletedAt);
   if (!driver) return { ok: false, error: "Driver not found or inactive." };
   const now = new Date().toISOString();
   req.driverId = driver.id;
@@ -1342,6 +1342,19 @@ export function autoReviewOpsLines(state: TlbState, requestId: string): MutResul
     };
   });
   return reviewOpsWarehouse(next, requestId, { lines: reviews });
+}
+
+/** Active assignment that blocks moving a driver to trash (in transit / open jobs). */
+export function findDriverBlockingAssignment(state: TlbState, driverId: string): OpsRequest | undefined {
+  return (state.opsRequests ?? []).find((r) => {
+    if (r.deletedAt || r.driverId !== driverId) return false;
+    if (["Delivered", "Closed", "Cancelled", "Rejected"].includes(r.status)) return false;
+    if (r.driverStatus === "Delivered") return false;
+    return (
+      ["Ready for Collection", "Issued", "Collected", "In Transit", "Partially Delivered"].includes(r.status) ||
+      r.driverStatus != null
+    );
+  });
 }
 
 export function listDriverTodayJobs(state: TlbState, driverId?: string): OpsRequest[] {
