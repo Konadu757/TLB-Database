@@ -735,75 +735,75 @@ function TLBDashboardInner() {
             <Menu />
           </Button>
           <HeaderDetailBack />
-          <div className="tlb-popover-wrap tlb-global-search-wrap" ref={searchWrapRef}>
-            <label className={cn("tlb-global-search", searchOpen && "tlb-global-search-active")}>
-              <Search aria-hidden="true" />
-              <input
-                ref={searchInputRef}
-                type="search"
-                placeholder="Search products, batches, orders, invoices…"
-                aria-label="Search products, batches, orders, invoices"
-                aria-expanded={searchOpen}
-                aria-controls="tlb-search-results"
-                aria-haspopup="listbox"
-                value={searchQuery}
-                onChange={(event) => {
-                  setSearchQuery(event.target.value);
-                  setSearchOpen(true);
-                }}
-                onFocus={() => {
-                  setSearchOpen(true);
-                  setNotificationsOpen(false);
-                  setQuickOpen(false);
-                  setUserOpen(false);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    closeHeaderSearch();
-                    return;
-                  }
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    const phaseOrder = store.state.orders.find((o) => o.id === "ord-phase30");
-                    if (searchQuery.toLowerCase().includes("ord") && phaseOrder) {
-                      openLiveModule("Sales Orders", phaseOrder.id);
+          <div className="tlb-header-actions">
+            <div className="tlb-popover-wrap tlb-global-search-wrap" ref={searchWrapRef}>
+              <label className={cn("tlb-global-search", searchOpen && "tlb-global-search-active")}>
+                <Search aria-hidden="true" />
+                <input
+                  ref={searchInputRef}
+                  type="search"
+                  placeholder="Search products, batches, orders, invoices…"
+                  aria-label="Search products, batches, orders, invoices"
+                  aria-expanded={searchOpen}
+                  aria-controls="tlb-search-results"
+                  aria-haspopup="listbox"
+                  value={searchQuery}
+                  onChange={(event) => {
+                    setSearchQuery(event.target.value);
+                    setSearchOpen(true);
+                  }}
+                  onFocus={() => {
+                    setSearchOpen(true);
+                    setNotificationsOpen(false);
+                    setQuickOpen(false);
+                    setUserOpen(false);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      closeHeaderSearch();
                       return;
                     }
-                    if (searchQuery.toLowerCase().includes("outstanding")) {
-                      openLiveModule("Outstanding Supplies");
-                      return;
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      const phaseOrder = store.state.orders.find((o) => o.id === "ord-phase30");
+                      if (searchQuery.toLowerCase().includes("ord") && phaseOrder) {
+                        openLiveModule("Sales Orders", phaseOrder.id);
+                        return;
+                      }
+                      if (searchQuery.toLowerCase().includes("outstanding")) {
+                        openLiveModule("Outstanding Supplies");
+                        return;
+                      }
+                      openLiveModule("Sales Orders");
                     }
-                    openLiveModule("Sales Orders");
-                  }
-                }}
-              />
-              <kbd>{searchShortcutLabel}</kbd>
-            </label>
-            {searchOpen && (
-              <div
-                id="tlb-search-results"
-                className="tlb-popover tlb-search-dropdown tlb-search-results"
-                role="listbox"
-                aria-label="Search results"
-              >
-                <LiveSearchResults
-                  store={store}
-                  query={searchQuery}
-                  onOpenOrder={(id) => openOrderDetail(id)}
-                  onOpenNav={(nav, entityId) => {
-                    if (nav === "Customers") openLiveModule("Customers", null, null, entityId ?? null);
-                    else if (nav === "Suppliers") openLiveModule("Suppliers", null, null, null, entityId ?? null);
-                    else if (nav === "Finance" || nav === "Deliveries" || nav === "Products" || nav === "Warehouses") {
-                      openLiveModule(nav, null, null, null, null, entityId ?? null);
-                    } else openLiveModule(nav);
                   }}
                 />
-              </div>
-            )}
-          </div>
-          <div className="tlb-header-actions">
+                <kbd>{searchShortcutLabel}</kbd>
+              </label>
+              {searchOpen && (
+                <div
+                  id="tlb-search-results"
+                  className="tlb-popover tlb-search-dropdown tlb-search-results"
+                  role="listbox"
+                  aria-label="Search results"
+                >
+                  <LiveSearchResults
+                    store={store}
+                    query={searchQuery}
+                    onOpenOrder={(id) => openOrderDetail(id)}
+                    onOpenNav={(nav, entityId) => {
+                      if (nav === "Customers") openLiveModule("Customers", null, null, entityId ?? null);
+                      else if (nav === "Suppliers") openLiveModule("Suppliers", null, null, null, entityId ?? null);
+                      else if (nav === "Finance" || nav === "Deliveries" || nav === "Products" || nav === "Warehouses") {
+                        openLiveModule(nav, null, null, null, null, entityId ?? null);
+                      } else openLiveModule(nav);
+                    }}
+                  />
+                </div>
+              )}
+            </div>
             <div className="tlb-popover-wrap" ref={notificationsWrapRef}>
               <Button
                 variant="ghost"
