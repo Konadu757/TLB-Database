@@ -279,6 +279,7 @@ export const NAV_PERMISSIONS: Record<string, Permission[]> = {
   "Exceptions / Discrepancies": ["ops.view", "ops.receive", "ops.warehouse", "ops.approve"],
   "My Actions": ["ops.view", "ops.request", "ops.approve", "ops.warehouse", "ops.drive", "ops.receive"],
   "Live Operations Board": ["ops.view", "ops.dispatch", "ops.warehouse"],
+  Notifications: ["dashboard.view", "ops.view", "ops.communicate"],
   Finance: ["finance.view", "invoice.create", "receipt.create", "payment.record"],
   Reports: ["reports.view"],
   "Audit Log": ["audit.view"],
@@ -319,6 +320,16 @@ export function canAccessNav(
   const required = NAV_PERMISSIONS[navLabel];
   if (!required || required.length === 0) return true;
   return required.some((p) => hasPermission(state, p));
+}
+
+/** Owner/Admin (or users.manage) can see and delete all notifications. */
+export function canManageAllNotifications(
+  state: Pick<TlbState, "roles" | "currentRoleId" | "currentRole">,
+): boolean {
+  const role = resolveRole(state);
+  if (role?.systemKey === "Owner" || role?.systemKey === "Admin") return true;
+  if (state.currentRole === "Owner" || state.currentRole === "Admin") return true;
+  return hasPermission(state, "users.manage");
 }
 
 /** Active roles available for assignment (includes system + custom). */

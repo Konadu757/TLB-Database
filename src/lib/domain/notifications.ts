@@ -230,4 +230,33 @@ export function markNotificationsRead(state: TlbState, ids: string[]): AppNotifi
   );
 }
 
+export function deleteNotificationsById(state: TlbState, ids: string[]): AppNotification[] {
+  if (ids.length === 0) return state.notifications;
+  const idSet = new Set(ids);
+  return state.notifications.filter((n) => !idSet.has(n.id));
+}
+
+/** Owner/Admin see all; others see broadcast + own user/role targets. */
+export function isNotificationVisibleToSession(
+  n: AppNotification,
+  session: {
+    currentUserId: string;
+    currentRole: string;
+    roleName?: string | undefined;
+    systemKey?: string | undefined;
+    manageAll: boolean;
+  },
+): boolean {
+  if (session.manageAll) return true;
+  if (!n.targetUserId && !n.targetRole) return true;
+  if (n.targetUserId && n.targetUserId === session.currentUserId) return true;
+  if (n.targetRole) {
+    const role = n.targetRole.toLowerCase();
+    if (session.currentRole.toLowerCase() === role) return true;
+    if (session.roleName?.toLowerCase() === role) return true;
+    if (session.systemKey?.toLowerCase() === role) return true;
+  }
+  return false;
+}
+
 export { calcOutstanding, ageingBand };

@@ -60,7 +60,7 @@ import {
   StockModule,
   SuppliersModule,
 } from "@/components/modules/commerce-modules";
-import type { SearchHit } from "@/lib/domain/types";
+import type { AppNotification, SearchHit } from "@/lib/domain/types";
 import {
   AccountsPayableModule,
   AccountsReceivableModule,
@@ -106,9 +106,11 @@ import {
   ReportsModule,
   SettingsModule,
 } from "@/components/modules/p1-modules";
+import { NotificationsModule } from "@/components/modules/notifications-module";
 import { TrashModule } from "@/components/modules/trash-module";
 import { Button } from "@/components/ui/button";
 import { buildDashboardSnapshot } from "@/lib/domain/dashboard-metrics";
+import { isNotificationVisibleToSession } from "@/lib/domain/notifications";
 import {
   DASHBOARD_PERIODS,
   DEMO_AS_OF,
@@ -119,7 +121,13 @@ import {
 } from "@/lib/domain/period-range";
 import { formatMoney } from "@/lib/store/tlb-store";
 import { useTlbStore } from "@/lib/store/use-tlb-store";
-import { canAccessNav, firstName, userInitials } from "@/lib/domain/permissions";
+import {
+  canAccessNav,
+  canManageAllNotifications,
+  firstName,
+  resolveRole,
+  userInitials,
+} from "@/lib/domain/permissions";
 import { listTrashItems } from "@/lib/domain/trash";
 import { cn } from "@/lib/utils";
 
@@ -194,6 +202,7 @@ const navGroups: NavGroup[] = [
       { label: "Outstanding Requests", icon: AlertTriangle },
       { label: "Exceptions / Discrepancies", icon: ShieldAlert },
       { label: "Live Operations Board", icon: Kanban },
+      { label: "Notifications", icon: Bell },
     ],
   },
   {
@@ -279,6 +288,7 @@ const MODULE_BLURBS: Record<string, string> = {
   "Outstanding Requests": "Warehouse shortage outstanding — kept separate from delivery missing.",
   "Exceptions / Discrepancies": "Delivery missing, damaged, wrong, and rejected exceptions.",
   "Live Operations Board": "Kanban board across submit → approve → prepare → transit → delivered.",
+  Notifications: "All alerts with full detail — mark read, delete, and open linked records.",
   Finance: "VAT invoices, ordinary receipts (TLB-RCT), and payments.",
   "Accounts Receivable": "Customer invoice ageing 0–30 / 31–60 / 61–90 / 90+.",
   "Accounts Payable": "Supplier PO balances ageing by due date.",
@@ -385,6 +395,26 @@ function TLBDashboardInner() {
 
   const outstandingBadge = store.outstanding.length;
   const trashBadge = listTrashItems(store.state).length;
+  const role = resolveRole(store.state);
+  const manageAllNotifications = canManageAllNotifications(store.state);
+  const visibleNotifications = useMemo(() => {
+    const session = {
+      currentUserId: store.state.currentUserId,
+      currentRole: store.state.currentRole,
+      roleName: role?.name,
+      systemKey: role?.systemKey,
+      manageAll: manageAllNotifications,
+    };
+    return store.state.notifications.filter((n) => isNotificationVisibleToSession(n, session));
+  }, [
+    store.state.notifications,
+    store.state.currentUserId,
+    store.state.currentRole,
+    role?.name,
+    role?.systemKey,
+    manageAllNotifications,
+  ]);
+  const unreadNotifications = visibleNotifications.filter((n) => !n.readAt).length;
 
   const navGroupsLive = useMemo(
     () =>
@@ -409,6 +439,9 @@ function TLBDashboardInner() {
                 ).length;
                 return { ...item, badge: count > 0 ? String(count) : undefined };
               }
+              if (item.label === "Notifications") {
+                return { ...item, badge: countBadgeLabel(unreadNotifications) };
+              }
               if (item.label === "Trash") {
                 return { ...item, badge: countBadgeLabel(trashBadge) };
               }
@@ -416,7 +449,7 @@ function TLBDashboardInner() {
             }),
         }))
         .filter((group) => group.items.length > 0),
-    [outstandingBadge, trashBadge, store.state],
+    [outstandingBadge, trashBadge, unreadNotifications, store.state],
   );
 
   useEffect(() => {
@@ -527,6 +560,7 @@ function TLBDashboardInner() {
     activeNav === "Outstanding Requests" ||
     activeNav === "Exceptions / Discrepancies" ||
     activeNav === "Live Operations Board" ||
+    activeNav === "Notifications" ||
     activeNav === "Finance" ||
     activeNav === "Accounts Receivable" ||
     activeNav === "Accounts Payable" ||
@@ -545,9 +579,31 @@ function TLBDashboardInner() {
   );
   const listPeriodLabel = selectionLabel(rangeSelection);
 
-  const unreadNotifications = store.state.notifications.filter((n) => !n.readAt).length;
   const unreadBadgeLabel =
     unreadNotifications > 99 ? "99+" : unreadNotifications > 0 ? String(unreadNotifications) : "";
+
+  const openNotificationRelated = useCallback(
+    (n: AppNotification) => {
+      store.readNotification(n.id);
+      setNotificationsOpen(false);
+      if (n.opsRequestId) {
+        openLiveModule("Requests", null, null, null, null, n.opsRequestId);
+        return;
+      }
+      if (n.orderId) {
+        openOrderDetail(n.orderId);
+        return;
+      }
+      if (n.productId) {
+        openLiveModule("Outstanding Supplies", null, n.productId);
+        return;
+      }
+      openLiveModule("Notifications");
+    },
+    // openLiveModule / openOrderDetail are stable enough for this session scope
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [store],
+  );
 
   const sidebarIsOpen = isNavMobile ? true : sidebarOpen;
 
@@ -939,7 +995,7 @@ function TLBDashboardInner() {
                     setUserOpen(false);
                     // Unread decreases when items are shown in the open panel (first 6).
                     // Clicking a row also marks that item read (persisted via readAt).
-                    const visibleIds = store.state.notifications
+                    const visibleIds = visibleNotifications
                       .slice(0, 6)
                       .filter((n) => !n.readAt)
                       .map((n) => n.id);
@@ -964,17 +1020,12 @@ function TLBDashboardInner() {
               {notificationsOpen && (
                 <div className="tlb-popover tlb-notification-panel" role="region" aria-label="Notifications">
                   <div className="tlb-popover-heading"><strong>Notifications</strong><button type="button" aria-label="Close notifications" onClick={() => setNotificationsOpen(false)}><X /></button></div>
-                  {store.state.notifications.slice(0, 6).map((n) => (
+                  {visibleNotifications.slice(0, 6).map((n) => (
                     <button
                       type="button"
                       className={`tlb-mini-alert${n.readAt ? "" : " tlb-mini-alert-unread"}`}
                       key={n.id}
-                      onClick={() => {
-                        store.readNotification(n.id);
-                        setNotificationsOpen(false);
-                        if (n.orderId) openOrderDetail(n.orderId);
-                        else openLiveModule("Outstanding Supplies");
-                      }}
+                      onClick={() => openNotificationRelated(n)}
                     >
                       <span className={`tlb-alert-dot tlb-alert-${n.type.includes("overdue") || n.type.includes("extended") ? "danger" : n.type.includes("approaching") || n.type.includes("partial") ? "warning" : "info"}`} />
                       <div>
@@ -983,7 +1034,7 @@ function TLBDashboardInner() {
                       </div>
                     </button>
                   ))}
-                  {store.state.notifications.length === 0 &&
+                  {visibleNotifications.length === 0 &&
                     store.outstanding.slice(0, 2).map((row) => (
                       <button
                         type="button"
@@ -1005,12 +1056,11 @@ function TLBDashboardInner() {
                     type="button"
                     className="tlb-text-action"
                     onClick={() => {
-                      store.refreshNotifications();
                       setNotificationsOpen(false);
-                      openLiveModule("Outstanding Supplies");
+                      openLiveModule("Notifications");
                     }}
                   >
-                    Refresh & view outstanding <ChevronRight />
+                    View all notifications <ChevronRight />
                   </button>
                 </div>
               )}
@@ -1367,6 +1417,8 @@ function TLBDashboardInner() {
                 store={store}
                 onOpenRequest={(id) => openLiveModule("Requests", null, null, null, null, id)}
               />
+            ) : activeNav === "Notifications" ? (
+              <NotificationsModule store={store} onOpenRelated={openNotificationRelated} />
             ) : activeNav === "Finance" ? (
               <FinanceModule
                 store={store}
