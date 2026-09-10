@@ -108,14 +108,10 @@ export function RecordBackLink({
   );
 }
 
-/** Registers header back + renders sticky in-page back (not-found / edit fallbacks). */
+/** Registers header ← Back only (in-page bar hidden to avoid duplicate with HeaderDetailBack). */
 export function DetailBackChrome({ label, onBack }: { label: string; onBack: () => void }) {
   useRegisterDetailBack(label, onBack);
-  return (
-    <div className="tlb-record-back-bar" data-tlb-detail-back>
-      <RecordBackLink label={label} onBack={onBack} />
-    </div>
-  );
+  return null;
 }
 
 export function RecordDetailHeader({
@@ -137,24 +133,19 @@ export function RecordDetailHeader({
 }) {
   useRegisterDetailBack(backLabel, onBack);
   return (
-    <>
-      <div className="tlb-record-back-bar" data-tlb-detail-back>
-        <RecordBackLink label={backLabel} onBack={onBack} />
-      </div>
-      <header className="tlb-record-detail-header tlb-customer-detail-header">
-        <div className="tlb-record-detail-header-row tlb-customer-detail-header-row">
-          <div className="tlb-record-detail-identity tlb-customer-detail-identity">
-            {code ? <span className="tlb-record-detail-code tlb-customer-detail-code">{code}</span> : null}
-            <strong>{title}</strong>
-            {subtitle ? <p className="tlb-muted-line">{subtitle}</p> : null}
-          </div>
-          <div className="tlb-record-detail-actions tlb-customer-detail-actions">
-            {badges ? <div className="tlb-record-detail-badges tlb-customer-detail-badges">{badges}</div> : null}
-            {actions}
-          </div>
+    <header className="tlb-record-detail-header tlb-customer-detail-header">
+      <div className="tlb-record-detail-header-row tlb-customer-detail-header-row">
+        <div className="tlb-record-detail-identity tlb-customer-detail-identity">
+          {code ? <span className="tlb-record-detail-code tlb-customer-detail-code">{code}</span> : null}
+          <strong>{title}</strong>
+          {subtitle ? <p className="tlb-muted-line">{subtitle}</p> : null}
         </div>
-      </header>
-    </>
+        <div className="tlb-record-detail-actions tlb-customer-detail-actions">
+          {badges ? <div className="tlb-record-detail-badges tlb-customer-detail-badges">{badges}</div> : null}
+          {actions}
+        </div>
+      </div>
+    </header>
   );
 }
 
