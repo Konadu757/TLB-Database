@@ -258,7 +258,15 @@
 .tlb-sidebar-collapsed .tlb-brand-copy, .tlb-sidebar-collapsed .tlb-nav-label, .tlb-sidebar-collapsed .tlb-nav-item span { display: none; }
 .tlb-sidebar-collapsed .tlb-collapse { margin-left: 0; flex: none; }
 .tlb-sidebar-collapsed .tlb-brand-mark { width: 48px; height: 48px; }
-.tlb-nav { flex: 1; overflow-y: auto; padding: 13px 10px; scrollbar-width: thin; }
+.tlb-nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 13px 10px;
+  /* Clear fixed full-width due-ticker so last group (Control) can scroll into view */
+  padding-bottom: calc(13px + var(--tlb-ticker-h, 36px) + 12px);
+  scrollbar-width: thin;
+}
 .tlb-nav-group + .tlb-nav-group { margin-top: 8px; }
 .tlb-nav-group-toggle {
   width: 100%;
