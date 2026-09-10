@@ -1694,13 +1694,14 @@ function TLBDashboardInner() {
             </>
           )}
         </main>
-        <DueNewsCrawler
-          state={store.state}
-          outstanding={store.outstanding}
-          onNavigate={openLiveModule}
-          onVisibilityChange={onDueTickerVisibility}
-        />
       </div>
+
+      <DueNewsCrawler
+        state={store.state}
+        outstanding={store.outstanding}
+        onNavigate={openLiveModule}
+        onVisibilityChange={onDueTickerVisibility}
+      />
 
       {inspector && (
         <div

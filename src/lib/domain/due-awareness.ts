@@ -5,7 +5,7 @@ import {
   listExpiryAlerts,
 } from "@/lib/domain/inventory";
 import { listOutstandingOpsRows } from "@/lib/domain/ops-hub";
-import type { OutstandingRow, TlbState } from "@/lib/domain/types";
+import type { AppNotification, NotificationType, OutstandingRow, TlbState } from "@/lib/domain/types";
 
 function formatMoney(amount: number): string {
   return `GH₵ ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -20,7 +20,8 @@ export type DueAwarenessNav =
   | "Approvals"
   | "Batches"
   | "Exceptions / Discrepancies"
-  | "Requests";
+  | "Requests"
+  | "Notifications";
 
 export type DueAwarenessSeverity = "overdue" | "due_today" | "attention";
 
@@ -35,6 +36,19 @@ export interface DueAwarenessItem {
   entityId?: string;
   sortKey: number;
 }
+
+/** Notification types that warrant footer crawler attention when unread. */
+const SERIOUS_NOTIFICATION_TYPES = new Set<NotificationType>([
+  "overdue",
+  "expected_date_reached",
+  "extended_unfulfilled",
+  "ops_discrepancy",
+  "ops_outstanding",
+  "ops_approval_needed",
+  "partially_supplied",
+  "expected_date_approaching",
+  "ops_ready_collection",
+]);
 
 function todayIso(asOf: string): string {
   return asOf.slice(0, 10);
@@ -53,9 +67,55 @@ function severityRank(s: DueAwarenessSeverity): number {
   return 2;
 }
 
+function notificationSeverity(type: NotificationType): DueAwarenessSeverity {
+  if (
+    type === "overdue" ||
+    type === "ops_discrepancy" ||
+    type === "extended_unfulfilled" ||
+    type === "ops_outstanding"
+  ) {
+    return "overdue";
+  }
+  if (type === "expected_date_reached" || type === "ops_approval_needed") {
+    return "due_today";
+  }
+  return "attention";
+}
+
+function notificationLabel(type: NotificationType): string {
+  switch (type) {
+    case "overdue":
+      return "ALERT OVERDUE";
+    case "expected_date_reached":
+      return "DATE REACHED";
+    case "extended_unfulfilled":
+      return "UNFULFILLED";
+    case "ops_discrepancy":
+      return "OPS EXCEPTION";
+    case "ops_outstanding":
+      return "OPS OUTSTANDING";
+    case "ops_approval_needed":
+      return "APPROVAL NEEDED";
+    case "partially_supplied":
+      return "PARTIAL SUPPLY";
+    case "expected_date_approaching":
+      return "DATE APPROACHING";
+    case "ops_ready_collection":
+      return "READY COLLECT";
+    default:
+      return "NOTIFICATION";
+  }
+}
+
+function isSeriousUnreadNotification(n: AppNotification): boolean {
+  if (n.readAt) return false;
+  return SERIOUS_NOTIFICATION_TYPES.has(n.type);
+}
+
 /**
  * Collect due / overdue awareness items for the footer news crawler.
- * Only includes actionable urgency (overdue, due today, expired, open exceptions, stale approvals).
+ * Includes overdue/due-today work, unread serious notifications, expired stock,
+ * open exceptions, and stale approvals.
  */
 export function buildDueAwarenessItems(
   state: TlbState,
@@ -220,6 +280,21 @@ export function buildDueAwarenessItems(
       nav: "Exceptions / Discrepancies",
       entityId: d.requestId,
       sortKey: severityRank(age >= 2 ? "overdue" : "attention") * 1e9 - age,
+    });
+  }
+
+  for (const n of state.notifications ?? []) {
+    if (!isSeriousUnreadNotification(n)) continue;
+    const severity = notificationSeverity(n.type);
+    const age = daysBetween(n.createdAt, asOf);
+    items.push({
+      id: `ntf:${n.id}`,
+      severity,
+      label: notificationLabel(n.type),
+      message: `${n.title} · ${n.body}`,
+      nav: "Notifications",
+      entityId: n.id,
+      sortKey: severityRank(severity) * 1e9 - age,
     });
   }
 

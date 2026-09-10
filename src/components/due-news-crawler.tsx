@@ -11,6 +11,8 @@ import type { OutstandingRow, TlbState } from "@/lib/domain/types";
 import { cn } from "@/lib/utils";
 
 const SOUND_PREF_KEY = "tlb.due-ticker.sound";
+/** Soft awareness beep while unmuted — not constant noise. */
+const BEEP_INTERVAL_MS = 14_000;
 
 export type DueTickerNavigate = (
   nav: DueAwarenessNav,
@@ -28,26 +30,77 @@ type Props = {
   onVisibilityChange?: (visible: boolean) => void;
 };
 
-function playSoftBeep() {
+type AudioWindow = Window &
+  typeof globalThis & {
+    webkitAudioContext?: typeof AudioContext;
+  };
+
+function getAudioContextCtor(): typeof AudioContext | null {
+  const w = window as AudioWindow;
+  return w.AudioContext ?? w.webkitAudioContext ?? null;
+}
+
+/** Shared context so unmute click unlocks autoplay for later interval beeps. */
+let sharedAudioCtx: AudioContext | null = null;
+
+async function ensureAudioContext(): Promise<AudioContext | null> {
+  const Ctor = getAudioContextCtor();
+  if (!Ctor) return null;
+  if (!sharedAudioCtx || sharedAudioCtx.state === "closed") {
+    sharedAudioCtx = new Ctor();
+  }
+  if (sharedAudioCtx.state === "suspended") {
+    try {
+      await sharedAudioCtx.resume();
+    } catch {
+      /* autoplay / permission still blocked */
+    }
+  }
+  return sharedAudioCtx;
+}
+
+function scheduleBeep(ctx: AudioContext, when = 0) {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sine";
+  osc.frequency.value = 880;
+  gain.gain.value = 0.0001;
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  const t = ctx.currentTime + when;
+  // Soft but clearly audible pulse
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.exponentialRampToValueAtTime(0.055, t + 0.025);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+  osc.start(t);
+  osc.stop(t + 0.2);
+}
+
+async function playSoftBeep(): Promise<boolean> {
   try {
-    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.value = 880;
-    gain.gain.value = 0.0001;
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    const now = ctx.currentTime;
-    gain.gain.exponentialRampToValueAtTime(0.018, now + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
-    osc.start(now);
-    osc.stop(now + 0.14);
-    void ctx.close().catch(() => undefined);
+    const ctx = await ensureAudioContext();
+    if (!ctx || ctx.state !== "running") return false;
+    scheduleBeep(ctx);
+    // Double-tap for slightly clearer “alert” without being loud
+    scheduleBeep(ctx, 0.22);
+    return true;
   } catch {
-    /* ignore audio failures */
+    return false;
+  }
+}
+
+function speakFirstOverdue(message: string) {
+  try {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    const text = message.slice(0, 140);
+    if (!text) return;
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.rate = 1.05;
+    utter.volume = 0.7;
+    window.speechSynthesis.speak(utter);
+  } catch {
+    /* speech optional */
   }
 }
 
@@ -59,7 +112,8 @@ export function DueNewsCrawler({ state, outstanding, onNavigate, onVisibilityCha
   const visible = items.length > 0;
   const [soundOn, setSoundOn] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
-  const lastBeepCount = useRef(0);
+  const spokeOnceRef = useRef(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     try {
@@ -81,16 +135,40 @@ export function DueNewsCrawler({ state, outstanding, onNavigate, onVisibilityCha
     onVisibilityChange?.(visible);
   }, [visible, onVisibilityChange]);
 
+  // Periodic soft beep while unmuted and items exist (user gesture unlocks via unmute click).
   useEffect(() => {
-    if (!visible || !soundOn) {
-      lastBeepCount.current = items.length;
-      return;
-    }
-    if (items.length > lastBeepCount.current) {
-      playSoftBeep();
-    }
-    lastBeepCount.current = items.length;
+    if (!visible || !soundOn) return;
+
+    let cancelled = false;
+    const tick = () => {
+      if (cancelled) return;
+      void playSoftBeep();
+    };
+
+    // Skip immediate tick — unmute handler already plays a test beep on enable.
+    // Still beep soon after remount when preference was already on (needs prior unlock).
+    const id = window.setInterval(tick, BEEP_INTERVAL_MS);
+    const warm = window.setTimeout(tick, 400);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+      window.clearTimeout(warm);
+    };
   }, [visible, soundOn, items.length]);
+
+  // If preference restored as unmuted, unlock AudioContext on first interaction with the bar.
+  useEffect(() => {
+    if (!visible || !soundOn) return;
+    const el = rootRef.current;
+    if (!el) return;
+    const onPointer = () => {
+      void ensureAudioContext().then((ctx) => {
+        if (ctx?.state === "running") void playSoftBeep();
+      });
+    };
+    el.addEventListener("pointerdown", onPointer, { once: true });
+    return () => el.removeEventListener("pointerdown", onPointer);
+  }, [visible, soundOn]);
 
   if (!visible) return null;
 
@@ -111,16 +189,33 @@ export function DueNewsCrawler({ state, outstanding, onNavigate, onVisibilityCha
   };
 
   const toggleSound = () => {
-    setSoundOn((prev) => {
-      const next = !prev;
+    void (async () => {
+      const enabling = !soundOn;
+      if (enabling) {
+        // Unmute click is the user gesture that unlocks AudioContext / autoplay.
+        await ensureAudioContext();
+        await playSoftBeep();
+        if (!spokeOnceRef.current) {
+          const firstOverdue = items.find((i) => i.severity === "overdue");
+          if (firstOverdue) {
+            speakFirstOverdue(`${firstOverdue.label}. ${firstOverdue.message}`);
+            spokeOnceRef.current = true;
+          }
+        }
+      } else {
+        try {
+          window.speechSynthesis?.cancel();
+        } catch {
+          /* ignore */
+        }
+      }
+      setSoundOn(enabling);
       try {
-        localStorage.setItem(SOUND_PREF_KEY, next ? "1" : "0");
+        localStorage.setItem(SOUND_PREF_KEY, enabling ? "1" : "0");
       } catch {
         /* ignore */
       }
-      if (next) playSoftBeep();
-      return next;
-    });
+    })();
   };
 
   // Duplicate strip so CSS marquee loops seamlessly
@@ -129,6 +224,7 @@ export function DueNewsCrawler({ state, outstanding, onNavigate, onVisibilityCha
 
   return (
     <div
+      ref={rootRef}
       className="tlb-due-ticker"
       role="region"
       aria-label={`Due and overdue awareness, ${items.length} item${items.length === 1 ? "" : "s"}`}
