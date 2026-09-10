@@ -89,6 +89,14 @@ type LocalOnlySlice = Pick<
   | "importShipmentLines"
   | "exportShipments"
   | "exportShipmentLines"
+  | "opsRequests"
+  | "opsRequestLines"
+  | "opsDrivers"
+  | "opsMessages"
+  | "opsActivity"
+  | "opsCustody"
+  | "opsDiscrepancies"
+  | "opsApprovalRules"
   | "catalogDeletions"
   | "catalogPurgedIds"
   | "roles"
@@ -128,6 +136,14 @@ function pickLocalOnly(state: TlbState): LocalOnlySlice {
     importShipmentLines: state.importShipmentLines,
     exportShipments: state.exportShipments,
     exportShipmentLines: state.exportShipmentLines,
+    opsRequests: state.opsRequests,
+    opsRequestLines: state.opsRequestLines,
+    opsDrivers: state.opsDrivers,
+    opsMessages: state.opsMessages,
+    opsActivity: state.opsActivity,
+    opsCustody: state.opsCustody,
+    opsDiscrepancies: state.opsDiscrepancies,
+    opsApprovalRules: state.opsApprovalRules,
     catalogDeletions: state.catalogDeletions,
     catalogPurgedIds: state.catalogPurgedIds,
     roles: state.roles,
@@ -137,6 +153,60 @@ function pickLocalOnly(state: TlbState): LocalOnlySlice {
     currentUser: state.currentUser,
     currentRole: state.currentRole,
   };
+}
+
+/** Browser/network failures (CORS, DNS, paused project, offline) — not PostgREST JSON errors. */
+export function isUnreachableRemoteError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  const lower = message.toLowerCase();
+  if (err instanceof TypeError && lower.includes("fetch")) return true;
+  return (
+    lower.includes("failed to fetch") ||
+    lower.includes("networkerror") ||
+    lower.includes("network request failed") ||
+    lower.includes("fetch failed") ||
+    lower.includes("load failed") ||
+    lower.includes("err_name_not_resolved") ||
+    lower.includes("err_connection") ||
+    lower.includes("err_internet_disconnected") ||
+    lower.includes("the internet connection appears to be offline")
+  );
+}
+
+function formatRemoteSaveWarning(raw: string): string {
+  if (isUnreachableRemoteError(new Error(raw))) {
+    return `Cloud sync unavailable (network). Changes are saved locally — Dispatch and other actions still work. (${raw})`;
+  }
+  return `Cloud sync issue (local copy kept): ${raw}`;
+}
+
+function rowFingerprint(rows: unknown[]): string {
+  return JSON.stringify(rows);
+}
+
+/** Prefer remote rows; restore ops targeting fields PostgREST schema does not store yet. */
+function mergeNotificationsFromLocal(
+  remote: TlbState["notifications"],
+  local: TlbState["notifications"],
+): TlbState["notifications"] {
+  const localById = new Map(local.map((n) => [n.id, n]));
+  const seen = new Set<string>();
+  const merged = remote.map((r) => {
+    seen.add(r.id);
+    const l = localById.get(r.id);
+    if (!l) return r;
+    return {
+      ...r,
+      opsRequestId: r.opsRequestId ?? l.opsRequestId,
+      targetUserId: r.targetUserId ?? l.targetUserId,
+      targetRole: r.targetRole ?? l.targetRole,
+      readAt: r.readAt ?? l.readAt,
+    };
+  });
+  for (const l of local) {
+    if (!seen.has(l.id)) merged.push(l);
+  }
+  return merged.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
 
 function loadLocalOnly(): LocalOnlySlice {
@@ -248,11 +318,27 @@ async function deleteMissing(
 export class SupabaseTlbRepository implements TlbRepository {
   backend = "supabase" as const;
   private lastRemoteError: string | null = null;
+  /** Skip unchanged P0/P1 upserts so ops/local-only mutations do not re-hit warehouses every save. */
+  private remoteFingerprints = new Map<string, string>();
 
   constructor(private readonly sb: Sb) {}
 
   getLastError(): string | null {
     return this.lastRemoteError;
+  }
+
+  private async upsertIfChanged(
+    table: keyof Database["public"]["Tables"],
+    rows: Record<string, unknown>[],
+  ): Promise<void> {
+    if (!rows.length) {
+      this.remoteFingerprints.set(String(table), "[]");
+      return;
+    }
+    const fp = rowFingerprint(rows);
+    if (this.remoteFingerprints.get(String(table)) === fp) return;
+    await upsertRows(this.sb, table, rows);
+    this.remoteFingerprints.set(String(table), fp);
   }
 
   async load(): Promise<TlbState> {
@@ -354,7 +440,10 @@ export class SupabaseTlbRepository implements TlbRepository {
         deliveries: deliveries.map(deliveryFromRow),
         deliveryItems: deliveryItems.map(deliveryItemFromRow),
         payments: payments.map(paymentFromRow),
-        notifications: notifications.map(notificationFromRow),
+        notifications: mergeNotificationsFromLocal(
+          notifications.map(notificationFromRow),
+          prior.notifications,
+        ),
         reservations: reservations.map(reservationFromRow),
       };
 
@@ -376,28 +465,28 @@ export class SupabaseTlbRepository implements TlbRepository {
     saveState(state);
 
     try {
-      // Parent → child order for FK safety.
-      await upsertRows(this.sb, "warehouses", state.warehouses.map(warehouseToRow));
-      await upsertRows(this.sb, "products", state.products.map(productToRow));
-      await upsertRows(this.sb, "vat_rates", state.vatRates.map(vatToRow));
-      await upsertRows(this.sb, "customers", state.customers.map(customerToRow));
-      await upsertRows(this.sb, "stock_balances", state.stock.map(stockToRow));
-      await upsertRows(this.sb, "customer_purchase_orders", state.orders.map(orderToRow));
-      await upsertRows(this.sb, "customer_order_lines", state.orderLines.map(orderLineToRow));
-      await upsertRows(this.sb, "supplies", state.supplies.map(supplyToRow));
-      await upsertRows(this.sb, "supply_lines", state.supplyLines.map(supplyLineToRow));
-      await upsertRows(this.sb, "stock_reservations", state.reservations.map(reservationToRow));
-      await upsertRows(this.sb, "invoices", state.invoices.map(invoiceToRow));
-      await upsertRows(this.sb, "invoice_lines", state.invoiceLines.map(invoiceLineToRow));
-      await upsertRows(this.sb, "receipts", state.receipts.map(receiptToRow));
-      await upsertRows(this.sb, "receipt_lines", state.receiptLines.map(receiptLineToRow));
-      await upsertRows(this.sb, "deliveries", state.deliveries.map(deliveryToRow));
-      await upsertRows(this.sb, "delivery_items", state.deliveryItems.map(deliveryItemToRow));
-      await upsertRows(this.sb, "payments", state.payments.map(paymentToRow));
-      await upsertRows(this.sb, "notifications", state.notifications.map(notificationToRow));
+      // Parent → child order for FK safety. Skip tables unchanged since last successful sync.
+      await this.upsertIfChanged("warehouses", state.warehouses.map(warehouseToRow));
+      await this.upsertIfChanged("products", state.products.map(productToRow));
+      await this.upsertIfChanged("vat_rates", state.vatRates.map(vatToRow));
+      await this.upsertIfChanged("customers", state.customers.map(customerToRow));
+      await this.upsertIfChanged("stock_balances", state.stock.map(stockToRow));
+      await this.upsertIfChanged("customer_purchase_orders", state.orders.map(orderToRow));
+      await this.upsertIfChanged("customer_order_lines", state.orderLines.map(orderLineToRow));
+      await this.upsertIfChanged("supplies", state.supplies.map(supplyToRow));
+      await this.upsertIfChanged("supply_lines", state.supplyLines.map(supplyLineToRow));
+      await this.upsertIfChanged("stock_reservations", state.reservations.map(reservationToRow));
+      await this.upsertIfChanged("invoices", state.invoices.map(invoiceToRow));
+      await this.upsertIfChanged("invoice_lines", state.invoiceLines.map(invoiceLineToRow));
+      await this.upsertIfChanged("receipts", state.receipts.map(receiptToRow));
+      await this.upsertIfChanged("receipt_lines", state.receiptLines.map(receiptLineToRow));
+      await this.upsertIfChanged("deliveries", state.deliveries.map(deliveryToRow));
+      await this.upsertIfChanged("delivery_items", state.deliveryItems.map(deliveryItemToRow));
+      await this.upsertIfChanged("payments", state.payments.map(paymentToRow));
+      await this.upsertIfChanged("notifications", state.notifications.map(notificationToRow));
       // Audit is append-friendly; upsert by id keeps history stable.
-      await upsertRows(this.sb, "audit_events", state.audit.slice(0, 500).map(auditToRow));
-      await upsertRows(this.sb, "document_counters", [countersToRow(state.counters)]);
+      await this.upsertIfChanged("audit_events", state.audit.slice(0, 500).map(auditToRow));
+      await this.upsertIfChanged("document_counters", [countersToRow(state.counters)]);
 
       const settingsPayload: Database["public"]["Tables"]["app_settings"]["Insert"][] = [
         { key: "outstanding_ageing", value: state.ageing as unknown as Json },
@@ -407,10 +496,14 @@ export class SupabaseTlbRepository implements TlbRepository {
           value: buildSoftDeleteOverlay(state) as unknown as Json,
         },
       ];
-      const { error: settingsErr } = await this.sb.from("app_settings").upsert(settingsPayload, {
-        onConflict: "key",
-      });
-      if (settingsErr) throw new Error(`upsert app_settings: ${settingsErr.message}`);
+      const settingsFp = rowFingerprint(settingsPayload);
+      if (this.remoteFingerprints.get("app_settings") !== settingsFp) {
+        const { error: settingsErr } = await this.sb.from("app_settings").upsert(settingsPayload, {
+          onConflict: "key",
+        });
+        if (settingsErr) throw new Error(`upsert app_settings: ${settingsErr.message}`);
+        this.remoteFingerprints.set("app_settings", settingsFp);
+      }
 
       // Remove remote rows purged from domain state (soft-deleted rows remain upserted).
       await deleteMissing(this.sb, "delivery_items", state.deliveryItems.map((r) => r.id));
@@ -433,9 +526,14 @@ export class SupabaseTlbRepository implements TlbRepository {
       await deleteMissing(this.sb, "warehouses", state.warehouses.map((r) => r.id));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      this.lastRemoteError = message;
+      const warning = formatRemoteSaveWarning(message);
+      this.lastRemoteError = warning;
       console.error("[SupabaseTlbRepository] save failed (local snapshot kept):", message);
-      throw err;
+      // Network / unreachable project: do not block Dispatch or other UI mutations.
+      if (isUnreachableRemoteError(err) || isUnreachableRemoteError(new Error(message))) {
+        return;
+      }
+      throw new Error(warning);
     }
   }
 }

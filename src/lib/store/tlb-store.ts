@@ -1217,6 +1217,38 @@ export function markNotificationsRead(state: TlbState, ids: string[]): MutResult
   return { ok: true, data: { state: next, data: marked } };
 }
 
+export function markAllNotificationsRead(state: TlbState, ids?: string[]): MutResult<number> {
+  const next = cloneState(state);
+  const idSet = ids && ids.length > 0 ? new Set(ids) : null;
+  const now = new Date().toISOString();
+  let marked = 0;
+  for (const n of next.notifications) {
+    if (idSet && !idSet.has(n.id)) continue;
+    if (!n.readAt) {
+      n.readAt = now;
+      marked += 1;
+    }
+  }
+  return { ok: true, data: { state: next, data: marked } };
+}
+
+export function deleteNotification(state: TlbState, id: string): MutResult<null> {
+  const next = cloneState(state);
+  const before = next.notifications.length;
+  next.notifications = next.notifications.filter((n) => n.id !== id);
+  if (next.notifications.length === before) return { ok: false, error: "Notification not found." };
+  return { ok: true, data: { state: next, data: null } };
+}
+
+export function deleteNotifications(state: TlbState, ids: string[]): MutResult<number> {
+  if (ids.length === 0) return { ok: true, data: { state, data: 0 } };
+  const next = cloneState(state);
+  const idSet = new Set(ids);
+  const before = next.notifications.length;
+  next.notifications = next.notifications.filter((n) => !idSet.has(n.id));
+  return { ok: true, data: { state: next, data: before - next.notifications.length } };
+}
+
 export function refreshOpsNotifications(state: TlbState): MutResult<number> {
   const next = cloneState(state);
   refreshNotifications(next);

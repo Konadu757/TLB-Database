@@ -17,6 +17,8 @@ export interface TlbRepository {
   load(): Promise<TlbState>;
   save(state: TlbState): Promise<void>;
   backend: "local" | "supabase";
+  /** Soft remote warning after a successful local save (e.g. network unreachable). */
+  getLastError?(): string | null;
 }
 
 export class LocalTlbRepository implements TlbRepository {

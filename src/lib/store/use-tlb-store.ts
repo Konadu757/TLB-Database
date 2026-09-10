@@ -20,6 +20,9 @@ import {
   markDelivered,
   markNotificationRead,
   markNotificationsRead,
+  markAllNotificationsRead,
+  deleteNotification,
+  deleteNotifications,
   purgeTrashItem,
   receiveStock,
   recordPayment,
@@ -130,10 +133,15 @@ export function useTlbStore() {
       setSaving(true);
       void repo
         .save(state)
-        .then(() => setPersistError(null))
+        .then(() => {
+          const soft = repo.getLastError?.() ?? null;
+          // Soft remote warning (e.g. Failed to fetch) — local save already succeeded.
+          setPersistError(soft);
+        })
         .catch((err: unknown) => {
           const message = err instanceof Error ? err.message : String(err);
-          setPersistError(`Save to ${repo.backend} failed: ${message}`);
+          const soft = repo.getLastError?.();
+          setPersistError(soft ?? `Save to ${repo.backend} failed: ${message}`);
         })
         .finally(() => setSaving(false));
     }, SAVE_DEBOUNCE_MS);
@@ -323,6 +331,12 @@ export function useTlbStore() {
     readNotification: (id: string) => apply((s) => markNotificationRead(s, id)),
     /** Mark visible/open-panel notifications as viewed so the header unread badge decreases. */
     readNotifications: (ids: string[]) => apply((s) => markNotificationsRead(s, ids)),
+    markAllNotificationsRead: (ids?: string[]) =>
+      apply((s) => markAllNotificationsRead(s, ids), "Notifications marked as read."),
+    deleteNotification: (id: string) =>
+      apply((s) => deleteNotification(s, id), "Notification deleted."),
+    deleteNotifications: (ids: string[]) =>
+      apply((s) => deleteNotifications(s, ids), "Notifications deleted."),
     refreshNotifications: () => apply((s) => refreshOpsNotifications(s)),
     moveToTrash: (input: Parameters<typeof softDeleteRecord>[1]) =>
       apply((s) => softDeleteRecord(s, input), "Moved to trash."),

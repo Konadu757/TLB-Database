@@ -16,7 +16,7 @@ When `VITE_SUPABASE_URL` + `VITE_SUPABASE_PUBLISHABLE_KEY` are set (and
 | invoices, invoice_lines, receipts, receipt_lines | roles / users / mock session |
 | deliveries, delivery_items, payments | trash catalog deletions |
 | notifications, audit_events | product extras (reorder, strategy, cost) |
-| document_counters (synced subset), vat_rates | |
+| document_counters (synced subset), vat_rates | ops hub (requests, drivers, messages, …) |
 | app_settings (`company_profile`, `outstanding_ageing`, `soft_delete_overlay`) | |
 
 Outstanding quantities remain **calculated** (domain + `v_outstanding_customer_supplies`), never stored as truth.
@@ -54,8 +54,11 @@ On Vercel: Project → Settings → Environment Variables → add the `VITE_*` v
 
 If save fails with a uuid / type error, apply **P2** migration. If DNS/project missing, fix `VITE_SUPABASE_URL` first.
 
+**`Failed to fetch` / network:** usually wrong or missing `VITE_SUPABASE_*` on Vercel, a paused Supabase project, CORS/DNS, or offline. Dispatch and ops mutations still complete — the hybrid repo always writes the local snapshot first, skips unchanged remote tables (so ops clicks do not re-upsert warehouses every time), and treats unreachable-network errors as a soft warning instead of blocking the UI.
+
 ## Implementation notes
 
 - Mutations stay pure in `tlb-store` / `documents.ts`; the repository only persists snapshots.
 - First load against **empty** remote tables bootstraps once from the demo seed (upsert, no truncate).
 - Local full snapshot remains as an offline safety net; P0/P1 source of truth is Supabase when enabled.
+- Ops Hub rows stay in localStorage until a dedicated migration exists.
