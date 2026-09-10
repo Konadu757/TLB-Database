@@ -1,15 +1,17 @@
 -- P2: allow app string ids (seed uses text like cus-demo) + soft-delete columns.
 -- Additive only — converts uuid columns to text, does not truncate data.
--- Safe to re-run: drops dependent views first, drops FKs before recreate.
+-- Safe to re-run: drops dependent views first, drops ALL public FKs, converts
+-- every public uuid id / *_id column (covers stock_movements and any extras).
 
 -- Views/rules block ALTER TYPE; drop before any column type changes.
 drop view if exists public.v_outstanding_customer_supplies cascade;
 
+-- Drop ALL foreign keys in public so uuid→text alters cannot be blocked by
+-- dependent tables outside the hardcoded P0/P1 list (e.g. stock_movements).
 do $$
 declare
   r record;
 begin
-  -- Drop all FKs targeting / from P0+P1 tables so type changes can proceed.
   for r in
     select con.conname, rel.relname as table_name
     from pg_constraint con
@@ -17,18 +19,13 @@ begin
     join pg_namespace nsp on nsp.oid = rel.relnamespace
     where nsp.nspname = 'public'
       and con.contype = 'f'
-      and rel.relname in (
-        'warehouses','products','stock_balances','customers','customer_purchase_orders',
-        'customer_order_lines','supplies','supply_lines','audit_events','document_counters',
-        'vat_rates','invoices','invoice_lines','receipts','receipt_lines','deliveries',
-        'delivery_items','payments','notifications','stock_reservations'
-      )
   loop
     execute format('alter table public.%I drop constraint if exists %I', r.table_name, r.conname);
   end loop;
 end $$;
 
--- Only alter uuid → text when the column is still uuid (re-run safe).
+-- Convert every public base-table uuid column named id or ending in _id to text.
+-- Re-run safe: only alters columns that are still uuid.
 do $$
 declare
   stmt text;
@@ -40,74 +37,21 @@ begin
       c.column_name,
       c.column_name
     )
-    from (
-      values
-        ('warehouses','id'),
-        ('products','id'),
-        ('stock_balances','id'),
-        ('stock_balances','product_id'),
-        ('stock_balances','warehouse_id'),
-        ('customers','id'),
-        ('customer_purchase_orders','id'),
-        ('customer_purchase_orders','customer_id'),
-        ('customer_order_lines','id'),
-        ('customer_order_lines','order_id'),
-        ('customer_order_lines','product_id'),
-        ('customer_order_lines','warehouse_id'),
-        ('supplies','id'),
-        ('supplies','order_id'),
-        ('supply_lines','id'),
-        ('supply_lines','supply_id'),
-        ('supply_lines','order_line_id'),
-        ('supply_lines','product_id'),
-        ('supply_lines','warehouse_id'),
-        ('audit_events','id'),
-        ('vat_rates','id'),
-        ('invoices','id'),
-        ('invoices','customer_id'),
-        ('invoices','order_id'),
-        ('invoices','supply_id'),
-        ('invoices','vat_rate_id'),
-        ('invoice_lines','id'),
-        ('invoice_lines','invoice_id'),
-        ('invoice_lines','product_id'),
-        ('invoice_lines','vat_rate_id'),
-        ('invoice_lines','order_line_id'),
-        ('invoice_lines','supply_line_id'),
-        ('receipts','id'),
-        ('receipts','customer_id'),
-        ('receipts','order_id'),
-        ('receipts','invoice_id'),
-        ('receipt_lines','id'),
-        ('receipt_lines','receipt_id'),
-        ('receipt_lines','product_id'),
-        ('deliveries','id'),
-        ('deliveries','customer_id'),
-        ('deliveries','order_id'),
-        ('deliveries','supply_id'),
-        ('delivery_items','id'),
-        ('delivery_items','delivery_id'),
-        ('delivery_items','product_id'),
-        ('delivery_items','supply_line_id'),
-        ('delivery_items','order_line_id'),
-        ('payments','id'),
-        ('payments','customer_id'),
-        ('payments','order_id'),
-        ('payments','invoice_id'),
-        ('payments','receipt_id'),
-        ('notifications','id'),
-        ('notifications','order_id'),
-        ('notifications','product_id'),
-        ('stock_reservations','id'),
-        ('stock_reservations','order_line_id'),
-        ('stock_reservations','product_id'),
-        ('stock_reservations','warehouse_id')
-    ) as c(table_name, column_name)
-    join information_schema.columns ic
-      on ic.table_schema = 'public'
-     and ic.table_name = c.table_name
-     and ic.column_name = c.column_name
-     and ic.data_type = 'uuid'
+    from information_schema.columns c
+    join information_schema.tables t
+      on t.table_schema = c.table_schema
+     and t.table_name = c.table_name
+     and t.table_type = 'BASE TABLE'
+    where c.table_schema = 'public'
+      and c.data_type = 'uuid'
+      and (
+        c.column_name = 'id'
+        or c.column_name like '%\_id' escape '\'
+      )
+    order by
+      case when c.column_name = 'id' then 1 else 0 end,
+      c.table_name,
+      c.column_name
   loop
     execute stmt;
   end loop;
@@ -131,7 +75,7 @@ alter table if exists public.customer_purchase_orders
   add column if not exists deleted_by text,
   add column if not exists deleted_reason text;
 
--- Recreate FKs (drop-if-exists first so re-runs are safe)
+-- Recreate FKs for known P0/P1 graph (drop-if-exists first so re-runs are safe)
 alter table public.stock_balances drop constraint if exists stock_balances_product_id_fkey;
 alter table public.stock_balances drop constraint if exists stock_balances_warehouse_id_fkey;
 alter table public.stock_balances
@@ -241,6 +185,27 @@ alter table public.stock_reservations
   add constraint stock_reservations_order_line_id_fkey foreign key (order_line_id) references public.customer_order_lines(id),
   add constraint stock_reservations_product_id_fkey foreign key (product_id) references public.products(id),
   add constraint stock_reservations_warehouse_id_fkey foreign key (warehouse_id) references public.warehouses(id);
+
+-- Best-effort: restore common FKs on extra inventory tables if present
+do $$
+begin
+  if to_regclass('public.stock_movements') is not null then
+    if exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'stock_movements' and column_name = 'product_id'
+    ) and to_regclass('public.products') is not null then
+      execute 'alter table public.stock_movements drop constraint if exists stock_movements_product_id_fkey';
+      execute 'alter table public.stock_movements add constraint stock_movements_product_id_fkey foreign key (product_id) references public.products(id)';
+    end if;
+    if exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'stock_movements' and column_name = 'warehouse_id'
+    ) and to_regclass('public.warehouses') is not null then
+      execute 'alter table public.stock_movements drop constraint if exists stock_movements_warehouse_id_fkey';
+      execute 'alter table public.stock_movements add constraint stock_movements_warehouse_id_fkey foreign key (warehouse_id) references public.warehouses(id)';
+    end if;
+  end if;
+end $$;
 
 -- Recreate outstanding view (canonical definition from 20260909_customer_orders.sql)
 drop view if exists public.v_outstanding_customer_supplies cascade;
