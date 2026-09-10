@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ChevronRight, PackageSearch, Plus, Search, X } from "lucide-react";
 
 import {
@@ -21,6 +21,7 @@ import type {
   CustomerCategory,
   CustomerPurchaseOrder,
   PaymentTerms,
+  SearchHit,
   TlbState,
 } from "@/lib/domain/types";
 import { getRelatedRecords } from "@/lib/domain/notifications";
@@ -31,7 +32,7 @@ import {
   resolveSelectionRange,
   selectionLabel,
 } from "@/lib/domain/period-range";
-import { globalSearch } from "@/lib/domain/search";
+import { buildSearchIndex, searchDocuments } from "@/lib/domain/search";
 import {
   countOutstandingOrdersForProduct,
   formatMoney,
@@ -2269,28 +2270,99 @@ export function OutstandingDashboardWidget({
   );
 }
 
+export function highlightSearchMatch(text: string, query: string): ReactNode {
+  const q = query.trim();
+  if (!q || !text) return text;
+  const lower = text.toLowerCase();
+  const needle = q.toLowerCase();
+  const parts: ReactNode[] = [];
+  let cursor = 0;
+  let matchIndex = lower.indexOf(needle, cursor);
+  let key = 0;
+  while (matchIndex >= 0) {
+    if (matchIndex > cursor) parts.push(text.slice(cursor, matchIndex));
+    parts.push(
+      <mark key={`m-${key++}`} className="tlb-search-mark">
+        {text.slice(matchIndex, matchIndex + needle.length)}
+      </mark>,
+    );
+    cursor = matchIndex + needle.length;
+    matchIndex = lower.indexOf(needle, cursor);
+  }
+  if (cursor < text.length) parts.push(text.slice(cursor));
+  return parts.length ? parts : text;
+}
+
+export function openSearchHit(
+  hit: SearchHit,
+  handlers: {
+    onOpenOrder: (id: string) => void;
+    onOpenNav: (nav: string, entityId?: string) => void;
+  },
+) {
+  if (hit.kind === "Order" || (hit.kind === "Supply" && hit.orderId)) {
+    handlers.onOpenOrder(hit.orderId ?? hit.id);
+    return;
+  }
+  if (hit.kind === "Goods Out" && hit.orderId) {
+    handlers.onOpenOrder(hit.orderId);
+    return;
+  }
+  handlers.onOpenNav(hit.nav, hit.id);
+}
+
+const SEARCH_DEBOUNCE_MS = 160;
+
 export function LiveSearchResults({
   store,
   query,
+  activeIndex = 0,
+  onActiveIndexChange,
+  onResultsChange,
   onOpenOrder,
   onOpenNav,
 }: {
   store: TlbStoreApi;
   query: string;
+  activeIndex?: number;
+  onActiveIndexChange?: (index: number) => void;
+  onResultsChange?: (hits: SearchHit[]) => void;
   onOpenOrder: (id: string) => void;
   onOpenNav: (nav: string, entityId?: string) => void;
 }) {
-  const q = query.trim();
-  const hits = useMemo(() => globalSearch(store.state, q, 16), [q, store.state]);
+  const [debouncedQuery, setDebouncedQuery] = useState(query);
 
-  if (!q) {
+  useEffect(() => {
+    const handle = window.setTimeout(() => setDebouncedQuery(query), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [query]);
+
+  const index = useMemo(() => buildSearchIndex(store.state), [store.state]);
+  const q = debouncedQuery.trim();
+  const hits = useMemo(() => searchDocuments(index, q, 18), [index, q]);
+
+  useEffect(() => {
+    onResultsChange?.(hits);
+    // Parent often passes an inline setter; sync whenever hits change only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hits]);
+
+  useEffect(() => {
+    if (hits.length === 0) return;
+    if (activeIndex > hits.length - 1) onActiveIndexChange?.(hits.length - 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hits.length, activeIndex]);
+
+  const openHit = (hit: SearchHit) => openSearchHit(hit, { onOpenOrder, onOpenNav });
+
+  if (!query.trim()) {
     return (
       <>
         <p>QUICK ACCESS</p>
         {["Chemical A · CHEM-A", "TLB-ORD Phase 30 order", "Outstanding Supplies", "Invoices"].map((label) => (
           <button
             type="button"
-            role="listitem"
+            role="option"
             key={label}
             onClick={() => {
               if (label.includes("Outstanding")) onOpenNav("Outstanding Supplies");
@@ -2311,41 +2383,40 @@ export function LiveSearchResults({
     );
   }
 
+  if (!hits.length) {
+    return (
+      <>
+        <p>NO MATCHES</p>
+        <div className="tlb-search-empty" role="status">
+          No records match your search.
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
-      <p>{hits.length ? "RESULTS" : "NO MATCHES"}</p>
-      {hits.map((hit) => (
-        <button
-          type="button"
-          role="listitem"
-          key={`${hit.kind}-${hit.id}`}
-          onClick={() => {
-            if (hit.kind === "Order" || (hit.kind === "Supply" && hit.orderId)) {
-              onOpenOrder(hit.orderId ?? hit.id);
-            } else if (hit.kind === "Customer" || hit.kind === "Supplier") {
-              onOpenNav(hit.nav, hit.id);
-            } else if (
-              hit.kind === "Invoice" ||
-              hit.kind === "Receipt" ||
-              hit.kind === "Payment" ||
-              hit.kind === "Delivery" ||
-              hit.kind === "Product" ||
-              hit.kind === "Warehouse"
-            ) {
-              onOpenNav(hit.nav, hit.id);
-            } else {
-              onOpenNav(hit.nav);
-            }
-          }}
-        >
-          <PackageSearch />
-          <span>
-            {hit.label}
-            {hit.subtitle ? ` · ${hit.subtitle}` : ""}
-          </span>
-          <ChevronRight />
-        </button>
-      ))}
+      <p>RESULTS · {hits.length}</p>
+      {hits.map((hit, index) => {
+        const active = index === activeIndex;
+        const line = hit.subtitle ? `${hit.label} · ${hit.subtitle}` : hit.label;
+        return (
+          <button
+            type="button"
+            role="option"
+            aria-selected={active}
+            id={`tlb-search-option-${index}`}
+            className={active ? "tlb-search-option-active" : undefined}
+            key={`${hit.kind}-${hit.id}`}
+            onMouseEnter={() => onActiveIndexChange?.(index)}
+            onClick={() => openHit(hit)}
+          >
+            <PackageSearch />
+            <span>{highlightSearchMatch(line, q)}</span>
+            <ChevronRight />
+          </button>
+        );
+      })}
     </>
   );
 }

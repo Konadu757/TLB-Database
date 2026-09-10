@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -125,11 +125,20 @@ export function LiveStockMovementsModule({
 export function LiveBatchesModule({
   store,
   onOpenBatch,
+  focusId,
+  onFocusConsumed,
 }: {
   store: TlbStoreApi;
   onOpenBatch?: (id: string) => void;
+  focusId?: string | null;
+  onFocusConsumed?: () => void;
 }) {
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(focusId ?? null);
+  useEffect(() => {
+    if (!focusId) return;
+    setSelected(focusId);
+    onFocusConsumed?.();
+  }, [focusId, onFocusConsumed]);
   const batch = store.state.batches.find((b) => b.id === selected);
 
   if (batch) {
@@ -268,7 +277,15 @@ export function LiveBatchesModule({
   );
 }
 
-export function GoodsInModule({ store }: { store: TlbStoreApi }) {
+export function GoodsInModule({
+  store,
+  focusId,
+  onFocusConsumed,
+}: {
+  store: TlbStoreApi;
+  focusId?: string | null;
+  onFocusConsumed?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [supplierId, setSupplierId] = useState(store.state.suppliers[0]?.id ?? "");
   const [warehouseId, setWarehouseId] = useState("wh-main");
@@ -282,7 +299,13 @@ export function GoodsInModule({ store }: { store: TlbStoreApi }) {
   const [damaged, setDamaged] = useState(0);
   const [unitCost, setUnitCost] = useState(610);
   const [expiresAt, setExpiresAt] = useState("2027-12-01");
-  const [detailId, setDetailId] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(focusId ?? null);
+
+  useEffect(() => {
+    if (!focusId) return;
+    setDetailId(focusId);
+    onFocusConsumed?.();
+  }, [focusId, onFocusConsumed]);
 
   const detail = store.state.goodsReceipts.find((g) => g.id === detailId);
 

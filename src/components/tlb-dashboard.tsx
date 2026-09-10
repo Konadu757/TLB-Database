@@ -48,12 +48,14 @@ import { RecordBackLink } from "@/components/modules/record-browser";
 import {
   CustomersModule,
   LiveSearchResults,
+  openSearchHit,
   OutstandingDashboardWidget,
   OutstandingSuppliesModule,
   SalesOrdersModule,
   StockModule,
   SuppliersModule,
 } from "@/components/modules/commerce-modules";
+import type { SearchHit } from "@/lib/domain/types";
 import {
   AccountsPayableModule,
   AccountsReceivableModule,
@@ -312,6 +314,26 @@ function TLBDashboardInner() {
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const searchWrapRef = useRef<HTMLDivElement | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchActiveIndex, setSearchActiveIndex] = useState(0);
+  const searchHitsRef = useRef<SearchHit[]>([]);
+
+  const FOCUSABLE_SEARCH_NAVS = useMemo(
+    () =>
+      new Set([
+        "Finance",
+        "Deliveries",
+        "Products",
+        "Warehouses",
+        "Returns",
+        "Non-PO Purchases",
+        "Import & Export",
+        "Batches",
+        "Goods In",
+        "Transfers",
+        "Trace Product",
+      ]),
+    [],
+  );
 
   const searchShortcutLabel = useMemo(() => {
     if (typeof navigator === "undefined") return "Ctrl K";
@@ -390,16 +412,14 @@ function TLBDashboardInner() {
     setSelectedCustomerId(nav === "Customers" ? customerId ?? null : null);
     setSelectedSupplierId(nav === "Suppliers" ? supplierId ?? null : null);
     setOutstandingProductFilter(nav === "Outstanding Supplies" ? productId ?? null : null);
-    setModuleFocusId(
-      nav === "Finance" || nav === "Deliveries" || nav === "Products" || nav === "Warehouses"
-        ? focusEntityId ?? null
-        : null,
-    );
+    setModuleFocusId(FOCUSABLE_SEARCH_NAVS.has(nav) ? focusEntityId ?? null : null);
     setOrderReturnNav(null);
     setMobileOpen(false);
     setInspector(null);
     setSearchOpen(false);
     setSearchQuery("");
+    setSearchActiveIndex(0);
+    searchHitsRef.current = [];
     setNotificationsOpen(false);
     setQuickOpen(false);
     setUserOpen(false);
@@ -408,6 +428,19 @@ function TLBDashboardInner() {
   const openOrderDetail = (orderId: string, returnNav?: string) => {
     openLiveModule("Sales Orders", orderId);
     setOrderReturnNav(returnNav ?? null);
+  };
+
+  const openFromSearchHit = (hit: SearchHit) => {
+    openSearchHit(hit, {
+      onOpenOrder: (id) => openOrderDetail(id),
+      onOpenNav: (nav, entityId) => {
+        if (nav === "Customers") openLiveModule("Customers", null, null, entityId ?? null);
+        else if (nav === "Suppliers") openLiveModule("Suppliers", null, null, null, entityId ?? null);
+        else if (FOCUSABLE_SEARCH_NAVS.has(nav)) {
+          openLiveModule(nav, null, null, null, null, entityId ?? null);
+        } else openLiveModule(nav);
+      },
+    });
   };
 
   const handleSelectOrder = (id: string | null) => {
@@ -499,7 +532,11 @@ function TLBDashboardInner() {
 
   const closeHeaderSearch = (options?: { clear?: boolean; blur?: boolean }) => {
     setSearchOpen(false);
-    if (options?.clear !== false) setSearchQuery("");
+    if (options?.clear !== false) {
+      setSearchQuery("");
+      setSearchActiveIndex(0);
+      searchHitsRef.current = [];
+    }
     if (options?.blur !== false) searchInputRef.current?.blur();
   };
 
@@ -747,9 +784,15 @@ function TLBDashboardInner() {
                   aria-expanded={searchOpen}
                   aria-controls="tlb-search-results"
                   aria-haspopup="listbox"
+                  aria-activedescendant={
+                    searchOpen && searchQuery.trim() && searchHitsRef.current.length > 0
+                      ? `tlb-search-option-${searchActiveIndex}`
+                      : undefined
+                  }
                   value={searchQuery}
                   onChange={(event) => {
                     setSearchQuery(event.target.value);
+                    setSearchActiveIndex(0);
                     setSearchOpen(true);
                   }}
                   onFocus={() => {
@@ -762,17 +805,42 @@ function TLBDashboardInner() {
                     if (event.key === "Escape") {
                       event.preventDefault();
                       event.stopPropagation();
-                      closeHeaderSearch();
+                      if (searchQuery) {
+                        setSearchQuery("");
+                        setSearchActiveIndex(0);
+                        searchHitsRef.current = [];
+                        setSearchOpen(true);
+                      } else {
+                        closeHeaderSearch();
+                      }
+                      return;
+                    }
+                    const hits = searchHitsRef.current;
+                    if (event.key === "ArrowDown") {
+                      if (!searchQuery.trim()) return;
+                      event.preventDefault();
+                      setSearchOpen(true);
+                      setSearchActiveIndex((prev) =>
+                        hits.length ? Math.min(prev + 1, hits.length - 1) : 0,
+                      );
+                      return;
+                    }
+                    if (event.key === "ArrowUp") {
+                      if (!searchQuery.trim()) return;
+                      event.preventDefault();
+                      setSearchOpen(true);
+                      setSearchActiveIndex((prev) => Math.max(prev - 1, 0));
                       return;
                     }
                     if (event.key === "Enter") {
                       event.preventDefault();
-                      const phaseOrder = store.state.orders.find((o) => o.id === "ord-phase30");
-                      if (searchQuery.toLowerCase().includes("ord") && phaseOrder) {
-                        openLiveModule("Sales Orders", phaseOrder.id);
+                      const q = searchQuery.trim().toLowerCase();
+                      if (hits.length > 0) {
+                        openFromSearchHit(hits[Math.min(searchActiveIndex, hits.length - 1)]!);
                         return;
                       }
-                      if (searchQuery.toLowerCase().includes("outstanding")) {
+                      if (!q) return;
+                      if (q.includes("outstanding")) {
                         openLiveModule("Outstanding Supplies");
                         return;
                       }
@@ -792,11 +860,16 @@ function TLBDashboardInner() {
                   <LiveSearchResults
                     store={store}
                     query={searchQuery}
+                    activeIndex={searchActiveIndex}
+                    onActiveIndexChange={setSearchActiveIndex}
+                    onResultsChange={(hits) => {
+                      searchHitsRef.current = hits;
+                    }}
                     onOpenOrder={(id) => openOrderDetail(id)}
                     onOpenNav={(nav, entityId) => {
                       if (nav === "Customers") openLiveModule("Customers", null, null, entityId ?? null);
                       else if (nav === "Suppliers") openLiveModule("Suppliers", null, null, null, entityId ?? null);
-                      else if (nav === "Finance" || nav === "Deliveries" || nav === "Products" || nav === "Warehouses") {
+                      else if (FOCUSABLE_SEARCH_NAVS.has(nav)) {
                         openLiveModule(nav, null, null, null, null, entityId ?? null);
                       } else openLiveModule(nav);
                     }}
@@ -1121,7 +1194,11 @@ function TLBDashboardInner() {
                 onViewOutstanding={(productId) => openLiveModule("Outstanding Supplies", null, productId)}
               />
             ) : activeNav === "Batches" ? (
-              <LiveBatchesModule store={store} />
+              <LiveBatchesModule
+                store={store}
+                focusId={moduleFocusId}
+                onFocusConsumed={() => setModuleFocusId(null)}
+              />
             ) : activeNav === "Warehouses" ? (
               <WarehousesModule
                 store={store}
@@ -1129,7 +1206,11 @@ function TLBDashboardInner() {
                 onFocusConsumed={() => setModuleFocusId(null)}
               />
             ) : activeNav === "Goods In" ? (
-              <GoodsInModule store={store} />
+              <GoodsInModule
+                store={store}
+                focusId={moduleFocusId}
+                onFocusConsumed={() => setModuleFocusId(null)}
+              />
             ) : activeNav === "Goods Out" ? (
               <GoodsOutModule store={store} />
             ) : activeNav === "Returns" ? (
