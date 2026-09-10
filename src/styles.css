@@ -1360,29 +1360,6 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
   flex: none;
 }
 
-.tlb-due-ticker-sound {
-  flex: none;
-  display: inline-grid;
-  place-items: center;
-  width: 36px;
-  border: 0;
-  border-left: 1px solid color-mix(in oklab, #fff8f0 18%, transparent);
-  background: color-mix(in oklab, #7f1d1d 55%, transparent);
-  color: color-mix(in oklab, #fff8f0 82%, white);
-  cursor: pointer;
-}
-
-.tlb-due-ticker-sound:hover,
-.tlb-due-ticker-sound[aria-pressed="true"] {
-  color: #ffffff;
-  background: color-mix(in oklab, #7f1d1d 80%, black);
-}
-
-.tlb-due-ticker-sound svg {
-  width: 15px;
-  height: 15px;
-}
-
 @keyframes tlb-due-marquee {
   from { transform: translateX(0); }
   to { transform: translateX(-50%); }
