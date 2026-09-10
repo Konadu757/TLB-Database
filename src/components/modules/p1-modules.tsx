@@ -96,11 +96,34 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
   );
   const [draftPermissions, setDraftPermissions] = useState<Permission[]>([]);
   const [newUser, setNewUser] = useState({ name: "", email: "", roleId: store.state.roles[0]?.id ?? "" });
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editUser, setEditUser] = useState({
+    name: "",
+    email: "",
+    roleId: "",
+    active: true,
+  });
 
   const activeRoles = useMemo(() => listAssignableRoles(store.state.roles), [store.state.roles]);
   const selectedRole = store.state.roles.find((r) => r.id === selectedRoleId) ?? null;
+  const editingUser = store.state.users.find((u) => u.id === editingUserId) ?? null;
   const canManageUsers = store.can("users.manage");
   const canManageSettings = store.can("settings.manage");
+
+  const startEditUser = (user: (typeof store.state.users)[number]) => {
+    setEditingUserId(user.id);
+    setEditUser({
+      name: user.name,
+      email: user.email,
+      roleId: user.roleId,
+      active: user.active,
+    });
+  };
+
+  const cancelEditUser = () => {
+    setEditingUserId(null);
+    setEditUser({ name: "", email: "", roleId: "", active: true });
+  };
 
   useEffect(() => {
     if (selectedRole) setDraftPermissions([...selectedRole.permissions]);
@@ -172,18 +195,19 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                       <th>Role</th>
                       <th>Status</th>
                       <th>Session</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {store.state.users.map((user) => (
-                      <tr key={user.id}>
+                      <tr key={user.id} className={editingUserId === user.id ? "tlb-row-selected" : undefined}>
                         <td>{user.name}</td>
                         <td>{user.email}</td>
                         <td>
                           <select
                             className="tlb-inline-select"
                             value={user.roleId}
-                            disabled={!user.active}
+                            disabled={!user.active || editingUserId === user.id}
                             onChange={(e) => store.assignUserRole(user.id, e.target.value)}
                           >
                             {activeRoles.map((r) => (
@@ -201,33 +225,139 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                             </button>
                           )}
                         </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="tlb-link-btn"
+                            onClick={() =>
+                              editingUserId === user.id ? cancelEditUser() : startEditUser(user)
+                            }
+                          >
+                            {editingUserId === user.id ? "Cancel" : "Edit"}
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             )}
-            <form
-              className="tlb-form-grid"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (store.saveUser(newUser)) {
-                  setNewUser({ name: "", email: "", roleId: activeRoles[0]?.id ?? "" });
-                }
-              }}
-            >
-              <label>New user name<input value={newUser.name} onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} /></label>
-              <label>Email<input type="email" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} /></label>
-              <label>
-                Role
-                <select value={newUser.roleId} onChange={(e) => setNewUser({ ...newUser, roleId: e.target.value })}>
-                  {activeRoles.map((r) => (
-                    <option key={r.id} value={r.id}>{r.name}</option>
-                  ))}
-                </select>
-              </label>
-              <div className="tlb-form-actions"><Button type="submit">Add user</Button></div>
-            </form>
+            {editingUser ? (
+              <form
+                className="tlb-form-grid"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (
+                    store.saveUser({
+                      id: editingUser.id,
+                      name: editUser.name,
+                      email: editUser.email,
+                      roleId: editUser.roleId,
+                      active: editUser.active,
+                    })
+                  ) {
+                    cancelEditUser();
+                  }
+                }}
+              >
+                <div className="tlb-panel-heading tlb-span-2" style={{ padding: 0, marginBottom: 4 }}>
+                  <div>
+                    <span>Staff</span>
+                    <strong>Edit {editingUser.name}</strong>
+                  </div>
+                  <button type="button" onClick={cancelEditUser}>
+                    Cancel
+                  </button>
+                </div>
+                <label>
+                  Name
+                  <input
+                    value={editUser.name}
+                    onChange={(e) => setEditUser({ ...editUser, name: e.target.value })}
+                    required
+                  />
+                </label>
+                <label>
+                  Email
+                  <input
+                    type="email"
+                    value={editUser.email}
+                    onChange={(e) => setEditUser({ ...editUser, email: e.target.value })}
+                    required
+                  />
+                </label>
+                <label>
+                  Role
+                  <select
+                    value={editUser.roleId}
+                    onChange={(e) => setEditUser({ ...editUser, roleId: e.target.value })}
+                  >
+                    {activeRoles.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Status
+                  <select
+                    value={editUser.active ? "active" : "inactive"}
+                    onChange={(e) =>
+                      setEditUser({ ...editUser, active: e.target.value === "active" })
+                    }
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </label>
+                <div className="tlb-form-actions tlb-span-2">
+                  <Button type="submit">Save staff</Button>
+                </div>
+              </form>
+            ) : (
+              <form
+                className="tlb-form-grid"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (store.saveUser(newUser)) {
+                    setNewUser({ name: "", email: "", roleId: activeRoles[0]?.id ?? "" });
+                  }
+                }}
+              >
+                <label>
+                  New user name
+                  <input
+                    value={newUser.name}
+                    onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                  />
+                </label>
+                <label>
+                  Email
+                  <input
+                    type="email"
+                    value={newUser.email}
+                    onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                  />
+                </label>
+                <label>
+                  Role
+                  <select
+                    value={newUser.roleId}
+                    onChange={(e) => setNewUser({ ...newUser, roleId: e.target.value })}
+                  >
+                    {activeRoles.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="tlb-form-actions">
+                  <Button type="submit">Add user</Button>
+                </div>
+              </form>
+            )}
           </article>
 
           <article className="tlb-panel" style={{ marginBottom: 14 }}>

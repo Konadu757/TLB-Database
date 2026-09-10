@@ -1124,9 +1124,40 @@ export function deactivateRole(state: TlbState, roleId: string): MutResult<RoleD
   return { ok: true, data: { state: next, data: role } };
 }
 
+/** Blocks demoting or deactivating the last active Owner. */
+function guardLastActiveOwner(
+  state: TlbState,
+  userId: string,
+  next: { roleId?: string; active?: boolean },
+): string | null {
+  const user = state.users.find((u) => u.id === userId);
+  if (!user || !user.active) return null;
+  const currentRole = state.roles.find((r) => r.id === user.roleId);
+  if (currentRole?.systemKey !== "Owner") return null;
+
+  const nextRoleId = next.roleId ?? user.roleId;
+  const nextActive = next.active ?? user.active;
+  const nextRole = state.roles.find((r) => r.id === nextRoleId);
+  const staysActiveOwner = nextActive && nextRole?.systemKey === "Owner";
+  if (staysActiveOwner) return null;
+
+  const otherActiveOwners = state.users.filter(
+    (u) =>
+      u.id !== userId &&
+      u.active &&
+      state.roles.find((r) => r.id === u.roleId)?.systemKey === "Owner",
+  );
+  if (otherActiveOwners.length === 0) {
+    return "Cannot demote or deactivate the last active Owner.";
+  }
+  return null;
+}
+
 export function assignUserRole(state: TlbState, userId: string, roleId: string): MutResult<AppUser> {
   const blocked = requirePerm(state, "users.manage");
   if (blocked) return { ok: false, error: blocked };
+  const lastOwner = guardLastActiveOwner(state, userId, { roleId });
+  if (lastOwner) return { ok: false, error: lastOwner };
   const next = cloneState(state);
   const user = next.users.find((u) => u.id === userId);
   if (!user) return { ok: false, error: "User not found." };
@@ -1159,18 +1190,41 @@ export function upsertAppUser(
   if (!role || !role.active) return { ok: false, error: "Select an active role." };
 
   if (input.id) {
+    const lastOwner = guardLastActiveOwner(state, input.id, {
+      roleId: input.roleId,
+      active: input.active,
+    });
+    if (lastOwner) return { ok: false, error: lastOwner };
     const user = next.users.find((u) => u.id === input.id);
     if (!user) return { ok: false, error: "User not found." };
+    if (next.users.some((u) => u.id !== user.id && u.email === email)) {
+      return { ok: false, error: "A user with this email already exists." };
+    }
+    const prevRole = next.roles.find((r) => r.id === user.roleId);
+    const prevActive = user.active;
     user.name = name;
     user.email = email;
     user.roleId = role.id;
     if (input.active !== undefined) user.active = input.active;
     if (next.currentUserId === user.id) syncSessionIdentity(next);
+    const changes: string[] = [];
+    if (prevRole?.id !== role.id) changes.push(`role ${prevRole?.name ?? "?"} → ${role.name}`);
+    if (input.active !== undefined && prevActive !== user.active) {
+      changes.push(user.active ? "activated" : "deactivated");
+    }
     pushAudit(next, {
       action: "user.updated",
       entityType: "user",
       entityId: user.id,
-      summary: `Updated user ${user.name}.`,
+      summary:
+        changes.length > 0
+          ? `Updated user ${user.name} (${changes.join(", ")}).`
+          : `Updated user ${user.name}.`,
+      meta: {
+        roleId: role.id,
+        active: user.active,
+        email: user.email,
+      },
     });
     return { ok: true, data: { state: next, data: user } };
   }

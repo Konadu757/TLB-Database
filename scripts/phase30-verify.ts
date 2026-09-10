@@ -72,7 +72,9 @@ import {
   resetToSeed,
   switchSessionUser,
   updateDeliveryStatus,
+  upsertAppUser,
 } from "../src/lib/store/tlb-store";
+import { OWNER_USER_ID, SYSTEM_ROLE_IDS } from "../src/lib/domain/permissions";
 import type { CustomerOrderLine, StockBalance } from "../src/lib/domain/types";
 import { getOrCreateBalance } from "../src/lib/store/inventory-store";
 
@@ -176,6 +178,32 @@ function testPermissions() {
 
   const blockedDelete = deactivateRole(switched.data.state, roleId);
   assert.equal(blockedDelete.ok, false);
+
+  // Last active Owner cannot be demoted or deactivated.
+  const demoteLast = assignUserRole(state, OWNER_USER_ID, SYSTEM_ROLE_IDS.Admin);
+  assert.equal(demoteLast.ok, false);
+  const deactivateLast = upsertAppUser(state, {
+    id: OWNER_USER_ID,
+    name: "TLB Owner",
+    email: "owner@tlb.gh",
+    roleId: SYSTEM_ROLE_IDS.Owner,
+    active: false,
+  });
+  assert.equal(deactivateLast.ok, false);
+
+  // Editing other staff profile fields succeeds and is audited.
+  const edited = upsertAppUser(state, {
+    id: "user-sales",
+    name: "Ama Mensah Updated",
+    email: "ama.updated@tlb.gh",
+    roleId: SYSTEM_ROLE_IDS.Sales,
+    active: true,
+  });
+  assert.equal(edited.ok, true);
+  if (!edited.ok) return;
+  assert.equal(edited.data.data.name, "Ama Mensah Updated");
+  assert.equal(edited.data.data.email, "ama.updated@tlb.gh");
+  assert.ok(edited.data.state.audit.some((a) => a.action === "user.updated" && a.entityId === "user-sales"));
 }
 
 function testPhase30Scenario() {
