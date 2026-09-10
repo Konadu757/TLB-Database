@@ -12,6 +12,7 @@ import {
 } from "@/components/modules/list-bulk-trash";
 import { MoveToTrashButton } from "@/components/modules/move-to-trash-button";
 import {
+  DetailBackChrome,
   EmptyState,
   RecordDetailPage,
   RecordDetailSection,
@@ -31,6 +32,7 @@ import {
   warehouseAvailabilityForProduct,
 } from "@/lib/domain/ops-hub";
 import type { DateRange } from "@/lib/domain/period-range";
+import { isSoftDeleted } from "@/lib/domain/trash";
 import type {
   OpsDriverJobStatus,
   OpsMessageChip,
@@ -1570,20 +1572,336 @@ export function OpsDispatchModule({ store, focusId, onFocusConsumed, onOpenReque
 
 /* ─── 4. Drivers ─── */
 
+function requestOriginLabel(store: TlbStoreApi, request: OpsRequest): string {
+  const lines = linesFor(store, request.id);
+  const warehouseIds = [...new Set(lines.map((l) => l.fulfilWarehouseId || l.warehouseId).filter(Boolean))];
+  if (warehouseIds.length === 0) return "—";
+  const names = warehouseIds.map((id) => store.state.warehouses.find((w) => w.id === id)?.name ?? id);
+  return names.join(", ");
+}
+
+function DriverDetailModule({
+  store,
+  driverId,
+  onBack,
+  onOpenRequest,
+}: {
+  store: TlbStoreApi;
+  driverId: string;
+  onBack: () => void;
+  onOpenRequest: (requestId: string) => void;
+}) {
+  const selected =
+    (store.state.opsDrivers ?? []).find((d) => d.id === driverId && !isSoftDeleted(d)) ?? null;
+
+  const linkedUserLabel = useMemo(() => {
+    if (!selected?.userId) return null as string | null;
+    const user = (store.state.users ?? []).find((u) => u.id === selected.userId);
+    if (!user) return null;
+    const role = (store.state.roles ?? []).find((r) => r.id === user.roleId);
+    return role ? `${user.name} · ${role.name}` : user.name;
+  }, [selected, store.state.users, store.state.roles]);
+
+  const assignedJobs = useMemo(() => {
+    if (!selected) return [] as OpsRequest[];
+    return liveOpsRequests(store)
+      .filter((r) => r.driverId === selected.id)
+      .sort((a, b) => (b.assignedAt ?? b.updatedAt ?? b.createdAt).localeCompare(a.assignedAt ?? a.updatedAt ?? a.createdAt));
+  }, [selected, store.state.opsRequests]);
+
+  const todayJobs = useMemo(() => {
+    if (!selected) return [] as OpsRequest[];
+    return listDriverTodayJobs(store.state, selected.id);
+  }, [selected, store.state.opsRequests]);
+
+  const recentJobs = useMemo(() => assignedJobs.slice(0, 20), [assignedJobs]);
+
+  const assignmentActors = useMemo(() => {
+    if (!selected) return new Map<string, string>();
+    const map = new Map<string, string>();
+    for (const ev of store.state.opsActivity ?? []) {
+      if (ev.action !== "driver_assigned") continue;
+      if (!assignedJobs.some((j) => j.id === ev.requestId)) continue;
+      if (!map.has(ev.requestId)) map.set(ev.requestId, ev.actor);
+    }
+    return map;
+  }, [selected, assignedJobs, store.state.opsActivity]);
+
+  const latestAssigner = useMemo(() => {
+    if (!selected) return null as string | null;
+    const events = (store.state.opsActivity ?? [])
+      .filter((ev) => ev.action === "driver_assigned" && assignedJobs.some((j) => j.id === ev.requestId))
+      .sort((a, b) => b.at.localeCompare(a.at));
+    return events[0]?.actor ?? null;
+  }, [selected, assignedJobs, store.state.opsActivity]);
+
+  if (!selected) {
+    return (
+      <div className="tlb-module">
+        <EmptyState title="Driver not found" detail="The selected driver is no longer available." />
+        <DetailBackChrome label="Drivers" onBack={onBack} />
+      </div>
+    );
+  }
+
+  const blocking = findDriverBlockingAssignment(store.state, selected.id);
+  const blockReason = blocking
+    ? `Assigned to active request ${blocking.number} (${blocking.status}). Reassign or complete first.`
+    : undefined;
+  const statusLabel = selected.deletedAt ? "Trashed" : selected.active ? "Active" : "Inactive";
+  const statusToneValue = selected.deletedAt ? "danger" : selected.active ? "success" : "warning";
+  const inTransit = todayJobs.filter((j) =>
+    ["In Transit", "Collected", "Issued"].includes(j.status) ||
+    ["Departed", "En Route Warehouse", "Collected"].includes(j.driverStatus ?? ""),
+  ).length;
+  const problems = todayJobs.filter((j) => j.driverStatus === "Problem").length;
+
+  return (
+    <RecordDetailPage
+      backLabel="Drivers"
+      onBack={onBack}
+      code={selected.code}
+      title={selected.name}
+      subtitle={[selected.phone, selected.vehicle].filter(Boolean).join(" · ") || "Driver profile"}
+      badges={
+        <>
+          <StatusBadge tone={statusToneValue}>{statusLabel}</StatusBadge>
+          {todayJobs.length > 0 ? (
+            <StatusBadge tone="info">{todayJobs.length} job{todayJobs.length === 1 ? "" : "s"} today</StatusBadge>
+          ) : null}
+        </>
+      }
+      actions={
+        <MoveToTrashButton
+          store={store}
+          entityType="ops_driver"
+          entityId={selected.id}
+          recordLabel={`${selected.code} · ${selected.name}`}
+          disabled={Boolean(blocking)}
+          disabledReason={blockReason}
+          onTrashed={onBack}
+        />
+      }
+      flash={<Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />}
+    >
+      <RecordDetailSection tone="summary" kicker="Overview" title="Today's jobs" span2>
+        <div className="tlb-customer-summary" aria-label="Driver today summary">
+          <div className={todayJobs.length > 0 ? "tlb-customer-summary-tile--info" : "tlb-customer-summary-tile--muted"}>
+            <span>Today</span>
+            <strong>{todayJobs.length}</strong>
+          </div>
+          <div className={inTransit > 0 ? "tlb-customer-summary-tile--gold" : "tlb-customer-summary-tile--muted"}>
+            <span>In progress</span>
+            <strong>{inTransit}</strong>
+          </div>
+          <div className={problems > 0 ? "tlb-customer-summary-tile--danger" : "tlb-customer-summary-tile--muted"}>
+            <span>Problems</span>
+            <strong>{problems}</strong>
+          </div>
+          <div className="tlb-customer-summary-tile--success">
+            <span>All assigned</span>
+            <strong>{assignedJobs.length}</strong>
+          </div>
+        </div>
+      </RecordDetailSection>
+
+      <RecordDetailSection tone="profile" kicker="Profile" title="Driver details" span2>
+        <dl className="tlb-kv">
+          <div>
+            <dt>Name</dt>
+            <dd>{selected.name}</dd>
+          </div>
+          <div>
+            <dt>Code</dt>
+            <dd>{selected.code}</dd>
+          </div>
+          <div>
+            <dt>Phone</dt>
+            <dd>{selected.phone || "—"}</dd>
+          </div>
+          <div>
+            <dt>Vehicle</dt>
+            <dd>{selected.vehicle || "—"}</dd>
+          </div>
+          <div>
+            <dt>Registration</dt>
+            <dd>{selected.vehicle || "—"}</dd>
+          </div>
+          <div>
+            <dt>Status</dt>
+            <dd>
+              <StatusBadge tone={statusToneValue}>{statusLabel}</StatusBadge>
+            </dd>
+          </div>
+          <div>
+            <dt>Linked user</dt>
+            <dd>{linkedUserLabel || "—"}</dd>
+          </div>
+          <div>
+            <dt>Assigned by</dt>
+            <dd>{latestAssigner || "—"}</dd>
+          </div>
+          <div className="tlb-span-2">
+            <dt>Notes</dt>
+            <dd>{selected.notes?.trim() ? selected.notes : "—"}</dd>
+          </div>
+          {selected.deletedAt ? (
+            <div className="tlb-span-2">
+              <dt>Trash</dt>
+              <dd>
+                Moved {new Date(selected.deletedAt).toLocaleString()}
+                {selected.deletedBy ? ` by ${selected.deletedBy}` : ""}
+                {selected.deletedReason ? ` · ${selected.deletedReason}` : ""}
+              </dd>
+            </div>
+          ) : null}
+        </dl>
+      </RecordDetailSection>
+
+      <RecordDetailSection tone="deliveries" kicker="Jobs" title="Current / recent jobs" span2>
+        {recentJobs.length === 0 ? (
+          <EmptyState title="No jobs assigned" detail="Ops requests assigned to this driver will appear here." />
+        ) : (
+          <div className="tlb-table-scroll tlb-orders-panel">
+            <table>
+              <thead>
+                <tr>
+                  <th>Request</th>
+                  <th>Status</th>
+                  <th>Driver status</th>
+                  <th>Origin</th>
+                  <th>Destination</th>
+                  <th>Assigned</th>
+                  <th>Dates</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {recentJobs.map((job) => (
+                  <tr key={job.id}>
+                    <td>
+                      <strong>{job.number}</strong>
+                      <div className="tlb-muted-line">{job.title}</div>
+                    </td>
+                    <td>
+                      <StatusBadge tone={opsStatusTone(job.status)}>{job.status}</StatusBadge>
+                    </td>
+                    <td>
+                      {job.driverStatus ? (
+                        <StatusBadge tone={opsStatusTone(job.driverStatus)}>{job.driverStatus}</StatusBadge>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td>{requestOriginLabel(store, job)}</td>
+                    <td>{job.destination || "—"}</td>
+                    <td>
+                      {job.assignedAt ? new Date(job.assignedAt).toLocaleString() : "—"}
+                      {assignmentActors.get(job.id) ? (
+                        <div className="tlb-muted-line">by {assignmentActors.get(job.id)}</div>
+                      ) : null}
+                    </td>
+                    <td>
+                      {job.neededBy ? (
+                        <div>Needed {job.neededBy.slice(0, 10)}</div>
+                      ) : null}
+                      {job.deliveredAt ? (
+                        <div className="tlb-muted-line">Delivered {new Date(job.deliveredAt).toLocaleDateString()}</div>
+                      ) : job.departedAt ? (
+                        <div className="tlb-muted-line">Departed {new Date(job.departedAt).toLocaleDateString()}</div>
+                      ) : (
+                        <div className="tlb-muted-line">Updated {new Date(job.updatedAt).toLocaleDateString()}</div>
+                      )}
+                    </td>
+                    <td>
+                      <Button type="button" variant="outline" onClick={() => onOpenRequest(job.id)}>
+                        Open
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </RecordDetailSection>
+
+      <RecordDetailSection tone="activity" kicker="Today" title="Today's job cards" span2>
+        {todayJobs.length === 0 ? (
+          <EmptyState title="No jobs today" detail="Assigned collection and transit jobs for today will appear here." />
+        ) : (
+          <div
+            className="tlb-ops-driver-jobs"
+            style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}
+          >
+            {todayJobs.map((job) => {
+              const next = nextDriverAction(job.driverStatus);
+              return (
+                <article key={job.id} className="tlb-panel" style={{ padding: 16, display: "grid", gap: 10 }}>
+                  <div>
+                    <span className="tlb-eyebrow">{job.number}</span>
+                    <strong style={{ display: "block" }}>{job.title}</strong>
+                    <p className="tlb-muted-line">
+                      {requestOriginLabel(store, job)} → {job.destination}
+                    </p>
+                  </div>
+                  <div className="tlb-inline-actions">
+                    <StatusBadge tone={opsStatusTone(job.status)}>{job.status}</StatusBadge>
+                    {job.driverStatus ? (
+                      <StatusBadge tone={opsStatusTone(job.driverStatus)}>{job.driverStatus}</StatusBadge>
+                    ) : null}
+                  </div>
+                  <div className="tlb-inline-actions" style={{ flexWrap: "wrap" }}>
+                    {next ? (
+                      <Button type="button" onClick={() => store.advanceOpsDriver(job.id, next.to)}>
+                        {next.label}
+                      </Button>
+                    ) : null}
+                    {job.driverStatus !== "Problem" && job.driverStatus !== "Delivered" ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => store.advanceOpsDriver(job.id, "Problem", "Problem reported")}
+                      >
+                        Report problem
+                      </Button>
+                    ) : null}
+                    <Button type="button" variant="outline" onClick={() => onOpenRequest(job.id)}>
+                      Open
+                    </Button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </RecordDetailSection>
+    </RecordDetailPage>
+  );
+}
+
 export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenRequest }: ModuleProps) {
-  const [detailId, setDetailId] = useState<string | null>(focusId ?? null);
+  const [requestDetailId, setRequestDetailId] = useState<string | null>(null);
+  const [profileDriverId, setProfileDriverId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [vehicle, setVehicle] = useState("");
-  const [selectedDriverId, setSelectedDriverId] = useState<string | "all">("all");
+  const [filterDriverId, setFilterDriverId] = useState<string | "all">("all");
 
   useEffect(() => {
     if (!focusId) return;
     const asRequest = liveOpsRequests(store).find((r) => r.id === focusId);
-    if (asRequest) setDetailId(focusId);
+    const asDriver = (store.state.opsDrivers ?? []).find((d) => d.id === focusId && !d.deletedAt);
+    if (asRequest) {
+      setRequestDetailId(focusId);
+      setProfileDriverId(null);
+    } else if (asDriver) {
+      setProfileDriverId(focusId);
+      setRequestDetailId(null);
+    }
     onFocusConsumed?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusId]);
@@ -1599,14 +1917,33 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
   const selection = useListSelection(canBulkTrash ? driverIds : []);
 
   const jobs = useMemo(() => {
-    const all = listDriverTodayJobs(store.state, selectedDriverId === "all" ? undefined : selectedDriverId);
+    const all = listDriverTodayJobs(store.state, filterDriverId === "all" ? undefined : filterDriverId);
     return all.filter((r) => matchesSearch([r.number, r.title, r.destination, r.driverName, r.driverStatus], search));
-  }, [store.state.opsRequests, selectedDriverId, search]);
+  }, [store.state.opsRequests, filterDriverId, search]);
 
-  const detail = liveOpsRequests(store).find((r) => r.id === detailId) ?? null;
-  if (detail) {
+  const profileDriver = (store.state.opsDrivers ?? []).find((d) => d.id === profileDriverId) ?? null;
+  const requestDetail = liveOpsRequests(store).find((r) => r.id === requestDetailId) ?? null;
+
+  if (requestDetail) {
+    const backLabel = profileDriver ? profileDriver.name : "Drivers";
     return (
-      <OpsRequestDetail store={store} request={detail} onBack={() => setDetailId(null)} backLabel="Drivers" />
+      <OpsRequestDetail
+        store={store}
+        request={requestDetail}
+        onBack={() => setRequestDetailId(null)}
+        backLabel={backLabel}
+      />
+    );
+  }
+
+  if (profileDriverId) {
+    return (
+      <DriverDetailModule
+        store={store}
+        driverId={profileDriverId}
+        onBack={() => setProfileDriverId(null)}
+        onOpenRequest={(id) => setRequestDetailId(id)}
+      />
     );
   }
 
@@ -1617,7 +1954,7 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
         <div>
           <span className="tlb-eyebrow">Communication Hub</span>
           <strong>Drivers</strong>
-          <p className="tlb-muted-line">Roster and today&apos;s jobs — mobile-friendly status actions</p>
+          <p className="tlb-muted-line">Roster and today&apos;s jobs — click a driver for full profile</p>
         </div>
         <div className="tlb-toolbar-actions">
           <ModuleSearch value={search} onChange={setSearch} placeholder="Search drivers or jobs…" />
@@ -1653,8 +1990,8 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
               <input value={phone} onChange={(e) => setPhone(e.target.value)} />
             </label>
             <label>
-              Vehicle
-              <input value={vehicle} onChange={(e) => setVehicle(e.target.value)} />
+              Vehicle / registration
+              <input value={vehicle} onChange={(e) => setVehicle(e.target.value)} placeholder="e.g. GN-4521-21" />
             </label>
           </div>
           <Button
@@ -1679,8 +2016,8 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
         <div className="tlb-periods">
           <button
             type="button"
-            className={selectedDriverId === "all" ? "active" : ""}
-            onClick={() => setSelectedDriverId("all")}
+            className={filterDriverId === "all" ? "active" : ""}
+            onClick={() => setFilterDriverId("all")}
           >
             All drivers
           </button>
@@ -1688,8 +2025,8 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
             <button
               key={d.id}
               type="button"
-              className={selectedDriverId === d.id ? "active" : ""}
-              onClick={() => setSelectedDriverId(d.id)}
+              className={filterDriverId === d.id ? "active" : ""}
+              onClick={() => setFilterDriverId(d.id)}
             >
               {d.name}
             </button>
@@ -1723,6 +2060,9 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
                   <th>Phone</th>
                   <th>Vehicle</th>
                   <th>Active</th>
+                  <th>
+                    <span className="sr-only">Open</span>
+                  </th>
                   {canBulkTrash ? <th>Actions</th> : null}
                 </tr>
               </thead>
@@ -1733,7 +2073,18 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
                     ? `Assigned to active request ${blocking.number} (${blocking.status}). Reassign or complete first.`
                     : undefined;
                   return (
-                    <tr key={d.id} className={selection.isSelected(d.id) ? "tlb-row-selected" : undefined}>
+                    <tr
+                      key={d.id}
+                      className={`tlb-row-clickable${selection.isSelected(d.id) ? " tlb-row-selected" : ""}`}
+                      tabIndex={0}
+                      onClick={() => setProfileDriverId(d.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setProfileDriverId(d.id);
+                        }
+                      }}
+                    >
                       {canBulkTrash ? (
                         <SelectRowCell
                           id={d.id}
@@ -1751,8 +2102,20 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
                       <td>
                         <StatusBadge tone={d.active ? "success" : "neutral"}>{d.active ? "Active" : "Off"}</StatusBadge>
                       </td>
+                      <td>
+                        <button
+                          type="button"
+                          aria-label={`View ${d.name}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setProfileDriverId(d.id);
+                          }}
+                        >
+                          <ChevronRight />
+                        </button>
+                      </td>
                       {canBulkTrash ? (
-                        <td>
+                        <td onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                           <MoveToTrashButton
                             store={store}
                             entityType="ops_driver"
@@ -1761,7 +2124,8 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
                             disabled={Boolean(blocking)}
                             disabledReason={blockReason}
                             onTrashed={() => {
-                              if (selectedDriverId === d.id) setSelectedDriverId("all");
+                              if (filterDriverId === d.id) setFilterDriverId("all");
+                              if (profileDriverId === d.id) setProfileDriverId(null);
                               selection.clear();
                             }}
                           />
@@ -1815,7 +2179,7 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
                     type="button"
                     variant="outline"
                     onClick={() => {
-                      setDetailId(job.id);
+                      setRequestDetailId(job.id);
                       onOpenRequest?.(job.id);
                     }}
                   >
