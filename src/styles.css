@@ -262,13 +262,13 @@
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: color-mix(in oklab, var(--sidebar-foreground) 48%, transparent);
+  color: color-mix(in oklab, var(--sidebar-foreground) 92%, white);
   cursor: pointer;
   text-align: left;
 }
 .tlb-nav-group-toggle:hover {
   background: color-mix(in oklab, var(--sidebar-accent) 45%, transparent);
-  color: color-mix(in oklab, var(--sidebar-foreground) 72%, transparent);
+  color: var(--sidebar-foreground);
 }
 .tlb-nav-label {
   margin: 0;
@@ -277,13 +277,13 @@
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
 }
 .tlb-nav-group-chevron {
   width: 14px;
   height: 14px;
   flex: none;
-  opacity: 0.75;
+  opacity: 0.9;
   transition: transform 160ms ease;
   transform: rotate(-90deg);
 }
@@ -299,7 +299,8 @@
 .tlb-nav-group-items-collapsed {
   display: none;
 }
-.tlb-nav-item { width: 100%; min-height: 36px; display: flex; align-items: center; gap: 11px; padding: 8px 10px; border: 0; border-radius: var(--radius-sm); background: transparent; color: color-mix(in oklab, var(--sidebar-foreground) 83%, transparent); font-size: 13px; text-align: left; }
+.tlb-nav-group-items .tlb-nav-item { padding-left: 14px; }
+.tlb-nav-item { width: 100%; min-height: 36px; display: flex; align-items: center; gap: 11px; padding: 8px 10px; border: 0; border-radius: var(--radius-sm); background: transparent; color: color-mix(in oklab, var(--sidebar-foreground) 72%, transparent); font-size: 13px; font-weight: 500; text-align: left; }
 .tlb-nav-item:hover { background: color-mix(in oklab, var(--sidebar-accent) 68%, transparent); color: var(--sidebar-accent-foreground); }
 .tlb-nav-item svg { width: 17px; height: 17px; flex: none; }
 .tlb-nav-active { background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); box-shadow: inset 3px 0 var(--brand-gold); }
