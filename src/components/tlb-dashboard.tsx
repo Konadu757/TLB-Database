@@ -184,7 +184,7 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Operations Hub",
+    label: "Communication Hub",
     items: [
       { label: "My Actions", icon: ListTodo },
       { label: "Requests", icon: ClipboardList },

@@ -78,14 +78,14 @@ export const PERMISSION_LABELS: Record<Permission, { module: string; label: stri
   "trash.view": { module: "Trash", label: "View trash" },
   "records.delete": { module: "Trash", label: "Move records to trash" },
   "trash.purge": { module: "Trash", label: "Permanently delete from trash" },
-  "ops.request": { module: "Operations Hub", label: "Create / submit requests" },
-  "ops.approve": { module: "Operations Hub", label: "Approve ops requests" },
-  "ops.warehouse": { module: "Operations Hub", label: "Warehouse review / release" },
-  "ops.dispatch": { module: "Operations Hub", label: "Dispatch & assign drivers" },
-  "ops.drive": { module: "Operations Hub", label: "Driver job actions" },
-  "ops.receive": { module: "Operations Hub", label: "Confirm delivery receipt" },
-  "ops.communicate": { module: "Operations Hub", label: "Request communication" },
-  "ops.view": { module: "Operations Hub", label: "View operations hub" },
+  "ops.request": { module: "Communication Hub", label: "Create / submit requests" },
+  "ops.approve": { module: "Communication Hub", label: "Approve ops requests" },
+  "ops.warehouse": { module: "Communication Hub", label: "Warehouse review / release" },
+  "ops.dispatch": { module: "Communication Hub", label: "Dispatch & assign drivers" },
+  "ops.drive": { module: "Communication Hub", label: "Driver job actions" },
+  "ops.receive": { module: "Communication Hub", label: "Confirm delivery receipt" },
+  "ops.communicate": { module: "Communication Hub", label: "Request communication" },
+  "ops.view": { module: "Communication Hub", label: "View communication hub" },
 };
 
 /** Default permission sets for seeded system roles. */

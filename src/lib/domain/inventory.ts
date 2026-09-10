@@ -513,7 +513,7 @@ export const ASK_TLB_PRESETS: AskTlbPreset[] = [
   { id: "supplier_performance", label: "Supplier Performance", description: "Purchase value, on-time, rejections" },
   { id: "stock_ageing_old", label: "Aged Stock 91+", description: "Batches older than 90 days" },
   { id: "profitability", label: "Product Profitability", description: "Gross profit where cost + sales exist" },
-  { id: "ops_pending_approvals", label: "Ops Pending Approvals", description: "Operations Hub requests awaiting approval" },
+  { id: "ops_pending_approvals", label: "Ops Pending Approvals", description: "Communication Hub requests awaiting approval" },
   { id: "ops_outstanding", label: "Ops Outstanding Shortage", description: "Warehouse shortage outstanding (not delivery missing)" },
   { id: "ops_in_transit", label: "Ops In Transit", description: "Requests collected / in transit" },
   { id: "ops_discrepancies", label: "Ops Discrepancies", description: "Delivery missing / damaged / wrong / rejected" },

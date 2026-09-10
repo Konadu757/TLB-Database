@@ -1,5 +1,5 @@
 /**
- * Operations Hub UI — Request → Approval → Warehouse → Dispatch → Driver → Delivery.
+ * Communication Hub UI — Request → Approval → Warehouse → Dispatch → Driver → Delivery.
  */
 import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, Search, X } from "lucide-react";
@@ -1052,7 +1052,7 @@ export function OpsRequestsModule({
       <Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />
       <div className="tlb-module-toolbar">
         <div>
-          <span className="tlb-eyebrow">Operations Hub</span>
+          <span className="tlb-eyebrow">Communication Hub</span>
           <strong>Requests</strong>
           <p className="tlb-muted-line">
             Create and track ops requests end-to-end
@@ -1361,7 +1361,7 @@ export function OpsWarehouseActionsModule({ store, focusId, onFocusConsumed, onO
       <Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />
       <div className="tlb-module-toolbar">
         <div>
-          <span className="tlb-eyebrow">Operations Hub</span>
+          <span className="tlb-eyebrow">Communication Hub</span>
           <strong>Warehouse Actions</strong>
           <p className="tlb-muted-line">Review availability, prepare, ready, and release goods</p>
         </div>
@@ -1478,7 +1478,7 @@ export function OpsDispatchModule({ store, focusId, onFocusConsumed, onOpenReque
       <Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />
       <div className="tlb-module-toolbar">
         <div>
-          <span className="tlb-eyebrow">Operations Hub</span>
+          <span className="tlb-eyebrow">Communication Hub</span>
           <strong>Dispatch</strong>
           <p className="tlb-muted-line">Assign drivers to release-ready and in-flight requests</p>
         </div>
@@ -1604,7 +1604,7 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
       <Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />
       <div className="tlb-module-toolbar">
         <div>
-          <span className="tlb-eyebrow">Operations Hub</span>
+          <span className="tlb-eyebrow">Communication Hub</span>
           <strong>Drivers</strong>
           <p className="tlb-muted-line">Roster and today&apos;s jobs — mobile-friendly status actions</p>
         </div>
@@ -1797,7 +1797,7 @@ export function OpsOutstandingModule({ store, onOpenRequest }: ModuleProps) {
       <Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />
       <div className="tlb-module-toolbar">
         <div>
-          <span className="tlb-eyebrow">Operations Hub</span>
+          <span className="tlb-eyebrow">Communication Hub</span>
           <strong>Outstanding Requests</strong>
           <p className="tlb-muted-line">Warehouse shortage outstanding — separate from delivery missing</p>
         </div>
@@ -1907,7 +1907,7 @@ export function OpsExceptionsModule({ store, onOpenRequest }: ModuleProps) {
       <Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />
       <div className="tlb-module-toolbar">
         <div>
-          <span className="tlb-eyebrow">Operations Hub</span>
+          <span className="tlb-eyebrow">Communication Hub</span>
           <strong>Exceptions / Discrepancies</strong>
           <p className="tlb-muted-line">Delivery missing, damaged, wrong, and rejected — not warehouse shortage</p>
         </div>
@@ -1992,7 +1992,7 @@ export function OpsMyActionsModule({
       <Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />
       <div className="tlb-module-toolbar">
         <div>
-          <span className="tlb-eyebrow">Operations Hub</span>
+          <span className="tlb-eyebrow">Communication Hub</span>
           <strong>My Actions</strong>
           <p className="tlb-muted-line">Role-aware tasks waiting on you</p>
         </div>
@@ -2062,7 +2062,7 @@ export function OpsLiveBoardModule({ store, onOpenRequest }: ModuleProps) {
       <Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />
       <div className="tlb-module-toolbar">
         <div>
-          <span className="tlb-eyebrow">Operations Hub</span>
+          <span className="tlb-eyebrow">Communication Hub</span>
           <strong>Live Operations Board</strong>
           <p className="tlb-muted-line">Kanban across submit → approve → prepare → transit → delivered</p>
         </div>
