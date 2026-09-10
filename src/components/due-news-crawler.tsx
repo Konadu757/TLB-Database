@@ -11,11 +11,8 @@ import type { OutstandingRow, TlbState } from "@/lib/domain/types";
 import { cn } from "@/lib/utils";
 
 const SOUND_PREF_KEY = "tlb.due-ticker.sound";
-/** Soft awareness beep while unmuted — secondary to continuous speech. */
+/** Soft awareness beep while unmuted. */
 const BEEP_INTERVAL_MS = 18_000;
-/** Pause between spoken ticker messages. */
-const SPEECH_PAUSE_MS = 750;
-const SPEECH_MAX_CHARS = 160;
 
 export type DueTickerNavigate = (
   nav: DueAwarenessNav,
@@ -90,18 +87,6 @@ async function playSoftBeep(): Promise<boolean> {
   }
 }
 
-function itemSpeechText(item: DueAwarenessItem): string {
-  return formatDueAwarenessTickerText(item).slice(0, SPEECH_MAX_CHARS);
-}
-
-function cancelSpeech() {
-  try {
-    window.speechSynthesis?.cancel();
-  } catch {
-    /* ignore */
-  }
-}
-
 export function DueNewsCrawler({ state, outstanding, onNavigate, onVisibilityChange }: Props) {
   const items = useMemo(
     () => buildDueAwarenessItems(state, outstanding),
@@ -110,24 +95,7 @@ export function DueNewsCrawler({ state, outstanding, onNavigate, onVisibilityCha
   const visible = items.length > 0;
   const [soundOn, setSoundOn] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
-  /** Bumped on unmute / first gesture so a cold-restored preference can start speech after a user gesture. */
-  const [speechSession, setSpeechSession] = useState(0);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const soundOnRef = useRef(soundOn);
-  const itemsRef = useRef(items);
-  const speechIndexRef = useRef(0);
-
-  useEffect(() => {
-    soundOnRef.current = soundOn;
-  }, [soundOn]);
-
-  // Live queue for the speech loop — updates without stacking overlapping utterances.
-  useEffect(() => {
-    itemsRef.current = items;
-    if (speechIndexRef.current >= items.length) {
-      speechIndexRef.current = 0;
-    }
-  }, [items]);
 
   useEffect(() => {
     try {
@@ -149,105 +117,7 @@ export function DueNewsCrawler({ state, outstanding, onNavigate, onVisibilityCha
     onVisibilityChange?.(visible);
   }, [visible, onVisibilityChange]);
 
-  // Continuous speech while unmuted: read each message, pause, loop forever.
-  useEffect(() => {
-    if (!visible || !soundOn) {
-      cancelSpeech();
-      return;
-    }
-    if (typeof window === "undefined" || !window.speechSynthesis) return;
-
-    let cancelled = false;
-    let pauseTimer: number | undefined;
-    let resumeWatch: number | undefined;
-
-    const clearPause = () => {
-      if (pauseTimer !== undefined) {
-        window.clearTimeout(pauseTimer);
-        pauseTimer = undefined;
-      }
-    };
-
-    const scheduleNext = () => {
-      clearPause();
-      if (cancelled || !soundOnRef.current) return;
-      pauseTimer = window.setTimeout(speakNext, SPEECH_PAUSE_MS);
-    };
-
-    const advanceIndex = () => {
-      const len = itemsRef.current.length;
-      if (len <= 0) {
-        speechIndexRef.current = 0;
-        return;
-      }
-      speechIndexRef.current = (speechIndexRef.current + 1) % len;
-    };
-
-    const speakNext = () => {
-      if (cancelled || !soundOnRef.current) return;
-      const list = itemsRef.current;
-      if (!list.length) return;
-
-      if (speechIndexRef.current >= list.length) {
-        speechIndexRef.current = 0;
-      }
-
-      const text = itemSpeechText(list[speechIndexRef.current]!);
-      if (!text) {
-        advanceIndex();
-        scheduleNext();
-        return;
-      }
-
-      // Never stack overlapping speech.
-      cancelSpeech();
-
-      try {
-        const utter = new SpeechSynthesisUtterance(text);
-        utter.rate = 1.05;
-        utter.volume = 0.75;
-        utter.onend = () => {
-          if (cancelled || !soundOnRef.current) return;
-          advanceIndex();
-          scheduleNext();
-        };
-        utter.onerror = (event) => {
-          if (cancelled || !soundOnRef.current) return;
-          // Mute / restart cancel — do not advance or re-queue.
-          if (event.error === "interrupted" || event.error === "canceled") return;
-          advanceIndex();
-          scheduleNext();
-        };
-        window.speechSynthesis.speak(utter);
-      } catch {
-        scheduleNext();
-      }
-    };
-
-    // Start immediately (tiny defer so unmute cancel does not race the first speak).
-    pauseTimer = window.setTimeout(speakNext, 40);
-
-    // Chrome can silently pause speechSynthesis; nudge resume while the loop is active.
-    resumeWatch = window.setInterval(() => {
-      if (cancelled || !soundOnRef.current) return;
-      try {
-        if (window.speechSynthesis.paused) {
-          window.speechSynthesis.resume();
-        }
-      } catch {
-        /* ignore */
-      }
-    }, 5_000);
-
-    return () => {
-      cancelled = true;
-      clearPause();
-      if (resumeWatch !== undefined) window.clearInterval(resumeWatch);
-      cancelSpeech();
-    };
-  }, [visible, soundOn, speechSession]);
-
-  // Periodic soft beep while unmuted (secondary awareness).
+  // Periodic soft beep while unmuted.
   useEffect(() => {
     if (!visible || !soundOn) return;
 
@@ -266,7 +136,7 @@ export function DueNewsCrawler({ state, outstanding, onNavigate, onVisibilityCha
     };
   }, [visible, soundOn, items.length]);
 
-  // Preference restored unmuted: unlock audio + restart speech on first bar interaction.
+  // Preference restored unmuted: unlock audio on first bar interaction.
   useEffect(() => {
     if (!visible || !soundOn) return;
     const el = rootRef.current;
@@ -275,7 +145,6 @@ export function DueNewsCrawler({ state, outstanding, onNavigate, onVisibilityCha
       void ensureAudioContext().then((ctx) => {
         if (ctx?.state === "running") void playSoftBeep();
       });
-      setSpeechSession((n) => n + 1);
     };
     el.addEventListener("pointerdown", onPointer, { once: true });
     return () => el.removeEventListener("pointerdown", onPointer);
@@ -305,10 +174,6 @@ export function DueNewsCrawler({ state, outstanding, onNavigate, onVisibilityCha
       if (enabling) {
         await ensureAudioContext();
         await playSoftBeep();
-        speechIndexRef.current = 0;
-        setSpeechSession((n) => n + 1);
-      } else {
-        cancelSpeech();
       }
       setSoundOn(enabling);
       try {
@@ -375,8 +240,8 @@ export function DueNewsCrawler({ state, outstanding, onNavigate, onVisibilityCha
         className="tlb-due-ticker-sound"
         onClick={toggleSound}
         aria-pressed={soundOn}
-        aria-label={soundOn ? "Mute due ticker reading" : "Enable continuous due ticker reading"}
-        title={soundOn ? "Reading on — click to mute" : "Muted — click to read due items aloud"}
+        aria-label={soundOn ? "Mute due ticker beep" : "Enable due ticker beep"}
+        title={soundOn ? "Beep on — click to mute" : "Muted — click to enable soft beep"}
       >
         {soundOn ? <Volume2 /> : <VolumeX />}
       </button>
