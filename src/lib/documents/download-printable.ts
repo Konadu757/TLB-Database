@@ -4,6 +4,11 @@ import { formatMoney } from "@/lib/store/tlb-store";
 const BRAND_PURPLE = "#523784";
 const BRAND_GOLD = "#F9CD5B";
 
+/** Public asset — served from /brand on Vercel and locally. */
+export const LETTERHEAD_PUBLIC_PATH = "/brand/tlb-letterhead.svg";
+
+let letterheadDataUrlCache: string | null = null;
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -47,6 +52,40 @@ export function downloadHtmlDocument(filename: string, html: string): void {
   downloadBlob(safeName.endsWith(".html") ? safeName : `${safeName}.html`, new Blob([html], { type: "text/html;charset=utf-8" }));
 }
 
+function absoluteLetterheadUrl(): string {
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return `${window.location.origin}${LETTERHEAD_PUBLIC_PATH}`;
+  }
+  return LETTERHEAD_PUBLIC_PATH;
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error("Failed to read letterhead"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Resolve letterhead for printable HTML. Prefers an embedded data URL so
+ * downloaded files and print windows show branding without relying on relative paths.
+ */
+export async function resolveLetterheadSrc(): Promise<string> {
+  if (letterheadDataUrlCache) return letterheadDataUrlCache;
+  const absolute = absoluteLetterheadUrl();
+  try {
+    const res = await fetch(absolute);
+    if (!res.ok) throw new Error(`Letterhead HTTP ${res.status}`);
+    const dataUrl = await blobToDataUrl(await res.blob());
+    letterheadDataUrlCache = dataUrl;
+    return dataUrl;
+  } catch {
+    return absolute;
+  }
+}
+
 /**
  * Open a print-ready window. Browser "Save as PDF" is the PDF path
  * (project has no PDF library).
@@ -58,14 +97,35 @@ export function printDocumentAsPdf(html: string, documentTitle: string): boolean
   win.document.write(html);
   win.document.close();
   win.document.title = `${documentTitle} — Save as PDF`;
-  window.setTimeout(() => {
+
+  const triggerPrint = () => {
     try {
       win.focus();
       win.print();
     } catch {
       /* ignore blocked print */
     }
-  }, 300);
+  };
+
+  const imgs = Array.from(win.document.images);
+  if (imgs.length === 0) {
+    window.setTimeout(triggerPrint, 300);
+    return true;
+  }
+
+  let pending = imgs.length;
+  const done = () => {
+    pending -= 1;
+    if (pending <= 0) window.setTimeout(triggerPrint, 50);
+  };
+  for (const img of imgs) {
+    if (img.complete) done();
+    else {
+      img.addEventListener("load", done, { once: true });
+      img.addEventListener("error", done, { once: true });
+    }
+  }
+  window.setTimeout(triggerPrint, 4000);
   return true;
 }
 
@@ -80,57 +140,58 @@ const DOC_STYLES = `
     font-size: 13px;
     line-height: 1.45;
   }
-  .page { max-width: 820px; margin: 0 auto; padding: 28px 32px 40px; }
-  .brand {
+  .page {
+    position: relative;
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto;
+    background: #fff;
+  }
+  .letterhead-bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
+    z-index: 0;
+    pointer-events: none;
+    user-select: none;
+  }
+  .doc-body {
+    position: relative;
+    z-index: 1;
+    /* Clear letterhead header (~y 0–90) and footer (~y 772+) on A4 artboard */
+    padding: 32mm 16mm 34mm;
+    min-height: 297mm;
+  }
+  .doc-title-row {
     display: flex;
-    align-items: stretch;
+    align-items: flex-end;
     justify-content: space-between;
     gap: 16px;
-    padding: 16px 18px;
-    background: ${BRAND_PURPLE};
-    color: #fff;
-    border-radius: 6px;
-    border-bottom: 4px solid ${BRAND_GOLD};
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid ${BRAND_PURPLE};
   }
-  .brand-mark {
-    width: 42px; height: 42px;
-    border-radius: 8px;
-    background: ${BRAND_GOLD};
+  .doc-title-row .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
     color: ${BRAND_PURPLE};
-    font-weight: 800;
-    font-size: 14px;
-    letter-spacing: 0.04em;
-    display: grid;
-    place-items: center;
-    flex-shrink: 0;
-  }
-  .brand-left { display: flex; gap: 12px; align-items: center; min-width: 0; }
-  .brand h1 {
-    margin: 0;
-    font-size: 1.15rem;
     font-weight: 700;
-    letter-spacing: 0.02em;
   }
-  .brand .tag {
+  .doc-title-row strong {
+    display: block;
     margin-top: 2px;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: ${BRAND_GOLD};
+    font-size: 1.25rem;
+    color: #1a1525;
   }
-  .brand-doc { text-align: right; }
-  .brand-doc .label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: ${BRAND_GOLD};
-  }
-  .brand-doc strong { display: block; margin-top: 2px; font-size: 1.05rem; }
+  .doc-title-row .right { text-align: right; }
   .meta {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 18px 28px;
-    margin: 22px 0 18px;
+    margin: 0 0 18px;
   }
   .meta h2, .section-title {
     margin: 0 0 8px;
@@ -170,6 +231,7 @@ const DOC_STYLES = `
     border: 1px solid #e8e4ef;
     border-radius: 6px;
     overflow: hidden;
+    background: rgba(255,255,255,0.92);
   }
   .totals .row {
     display: flex;
@@ -198,14 +260,15 @@ const DOC_STYLES = `
   }
   .notes { margin-top: 18px; padding-top: 12px; border-top: 1px dashed #ddd; }
   .footer {
-    margin-top: 28px;
-    font-size: 11px;
+    margin-top: 22px;
+    font-size: 10px;
     color: #7a7385;
     text-align: center;
   }
   @media print {
-    body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-    .page { padding: 0; max-width: none; }
+    @page { size: A4; margin: 0; }
+    body { print-color-adjust: exact; -webkit-print-color-adjust: exact; margin: 0; }
+    .page { width: 210mm; min-height: 297mm; margin: 0; }
   }
 `;
 
@@ -216,8 +279,9 @@ function wrapDocument(opts: {
   company: CompanyProfile;
   partyHtml: string;
   bodyHtml: string;
+  letterheadSrc: string;
 }): string {
-  const { title, docLabel, docNumber, company, partyHtml, bodyHtml } = opts;
+  const { title, docLabel, docNumber, company, partyHtml, bodyHtml, letterheadSrc } = opts;
   const companyLines = [
     `<div><strong>${escapeHtml(company.tradingName || company.legalName)}</strong></div>`,
     company.legalName && company.legalName !== company.tradingName
@@ -242,28 +306,25 @@ function wrapDocument(opts: {
 </head>
 <body>
   <div class="page">
-    <header class="brand">
-      <div class="brand-left">
-        <div class="brand-mark" aria-hidden="true">TLB</div>
+    <img class="letterhead-bg" src="${escapeHtml(letterheadSrc)}" alt="" />
+    <div class="doc-body">
+      <header class="doc-title-row">
         <div>
-          <h1>${escapeHtml(company.tradingName || "TLB")}</h1>
-          <div class="tag">Management System</div>
+          <div class="label">${escapeHtml(docLabel)}</div>
+          <strong>${escapeHtml(docNumber)}</strong>
         </div>
-      </div>
-      <div class="brand-doc">
-        <div class="label">${escapeHtml(docLabel)}</div>
-        <strong>${escapeHtml(docNumber)}</strong>
-      </div>
-    </header>
-    <section class="meta">
-      <div>
-        <h2>From</h2>
-        ${companyLines}
-      </div>
-      ${partyHtml}
-    </section>
-    ${bodyHtml}
-    <p class="footer">Generated from TLB Management System · ${escapeHtml(formatDate(new Date().toISOString()))}</p>
+        <div class="right muted">Generated ${escapeHtml(formatDate(new Date().toISOString()))}</div>
+      </header>
+      <section class="meta">
+        <div>
+          <h2>From</h2>
+          ${companyLines}
+        </div>
+        ${partyHtml}
+      </section>
+      ${bodyHtml}
+      <p class="footer">TLB Management System</p>
+    </div>
   </div>
 </body>
 </html>`;
@@ -278,7 +339,7 @@ export type InvoiceDownloadContext = {
   orderNumber?: string;
 };
 
-export function buildInvoiceHtml(ctx: InvoiceDownloadContext): string {
+export function buildInvoiceHtml(ctx: InvoiceDownloadContext, letterheadSrc: string): string {
   const { invoice, lines, company, customerName, vatRatePercent, orderNumber } = ctx;
   const balance = Math.max(0, invoice.total - invoice.amountPaid);
   const lineRows =
@@ -349,6 +410,7 @@ export function buildInvoiceHtml(ctx: InvoiceDownloadContext): string {
     company,
     partyHtml,
     bodyHtml,
+    letterheadSrc,
   });
 }
 
@@ -361,7 +423,7 @@ export type ReceiptDownloadContext = {
   orderNumber?: string;
 };
 
-export function buildReceiptHtml(ctx: ReceiptDownloadContext): string {
+export function buildReceiptHtml(ctx: ReceiptDownloadContext, letterheadSrc: string): string {
   const { receipt, lines, company, customerName, invoiceNumber, orderNumber } = ctx;
 
   const partyHtml = `
@@ -430,21 +492,26 @@ export function buildReceiptHtml(ctx: ReceiptDownloadContext): string {
     company,
     partyHtml,
     bodyHtml,
+    letterheadSrc,
   });
 }
 
-export function downloadInvoice(ctx: InvoiceDownloadContext): void {
-  downloadHtmlDocument(`${ctx.invoice.number}.html`, buildInvoiceHtml(ctx));
+export async function downloadInvoice(ctx: InvoiceDownloadContext): Promise<void> {
+  const letterheadSrc = await resolveLetterheadSrc();
+  downloadHtmlDocument(`${ctx.invoice.number}.html`, buildInvoiceHtml(ctx, letterheadSrc));
 }
 
-export function printInvoiceAsPdf(ctx: InvoiceDownloadContext): boolean {
-  return printDocumentAsPdf(buildInvoiceHtml(ctx), ctx.invoice.number);
+export async function printInvoiceAsPdf(ctx: InvoiceDownloadContext): Promise<boolean> {
+  const letterheadSrc = await resolveLetterheadSrc();
+  return printDocumentAsPdf(buildInvoiceHtml(ctx, letterheadSrc), ctx.invoice.number);
 }
 
-export function downloadReceipt(ctx: ReceiptDownloadContext): void {
-  downloadHtmlDocument(`${ctx.receipt.number}.html`, buildReceiptHtml(ctx));
+export async function downloadReceipt(ctx: ReceiptDownloadContext): Promise<void> {
+  const letterheadSrc = await resolveLetterheadSrc();
+  downloadHtmlDocument(`${ctx.receipt.number}.html`, buildReceiptHtml(ctx, letterheadSrc));
 }
 
-export function printReceiptAsPdf(ctx: ReceiptDownloadContext): boolean {
-  return printDocumentAsPdf(buildReceiptHtml(ctx), ctx.receipt.number);
+export async function printReceiptAsPdf(ctx: ReceiptDownloadContext): Promise<boolean> {
+  const letterheadSrc = await resolveLetterheadSrc();
+  return printDocumentAsPdf(buildReceiptHtml(ctx, letterheadSrc), ctx.receipt.number);
 }

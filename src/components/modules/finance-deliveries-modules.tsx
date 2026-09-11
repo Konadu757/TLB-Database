@@ -71,30 +71,30 @@ function receiptDownloadCtx(
   };
 }
 
-function handleInvoiceDownload(store: TlbStoreApi, invoiceId: string) {
+async function handleInvoiceDownload(store: TlbStoreApi, invoiceId: string) {
   const ctx = invoiceDownloadCtx(store, invoiceId);
   if (!ctx) return;
-  downloadInvoice(ctx);
+  await downloadInvoice(ctx);
 }
 
-function handleInvoicePrintPdf(store: TlbStoreApi, invoiceId: string) {
+async function handleInvoicePrintPdf(store: TlbStoreApi, invoiceId: string) {
   const ctx = invoiceDownloadCtx(store, invoiceId);
   if (!ctx) return;
-  if (!printInvoiceAsPdf(ctx)) {
+  if (!(await printInvoiceAsPdf(ctx))) {
     window.alert("Allow pop-ups to use Save as PDF (opens the print dialog).");
   }
 }
 
-function handleReceiptDownload(store: TlbStoreApi, receiptId: string) {
+async function handleReceiptDownload(store: TlbStoreApi, receiptId: string) {
   const ctx = receiptDownloadCtx(store, receiptId);
   if (!ctx) return;
-  downloadReceipt(ctx);
+  await downloadReceipt(ctx);
 }
 
-function handleReceiptPrintPdf(store: TlbStoreApi, receiptId: string) {
+async function handleReceiptPrintPdf(store: TlbStoreApi, receiptId: string) {
   const ctx = receiptDownloadCtx(store, receiptId);
   if (!ctx) return;
-  if (!printReceiptAsPdf(ctx)) {
+  if (!(await printReceiptAsPdf(ctx))) {
     window.alert("Allow pop-ups to use Save as PDF (opens the print dialog).");
   }
 }
