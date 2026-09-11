@@ -565,12 +565,97 @@ export function GoodsInModule({
   );
 }
 
-export function GoodsOutModule({ store }: { store: TlbStoreApi }) {
+export function GoodsOutModule({
+  store,
+  focusId,
+  onFocusConsumed,
+}: {
+  store: TlbStoreApi;
+  focusId?: string | null;
+  onFocusConsumed?: () => void;
+}) {
   const [warehouseId, setWarehouseId] = useState("wh-main");
   const [productId, setProductId] = useState("prod-hcl");
   const [qty, setQty] = useState(1);
   const [reason, setReason] = useState<StockIssueReason>("Internal use");
   const [notes, setNotes] = useState("");
+  const [detailId, setDetailId] = useState<string | null>(focusId ?? null);
+
+  useEffect(() => {
+    if (!focusId) return;
+    setDetailId(focusId);
+    onFocusConsumed?.();
+  }, [focusId, onFocusConsumed]);
+
+  const detail = notSoftDeleted(store.state.stockIssues).find((i) => i.id === detailId);
+  if (detail) {
+    const lines = store.state.stockIssueLines.filter((l) => l.issueId === detail.id);
+    const wh = store.state.warehouses.find((w) => w.id === detail.warehouseId);
+    return (
+      <div className="tlb-module tlb-record-detail">
+        <div className="tlb-module-toolbar">
+          <div>
+            <span className="tlb-eyebrow">Goods Out</span>
+            <strong>{detail.number}</strong>
+            <p className="tlb-muted-line">{detail.reason} · {wh?.name ?? detail.warehouseId}</p>
+          </div>
+          <div className="tlb-inline-actions">
+            <MoveToTrashButton
+              store={store}
+              entityType="stock_issue"
+              entityId={detail.id}
+              recordLabel={detail.number}
+              onTrashed={() => setDetailId(null)}
+            />
+            <Button type="button" variant="outline" onClick={() => setDetailId(null)}>
+              Back
+            </Button>
+          </div>
+        </div>
+        <article className="tlb-panel">
+          <div className="tlb-kv-grid" style={{ padding: 16 }}>
+            <div><span>Reason</span><strong>{detail.reason}</strong></div>
+            <div><span>Issued</span><strong>{detail.issuedAt.slice(0, 16).replace("T", " ")}</strong></div>
+            <div><span>By</span><strong>{detail.issuedBy}</strong></div>
+            <div><span>Notes</span><strong>{detail.notes ?? "—"}</strong></div>
+          </div>
+        </article>
+        <article className="tlb-panel tlb-orders-panel">
+          <div className="tlb-table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Warehouse</th>
+                  <th>Qty</th>
+                  <th>Batch</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lines.length === 0 ? (
+                  <tr><td colSpan={4}><EmptyState title="No lines" detail="This issue has no stock lines." /></td></tr>
+                ) : (
+                  lines.map((l) => {
+                    const p = store.state.products.find((x) => x.id === l.productId);
+                    const lineWh = store.state.warehouses.find((w) => w.id === l.warehouseId);
+                    const batch = l.batchId ? store.state.batches.find((b) => b.id === l.batchId) : null;
+                    return (
+                      <tr key={l.id}>
+                        <td>{p?.name ?? l.productId}</td>
+                        <td>{lineWh?.code ?? l.warehouseId}</td>
+                        <td>{l.quantity}</td>
+                        <td>{batch?.code ?? "—"}</td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    );
+  }
 
   return (
     <div className="tlb-module">
@@ -654,13 +739,18 @@ export function GoodsOutModule({ store }: { store: TlbStoreApi }) {
                     <td>{i.issuedAt.slice(0, 16).replace("T", " ")}</td>
                     <td>{i.issuedBy}</td>
                     <td>
-                      <MoveToTrashButton
-                        store={store}
-                        entityType="stock_issue"
-                        entityId={i.id}
-                        recordLabel={i.number}
-                        variant="outline"
-                      />
+                      <div className="tlb-inline-actions compact">
+                        <button type="button" aria-label={`Open ${i.number}`} onClick={() => setDetailId(i.id)}>
+                          <ChevronRight />
+                        </button>
+                        <MoveToTrashButton
+                          store={store}
+                          entityType="stock_issue"
+                          entityId={i.id}
+                          recordLabel={i.number}
+                          variant="outline"
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -673,11 +763,113 @@ export function GoodsOutModule({ store }: { store: TlbStoreApi }) {
   );
 }
 
-export function TransfersModule({ store }: { store: TlbStoreApi }) {
+export function TransfersModule({
+  store,
+  focusId,
+  onFocusConsumed,
+}: {
+  store: TlbStoreApi;
+  focusId?: string | null;
+  onFocusConsumed?: () => void;
+}) {
   const [fromWarehouseId, setFrom] = useState("wh-main");
   const [toWarehouseId, setTo] = useState("wh-factory");
   const [productId, setProductId] = useState("prod-hcl");
   const [qty, setQty] = useState(5);
+  const [detailId, setDetailId] = useState<string | null>(focusId ?? null);
+
+  useEffect(() => {
+    if (!focusId) return;
+    setDetailId(focusId);
+    onFocusConsumed?.();
+  }, [focusId, onFocusConsumed]);
+
+  const detail = notSoftDeleted(store.state.transfers).find((t) => t.id === detailId);
+  if (detail) {
+    const lines = store.state.transferLines.filter((l) => l.transferId === detail.id);
+    const from = store.state.warehouses.find((w) => w.id === detail.fromWarehouseId);
+    const to = store.state.warehouses.find((w) => w.id === detail.toWarehouseId);
+    const transferTrashBlock = trashBlockReason(store.state, "transfer", detail.id);
+    return (
+      <div className="tlb-module tlb-record-detail">
+        <div className="tlb-module-toolbar">
+          <div>
+            <span className="tlb-eyebrow">Transfer</span>
+            <strong>{detail.number}</strong>
+            <p className="tlb-muted-line">{from?.code} → {to?.code} · {detail.status}</p>
+          </div>
+          <div className="tlb-inline-actions">
+            {detail.status === "Requested" ? (
+              <Button type="button" variant="outline" onClick={() => store.advanceTransfer(detail.id, "Approved")}>
+                Approve
+              </Button>
+            ) : null}
+            {detail.status === "Approved" ? (
+              <Button type="button" variant="outline" onClick={() => store.advanceTransfer(detail.id, "In Transit")}>
+                Release
+              </Button>
+            ) : null}
+            {detail.status === "In Transit" ? (
+              <Button type="button" variant="outline" onClick={() => store.advanceTransfer(detail.id, "Received" as TransferStatus)}>
+                Receive
+              </Button>
+            ) : null}
+            <MoveToTrashButton
+              store={store}
+              entityType="transfer"
+              entityId={detail.id}
+              recordLabel={detail.number}
+              disabled={Boolean(transferTrashBlock)}
+              disabledReason={transferTrashBlock ?? undefined}
+              onTrashed={() => setDetailId(null)}
+            />
+            <Button type="button" variant="outline" onClick={() => setDetailId(null)}>
+              Back
+            </Button>
+          </div>
+        </div>
+        <article className="tlb-panel">
+          <div className="tlb-kv-grid" style={{ padding: 16 }}>
+            <div><span>Status</span><strong><StatusBadge tone={statusTone(detail.status)}>{detail.status}</StatusBadge></strong></div>
+            <div><span>Requested</span><strong>{detail.requestedAt.slice(0, 16).replace("T", " ")} · {detail.requestedBy}</strong></div>
+            <div><span>Approved</span><strong>{detail.approvedAt ? `${detail.approvedAt.slice(0, 16).replace("T", " ")} · ${detail.approvedBy ?? "—"}` : "—"}</strong></div>
+            <div><span>Received</span><strong>{detail.receivedAt ? `${detail.receivedAt.slice(0, 16).replace("T", " ")} · ${detail.receivedBy ?? "—"}` : "—"}</strong></div>
+            <div><span>Notes</span><strong>{detail.notes ?? "—"}</strong></div>
+          </div>
+        </article>
+        <article className="tlb-panel tlb-orders-panel">
+          <div className="tlb-table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Qty</th>
+                  <th>Batch</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lines.length === 0 ? (
+                  <tr><td colSpan={3}><EmptyState title="No lines" detail="This transfer has no product lines." /></td></tr>
+                ) : (
+                  lines.map((l) => {
+                    const p = store.state.products.find((x) => x.id === l.productId);
+                    const batch = l.batchId ? store.state.batches.find((b) => b.id === l.batchId) : null;
+                    return (
+                      <tr key={l.id}>
+                        <td>{p?.name ?? l.productId}</td>
+                        <td>{l.quantity}</td>
+                        <td>{batch?.code ?? "—"}</td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    );
+  }
 
   return (
     <div className="tlb-module">
@@ -756,6 +948,9 @@ export function TransfersModule({ store }: { store: TlbStoreApi }) {
                     <td><StatusBadge tone={statusTone(t.status)}>{t.status}</StatusBadge></td>
                     <td>
                       <div className="tlb-inline-actions compact">
+                        <button type="button" aria-label={`Open ${t.number}`} onClick={() => setDetailId(t.id)}>
+                          <ChevronRight />
+                        </button>
                         {t.status === "Requested" ? (
                           <Button type="button" variant="outline" onClick={() => store.advanceTransfer(t.id, "Approved")}>
                             Approve
@@ -793,11 +988,100 @@ export function TransfersModule({ store }: { store: TlbStoreApi }) {
   );
 }
 
-export function AdjustmentsModule({ store }: { store: TlbStoreApi }) {
+export function AdjustmentsModule({
+  store,
+  focusId,
+  onFocusConsumed,
+}: {
+  store: TlbStoreApi;
+  focusId?: string | null;
+  onFocusConsumed?: () => void;
+}) {
   const [productId, setProductId] = useState("prod-hcl");
   const [warehouseId, setWarehouseId] = useState("wh-main");
   const [qtyAfter, setQtyAfter] = useState(200);
   const [reason, setReason] = useState("Cycle count variance");
+  const [detailId, setDetailId] = useState<string | null>(focusId ?? null);
+
+  useEffect(() => {
+    if (!focusId) return;
+    setDetailId(focusId);
+    onFocusConsumed?.();
+  }, [focusId, onFocusConsumed]);
+
+  const detail = notSoftDeleted(store.state.adjustments).find((a) => a.id === detailId);
+  if (detail) {
+    const lines = store.state.adjustmentLines.filter((l) => l.adjustmentId === detail.id);
+    return (
+      <div className="tlb-module tlb-record-detail">
+        <div className="tlb-module-toolbar">
+          <div>
+            <span className="tlb-eyebrow">Adjustment</span>
+            <strong>{detail.number}</strong>
+            <p className="tlb-muted-line">{detail.kind} · {detail.status}</p>
+          </div>
+          <div className="tlb-inline-actions">
+            <MoveToTrashButton
+              store={store}
+              entityType="adjustment"
+              entityId={detail.id}
+              recordLabel={detail.number}
+              onTrashed={() => setDetailId(null)}
+            />
+            <Button type="button" variant="outline" onClick={() => setDetailId(null)}>
+              Back
+            </Button>
+          </div>
+        </div>
+        <article className="tlb-panel">
+          <div className="tlb-kv-grid" style={{ padding: 16 }}>
+            <div><span>Status</span><strong><StatusBadge tone={statusTone(detail.status)}>{detail.status}</StatusBadge></strong></div>
+            <div><span>Kind</span><strong>{detail.kind}</strong></div>
+            <div><span>Created</span><strong>{detail.createdAt.slice(0, 16).replace("T", " ")} · {detail.createdBy}</strong></div>
+            <div><span>Posted</span><strong>{detail.postedAt ? `${detail.postedAt.slice(0, 16).replace("T", " ")} · ${detail.postedBy ?? "—"}` : "—"}</strong></div>
+            <div><span>Approval</span><strong>{detail.requiresApproval ? (detail.approvedBy ? `Approved by ${detail.approvedBy}` : "Required") : "Not required"}</strong></div>
+            <div><span>Notes</span><strong>{detail.notes ?? "—"}</strong></div>
+          </div>
+        </article>
+        <article className="tlb-panel tlb-orders-panel">
+          <div className="tlb-table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Warehouse</th>
+                  <th>Before</th>
+                  <th>After</th>
+                  <th>Variance</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lines.length === 0 ? (
+                  <tr><td colSpan={6}><EmptyState title="No lines" detail="This adjustment has no count lines." /></td></tr>
+                ) : (
+                  lines.map((l) => {
+                    const p = store.state.products.find((x) => x.id === l.productId);
+                    const wh = store.state.warehouses.find((w) => w.id === l.warehouseId);
+                    return (
+                      <tr key={l.id}>
+                        <td>{p?.sku ?? l.productId}</td>
+                        <td>{wh?.code ?? l.warehouseId}</td>
+                        <td>{l.qtyBefore}</td>
+                        <td>{l.qtyAfter}</td>
+                        <td>{l.variance}</td>
+                        <td>{l.reason}</td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    );
+  }
 
   return (
     <div className="tlb-module">
@@ -873,13 +1157,18 @@ export function AdjustmentsModule({ store }: { store: TlbStoreApi }) {
                     <td><StatusBadge tone={statusTone(a.status)}>{a.status}</StatusBadge></td>
                     <td>{a.createdBy}</td>
                     <td>
-                      <MoveToTrashButton
-                        store={store}
-                        entityType="adjustment"
-                        entityId={a.id}
-                        recordLabel={a.number}
-                        variant="outline"
-                      />
+                      <div className="tlb-inline-actions compact">
+                        <button type="button" aria-label={`Open ${a.number}`} onClick={() => setDetailId(a.id)}>
+                          <ChevronRight />
+                        </button>
+                        <MoveToTrashButton
+                          store={store}
+                          entityType="adjustment"
+                          entityId={a.id}
+                          recordLabel={a.number}
+                          variant="outline"
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -1050,7 +1339,71 @@ export function AskTlbModule({
   );
 }
 
-export function ApprovalsModule({ store }: { store: TlbStoreApi }) {
+export function ApprovalsModule({
+  store,
+  focusId,
+  onFocusConsumed,
+}: {
+  store: TlbStoreApi;
+  focusId?: string | null;
+  onFocusConsumed?: () => void;
+}) {
+  const [detailId, setDetailId] = useState<string | null>(focusId ?? null);
+
+  useEffect(() => {
+    if (!focusId) return;
+    setDetailId(focusId);
+    onFocusConsumed?.();
+  }, [focusId, onFocusConsumed]);
+
+  const detail = notSoftDeleted(store.state.approvals).find((a) => a.id === detailId);
+  if (detail) {
+    return (
+      <div className="tlb-module tlb-record-detail">
+        <div className="tlb-module-toolbar">
+          <div>
+            <span className="tlb-eyebrow">Approval</span>
+            <strong>{detail.title}</strong>
+            <p className="tlb-muted-line">{detail.kind} · {detail.status}</p>
+          </div>
+          <div className="tlb-inline-actions">
+            {detail.status === "Pending" ? (
+              <>
+                <Button type="button" variant="outline" onClick={() => store.decideApproval(detail.id, "Approved")}>
+                  Approve
+                </Button>
+                <Button type="button" variant="outline" onClick={() => store.decideApproval(detail.id, "Rejected")}>
+                  Reject
+                </Button>
+              </>
+            ) : null}
+            <MoveToTrashButton
+              store={store}
+              entityType="approval"
+              entityId={detail.id}
+              recordLabel={detail.title}
+              onTrashed={() => setDetailId(null)}
+            />
+            <Button type="button" variant="outline" onClick={() => setDetailId(null)}>
+              Back
+            </Button>
+          </div>
+        </div>
+        <article className="tlb-panel">
+          <div className="tlb-kv-grid" style={{ padding: 16 }}>
+            <div><span>Status</span><strong><StatusBadge tone={statusTone(detail.status)}>{detail.status}</StatusBadge></strong></div>
+            <div><span>Kind</span><strong>{detail.kind}</strong></div>
+            <div><span>Summary</span><strong>{detail.summary}</strong></div>
+            <div><span>Reference</span><strong>{detail.refType} · {detail.refId}</strong></div>
+            <div><span>Amount</span><strong>{detail.amount != null ? formatMoney(detail.amount) : "—"}</strong></div>
+            <div><span>Requested</span><strong>{detail.requestedAt.slice(0, 16).replace("T", " ")} · {detail.requestedBy}</strong></div>
+            <div><span>Decided</span><strong>{detail.decidedAt ? `${detail.decidedAt.slice(0, 16).replace("T", " ")} · ${detail.decidedBy ?? "—"}` : "—"}</strong></div>
+          </div>
+        </article>
+      </div>
+    );
+  }
+
   return (
     <div className="tlb-module">
       <Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />
@@ -1088,6 +1441,9 @@ export function ApprovalsModule({ store }: { store: TlbStoreApi }) {
                     <td>{a.requestedAt.slice(0, 10)} · {a.requestedBy}</td>
                     <td>
                       <div className="tlb-inline-actions compact">
+                        <button type="button" aria-label={`Open ${a.title}`} onClick={() => setDetailId(a.id)}>
+                          <ChevronRight />
+                        </button>
                         {a.status === "Pending" ? (
                           <>
                             <Button type="button" variant="outline" onClick={() => store.decideApproval(a.id, "Approved")}>

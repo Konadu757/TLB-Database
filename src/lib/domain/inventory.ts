@@ -528,6 +528,37 @@ export interface AskTlbHit {
   entityId?: string;
 }
 
+/** Args for openLiveModule when opening an Ask TLB result row. */
+export interface AskTlbOpenTarget {
+  nav: string;
+  orderId?: string | null;
+  productId?: string | null;
+  customerId?: string | null;
+  supplierId?: string | null;
+  focusEntityId?: string | null;
+}
+
+/**
+ * Map an Ask TLB hit to the correct openLiveModule slot.
+ * Never pass a generic entityId as orderId — that only works for Sales Orders.
+ */
+export function resolveAskTlbHitOpen(hit: Pick<AskTlbHit, "nav" | "entityId">): AskTlbOpenTarget {
+  const id = hit.entityId;
+  if (!id) return { nav: hit.nav };
+  switch (hit.nav) {
+    case "Customers":
+      return { nav: hit.nav, customerId: id };
+    case "Suppliers":
+      return { nav: hit.nav, supplierId: id };
+    case "Sales Orders":
+      return { nav: hit.nav, orderId: id };
+    case "Outstanding Supplies":
+      return { nav: hit.nav, productId: id };
+    default:
+      return { nav: hit.nav, focusEntityId: id };
+  }
+}
+
 export function runAskTlbPreset(state: TlbState, presetId: AskTlbPresetId, asOf = new Date().toISOString()): AskTlbHit[] {
   const today = asOf.slice(0, 10);
   switch (presetId) {
@@ -560,7 +591,8 @@ export function runAskTlbPreset(state: TlbState, presetId: AskTlbPresetId, asOf 
             id: l.id,
             label: order?.number ?? l.orderId,
             subtitle: `${product?.sku ?? ""} · outstanding ${l.orderedQty - l.suppliedQty - l.cancelledQty}`,
-            nav: "Outstanding Supplies",
+            // Open the order detail (Outstanding Supplies only filters by productId).
+            nav: "Sales Orders",
             entityId: l.orderId,
           };
         });
@@ -569,7 +601,7 @@ export function runAskTlbPreset(state: TlbState, presetId: AskTlbPresetId, asOf 
         id: `${r.productId}-${r.warehouseId}`,
         label: `${r.sku} · ${r.name}`,
         subtitle: `Available ${r.available} · reorder at ${r.reorderPoint}`,
-        nav: "Stock",
+        nav: "Products",
         entityId: r.productId,
       }));
     case "expiring_stock":
@@ -585,7 +617,8 @@ export function runAskTlbPreset(state: TlbState, presetId: AskTlbPresetId, asOf 
         id: r.docId,
         label: r.docNumber,
         subtitle: `${r.partyName} · balance ${r.balance} · ${r.bucket}`,
-        nav: "Accounts Receivable",
+        // Finance opens invoice detail via focusId; AR list has no detail panel.
+        nav: "Finance",
         entityId: r.docId,
       }));
     case "suppliers_owed":
@@ -593,8 +626,9 @@ export function runAskTlbPreset(state: TlbState, presetId: AskTlbPresetId, asOf 
         id: r.docId,
         label: r.docNumber,
         subtitle: `${r.partyName} · balance ${r.balance} · ${r.bucket}`,
-        nav: "Accounts Payable",
-        entityId: r.docId,
+        // Live supplier account shows related POs; AP / Procurement catalog has no live PO detail.
+        nav: "Suppliers",
+        entityId: r.partyId,
       }));
     case "pending_approvals":
       return state.approvals
@@ -669,8 +703,8 @@ export function runAskTlbPreset(state: TlbState, presetId: AskTlbPresetId, asOf 
           id: p.id,
           label: p.number,
           subtitle: p.status,
-          nav: "Procurement",
-          entityId: p.id,
+          nav: "Suppliers",
+          entityId: p.supplierId,
         }));
       return [...imports, ...pos];
     }
@@ -681,7 +715,7 @@ export function runAskTlbPreset(state: TlbState, presetId: AskTlbPresetId, asOf 
           id: r.productId,
           label: `${r.productSku} · ${r.productName}`,
           subtitle: `${r.velocity} · on hand ${r.onHand} · out 30d ${r.outbound30d}`,
-          nav: "Stock",
+          nav: "Products",
           entityId: r.productId,
         }));
     case "returns": {
@@ -736,7 +770,7 @@ export function runAskTlbPreset(state: TlbState, presetId: AskTlbPresetId, asOf 
         id: r.key,
         label: r.label,
         subtitle: `GP ${r.grossProfit} · margin ${r.marginPct}% · rev ${r.revenue}`,
-        nav: "Reports",
+        nav: "Products",
         entityId: r.key,
       }));
     case "ops_pending_approvals":
@@ -763,7 +797,8 @@ export function runAskTlbPreset(state: TlbState, presetId: AskTlbPresetId, asOf 
             id: l.id,
             label: req?.number ?? l.requestId,
             subtitle: `${product?.name ?? l.productId} shortage ${shortage} (missing disc. ${l.missingQty})`,
-            nav: "Outstanding Requests",
+            // Outstanding Requests list has no focusId; open the live request detail.
+            nav: "Requests",
             entityId: l.requestId,
           };
         });
@@ -787,7 +822,7 @@ export function runAskTlbPreset(state: TlbState, presetId: AskTlbPresetId, asOf 
             id: d.id,
             label: req?.number ?? d.requestId,
             subtitle: `${d.kind} × ${d.quantity} · ${product?.name ?? d.productId}`,
-            nav: "Exceptions / Discrepancies",
+            nav: "Requests",
             entityId: d.requestId,
           };
         });

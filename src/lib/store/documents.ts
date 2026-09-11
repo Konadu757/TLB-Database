@@ -258,6 +258,52 @@ export function createOrdinaryReceipt(
   return { ok: true, data: { state: next, data: receipt } };
 }
 
+/** Build an ordinary receipt from a posted supply's quantities × order-line prices. */
+export function createReceiptFromSupply(
+  state: TlbState,
+  input: {
+    orderId: string;
+    supplyId: string;
+    paymentMethod: PaymentMethod;
+    amountPaid?: number;
+    invoiceId?: string;
+    notes?: string;
+  },
+): MutResult<Receipt> {
+  const blocked = deny(state, "receipt.create");
+  if (blocked) return { ok: false, error: blocked };
+
+  const order = state.orders.find((o) => o.id === input.orderId);
+  if (!order) return { ok: false, error: "Order not found." };
+  const supply = state.supplies.find((s) => s.id === input.supplyId && s.orderId === input.orderId);
+  if (!supply) return { ok: false, error: "Supply not found for this order." };
+
+  const supplyLines = state.supplyLines.filter((sl) => sl.supplyId === supply.id);
+  if (supplyLines.length === 0) return { ok: false, error: "Supply has no lines to receipt." };
+
+  const lines = supplyLines.map((sl) => {
+    const orderLine = state.orderLines.find((l) => l.id === sl.orderLineId);
+    const product = state.products.find((p) => p.id === sl.productId);
+    return {
+      productId: sl.productId,
+      description: product ? `${product.name} (${product.sku})` : sl.productId,
+      quantity: sl.quantity,
+      unitPrice: orderLine?.unitPrice ?? 0,
+    };
+  });
+  const amount = Math.round(lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0) * 100) / 100;
+
+  return createOrdinaryReceipt(state, {
+    customerId: order.customerId,
+    orderId: order.id,
+    paymentMethod: input.paymentMethod,
+    amountPaid: input.amountPaid !== undefined ? input.amountPaid : amount,
+    lines,
+    ...(input.invoiceId ? { invoiceId: input.invoiceId } : {}),
+    ...(input.notes ? { notes: input.notes } : {}),
+  });
+}
+
 export function createDeliveryFromSupply(
   state: TlbState,
   input: {
@@ -388,6 +434,108 @@ export function updateDeliveryStatus(
     meta: { from: prev, to: status },
   });
 
+  return { ok: true, data: { state: next, data: delivery } };
+}
+
+export function updateInvoiceHeader(
+  state: TlbState,
+  invoiceId: string,
+  input: {
+    billingAddress?: string;
+    customerPoNumber?: string;
+    customerTin?: string;
+    notes?: string;
+  },
+): MutResult<Invoice> {
+  if (!hasPermission(state, "invoice.create") && !hasPermission(state, "records.edit")) {
+    return { ok: false, error: `Role ${state.currentRole} cannot edit invoices.` };
+  }
+
+  const next = cloneState(state);
+  const invoice = next.invoices.find((i) => i.id === invoiceId);
+  if (!invoice) return { ok: false, error: "Invoice not found." };
+  if (invoice.paymentStatus === "Void" || invoice.paymentStatus === "Paid") {
+    return {
+      ok: false,
+      error: `Cannot edit a ${invoice.paymentStatus.toLowerCase()} invoice. Only Unpaid / Partial invoices allow header edits.`,
+    };
+  }
+  if (input.customerTin !== undefined && (input.customerTin ?? "") !== (invoice.customerTin ?? "")) {
+    const tinBlocked = deny(next, "tin.update");
+    if (tinBlocked) return { ok: false, error: tinBlocked };
+  }
+  if (input.billingAddress !== undefined) invoice.billingAddress = input.billingAddress.trim();
+  if (input.customerPoNumber !== undefined) {
+    invoice.customerPoNumber = input.customerPoNumber.trim() || undefined;
+  }
+  if (input.customerTin !== undefined) {
+    invoice.customerTin = input.customerTin.trim() || undefined;
+  }
+  if (input.notes !== undefined) invoice.notes = input.notes.trim() || undefined;
+  invoice.updatedAt = new Date().toISOString();
+  pushAudit(next, {
+    action: "invoice.updated",
+    entityType: "invoice",
+    entityId: invoice.id,
+    summary: `Updated invoice ${invoice.number} header fields.`,
+  });
+  pushAudit(next, {
+    action: "record.edited",
+    entityType: "invoice",
+    entityId: invoice.id,
+    summary: `Edited invoice ${invoice.number}.`,
+  });
+  return { ok: true, data: { state: next, data: invoice } };
+}
+
+export function updateDeliveryDetails(
+  state: TlbState,
+  deliveryId: string,
+  input: {
+    address?: string;
+    method?: string;
+    vehicle?: string;
+    driver?: string;
+    receiverName?: string;
+    receiverContact?: string;
+    notes?: string;
+  },
+): MutResult<Delivery> {
+  if (!hasPermission(state, "delivery.manage") && !hasPermission(state, "records.edit")) {
+    return { ok: false, error: `Role ${state.currentRole} cannot edit deliveries.` };
+  }
+
+  const next = cloneState(state);
+  const delivery = next.deliveries.find((d) => d.id === deliveryId);
+  if (!delivery) return { ok: false, error: "Delivery not found." };
+  if (delivery.status === "Delivered" || delivery.status === "Returned") {
+    return {
+      ok: false,
+      error: `Cannot edit logistics fields on a ${delivery.status.toLowerCase()} delivery.`,
+    };
+  }
+  if (input.address !== undefined) delivery.address = input.address.trim();
+  if (input.method !== undefined) delivery.method = input.method.trim();
+  if (input.vehicle !== undefined) delivery.vehicle = input.vehicle.trim() || undefined;
+  if (input.driver !== undefined) delivery.driver = input.driver.trim() || undefined;
+  if (input.receiverName !== undefined) delivery.receiverName = input.receiverName.trim() || undefined;
+  if (input.receiverContact !== undefined) {
+    delivery.receiverContact = input.receiverContact.trim() || undefined;
+  }
+  if (input.notes !== undefined) delivery.notes = input.notes.trim() || undefined;
+  delivery.updatedAt = new Date().toISOString();
+  pushAudit(next, {
+    action: "delivery.updated",
+    entityType: "delivery",
+    entityId: delivery.id,
+    summary: `Updated delivery ${delivery.number} logistics details.`,
+  });
+  pushAudit(next, {
+    action: "record.edited",
+    entityType: "delivery",
+    entityId: delivery.id,
+    summary: `Edited delivery ${delivery.number}.`,
+  });
   return { ok: true, data: { state: next, data: delivery } };
 }
 

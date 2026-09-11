@@ -170,7 +170,7 @@ export function buildSearchIndex(state: TlbState): SearchDocument[] {
       id: inv.id,
       label: `${inv.number} — Invoice`,
       subtitle: `${cust || inv.paymentStatus} · ${inv.paymentStatus}`,
-      nav: "Finance",
+      nav: "Invoices",
       ...(inv.orderId ? { orderId: inv.orderId } : {}),
       fields: fields(
         field(inv.number, 10),
@@ -193,7 +193,7 @@ export function buildSearchIndex(state: TlbState): SearchDocument[] {
       id: r.id,
       label: `${r.number} — Receipt`,
       subtitle: `${cust || "Paid"} · ${r.amountPaid}`,
-      nav: "Finance",
+      nav: "Receipts",
       ...(r.orderId ? { orderId: r.orderId } : {}),
       fields: fields(
         field(r.number, 10),

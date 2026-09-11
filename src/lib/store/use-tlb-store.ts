@@ -11,6 +11,7 @@ import {
   createDeliveryFromSupply,
   createInvoiceFromSupply,
   createOrdinaryReceipt,
+  createReceiptFromSupply,
   createQuotation,
   createRole,
   createSupply,
@@ -331,6 +332,8 @@ export function useTlbStore() {
       apply((s) => createInvoiceFromSupply(s, input), "VAT invoice created."),
     createReceipt: (input: Parameters<typeof createOrdinaryReceipt>[1]) =>
       apply((s) => createOrdinaryReceipt(s, input), "Receipt created."),
+    createReceiptFromSupply: (input: Parameters<typeof createReceiptFromSupply>[1]) =>
+      apply((s) => createReceiptFromSupply(s, input), "Receipt created from supply."),
     createDelivery: (input: Parameters<typeof createDeliveryFromSupply>[1]) =>
       apply((s) => createDeliveryFromSupply(s, input), "Delivery created."),
     setDeliveryStatus: (id: string, status: DeliveryStatus, confirmation?: { receiverName?: string; notes?: string }) =>

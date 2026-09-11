@@ -1649,6 +1649,7 @@ export {
   createDeliveryFromSupply,
   createInvoiceFromSupply,
   createOrdinaryReceipt,
+  createReceiptFromSupply,
   recordPayment,
   updateDeliveryStatus,
 } from "./documents";

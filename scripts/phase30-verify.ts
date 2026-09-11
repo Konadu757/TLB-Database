@@ -18,6 +18,7 @@ import {
   ageingBucket,
   buildProductTrace,
   recommendBatches,
+  resolveAskTlbHitOpen,
   runAskTlbPreset,
   verifyLedgerTip,
 } from "../src/lib/domain/inventory";
@@ -63,6 +64,7 @@ import {
   createDeliveryFromSupply,
   createInvoiceFromSupply,
   createOrdinaryReceipt,
+  createReceiptFromSupply,
   createRole,
   createSupply,
   deactivateRole,
@@ -293,6 +295,18 @@ function testPhase30Scenario() {
   assert.equal(second.ok, true);
   if (!second.ok) return;
   state = second.data.state;
+
+  const supplyReceipt = createReceiptFromSupply(state, {
+    orderId: "ord-phase30",
+    supplyId: second.data.data.supplyId,
+    paymentMethod: "Cash",
+  });
+  assert.equal(supplyReceipt.ok, true, supplyReceipt.ok ? "" : supplyReceipt.error);
+  if (!supplyReceipt.ok) return;
+  state = supplyReceipt.data.state;
+  assert.match(supplyReceipt.data.data.number, /^TLB-RCT-/);
+  assert.ok(state.receiptLines.some((l) => l.receiptId === supplyReceipt.data.data.id));
+  assert.ok(supplyReceipt.data.data.amountPaid > 0);
   assert.equal(state.orders.find((o) => o.id === "ord-phase30")!.status, "Fully Supplied");
   assert.equal(state.supplies.length, 2);
   assert.equal(getOutstandingRows(state).filter((r) => r.orderId === "ord-phase30").length, 0);
@@ -680,9 +694,57 @@ function testSection49OpsHubWorkflow() {
   assert.ok(searchHits.some((h) => h.kind === "Ops Request"));
 
   const askOut = runAskTlbPreset(state, "ops_outstanding");
-  assert.ok(askOut.some((h) => h.entityId === requestId));
+  assert.ok(askOut.some((h) => h.entityId === requestId && h.nav === "Requests"));
   const askDisc = runAskTlbPreset(state, "ops_discrepancies");
-  assert.ok(askDisc.some((h) => h.entityId === requestId));
+  assert.ok(askDisc.some((h) => h.entityId === requestId && h.nav === "Requests"));
+}
+
+function testAskTlbOpenRouting() {
+  const state = createSeedState();
+
+  const outstanding = runAskTlbPreset(state, "outstanding");
+  assert.ok(outstanding.length > 0);
+  assert.ok(outstanding.every((h) => h.nav === "Sales Orders" && Boolean(h.entityId)));
+  const openOrder = resolveAskTlbHitOpen(outstanding[0]!);
+  assert.equal(openOrder.nav, "Sales Orders");
+  assert.equal(openOrder.orderId, outstanding[0]!.entityId);
+  assert.equal(openOrder.focusEntityId, undefined);
+
+  const customers = runAskTlbPreset(state, "customer_performance");
+  assert.ok(customers.length > 0);
+  const openCustomer = resolveAskTlbHitOpen(customers[0]!);
+  assert.equal(openCustomer.customerId, customers[0]!.entityId);
+  assert.equal(openCustomer.orderId, undefined);
+
+  const owing = runAskTlbPreset(state, "customers_owing");
+  if (owing.length > 0) {
+    assert.ok(owing.every((h) => h.nav === "Finance"));
+    const openInv = resolveAskTlbHitOpen(owing[0]!);
+    assert.equal(openInv.focusEntityId, owing[0]!.entityId);
+  }
+
+  const low = runAskTlbPreset(state, "low_stock");
+  if (low.length > 0) {
+    assert.ok(low.every((h) => h.nav === "Products"));
+    const openProduct = resolveAskTlbHitOpen(low[0]!);
+    assert.equal(openProduct.focusEntityId, low[0]!.entityId);
+  }
+
+  const suppliersOwed = runAskTlbPreset(state, "suppliers_owed");
+  if (suppliersOwed.length > 0) {
+    assert.ok(suppliersOwed.every((h) => h.nav === "Suppliers"));
+    const openSup = resolveAskTlbHitOpen(suppliersOwed[0]!);
+    assert.equal(openSup.supplierId, suppliersOwed[0]!.entityId);
+  }
+
+  const batches = runAskTlbPreset(state, "expiring_stock");
+  if (batches.length > 0) {
+    const openBatch = resolveAskTlbHitOpen(batches[0]!);
+    assert.equal(openBatch.focusEntityId, batches[0]!.entityId);
+    assert.equal(openBatch.nav, "Batches");
+  }
+
+  console.log("ask-tlb-open-routing: assertions passed");
 }
 
 testOutstandingNeverNegative();
@@ -694,4 +756,5 @@ testPhase30Scenario();
 testInventoryEngine();
 testDeferredOpsPack();
 testSection49OpsHubWorkflow();
+testAskTlbOpenRouting();
 console.log("phase30-verify: all assertions passed (P0 inventory + P1 + Ask TLB + deferred ops + §49 Ops Hub)");

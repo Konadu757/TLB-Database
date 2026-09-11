@@ -287,6 +287,8 @@ export const NAV_PERMISSIONS: Record<string, Permission[]> = {
   "Live Operations Board": ["ops.view", "ops.dispatch", "ops.warehouse"],
   Notifications: ["dashboard.view", "ops.view", "ops.communicate"],
   Finance: ["finance.view", "invoice.create", "receipt.create", "payment.record"],
+  Invoices: ["finance.view", "invoice.create", "receipt.create", "payment.record"],
+  Receipts: ["finance.view", "invoice.create", "receipt.create", "payment.record"],
   Reports: ["reports.view"],
   "Audit Log": ["audit.view"],
   Trash: ["trash.view"],

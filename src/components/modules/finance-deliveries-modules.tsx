@@ -260,12 +260,23 @@ export function FinanceModule({
     notes: "",
   });
   const [receiptForm, setReceiptForm] = useState({
-    customerId: "",
+    customerId: (() => {
+      if (initialFocus?.orderId) {
+        const order = state.orders.find((o) => o.id === initialFocus.orderId);
+        if (order) return order.customerId;
+      }
+      return state.customers[0]?.id ?? "";
+    })(),
     orderId: initialFocus?.orderId ?? "",
     supplyId: initialFocus?.supplyId ?? "",
     invoiceId: "",
     paymentMethod: "Bank Transfer" as PaymentMethod,
-    amountPaid: 0,
+    amountPaid: (() => {
+      if (initialFocus?.orderId && initialFocus?.supplyId) {
+        return supplyReceiptPreview(state, initialFocus.orderId, initialFocus.supplyId)?.amount ?? 0;
+      }
+      return 0;
+    })(),
     notes: "",
   });
 

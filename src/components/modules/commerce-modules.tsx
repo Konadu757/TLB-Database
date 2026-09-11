@@ -1856,11 +1856,15 @@ function OrderDetailModule({
               const nav =
                 r.kind === "customer"
                   ? "Customers"
-                  : r.kind === "invoice" || r.kind === "receipt" || r.kind === "payment"
-                    ? "Finance"
-                    : r.kind === "delivery"
-                      ? "Deliveries"
-                      : "Sales Orders";
+                  : r.kind === "invoice"
+                    ? "Invoices"
+                    : r.kind === "receipt" || r.kind === "payment"
+                      ? r.kind === "receipt"
+                        ? "Receipts"
+                        : "Finance"
+                      : r.kind === "delivery"
+                        ? "Deliveries"
+                        : "Sales Orders";
               return (
                 <li key={`${r.kind}-${r.id}`}>
                   <span className={`status-badge tlb-activity-kind--${relatedKindTone(r.kind)}`}>
@@ -1888,13 +1892,21 @@ function OrderDetailModule({
         )}
         <div className="tlb-inline-actions" style={{ padding: 12, flexWrap: "wrap" }}>
           {store.can("invoice.create") && supplies[0] && (
-            <Button type="button" variant="outline" onClick={() => onNavigateRelated?.("Finance", supplies[0]?.id)}>
-              Create invoice
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onNavigateRelated?.("Invoices", `create-invoice:${supplies[0]!.id}`)}
+            >
+              Generate VAT Invoice
             </Button>
           )}
-          {store.can("receipt.create") && (
-            <Button type="button" variant="outline" onClick={() => onNavigateRelated?.("Finance")}>
-              Create receipt
+          {store.can("receipt.create") && supplies[0] && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onNavigateRelated?.("Receipts", `create-receipt:${supplies[0]!.id}`)}
+            >
+              Generate Receipt
             </Button>
           )}
           {store.can("delivery.manage") && supplies[0] && (
@@ -2370,7 +2382,7 @@ export function LiveSearchResults({
             key={label}
             onClick={() => {
               if (label.includes("Outstanding")) onOpenNav("Outstanding Supplies");
-              else if (label.includes("Invoice")) onOpenNav("Finance");
+              else if (label.includes("Invoice")) onOpenNav("Invoices");
               else if (label.includes("ORD")) {
                 const order = store.state.orders.find((o) => o.id === "ord-phase30");
                 if (order) onOpenOrder(order.id);

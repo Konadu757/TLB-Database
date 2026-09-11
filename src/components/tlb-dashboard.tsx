@@ -13,6 +13,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   Factory,
+  FileSpreadsheet,
   FileText,
   FlaskConical,
   Gauge,
@@ -28,6 +29,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
+  Receipt,
   Route,
   Search,
   Settings,
@@ -61,6 +63,7 @@ import {
   SuppliersModule,
 } from "@/components/modules/commerce-modules";
 import type { AppNotification, SearchHit } from "@/lib/domain/types";
+import { resolveAskTlbHitOpen } from "@/lib/domain/inventory";
 import {
   AccountsPayableModule,
   AccountsReceivableModule,
@@ -220,6 +223,8 @@ const navGroups: NavGroup[] = [
   {
     label: "Control",
     items: [
+      { label: "Invoices", icon: FileSpreadsheet },
+      { label: "Receipts", icon: Receipt },
       { label: "Finance", icon: CircleDollarSign },
       { label: "Accounts Receivable", icon: ArrowDownRight },
       { label: "Accounts Payable", icon: ArrowUpRight },
@@ -251,6 +256,8 @@ const PERIOD_SCOPED_NAV = new Set([
   "Factory",
   "Quality Control",
   "Finance",
+  "Invoices",
+  "Receipts",
   "Deliveries",
   "Requests",
   "Reports",
@@ -291,6 +298,8 @@ const MODULE_BLURBS: Record<string, string> = {
   "Live Operations Board": "Kanban board across submit → approve → prepare → transit → delivered.",
   Notifications: "All alerts with full detail — mark read, delete, and open linked records.",
   Finance: "VAT invoices, ordinary receipts (TLB-RCT), and payments.",
+  Invoices: "VAT invoices (TLB-INV) generated from posted sales supplies.",
+  Receipts: "Ordinary receipts (TLB-RCT) from supplied quantities and payments.",
   "Accounts Receivable": "Customer invoice ageing 0–30 / 31–60 / 61–90 / 90+.",
   "Accounts Payable": "Supplier PO balances ageing by due date.",
   Approvals: "Credit overrides, Non-PO, adjustments, transfers, ops requests, and high-value checks.",
@@ -373,6 +382,8 @@ function TLBDashboardInner() {
     () =>
       new Set([
         "Finance",
+        "Invoices",
+        "Receipts",
         "Deliveries",
         "Products",
         "Warehouses",
@@ -381,7 +392,10 @@ function TLBDashboardInner() {
         "Import & Export",
         "Batches",
         "Goods In",
+        "Goods Out",
         "Transfers",
+        "Adjustments",
+        "Approvals",
         "Trace Product",
         "Requests",
         "Warehouse Actions",
@@ -567,6 +581,8 @@ function TLBDashboardInner() {
     activeNav === "Live Operations Board" ||
     activeNav === "Notifications" ||
     activeNav === "Finance" ||
+    activeNav === "Invoices" ||
+    activeNav === "Receipts" ||
     activeNav === "Accounts Receivable" ||
     activeNav === "Accounts Payable" ||
     activeNav === "Approvals" ||
@@ -1153,7 +1169,7 @@ function TLBDashboardInner() {
                             } else if (action === "Create customer order") openLiveModule("Sales Orders");
                             else if (action === "Receive goods") openLiveModule("Stock");
                             else if (action === "View outstanding supplies") openLiveModule("Outstanding Supplies");
-                            else if (action === "Create invoice") openLiveModule("Finance");
+                            else if (action === "Create invoice") openLiveModule("Invoices");
                             else store.resetDemo();
                           }}
                         >
@@ -1275,7 +1291,16 @@ function TLBDashboardInner() {
                 periodLabel={listPeriodLabel}
                 onNavigateRelated={(nav, id) => {
                   if (nav === "Sales Orders") openLiveModule("Sales Orders", id ?? selectedOrderId);
-                  else openLiveModule(nav);
+                  else if (
+                    nav === "Finance" ||
+                    nav === "Invoices" ||
+                    nav === "Receipts" ||
+                    nav === "Deliveries" ||
+                    nav === "Customers"
+                  ) {
+                    if (nav === "Customers") openLiveModule("Customers", null, null, id ?? null);
+                    else openLiveModule(nav, null, null, null, null, id ?? null);
+                  } else openLiveModule(nav);
                 }}
               />
             ) : activeNav === "Outstanding Supplies" ? (
@@ -1316,7 +1341,11 @@ function TLBDashboardInner() {
                 onFocusConsumed={() => setModuleFocusId(null)}
               />
             ) : activeNav === "Goods Out" ? (
-              <GoodsOutModule store={store} />
+              <GoodsOutModule
+                store={store}
+                focusId={moduleFocusId}
+                onFocusConsumed={() => setModuleFocusId(null)}
+              />
             ) : activeNav === "Returns" ? (
               <ReturnsModule
                 store={store}
@@ -1324,9 +1353,17 @@ function TLBDashboardInner() {
                 onFocusConsumed={() => setModuleFocusId(null)}
               />
             ) : activeNav === "Transfers" ? (
-              <TransfersModule store={store} />
+              <TransfersModule
+                store={store}
+                focusId={moduleFocusId}
+                onFocusConsumed={() => setModuleFocusId(null)}
+              />
             ) : activeNav === "Adjustments" ? (
-              <AdjustmentsModule store={store} />
+              <AdjustmentsModule
+                store={store}
+                focusId={moduleFocusId}
+                onFocusConsumed={() => setModuleFocusId(null)}
+              />
             ) : activeNav === "Stock Movements" ? (
               <LiveStockMovementsModule range={listRange} periodLabel={listPeriodLabel} store={store} />
             ) : activeNav === "Stock Ageing" ? (
@@ -1424,25 +1461,47 @@ function TLBDashboardInner() {
               />
             ) : activeNav === "Notifications" ? (
               <NotificationsModule store={store} onOpenRelated={openNotificationRelated} />
-            ) : activeNav === "Finance" ? (
+            ) : activeNav === "Finance" || activeNav === "Invoices" || activeNav === "Receipts" ? (
               <FinanceModule
                 store={store}
                 focusId={moduleFocusId}
                 onFocusConsumed={() => setModuleFocusId(null)}
-                onOpenOrder={(id) => openOrderDetail(id, "Finance")}
+                onOpenOrder={(id) =>
+                  openOrderDetail(
+                    id,
+                    activeNav === "Invoices" || activeNav === "Receipts" ? activeNav : "Finance",
+                  )
+                }
                 range={listRange}
                 periodLabel={listPeriodLabel}
+                initialTab={
+                  activeNav === "Invoices" ? "invoices" : activeNav === "Receipts" ? "receipts" : undefined
+                }
               />
             ) : activeNav === "Accounts Receivable" ? (
               <AccountsReceivableModule store={store} />
             ) : activeNav === "Accounts Payable" ? (
               <AccountsPayableModule store={store} />
             ) : activeNav === "Approvals" ? (
-              <ApprovalsModule store={store} />
+              <ApprovalsModule
+                store={store}
+                focusId={moduleFocusId}
+                onFocusConsumed={() => setModuleFocusId(null)}
+              />
             ) : activeNav === "Ask TLB" ? (
               <AskTlbModule
                 store={store}
-                onNavigate={(nav, entityId) => openLiveModule(nav, entityId ?? null)}
+                onNavigate={(nav, entityId) => {
+                  const target = resolveAskTlbHitOpen({ nav, entityId });
+                  openLiveModule(
+                    target.nav,
+                    target.orderId ?? null,
+                    target.productId ?? null,
+                    target.customerId ?? null,
+                    target.supplierId ?? null,
+                    target.focusEntityId ?? null,
+                  );
+                }}
               />
             ) : activeNav === "Reports" ? (
               <ReportsModule store={store} range={listRange} periodLabel={listPeriodLabel} />
