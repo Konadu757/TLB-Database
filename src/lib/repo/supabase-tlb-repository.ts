@@ -173,20 +173,6 @@ export function isUnreachableRemoteError(err: unknown): boolean {
   );
 }
 
-function formatRemoteSaveWarning(raw: string): string {
-  if (isUnreachableRemoteError(new Error(raw))) {
-    return `Cloud sync unavailable (network). Changes are saved locally — Dispatch and other actions still work. (${raw})`;
-  }
-  return `Cloud sync issue (local copy kept): ${raw}`;
-}
-
-/** Tables whose remote sync is optional UX (inbox); network failure should not alarm like P0 catalog sync. */
-const SOFT_REMOTE_ONLY_TABLES = new Set(["notifications"]);
-
-function isNotificationOnlyDirty(dirtyTables: string[]): boolean {
-  return dirtyTables.length > 0 && dirtyTables.every((t) => SOFT_REMOTE_ONLY_TABLES.has(t));
-}
-
 function rowFingerprint(rows: unknown[]): string {
   return JSON.stringify(rows);
 }
@@ -336,14 +322,29 @@ async function deleteMissing(
 
 export class SupabaseTlbRepository implements TlbRepository {
   backend = "supabase" as const;
-  private lastRemoteError: string | null = null;
+  /**
+   * After the first unreachable network failure this session, skip remote upserts
+   * so we do not spam audit_events/warehouses while local ops keep working.
+   * Never surfaced to the UI — console.warn only.
+   */
+  private remotePausedForSession = false;
   /** Skip unchanged P0/P1 upserts so ops/local-only mutations do not re-hit warehouses every save. */
   private remoteFingerprints = new Map<string, string>();
 
   constructor(private readonly sb: Sb) {}
 
+  /** Always null — cloud sync failures are never user-visible. */
   getLastError(): string | null {
-    return this.lastRemoteError;
+    return null;
+  }
+
+  private pauseRemoteForSession(reason: string): void {
+    if (this.remotePausedForSession) return;
+    this.remotePausedForSession = true;
+    console.warn(
+      "[SupabaseTlbRepository] remote paused for this session (local-only);",
+      reason,
+    );
   }
 
   /** Snapshot current mapped rows as "already synced" so the next save only hits dirty tables. */
@@ -382,46 +383,6 @@ export class SupabaseTlbRepository implements TlbRepository {
     this.remoteFingerprints.set("app_settings", rowFingerprint(settingsPayload));
   }
 
-  private listDirtyRemoteTables(state: TlbState): string[] {
-    const dirty: string[] = [];
-    const check = (table: string, rows: unknown[]) => {
-      const fp = rows.length ? rowFingerprint(rows) : "[]";
-      if (this.remoteFingerprints.get(table) !== fp) dirty.push(table);
-    };
-    check("warehouses", state.warehouses.map(warehouseToRow));
-    check("products", state.products.map(productToRow));
-    check("vat_rates", state.vatRates.map(vatToRow));
-    check("customers", state.customers.map(customerToRow));
-    check("stock_balances", state.stock.map(stockToRow));
-    check("customer_purchase_orders", state.orders.map(orderToRow));
-    check("customer_order_lines", state.orderLines.map(orderLineToRow));
-    check("supplies", state.supplies.map(supplyToRow));
-    check("supply_lines", state.supplyLines.map(supplyLineToRow));
-    check("stock_reservations", state.reservations.map(reservationToRow));
-    check("invoices", state.invoices.map(invoiceToRow));
-    check("invoice_lines", state.invoiceLines.map(invoiceLineToRow));
-    check("receipts", state.receipts.map(receiptToRow));
-    check("receipt_lines", state.receiptLines.map(receiptLineToRow));
-    check("deliveries", state.deliveries.map(deliveryToRow));
-    check("delivery_items", state.deliveryItems.map(deliveryItemToRow));
-    check("payments", state.payments.map(paymentToRow));
-    check("notifications", state.notifications.map(notificationToRow));
-    check("audit_events", state.audit.slice(0, 500).map(auditToRow));
-    check("document_counters", [countersToRow(state.counters)]);
-    const settingsPayload = [
-      { key: "outstanding_ageing", value: state.ageing as unknown as Json },
-      { key: "company_profile", value: state.company as unknown as Json },
-      {
-        key: "soft_delete_overlay",
-        value: buildSoftDeleteOverlay(state) as unknown as Json,
-      },
-    ];
-    if (this.remoteFingerprints.get("app_settings") !== rowFingerprint(settingsPayload)) {
-      dirty.push("app_settings");
-    }
-    return dirty;
-  }
-
   /** @returns true when rows were written (caller should run deleteMissing for that table). */
   private async upsertIfChanged(
     table: keyof Database["public"]["Tables"],
@@ -441,11 +402,16 @@ export class SupabaseTlbRepository implements TlbRepository {
   }
 
   async load(): Promise<TlbState> {
-    this.lastRemoteError = null;
     const localOnly = loadLocalOnly();
     const productExtras = loadProductExtras();
     const stockExtras = loadStockExtras();
     const seed = createSeedState();
+
+    if (this.remotePausedForSession) {
+      const fallback = loadState();
+      this.rememberRemoteFingerprints(fallback);
+      return fallback;
+    }
 
     try {
       const [
@@ -552,8 +518,10 @@ export class SupabaseTlbRepository implements TlbRepository {
       return merged;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      this.lastRemoteError = message;
-      console.error("[SupabaseTlbRepository] load failed, using local fallback:", message);
+      const unreachable =
+        isUnreachableRemoteError(err) || isUnreachableRemoteError(new Error(message));
+      if (unreachable) this.pauseRemoteForSession(message);
+      console.warn("[SupabaseTlbRepository] load failed, using local fallback:", message);
       const fallback = loadState();
       // Avoid treating every local-only mutation as a full P0 resync when remote is down.
       this.rememberRemoteFingerprints(fallback);
@@ -562,14 +530,14 @@ export class SupabaseTlbRepository implements TlbRepository {
   }
 
   async save(state: TlbState): Promise<void> {
-    this.lastRemoteError = null;
     saveLocalOnly(pickLocalOnly(state));
     saveProductExtras(state.products);
     saveStockExtras(state.stock);
     // Keep a local full snapshot as offline safety net (not the source of truth for P0/P1).
     saveState(state);
 
-    const dirtyBefore = this.listDirtyRemoteTables(state);
+    // Network already failed this session — stay fully local; no remote spam, no UI error.
+    if (this.remotePausedForSession) return;
 
     try {
       // Parent → child order for FK safety. Skip tables unchanged since last successful sync/load.
@@ -694,23 +662,11 @@ export class SupabaseTlbRepository implements TlbRepository {
       const message = err instanceof Error ? err.message : String(err);
       const unreachable =
         isUnreachableRemoteError(err) || isUnreachableRemoteError(new Error(message));
-      // Inbox-only updates already succeeded locally; do not surface warehouse-style alarms.
-      if (unreachable && isNotificationOnlyDirty(dirtyBefore)) {
-        this.lastRemoteError = null;
-        console.warn(
-          "[SupabaseTlbRepository] notification cloud sync skipped (local inbox kept):",
-          message,
-        );
-        return;
-      }
-      const warning = formatRemoteSaveWarning(message);
-      this.lastRemoteError = warning;
-      console.error("[SupabaseTlbRepository] save failed (local snapshot kept):", message);
-      // Network / unreachable project: do not block Dispatch or other UI mutations.
+      // Local snapshot already committed — never block UI or show cloud sync banners.
       if (unreachable) {
-        return;
+        this.pauseRemoteForSession(message);
       }
-      throw new Error(warning);
+      console.warn("[SupabaseTlbRepository] save failed (local snapshot kept):", message);
     }
   }
 }

@@ -54,7 +54,7 @@ On Vercel: Project → Settings → Environment Variables → add the `VITE_*` v
 
 If save fails with a uuid / type error, apply **P2** migration. If DNS/project missing, fix `VITE_SUPABASE_URL` first.
 
-**`Failed to fetch` / network:** usually wrong or missing `VITE_SUPABASE_*` on Vercel, a paused Supabase project, CORS/DNS, or offline. Dispatch and ops mutations still complete — the hybrid repo always writes the local snapshot first, seeds remote fingerprints after load (so Mark all read / ops clicks do not re-upsert warehouses), only runs `deleteMissing` for tables that actually changed, soft-skips notification-only network failures without alarming the UI, and treats other unreachable-network errors as a soft warning instead of blocking.
+**`Failed to fetch` / network:** usually wrong or missing `VITE_SUPABASE_*` on Vercel, a paused Supabase project, CORS/DNS, or offline. Dispatch and ops mutations still complete — the hybrid repo always writes the local snapshot first, then pauses remote upserts for the rest of the session after the first unreachable failure (no banner, toast, or inline alert; `console.warn` only). Fingerprints still seed after load so Mark all read / ops clicks do not re-upsert warehouses when remote is healthy.
 
 ## Implementation notes
 

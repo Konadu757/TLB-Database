@@ -17,7 +17,10 @@ export interface TlbRepository {
   load(): Promise<TlbState>;
   save(state: TlbState): Promise<void>;
   backend: "local" | "supabase";
-  /** Soft remote warning after a successful local save (e.g. network unreachable). */
+  /**
+   * Deprecated soft-error hook — always null in production UI.
+   * Cloud/network sync failures are console-only; local save is the source of truth offline.
+   */
   getLastError?(): string | null;
 }
 

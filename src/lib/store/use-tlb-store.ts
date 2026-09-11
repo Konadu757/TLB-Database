@@ -134,14 +134,23 @@ export function useTlbStore() {
       void repo
         .save(state)
         .then(() => {
-          const soft = repo.getLastError?.() ?? null;
-          // Soft remote warning (e.g. Failed to fetch) — local save already succeeded.
-          setPersistError(soft);
+          // Remote sync failures are silent (local snapshot already kept) — never banner.
+          setPersistError(null);
         })
         .catch((err: unknown) => {
           const message = err instanceof Error ? err.message : String(err);
-          const soft = repo.getLastError?.();
-          setPersistError(soft ?? `Save to ${repo.backend} failed: ${message}`);
+          const lower = message.toLowerCase();
+          // Hybrid cloud/network soft-fails must never reach Flash banners.
+          if (
+            lower.includes("failed to fetch") ||
+            lower.includes("cloud sync") ||
+            lower.includes("network")
+          ) {
+            console.warn("[useTlbStore] save soft-failed (local kept):", message);
+            setPersistError(null);
+            return;
+          }
+          setPersistError(`Save to ${repo.backend} failed: ${message}`);
         })
         .finally(() => setSaving(false));
     }, SAVE_DEBOUNCE_MS);
