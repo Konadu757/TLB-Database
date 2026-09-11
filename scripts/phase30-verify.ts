@@ -422,7 +422,7 @@ function testInventoryEngine() {
 
 function testDeferredOpsPack() {
   const state = createSeedState();
-  assert.equal(state.version, 11);
+  assert.equal(state.version, 12);
   assert.ok((state.customerReturns ?? []).length >= 1, "seed customer returns");
   assert.ok((state.nonPoPurchases ?? []).length >= 1, "seed non-po");
   assert.ok((state.importShipments ?? []).length >= 1, "seed imports");

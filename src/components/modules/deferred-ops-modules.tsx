@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, Download, X } from "lucide-react";
 
+import { MoveToTrashButton } from "@/components/modules/move-to-trash-button";
 import { Button } from "@/components/ui/button";
 import { statusTone } from "@/lib/domain/calculations";
 import {
@@ -124,18 +125,13 @@ export function ReturnsModule({
             <p className="tlb-muted-line">{party} · {product?.sku}</p>
           </div>
           <div className="tlb-inline-actions">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() =>
-                store.moveToTrash({
-                  entityType: isCust ? "customer_return" : "supplier_return",
-                  entityId: detail.id,
-                })
-              }
-            >
-              Move to trash
-            </Button>
+            <MoveToTrashButton
+              store={store}
+              entityType={isCust ? "customer_return" : "supplier_return"}
+              entityId={detail.id}
+              recordLabel={detail.number}
+              onTrashed={() => setDetailId(null)}
+            />
             <Button type="button" variant="outline" onClick={() => setDetailId(null)}>
               Back
             </Button>
@@ -538,13 +534,13 @@ export function NonPoPurchasesModule({
             {detail.status === "Approved" ? (
               <Button type="button" onClick={() => store.receiveNonPo(detail.id)}>Post GRN / goods in</Button>
             ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => store.moveToTrash({ entityType: "non_po_purchase", entityId: detail.id })}
-            >
-              Move to trash
-            </Button>
+            <MoveToTrashButton
+              store={store}
+              entityType="non_po_purchase"
+              entityId={detail.id}
+              recordLabel={detail.number}
+              onTrashed={() => setDetailId(null)}
+            />
           </div>
         </article>
         <article className="tlb-panel tlb-orders-panel">
@@ -745,7 +741,16 @@ export function LiveImportExportModule({
             <strong>{impDetail.number}</strong>
             <p className="tlb-muted-line">{impDetail.originCountry} → {store.state.warehouses.find((w) => w.id === impDetail.warehouseId)?.name}</p>
           </div>
-          <Button type="button" variant="outline" onClick={() => setDetailId(null)}>Back</Button>
+          <div className="tlb-inline-actions">
+            <MoveToTrashButton
+              store={store}
+              entityType="import_shipment"
+              entityId={impDetail.id}
+              recordLabel={impDetail.number}
+              onTrashed={() => setDetailId(null)}
+            />
+            <Button type="button" variant="outline" onClick={() => setDetailId(null)}>Back</Button>
+          </div>
         </div>
         <article className="tlb-panel">
           <div className="tlb-kv-grid" style={{ padding: 16 }}>
@@ -842,7 +847,16 @@ export function LiveImportExportModule({
             <strong>{expDetail.number}</strong>
             <p className="tlb-muted-line">→ {expDetail.destinationCountry}</p>
           </div>
-          <Button type="button" variant="outline" onClick={() => setDetailId(null)}>Back</Button>
+          <div className="tlb-inline-actions">
+            <MoveToTrashButton
+              store={store}
+              entityType="export_shipment"
+              entityId={expDetail.id}
+              recordLabel={expDetail.number}
+              onTrashed={() => setDetailId(null)}
+            />
+            <Button type="button" variant="outline" onClick={() => setDetailId(null)}>Back</Button>
+          </div>
         </div>
         <article className="tlb-panel">
           <div className="tlb-kv-grid" style={{ padding: 16 }}>

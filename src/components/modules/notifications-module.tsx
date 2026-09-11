@@ -4,6 +4,8 @@
 import { useMemo, useState } from "react";
 import { Bell, CheckCheck, Trash2, X } from "lucide-react";
 
+import { isSoftDeleted } from "@/lib/domain/trash";
+
 import {
   SelectAllHeader,
   SelectRowCell,
@@ -89,7 +91,7 @@ export function NotificationsModule({
       manageAll,
     };
     return [...store.state.notifications]
-      .filter((n) => isNotificationVisibleToSession(n, session))
+      .filter((n) => !isSoftDeleted(n) && isNotificationVisibleToSession(n, session))
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
   }, [store.state, manageAll, role?.name, role?.systemKey]);
 
@@ -135,7 +137,7 @@ export function NotificationsModule({
             disabled={selection.selectedIds.length === 0}
             onClick={() => setDeleteIds([...selection.selectedIds])}
           >
-            <Trash2 /> Delete selected
+            <Trash2 /> Move to Trash selected
           </Button>
           <Button type="button" variant="outline" size="sm" onClick={() => store.refreshNotifications()}>
             <Bell /> Refresh
@@ -201,7 +203,7 @@ export function NotificationsModule({
                           type="button"
                           variant="ghost"
                           size="sm"
-                          aria-label={`Delete ${n.title}`}
+                          aria-label={`Move ${n.title} to trash`}
                           onClick={() => setDeleteIds([n.id])}
                         >
                           <Trash2 />
@@ -270,7 +272,7 @@ export function NotificationsModule({
                   Open related
                 </Button>
                 <Button type="button" size="sm" variant="outline" onClick={() => setDeleteIds([selected.id])}>
-                  <Trash2 /> Delete
+                  <Trash2 /> Move to Trash
                 </Button>
               </div>
             </>
@@ -282,7 +284,7 @@ export function NotificationsModule({
 
       <TrashConfirmDialog
         open={Boolean(deleteIds?.length)}
-        mode="purge"
+        mode="trash"
         recordLabel={
           deleteIds?.length === 1
             ? visible.find((n) => n.id === deleteIds[0])?.title ?? "notification"
@@ -292,10 +294,15 @@ export function NotificationsModule({
         onOpenChange={(open) => {
           if (!open) setDeleteIds(null);
         }}
-        onConfirm={() => {
+        onConfirm={(reason) => {
           if (!deleteIds?.length) return;
-          if (deleteIds.length === 1) store.deleteNotification(deleteIds[0]!);
-          else store.deleteNotifications(deleteIds);
+          for (const entityId of deleteIds) {
+            store.moveToTrash({
+              entityType: "notification",
+              entityId,
+              ...(reason ? { reason } : {}),
+            });
+          }
           if (selectedId && deleteIds.includes(selectedId)) setSelectedId(null);
           selection.clear();
           setDeleteIds(null);

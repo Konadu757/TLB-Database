@@ -13,8 +13,7 @@ import {
 import { buildNotifications } from "../domain/notifications";
 import { nextDocumentNumber } from "../domain/numbering";
 import { hasPermission } from "../domain/permissions";
-import { buildCatalogDeletion, isSoftDeleted, listTrashItems as collectTrashItems } from "../domain/trash";
-import { findDriverBlockingAssignment } from "./ops-hub-store";
+import { isSoftDeleted } from "../domain/trash";
 import type {
   AppRole,
   AppUser,
@@ -25,18 +24,25 @@ import type {
   CustomerPurchaseOrder,
   OutstandingRow,
   Permission,
+  Product,
   Quotation,
   RoleDefinition,
-  SoftDeleteFields,
   StockBalance,
   StoreResult,
   Supplier,
   SupplyRequestLine,
   TlbState,
-  TrashEntityType,
-  TrashListItem,
   VatRate,
+  Warehouse,
 } from "../domain/types";
+
+export {
+  listTrash,
+  softDeleteRecord,
+  restoreTrashItem,
+  purgeTrashItem,
+  trashBlockReason,
+} from "./trash-store";
 import { migrateState, syncSessionIdentity } from "./migrate";
 import { createSeedState } from "./seed";
 import { applySupplyBatchPicks, getOrCreateBalance, postStockMovement } from "./inventory-store";
@@ -75,6 +81,11 @@ function requirePerm(state: TlbState, permission: Permission): string | null {
     return `Role ${state.currentRole} cannot perform ${permission}.`;
   }
   return null;
+}
+
+function requireAnyPerm(state: TlbState, permissions: Permission[]): string | null {
+  if (permissions.some((p) => hasPermission(state, p))) return null;
+  return `Role ${state.currentRole} cannot perform ${permissions.join(" / ")}.`;
 }
 
 function refreshNotifications(state: TlbState): void {
@@ -244,6 +255,9 @@ export function upsertCustomer(
     const idx = next.customers.findIndex((c) => c.id === input.id);
     if (idx < 0) return { ok: false, error: "Customer not found." };
     const existing = next.customers[idx]!;
+    if (isSoftDeleted(existing)) {
+      return { ok: false, error: "Restore this customer from trash before editing." };
+    }
     if ((input.tin ?? "") !== (existing.tin ?? "")) {
       const tinBlocked = requirePerm(next, "tin.update");
       if (tinBlocked) return { ok: false, error: tinBlocked };
@@ -318,6 +332,9 @@ export function upsertSupplier(
     const idx = next.suppliers.findIndex((s) => s.id === input.id);
     if (idx < 0) return { ok: false, error: "Supplier not found." };
     const existing = next.suppliers[idx]!;
+    if (isSoftDeleted(existing)) {
+      return { ok: false, error: "Restore this supplier from trash before editing." };
+    }
     if ((input.tin ?? "") !== (existing.tin ?? "")) {
       const tinBlocked = requirePerm(next, "tin.update");
       if (tinBlocked) return { ok: false, error: tinBlocked };
@@ -456,6 +473,305 @@ export function createQuotation(
     summary: `Created quotation ${quotation.number} for ${quotation.customerName}.`,
   });
   return { ok: true, data: { state: next, data: quotation } };
+}
+
+export function updateQuotation(
+  state: TlbState,
+  quotationId: string,
+  input: {
+    customerId?: string;
+    customerName: string;
+    contact?: string;
+    itemLabel: string;
+    qty: number;
+    unitPrice: number;
+    paymentTerms?: string;
+    notes?: string;
+    status?: "Draft" | "Sent";
+    validUntil?: string;
+  },
+): MutResult<Quotation> {
+  const blocked = requireAnyPerm(state, ["quotations.view", "records.edit"]);
+  if (blocked) return { ok: false, error: blocked };
+
+  const customerName = input.customerName.trim();
+  const itemLabel = input.itemLabel.trim();
+  if (!customerName) return { ok: false, error: "Customer name is required." };
+  if (!itemLabel) return { ok: false, error: "Item / description is required." };
+  if (!Number.isFinite(input.qty) || input.qty <= 0) {
+    return { ok: false, error: "Quantity must be greater than zero." };
+  }
+  if (!Number.isFinite(input.unitPrice) || input.unitPrice < 0) {
+    return { ok: false, error: "Unit price must be zero or greater." };
+  }
+
+  const next = cloneState(state);
+  const idx = next.quotations.findIndex((q) => q.id === quotationId);
+  if (idx < 0) return { ok: false, error: "Quotation not found." };
+  const existing = next.quotations[idx]!;
+  const amount = Math.round(input.qty * input.unitPrice * 100) / 100;
+  const updated: Quotation = {
+    ...existing,
+    customerName,
+    itemLabel,
+    qty: input.qty,
+    unitPrice: input.unitPrice,
+    amount,
+    paymentTerms: input.paymentTerms?.trim() || existing.paymentTerms || "Net 30",
+    status: input.status ?? existing.status,
+    ...(input.validUntil ? { validUntil: input.validUntil } : {}),
+    ...(input.customerId ? { customerId: input.customerId } : { customerId: undefined }),
+    ...(input.contact?.trim() ? { contact: input.contact.trim() } : { contact: undefined }),
+    ...(input.notes?.trim() ? { notes: input.notes.trim() } : { notes: undefined }),
+  };
+  next.quotations[idx] = updated;
+  pushAudit(next, {
+    action: "quotation.updated",
+    entityType: "quotation",
+    entityId: updated.id,
+    summary: `Updated quotation ${updated.number} for ${updated.customerName}.`,
+  });
+  pushAudit(next, {
+    action: "record.edited",
+    entityType: "quotation",
+    entityId: updated.id,
+    summary: `Edited quotation ${updated.number}.`,
+  });
+  return { ok: true, data: { state: next, data: updated } };
+}
+
+export function upsertProduct(
+  state: TlbState,
+  input: {
+    id?: string;
+    sku: string;
+    name: string;
+    unit: string;
+    category: string;
+    active?: boolean;
+    issueStrategy?: import("../domain/types").IssueStrategy;
+    allowNegativeStock?: boolean;
+    minQty?: number;
+    maxQty?: number;
+    reorderPoint?: number;
+    reorderQty?: number;
+    preferredSupplierId?: string;
+    leadTimeDays?: number;
+    standardCost?: number;
+  },
+): MutResult<Product> {
+  const blocked = requireAnyPerm(state, ["records.edit", "stock.view", "settings.manage"]);
+  if (blocked) return { ok: false, error: blocked };
+
+  const sku = input.sku.trim();
+  const name = input.name.trim();
+  const unit = input.unit.trim() || "ea";
+  const category = input.category.trim() || "General";
+  if (!sku) return { ok: false, error: "SKU is required." };
+  if (!name) return { ok: false, error: "Product name is required." };
+
+  const next = cloneState(state);
+  const now = new Date().toISOString();
+
+  if (input.id) {
+    const idx = next.products.findIndex((p) => p.id === input.id);
+    if (idx < 0) return { ok: false, error: "Product not found." };
+    const existing = next.products[idx]!;
+    if (isSoftDeleted(existing)) {
+      return { ok: false, error: "Restore this product from trash before editing." };
+    }
+    const skuClash = next.products.find((p) => p.id !== existing.id && p.sku.toLowerCase() === sku.toLowerCase() && !isSoftDeleted(p));
+    if (skuClash) return { ok: false, error: `SKU ${sku} is already used by another product.` };
+    const updated: Product = {
+      ...existing,
+      sku,
+      name,
+      unit,
+      category,
+      active: input.active ?? existing.active,
+      ...(input.issueStrategy != null ? { issueStrategy: input.issueStrategy } : {}),
+      ...(input.allowNegativeStock != null ? { allowNegativeStock: input.allowNegativeStock } : {}),
+      ...(input.minQty != null ? { minQty: input.minQty } : {}),
+      ...(input.maxQty != null ? { maxQty: input.maxQty } : {}),
+      ...(input.reorderPoint != null ? { reorderPoint: input.reorderPoint } : {}),
+      ...(input.reorderQty != null ? { reorderQty: input.reorderQty } : {}),
+      ...(input.preferredSupplierId != null ? { preferredSupplierId: input.preferredSupplierId } : {}),
+      ...(input.leadTimeDays != null ? { leadTimeDays: input.leadTimeDays } : {}),
+      ...(input.standardCost != null ? { standardCost: input.standardCost } : {}),
+    };
+    next.products[idx] = updated;
+    pushAudit(next, {
+      action: "product.updated",
+      entityType: "product",
+      entityId: updated.id,
+      summary: `Updated product ${updated.sku} · ${updated.name}.`,
+    });
+    pushAudit(next, {
+      action: "record.edited",
+      entityType: "product",
+      entityId: updated.id,
+      summary: `Edited product ${updated.sku}.`,
+    });
+    return { ok: true, data: { state: next, data: updated } };
+  }
+
+  const skuClash = next.products.find((p) => p.sku.toLowerCase() === sku.toLowerCase() && !isSoftDeleted(p));
+  if (skuClash) return { ok: false, error: `SKU ${sku} already exists.` };
+  const product: Product = {
+    id: uid("prd"),
+    sku,
+    name,
+    unit,
+    category,
+    active: input.active ?? true,
+    ...(input.issueStrategy != null ? { issueStrategy: input.issueStrategy } : {}),
+    ...(input.allowNegativeStock != null ? { allowNegativeStock: input.allowNegativeStock } : {}),
+    ...(input.minQty != null ? { minQty: input.minQty } : {}),
+    ...(input.maxQty != null ? { maxQty: input.maxQty } : {}),
+    ...(input.reorderPoint != null ? { reorderPoint: input.reorderPoint } : {}),
+    ...(input.reorderQty != null ? { reorderQty: input.reorderQty } : {}),
+    ...(input.preferredSupplierId != null ? { preferredSupplierId: input.preferredSupplierId } : {}),
+    ...(input.leadTimeDays != null ? { leadTimeDays: input.leadTimeDays } : {}),
+    ...(input.standardCost != null ? { standardCost: input.standardCost } : {}),
+  };
+  next.products.unshift(product);
+  pushAudit(next, {
+    action: "product.created",
+    entityType: "product",
+    entityId: product.id,
+    summary: `Created product ${product.sku} · ${product.name}.`,
+    at: now,
+  });
+  return { ok: true, data: { state: next, data: product } };
+}
+
+export function upsertWarehouse(
+  state: TlbState,
+  input: {
+    id?: string;
+    code: string;
+    name: string;
+    location: string;
+    active?: boolean;
+  },
+): MutResult<Warehouse> {
+  const blocked = requireAnyPerm(state, ["records.edit", "stock.view", "settings.manage"]);
+  if (blocked) return { ok: false, error: blocked };
+
+  const code = input.code.trim();
+  const name = input.name.trim();
+  const location = input.location.trim();
+  if (!code) return { ok: false, error: "Warehouse code is required." };
+  if (!name) return { ok: false, error: "Warehouse name is required." };
+  if (!location) return { ok: false, error: "Location is required." };
+
+  const next = cloneState(state);
+
+  if (input.id) {
+    const idx = next.warehouses.findIndex((w) => w.id === input.id);
+    if (idx < 0) return { ok: false, error: "Warehouse not found." };
+    const existing = next.warehouses[idx]!;
+    if (isSoftDeleted(existing)) {
+      return { ok: false, error: "Restore this warehouse from trash before editing." };
+    }
+    const codeClash = next.warehouses.find(
+      (w) => w.id !== existing.id && w.code.toLowerCase() === code.toLowerCase() && !isSoftDeleted(w),
+    );
+    if (codeClash) return { ok: false, error: `Code ${code} is already used by another warehouse.` };
+    const updated: Warehouse = {
+      ...existing,
+      code,
+      name,
+      location,
+      active: input.active ?? existing.active,
+    };
+    next.warehouses[idx] = updated;
+    pushAudit(next, {
+      action: "warehouse.updated",
+      entityType: "warehouse",
+      entityId: updated.id,
+      summary: `Updated warehouse ${updated.code} · ${updated.name}.`,
+    });
+    pushAudit(next, {
+      action: "record.edited",
+      entityType: "warehouse",
+      entityId: updated.id,
+      summary: `Edited warehouse ${updated.code}.`,
+    });
+    return { ok: true, data: { state: next, data: updated } };
+  }
+
+  const codeClash = next.warehouses.find((w) => w.code.toLowerCase() === code.toLowerCase() && !isSoftDeleted(w));
+  if (codeClash) return { ok: false, error: `Code ${code} already exists.` };
+  const warehouse: Warehouse = {
+    id: uid("wh"),
+    code,
+    name,
+    location,
+    active: input.active ?? true,
+  };
+  next.warehouses.unshift(warehouse);
+  pushAudit(next, {
+    action: "warehouse.created",
+    entityType: "warehouse",
+    entityId: warehouse.id,
+    summary: `Created warehouse ${warehouse.code} · ${warehouse.name}.`,
+  });
+  return { ok: true, data: { state: next, data: warehouse } };
+}
+
+export function updateCustomerOrderHeader(
+  state: TlbState,
+  orderId: string,
+  input: {
+    customerPoNumber?: string;
+    requiredDate?: string;
+    notes?: string;
+    orderSource?: CustomerPurchaseOrder["orderSource"];
+  },
+): MutResult<CustomerPurchaseOrder> {
+  const blocked = requireAnyPerm(state, ["orders.create", "records.edit"]);
+  if (blocked) return { ok: false, error: blocked };
+
+  const next = cloneState(state);
+  const order = next.orders.find((o) => o.id === orderId);
+  if (!order) return { ok: false, error: "Order not found." };
+  if (isSoftDeleted(order)) {
+    return { ok: false, error: "Restore this order from trash before editing." };
+  }
+  if (order.status === "Delivered" || order.status === "Cancelled") {
+    return {
+      ok: false,
+      error: `Cannot edit a ${order.status.toLowerCase()} order. Only Draft / Pending (and open) headers can be updated.`,
+    };
+  }
+  const now = new Date().toISOString();
+  if (input.customerPoNumber !== undefined) {
+    order.customerPoNumber = input.customerPoNumber.trim() || undefined;
+  }
+  if (input.requiredDate !== undefined) {
+    order.requiredDate = input.requiredDate.trim() || undefined;
+  }
+  if (input.notes !== undefined) {
+    order.notes = input.notes.trim() || undefined;
+  }
+  if (input.orderSource !== undefined) {
+    order.orderSource = input.orderSource;
+  }
+  order.updatedAt = now;
+  pushAudit(next, {
+    action: "order.updated",
+    entityType: "customer_purchase_order",
+    entityId: order.id,
+    summary: `Updated order ${order.number} header fields.`,
+  });
+  pushAudit(next, {
+    action: "record.edited",
+    entityType: "customer_purchase_order",
+    entityId: order.id,
+    summary: `Edited order ${order.number}.`,
+  });
+  return { ok: true, data: { state: next, data: order } };
 }
 
 export function createCustomerOrder(
@@ -1326,322 +1642,6 @@ export function formatMoney(amount: number): string {
 
 export function can(state: TlbState, permission: Permission): boolean {
   return hasPermission(state, permission);
-}
-
-function applySoftDeleteMeta(target: SoftDeleteFields, actor: string, reason?: string): void {
-  target.deletedAt = new Date().toISOString();
-  target.deletedBy = actor;
-  if (reason?.trim()) target.deletedReason = reason.trim();
-  else delete target.deletedReason;
-}
-
-function clearSoftDeleteMeta(target: SoftDeleteFields): void {
-  delete target.deletedAt;
-  delete target.deletedBy;
-  delete target.deletedReason;
-}
-
-export function listTrash(state: TlbState): TrashListItem[] {
-  return collectTrashItems(state);
-}
-
-export function softDeleteRecord(
-  state: TlbState,
-  input: { entityType: TrashEntityType; entityId: string; reason?: string },
-): MutResult<TrashListItem | null> {
-  const blocked = requirePerm(state, "records.delete");
-  if (blocked) return { ok: false, error: blocked };
-
-  const next = cloneState(state);
-  const reason = input.reason?.trim();
-  const actor = next.currentUser;
-  let summary = "";
-  let entityTypeLabel = input.entityType;
-
-  if (input.entityType === "customer") {
-    const row = next.customers.find((c) => c.id === input.entityId);
-    if (!row) return { ok: false, error: "Customer not found." };
-    if (isSoftDeleted(row)) return { ok: false, error: "Customer is already in trash." };
-    applySoftDeleteMeta(row, actor, reason);
-    row.updatedAt = row.deletedAt!;
-    summary = `Moved customer ${row.code} · ${row.name} to trash.`;
-    entityTypeLabel = "customer";
-  } else if (input.entityType === "supplier") {
-    const row = next.suppliers.find((s) => s.id === input.entityId);
-    if (!row) return { ok: false, error: "Supplier not found." };
-    if (isSoftDeleted(row)) return { ok: false, error: "Supplier is already in trash." };
-    applySoftDeleteMeta(row, actor, reason);
-    row.updatedAt = row.deletedAt!;
-    summary = `Moved supplier ${row.code} · ${row.name} to trash.`;
-  } else if (input.entityType === "product") {
-    const row = next.products.find((p) => p.id === input.entityId);
-    if (!row) return { ok: false, error: "Product not found." };
-    if (isSoftDeleted(row)) return { ok: false, error: "Product is already in trash." };
-    applySoftDeleteMeta(row, actor, reason);
-    summary = `Moved product ${row.sku} · ${row.name} to trash.`;
-  } else if (input.entityType === "warehouse") {
-    const row = next.warehouses.find((w) => w.id === input.entityId);
-    if (!row) return { ok: false, error: "Warehouse not found." };
-    if (isSoftDeleted(row)) return { ok: false, error: "Warehouse is already in trash." };
-    applySoftDeleteMeta(row, actor, reason);
-    summary = `Moved warehouse ${row.code} · ${row.name} to trash.`;
-  } else if (input.entityType === "order") {
-    const row = next.orders.find((o) => o.id === input.entityId);
-    if (!row) return { ok: false, error: "Order not found." };
-    if (isSoftDeleted(row)) return { ok: false, error: "Order is already in trash." };
-    applySoftDeleteMeta(row, actor, reason);
-    row.updatedAt = row.deletedAt!;
-    summary = `Moved order ${row.number} to trash.`;
-  } else if (input.entityType === "catalog") {
-    if (next.catalogPurgedIds.includes(input.entityId)) {
-      return { ok: false, error: "Record was permanently deleted." };
-    }
-    if (next.catalogDeletions.some((d) => d.catalogId === input.entityId)) {
-      return { ok: false, error: "Record is already in trash." };
-    }
-    const deletion = buildCatalogDeletion(input.entityId, actor, reason, next.quotations);
-    if (!deletion) return { ok: false, error: "Catalog record not found." };
-    next.catalogDeletions.unshift(deletion);
-    summary = `Moved ${deletion.module} ${deletion.label} to trash.`;
-    entityTypeLabel = "catalog";
-  } else if (input.entityType === "customer_return") {
-    const row = (next.customerReturns ?? []).find((r) => r.id === input.entityId);
-    if (!row) return { ok: false, error: "Customer return not found." };
-    if (isSoftDeleted(row)) return { ok: false, error: "Already in trash." };
-    applySoftDeleteMeta(row, actor, reason);
-    summary = `Moved customer return ${row.number} to trash.`;
-  } else if (input.entityType === "supplier_return") {
-    const row = (next.supplierReturns ?? []).find((r) => r.id === input.entityId);
-    if (!row) return { ok: false, error: "Supplier return not found." };
-    if (isSoftDeleted(row)) return { ok: false, error: "Already in trash." };
-    applySoftDeleteMeta(row, actor, reason);
-    summary = `Moved supplier return ${row.number} to trash.`;
-  } else if (input.entityType === "non_po_purchase") {
-    const row = (next.nonPoPurchases ?? []).find((r) => r.id === input.entityId);
-    if (!row) return { ok: false, error: "Non-PO not found." };
-    if (isSoftDeleted(row)) return { ok: false, error: "Already in trash." };
-    applySoftDeleteMeta(row, actor, reason);
-    summary = `Moved Non-PO ${row.number} to trash.`;
-  } else if (input.entityType === "import_shipment") {
-    const row = (next.importShipments ?? []).find((r) => r.id === input.entityId);
-    if (!row) return { ok: false, error: "Import not found." };
-    if (isSoftDeleted(row)) return { ok: false, error: "Already in trash." };
-    applySoftDeleteMeta(row, actor, reason);
-    summary = `Moved import ${row.number} to trash.`;
-  } else if (input.entityType === "export_shipment") {
-    const row = (next.exportShipments ?? []).find((r) => r.id === input.entityId);
-    if (!row) return { ok: false, error: "Export not found." };
-    if (isSoftDeleted(row)) return { ok: false, error: "Already in trash." };
-    applySoftDeleteMeta(row, actor, reason);
-    summary = `Moved export ${row.number} to trash.`;
-  } else if (input.entityType === "ops_driver") {
-    const row = (next.opsDrivers ?? []).find((d) => d.id === input.entityId);
-    if (!row) return { ok: false, error: "Driver not found." };
-    if (isSoftDeleted(row)) return { ok: false, error: "Driver is already in trash." };
-    const blocking = findDriverBlockingAssignment(next, row.id);
-    if (blocking) {
-      return {
-        ok: false,
-        error: `Cannot remove driver ${row.code} — assigned to active request ${blocking.number} (${blocking.status}${blocking.driverStatus ? ` · ${blocking.driverStatus}` : ""}). Reassign or complete the job first.`,
-      };
-    }
-    applySoftDeleteMeta(row, actor, reason);
-    row.active = false;
-    summary = `Moved driver ${row.code} · ${row.name} to trash.`;
-  } else {
-    return { ok: false, error: "Unsupported record type." };
-  }
-
-  pushAudit(next, {
-    action: "record.trashed",
-    entityType: entityTypeLabel,
-    entityId: input.entityId,
-    summary,
-    meta: {
-      entityType: input.entityType,
-      ...(reason ? { reason } : {}),
-    },
-  });
-  refreshNotifications(next);
-  const trashRow = collectTrashItems(next).find(
-    (t) => t.entityType === input.entityType && t.entityId === input.entityId,
-  );
-  return { ok: true, data: { state: next, data: trashRow ?? null } };
-}
-
-export function restoreTrashItem(
-  state: TlbState,
-  input: { entityType: TrashEntityType; entityId: string },
-): MutResult<null> {
-  const blocked = requirePerm(state, "records.delete");
-  if (blocked) return { ok: false, error: blocked };
-
-  const next = cloneState(state);
-  let summary = "";
-
-  if (input.entityType === "customer") {
-    const row = next.customers.find((c) => c.id === input.entityId);
-    if (!row || !isSoftDeleted(row)) return { ok: false, error: "Trashed customer not found." };
-    clearSoftDeleteMeta(row);
-    row.updatedAt = new Date().toISOString();
-    summary = `Restored customer ${row.code} · ${row.name} from trash.`;
-  } else if (input.entityType === "supplier") {
-    const row = next.suppliers.find((s) => s.id === input.entityId);
-    if (!row || !isSoftDeleted(row)) return { ok: false, error: "Trashed supplier not found." };
-    clearSoftDeleteMeta(row);
-    row.updatedAt = new Date().toISOString();
-    summary = `Restored supplier ${row.code} · ${row.name} from trash.`;
-  } else if (input.entityType === "product") {
-    const row = next.products.find((p) => p.id === input.entityId);
-    if (!row || !isSoftDeleted(row)) return { ok: false, error: "Trashed product not found." };
-    clearSoftDeleteMeta(row);
-    summary = `Restored product ${row.sku} · ${row.name} from trash.`;
-  } else if (input.entityType === "warehouse") {
-    const row = next.warehouses.find((w) => w.id === input.entityId);
-    if (!row || !isSoftDeleted(row)) return { ok: false, error: "Trashed warehouse not found." };
-    clearSoftDeleteMeta(row);
-    summary = `Restored warehouse ${row.code} · ${row.name} from trash.`;
-  } else if (input.entityType === "order") {
-    const row = next.orders.find((o) => o.id === input.entityId);
-    if (!row || !isSoftDeleted(row)) return { ok: false, error: "Trashed order not found." };
-    clearSoftDeleteMeta(row);
-    row.updatedAt = new Date().toISOString();
-    summary = `Restored order ${row.number} from trash.`;
-  } else if (input.entityType === "catalog") {
-    const idx = next.catalogDeletions.findIndex((d) => d.catalogId === input.entityId);
-    if (idx < 0) return { ok: false, error: "Trashed catalog record not found." };
-    const [removed] = next.catalogDeletions.splice(idx, 1);
-    summary = `Restored ${removed?.module ?? "catalog"} ${removed?.label ?? input.entityId} from trash.`;
-  } else if (input.entityType === "customer_return") {
-    const row = (next.customerReturns ?? []).find((r) => r.id === input.entityId);
-    if (!row || !isSoftDeleted(row)) return { ok: false, error: "Trashed customer return not found." };
-    clearSoftDeleteMeta(row);
-    summary = `Restored customer return ${row.number} from trash.`;
-  } else if (input.entityType === "supplier_return") {
-    const row = (next.supplierReturns ?? []).find((r) => r.id === input.entityId);
-    if (!row || !isSoftDeleted(row)) return { ok: false, error: "Trashed supplier return not found." };
-    clearSoftDeleteMeta(row);
-    summary = `Restored supplier return ${row.number} from trash.`;
-  } else if (input.entityType === "non_po_purchase") {
-    const row = (next.nonPoPurchases ?? []).find((r) => r.id === input.entityId);
-    if (!row || !isSoftDeleted(row)) return { ok: false, error: "Trashed Non-PO not found." };
-    clearSoftDeleteMeta(row);
-    summary = `Restored Non-PO ${row.number} from trash.`;
-  } else if (input.entityType === "import_shipment") {
-    const row = (next.importShipments ?? []).find((r) => r.id === input.entityId);
-    if (!row || !isSoftDeleted(row)) return { ok: false, error: "Trashed import not found." };
-    clearSoftDeleteMeta(row);
-    summary = `Restored import ${row.number} from trash.`;
-  } else if (input.entityType === "export_shipment") {
-    const row = (next.exportShipments ?? []).find((r) => r.id === input.entityId);
-    if (!row || !isSoftDeleted(row)) return { ok: false, error: "Trashed export not found." };
-    clearSoftDeleteMeta(row);
-    summary = `Restored export ${row.number} from trash.`;
-  } else if (input.entityType === "ops_driver") {
-    const row = (next.opsDrivers ?? []).find((d) => d.id === input.entityId);
-    if (!row || !isSoftDeleted(row)) return { ok: false, error: "Trashed driver not found." };
-    clearSoftDeleteMeta(row);
-    row.active = true;
-    summary = `Restored driver ${row.code} · ${row.name} from trash.`;
-  } else {
-    return { ok: false, error: "Unsupported record type." };
-  }
-
-  pushAudit(next, {
-    action: "record.restored",
-    entityType: input.entityType,
-    entityId: input.entityId,
-    summary,
-  });
-  refreshNotifications(next);
-  return { ok: true, data: { state: next, data: null } };
-}
-
-export function purgeTrashItem(
-  state: TlbState,
-  input: { entityType: TrashEntityType; entityId: string },
-): MutResult<null> {
-  const blocked = requirePerm(state, "trash.purge");
-  if (blocked) return { ok: false, error: blocked };
-
-  const next = cloneState(state);
-  let summary = "";
-
-  if (input.entityType === "customer") {
-    const idx = next.customers.findIndex((c) => c.id === input.entityId && isSoftDeleted(c));
-    if (idx < 0) return { ok: false, error: "Trashed customer not found." };
-    const [removed] = next.customers.splice(idx, 1);
-    summary = `Permanently deleted customer ${removed?.code ?? input.entityId}.`;
-  } else if (input.entityType === "supplier") {
-    const idx = next.suppliers.findIndex((s) => s.id === input.entityId && isSoftDeleted(s));
-    if (idx < 0) return { ok: false, error: "Trashed supplier not found." };
-    const [removed] = next.suppliers.splice(idx, 1);
-    summary = `Permanently deleted supplier ${removed?.code ?? input.entityId}.`;
-  } else if (input.entityType === "product") {
-    const idx = next.products.findIndex((p) => p.id === input.entityId && isSoftDeleted(p));
-    if (idx < 0) return { ok: false, error: "Trashed product not found." };
-    const [removed] = next.products.splice(idx, 1);
-    next.stock = next.stock.filter((s) => s.productId !== input.entityId);
-    summary = `Permanently deleted product ${removed?.sku ?? input.entityId}.`;
-  } else if (input.entityType === "warehouse") {
-    const idx = next.warehouses.findIndex((w) => w.id === input.entityId && isSoftDeleted(w));
-    if (idx < 0) return { ok: false, error: "Trashed warehouse not found." };
-    const [removed] = next.warehouses.splice(idx, 1);
-    next.stock = next.stock.filter((s) => s.warehouseId !== input.entityId);
-    summary = `Permanently deleted warehouse ${removed?.code ?? input.entityId}.`;
-  } else if (input.entityType === "order") {
-    const idx = next.orders.findIndex((o) => o.id === input.entityId && isSoftDeleted(o));
-    if (idx < 0) return { ok: false, error: "Trashed order not found." };
-    const [removed] = next.orders.splice(idx, 1);
-    next.orderLines = next.orderLines.filter((l) => l.orderId !== input.entityId);
-    next.reservations = next.reservations.filter((r) => {
-      const line = state.orderLines.find((l) => l.id === r.orderLineId);
-      return line?.orderId !== input.entityId;
-    });
-    summary = `Permanently deleted order ${removed?.number ?? input.entityId}.`;
-  } else if (input.entityType === "catalog") {
-    const idx = next.catalogDeletions.findIndex((d) => d.catalogId === input.entityId);
-    if (idx < 0) return { ok: false, error: "Trashed catalog record not found." };
-    const [removed] = next.catalogDeletions.splice(idx, 1);
-    if (!next.catalogPurgedIds.includes(input.entityId)) {
-      next.catalogPurgedIds.push(input.entityId);
-    }
-    summary = `Permanently deleted ${removed?.module ?? "catalog"} ${removed?.label ?? input.entityId}.`;
-  } else if (input.entityType === "customer_return") {
-    next.customerReturns = (next.customerReturns ?? []).filter((r) => !(r.id === input.entityId && isSoftDeleted(r)));
-    summary = `Permanently deleted customer return ${input.entityId}.`;
-  } else if (input.entityType === "supplier_return") {
-    next.supplierReturns = (next.supplierReturns ?? []).filter((r) => !(r.id === input.entityId && isSoftDeleted(r)));
-    summary = `Permanently deleted supplier return ${input.entityId}.`;
-  } else if (input.entityType === "non_po_purchase") {
-    next.nonPoPurchases = (next.nonPoPurchases ?? []).filter((r) => !(r.id === input.entityId && isSoftDeleted(r)));
-    next.nonPoPurchaseLines = (next.nonPoPurchaseLines ?? []).filter((l) => l.nonPoId !== input.entityId);
-    summary = `Permanently deleted Non-PO ${input.entityId}.`;
-  } else if (input.entityType === "import_shipment") {
-    next.importShipments = (next.importShipments ?? []).filter((r) => !(r.id === input.entityId && isSoftDeleted(r)));
-    next.importShipmentLines = (next.importShipmentLines ?? []).filter((l) => l.shipmentId !== input.entityId);
-    summary = `Permanently deleted import ${input.entityId}.`;
-  } else if (input.entityType === "export_shipment") {
-    next.exportShipments = (next.exportShipments ?? []).filter((r) => !(r.id === input.entityId && isSoftDeleted(r)));
-    next.exportShipmentLines = (next.exportShipmentLines ?? []).filter((l) => l.shipmentId !== input.entityId);
-    summary = `Permanently deleted export ${input.entityId}.`;
-  } else if (input.entityType === "ops_driver") {
-    const idx = (next.opsDrivers ?? []).findIndex((d) => d.id === input.entityId && isSoftDeleted(d));
-    if (idx < 0) return { ok: false, error: "Trashed driver not found." };
-    const [removed] = next.opsDrivers.splice(idx, 1);
-    summary = `Permanently deleted driver ${removed?.code ?? input.entityId}.`;
-  } else {
-    return { ok: false, error: "Unsupported record type." };
-  }
-
-  pushAudit(next, {
-    action: "record.purged",
-    entityType: input.entityType,
-    entityId: input.entityId,
-    summary,
-  });
-  refreshNotifications(next);
-  return { ok: true, data: { state: next, data: null } };
 }
 
 // Re-export document mutations

@@ -27,6 +27,7 @@ import type {
   Product,
   Receipt,
   ReceiptLine,
+  SoftDeleteFields,
   StockBalance,
   StockReservation,
   SupplyHeader,
@@ -227,6 +228,12 @@ export function buildSoftDeleteOverlay(state: {
   products: Product[];
   customers: Customer[];
   orders: CustomerPurchaseOrder[];
+  invoices?: Invoice[];
+  receipts?: Receipt[];
+  payments?: Payment[];
+  deliveries?: Delivery[];
+  supplies?: SupplyHeader[];
+  notifications?: AppNotification[];
 }): SoftDeleteOverlay {
   const overlay: SoftDeleteOverlay = {};
   const put = (
@@ -236,16 +243,22 @@ export function buildSoftDeleteOverlay(state: {
   ) => {
     if (!fields.deletedAt && !fields.deletedBy && !fields.deletedReason) return;
     overlay[type] ??= {};
-    overlay[type][id] = {
-      deletedAt: fields.deletedAt,
-      deletedBy: fields.deletedBy,
-      deletedReason: fields.deletedReason,
-    };
+    const soft: SoftDeleteFields = {};
+    if (fields.deletedAt) soft.deletedAt = fields.deletedAt;
+    if (fields.deletedBy) soft.deletedBy = fields.deletedBy;
+    if (fields.deletedReason) soft.deletedReason = fields.deletedReason;
+    overlay[type][id] = soft;
   };
   for (const w of state.warehouses) put("warehouse", w.id, w);
   for (const p of state.products) put("product", p.id, p);
   for (const c of state.customers) put("customer", c.id, c);
   for (const o of state.orders) put("order", o.id, o);
+  for (const i of state.invoices ?? []) put("invoice", i.id, i);
+  for (const r of state.receipts ?? []) put("receipt", r.id, r);
+  for (const p of state.payments ?? []) put("payment", p.id, p);
+  for (const d of state.deliveries ?? []) put("delivery", d.id, d);
+  for (const s of state.supplies ?? []) put("supply", s.id, s);
+  for (const n of state.notifications ?? []) put("notification", n.id, n);
   return overlay;
 }
 
@@ -285,7 +298,7 @@ export function orderLineToRow(l: CustomerOrderLine): Tables["customer_order_lin
   };
 }
 
-export function supplyFromRow(row: Tables["supplies"]["Row"]): SupplyHeader {
+export function supplyFromRow(row: Tables["supplies"]["Row"], overlay?: SoftDeleteOverlay): SupplyHeader {
   return {
     id: row.id,
     number: row.number,
@@ -293,6 +306,7 @@ export function supplyFromRow(row: Tables["supplies"]["Row"]): SupplyHeader {
     suppliedAt: row.supplied_at,
     suppliedBy: row.supplied_by,
     notes: row.notes ?? undefined,
+    ...applySoft(row.id, "supply", overlay, {}),
   };
 }
 
@@ -375,7 +389,7 @@ export function vatToRow(v: VatRate): Tables["vat_rates"]["Insert"] {
   };
 }
 
-export function invoiceFromRow(row: Tables["invoices"]["Row"]): Invoice {
+export function invoiceFromRow(row: Tables["invoices"]["Row"], overlay?: SoftDeleteOverlay): Invoice {
   return {
     id: row.id,
     number: row.number,
@@ -396,6 +410,7 @@ export function invoiceFromRow(row: Tables["invoices"]["Row"]): Invoice {
     notes: row.notes ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    ...applySoft(row.id, "invoice", overlay, {}),
   };
 }
 
@@ -457,7 +472,7 @@ export function invoiceLineToRow(l: InvoiceLine): Tables["invoice_lines"]["Inser
   };
 }
 
-export function receiptFromRow(row: Tables["receipts"]["Row"]): Receipt {
+export function receiptFromRow(row: Tables["receipts"]["Row"], overlay?: SoftDeleteOverlay): Receipt {
   return {
     id: row.id,
     number: row.number,
@@ -472,6 +487,7 @@ export function receiptFromRow(row: Tables["receipts"]["Row"]): Receipt {
     processedBy: row.processed_by,
     notes: row.notes ?? undefined,
     createdAt: row.created_at,
+    ...applySoft(row.id, "receipt", overlay, {}),
   };
 }
 
@@ -517,7 +533,7 @@ export function receiptLineToRow(l: ReceiptLine): Tables["receipt_lines"]["Inser
   };
 }
 
-export function deliveryFromRow(row: Tables["deliveries"]["Row"]): Delivery {
+export function deliveryFromRow(row: Tables["deliveries"]["Row"], overlay?: SoftDeleteOverlay): Delivery {
   return {
     id: row.id,
     number: row.number,
@@ -538,6 +554,7 @@ export function deliveryFromRow(row: Tables["deliveries"]["Row"]): Delivery {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     createdBy: row.created_by,
+    ...applySoft(row.id, "delivery", overlay, {}),
   };
 }
 
@@ -587,7 +604,7 @@ export function deliveryItemToRow(i: DeliveryItem): Tables["delivery_items"]["In
   };
 }
 
-export function paymentFromRow(row: Tables["payments"]["Row"]): Payment {
+export function paymentFromRow(row: Tables["payments"]["Row"], overlay?: SoftDeleteOverlay): Payment {
   return {
     id: row.id,
     number: row.number,
@@ -602,6 +619,7 @@ export function paymentFromRow(row: Tables["payments"]["Row"]): Payment {
     recordedBy: row.recorded_by,
     notes: row.notes ?? undefined,
     createdAt: row.created_at,
+    ...applySoft(row.id, "payment", overlay, {}),
   };
 }
 
@@ -623,7 +641,10 @@ export function paymentToRow(p: Payment): Tables["payments"]["Insert"] {
   };
 }
 
-export function notificationFromRow(row: Tables["notifications"]["Row"]): AppNotification {
+export function notificationFromRow(
+  row: Tables["notifications"]["Row"],
+  overlay?: SoftDeleteOverlay,
+): AppNotification {
   return {
     id: row.id,
     type: row.type as NotificationType,
@@ -634,6 +655,7 @@ export function notificationFromRow(row: Tables["notifications"]["Row"]): AppNot
     dedupeKey: row.dedupe_key,
     createdAt: row.created_at,
     readAt: row.read_at ?? undefined,
+    ...applySoft(row.id, "notification", overlay, {}),
   };
 }
 

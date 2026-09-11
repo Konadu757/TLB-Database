@@ -2,6 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, Plus, Search, X } from "lucide-react";
 
 import {
+  BulkTrashToolbar,
+  SelectAllHeader,
+  SelectRowCell,
+  useListSelection,
+} from "@/components/modules/list-bulk-trash";
+import { MoveToTrashButton } from "@/components/modules/move-to-trash-button";
+import {
   EmptyState,
   RecordDetailPage,
   RecordDetailSection,
@@ -11,8 +18,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { statusTone } from "@/lib/domain/calculations";
 import { isoInRange } from "@/lib/domain/period-range";
+import { notSoftDeleted } from "@/lib/domain/trash";
 import type { DeliveryStatus, PaymentMethod } from "@/lib/domain/types";
-import { formatMoney } from "@/lib/store/tlb-store";
+import { formatMoney, trashBlockReason } from "@/lib/store/tlb-store";
 import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
 
 function Flash({ error, notice, onClear }: { error: string | null; notice: string | null; onClear: () => void }) {
@@ -108,8 +116,10 @@ export function FinanceModule({
 
   const orderSupplies = state.supplies.filter((s) => s.orderId === invoiceForm.orderId);
 
+  const canBulkTrash = store.can("records.delete");
+
   const filteredInvoices = useMemo(() => {
-    return state.invoices.filter((inv) => {
+    return notSoftDeleted(state.invoices).filter((inv) => {
       if (range && !isoInRange(inv.invoiceDate, range)) return false;
       const order = state.orders.find((o) => o.id === inv.orderId);
       const customer = state.customers.find((c) => c.id === inv.customerId);
@@ -121,7 +131,7 @@ export function FinanceModule({
   }, [state.invoices, state.orders, state.customers, invoiceSearch, range]);
 
   const filteredReceipts = useMemo(() => {
-    return state.receipts.filter((r) => {
+    return notSoftDeleted(state.receipts).filter((r) => {
       if (range && !isoInRange(r.receiptDate, range)) return false;
       const customer = state.customers.find((c) => c.id === r.customerId);
       return matchesSearch([r.number, customer?.name, r.paymentMethod, r.processedBy], receiptSearch);
@@ -129,7 +139,7 @@ export function FinanceModule({
   }, [state.receipts, state.customers, receiptSearch, range]);
 
   const filteredPayments = useMemo(() => {
-    return state.payments.filter((p) => {
+    return notSoftDeleted(state.payments).filter((p) => {
       if (range && !isoInRange(p.paymentDate, range)) return false;
       const customer = state.customers.find((c) => c.id === p.customerId);
       const invoice = state.invoices.find((i) => i.id === p.invoiceId);
@@ -137,9 +147,16 @@ export function FinanceModule({
     });
   }, [state.payments, state.customers, state.invoices, paymentSearch, range]);
 
-  const selectedInvoice = state.invoices.find((i) => i.id === selectedInvoiceId) ?? null;
-  const selectedReceipt = state.receipts.find((r) => r.id === selectedReceiptId) ?? null;
-  const selectedPayment = state.payments.find((p) => p.id === selectedPaymentId) ?? null;
+  const invoiceIds = useMemo(() => filteredInvoices.map((i) => i.id), [filteredInvoices]);
+  const receiptIds = useMemo(() => filteredReceipts.map((r) => r.id), [filteredReceipts]);
+  const paymentIds = useMemo(() => filteredPayments.map((p) => p.id), [filteredPayments]);
+  const invoiceSelection = useListSelection(canBulkTrash && tab === "invoices" ? invoiceIds : []);
+  const receiptSelection = useListSelection(canBulkTrash && tab === "receipts" ? receiptIds : []);
+  const paymentSelection = useListSelection(canBulkTrash && tab === "payments" ? paymentIds : []);
+
+  const selectedInvoice = notSoftDeleted(state.invoices).find((i) => i.id === selectedInvoiceId) ?? null;
+  const selectedReceipt = notSoftDeleted(state.receipts).find((r) => r.id === selectedReceiptId) ?? null;
+  const selectedPayment = notSoftDeleted(state.payments).find((p) => p.id === selectedPaymentId) ?? null;
 
   if (tab === "invoices" && selectedInvoice) {
     const invoiceLines = state.invoiceLines.filter((l) => l.invoiceId === selectedInvoice.id);
@@ -155,9 +172,18 @@ export function FinanceModule({
         subtitle={customer?.name ?? "Invoice"}
         badges={<StatusBadge tone={statusTone(selectedInvoice.paymentStatus)}>{selectedInvoice.paymentStatus}</StatusBadge>}
         actions={
-          <Button type="button" variant="outline" onClick={() => onOpenOrder(selectedInvoice.orderId)}>
-            Open order <ChevronRight />
-          </Button>
+          <>
+            <Button type="button" variant="outline" onClick={() => onOpenOrder(selectedInvoice.orderId)}>
+              Open order <ChevronRight />
+            </Button>
+            <MoveToTrashButton
+              store={store}
+              entityType="invoice"
+              entityId={selectedInvoice.id}
+              recordLabel={selectedInvoice.number}
+              onTrashed={() => setSelectedInvoiceId(null)}
+            />
+          </>
         }
         flash={<Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />}
       >
@@ -281,11 +307,20 @@ export function FinanceModule({
         subtitle={customer?.name ?? "Receipt"}
         badges={<StatusBadge tone="success">Paid</StatusBadge>}
         actions={
-          selectedReceipt.orderId ? (
-            <Button type="button" variant="outline" onClick={() => onOpenOrder(selectedReceipt.orderId!)}>
-              Open order <ChevronRight />
-            </Button>
-          ) : undefined
+          <>
+            {selectedReceipt.orderId ? (
+              <Button type="button" variant="outline" onClick={() => onOpenOrder(selectedReceipt.orderId!)}>
+                Open order <ChevronRight />
+              </Button>
+            ) : null}
+            <MoveToTrashButton
+              store={store}
+              entityType="receipt"
+              entityId={selectedReceipt.id}
+              recordLabel={selectedReceipt.number}
+              onTrashed={() => setSelectedReceiptId(null)}
+            />
+          </>
         }
         flash={<Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />}
       >
@@ -348,6 +383,15 @@ export function FinanceModule({
         title={selectedPayment.number}
         subtitle={customer?.name ?? "Payment"}
         badges={<StatusBadge tone="success">{selectedPayment.method}</StatusBadge>}
+        actions={
+          <MoveToTrashButton
+            store={store}
+            entityType="payment"
+            entityId={selectedPayment.id}
+            recordLabel={selectedPayment.number}
+            onTrashed={() => setSelectedPaymentId(null)}
+          />
+        }
         flash={<Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />}
       >
         <RecordDetailSection tone="summary" kicker="Amounts" title="Payment summary" span2>
@@ -441,6 +485,14 @@ export function FinanceModule({
                   aria-label="Search invoices"
                 />
               </label>
+              {canBulkTrash ? (
+                <BulkTrashToolbar
+                  store={store}
+                  entityType="invoice"
+                  selectedIds={invoiceSelection.selectedIds}
+                  onDone={invoiceSelection.clear}
+                />
+              ) : null}
               {store.can("invoice.create") ? (
                 <Button type="button" onClick={() => setCreatingInvoice((v) => !v)}>
                   <Plus /> New invoice
@@ -546,7 +598,7 @@ export function FinanceModule({
 
           <article className="tlb-panel tlb-orders-panel tlb-customers-list-panel">
             <div className="tlb-table-scroll">
-              {state.invoices.length === 0 ? (
+              {notSoftDeleted(state.invoices).length === 0 ? (
                 <EmptyState title="No invoices" detail="Create a VAT invoice from a posted supply." />
               ) : filteredInvoices.length === 0 ? (
                 <EmptyState title="No invoices match your search." detail="Try another number, order, or customer." />
@@ -554,6 +606,13 @@ export function FinanceModule({
                 <table className="tlb-customers-table">
                   <thead>
                     <tr>
+                      {canBulkTrash ? (
+                        <SelectAllHeader
+                          allSelected={invoiceSelection.allVisibleSelected}
+                          someSelected={invoiceSelection.someVisibleSelected}
+                          onToggle={invoiceSelection.toggleAllVisible}
+                        />
+                      ) : null}
                       <th className="tlb-col-priority">Invoice</th>
                       <th className="tlb-col-priority">Customer</th>
                       <th className="tlb-col-priority">Order</th>
@@ -582,6 +641,14 @@ export function FinanceModule({
                             }
                           }}
                         >
+                          {canBulkTrash ? (
+                            <SelectRowCell
+                              id={inv.id}
+                              checked={invoiceSelection.isSelected(inv.id)}
+                              onToggle={invoiceSelection.toggle}
+                              label={`Select ${inv.number}`}
+                            />
+                          ) : null}
                           <td className="tlb-col-priority">
                             <strong>{inv.number}</strong>
                           </td>
@@ -623,6 +690,14 @@ export function FinanceModule({
                   aria-label="Search receipts"
                 />
               </label>
+              {canBulkTrash ? (
+                <BulkTrashToolbar
+                  store={store}
+                  entityType="receipt"
+                  selectedIds={receiptSelection.selectedIds}
+                  onDone={receiptSelection.clear}
+                />
+              ) : null}
               {store.can("receipt.create") ? (
                 <Button type="button" onClick={() => setCreatingReceipt((v) => !v)}>
                   <Plus /> New receipt
@@ -740,7 +815,7 @@ export function FinanceModule({
 
           <article className="tlb-panel tlb-orders-panel tlb-customers-list-panel">
             <div className="tlb-table-scroll">
-              {state.receipts.length === 0 ? (
+              {notSoftDeleted(state.receipts).length === 0 ? (
                 <EmptyState title="No receipts" detail="Create an ordinary receipt after supply or payment." />
               ) : filteredReceipts.length === 0 ? (
                 <EmptyState title="No receipts match your search." detail="Try another receipt number or customer." />
@@ -748,6 +823,13 @@ export function FinanceModule({
                 <table className="tlb-customers-table">
                   <thead>
                     <tr>
+                      {canBulkTrash ? (
+                        <SelectAllHeader
+                          allSelected={receiptSelection.allVisibleSelected}
+                          someSelected={receiptSelection.someVisibleSelected}
+                          onToggle={receiptSelection.toggleAllVisible}
+                        />
+                      ) : null}
                       <th className="tlb-col-priority">Receipt #</th>
                       <th className="tlb-col-priority">Customer</th>
                       <th className="tlb-col-priority">Date</th>
@@ -772,6 +854,14 @@ export function FinanceModule({
                           }
                         }}
                       >
+                        {canBulkTrash ? (
+                          <SelectRowCell
+                            id={r.id}
+                            checked={receiptSelection.isSelected(r.id)}
+                            onToggle={receiptSelection.toggle}
+                            label={`Select ${r.number}`}
+                          />
+                        ) : null}
                         <td className="tlb-col-priority">
                           <strong>{r.number}</strong>
                         </td>
@@ -809,11 +899,19 @@ export function FinanceModule({
                   aria-label="Search payments"
                 />
               </label>
+              {canBulkTrash ? (
+                <BulkTrashToolbar
+                  store={store}
+                  entityType="payment"
+                  selectedIds={paymentSelection.selectedIds}
+                  onDone={paymentSelection.clear}
+                />
+              ) : null}
             </div>
           </div>
           <article className="tlb-panel tlb-orders-panel tlb-customers-list-panel">
             <div className="tlb-table-scroll">
-              {state.payments.length === 0 ? (
+              {notSoftDeleted(state.payments).length === 0 ? (
                 <EmptyState title="No payments" detail="Payments are audited when recorded against invoices/receipts." />
               ) : filteredPayments.length === 0 ? (
                 <EmptyState title="No payments match your search." detail="Try another payment number or customer." />
@@ -821,6 +919,13 @@ export function FinanceModule({
                 <table className="tlb-customers-table">
                   <thead>
                     <tr>
+                      {canBulkTrash ? (
+                        <SelectAllHeader
+                          allSelected={paymentSelection.allVisibleSelected}
+                          someSelected={paymentSelection.someVisibleSelected}
+                          onToggle={paymentSelection.toggleAllVisible}
+                        />
+                      ) : null}
                       <th className="tlb-col-priority">Payment #</th>
                       <th className="tlb-col-priority">Customer</th>
                       <th className="tlb-col-priority">Amount</th>
@@ -845,6 +950,14 @@ export function FinanceModule({
                           }
                         }}
                       >
+                        {canBulkTrash ? (
+                          <SelectRowCell
+                            id={p.id}
+                            checked={paymentSelection.isSelected(p.id)}
+                            onToggle={paymentSelection.toggle}
+                            label={`Select ${p.number}`}
+                          />
+                        ) : null}
                         <td className="tlb-col-priority">
                           <strong>{p.number}</strong>
                         </td>
@@ -910,11 +1023,12 @@ export function DeliveriesModule({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-shot on focusId
   }, [focusId]);
 
-  const supplies = state.supplies.filter((s) => s.orderId === form.orderId);
-  const selected = state.deliveries.find((d) => d.id === selectedId) ?? null;
+  const supplies = notSoftDeleted(state.supplies).filter((s) => s.orderId === form.orderId);
+  const canBulkTrash = store.can("records.delete");
+  const selected = notSoftDeleted(state.deliveries).find((d) => d.id === selectedId) ?? null;
 
   const filtered = useMemo(() => {
-    return state.deliveries.filter((d) => {
+    return notSoftDeleted(state.deliveries).filter((d) => {
       if (range && !isoInRange(d.deliveryDate, range)) return false;
       const order = state.orders.find((o) => o.id === d.orderId);
       const customer = state.customers.find((c) => c.id === d.customerId);
@@ -925,6 +1039,10 @@ export function DeliveriesModule({
       );
     });
   }, [state.deliveries, state.orders, state.customers, state.supplies, search, range]);
+
+  const deliveryIds = useMemo(() => filtered.map((d) => d.id), [filtered]);
+  const deliverySelection = useListSelection(canBulkTrash ? deliveryIds : []);
+  const deliveryTrashBlock = selected ? trashBlockReason(state, "delivery", selected.id) : null;
 
   if (selected) {
     const items = state.deliveryItems.filter((i) => i.deliveryId === selected.id);
@@ -940,9 +1058,20 @@ export function DeliveriesModule({
         subtitle={customer?.name ?? order?.number ?? "Delivery"}
         badges={<StatusBadge tone={statusTone(selected.status)}>{selected.status}</StatusBadge>}
         actions={
-          <Button type="button" variant="outline" onClick={() => onOpenOrder(selected.orderId)}>
-            Open order <ChevronRight />
-          </Button>
+          <>
+            <Button type="button" variant="outline" onClick={() => onOpenOrder(selected.orderId)}>
+              Open order <ChevronRight />
+            </Button>
+            <MoveToTrashButton
+              store={store}
+              entityType="delivery"
+              entityId={selected.id}
+              recordLabel={selected.number}
+              disabled={Boolean(deliveryTrashBlock)}
+              disabledReason={deliveryTrashBlock ?? undefined}
+              onTrashed={() => setSelectedId(null)}
+            />
+          </>
         }
         flash={<Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />}
       >
@@ -1076,6 +1205,22 @@ export function DeliveriesModule({
               aria-label="Search deliveries"
             />
           </label>
+          {canBulkTrash ? (
+            <BulkTrashToolbar
+              store={store}
+              entityType="delivery"
+              selectedIds={deliverySelection.selectedIds}
+              onDone={deliverySelection.clear}
+            />
+          ) : null}
+          {canBulkTrash ? (
+            <BulkTrashToolbar
+              store={store}
+              entityType="delivery"
+              selectedIds={deliverySelection.selectedIds}
+              onDone={deliverySelection.clear}
+            />
+          ) : null}
           {store.can("delivery.manage") ? (
             <Button type="button" onClick={() => setCreating((v) => !v)}>
               <Plus /> New delivery
@@ -1190,7 +1335,7 @@ export function DeliveriesModule({
 
       <article className="tlb-panel tlb-orders-panel tlb-customers-list-panel">
         <div className="tlb-table-scroll">
-          {state.deliveries.length === 0 ? (
+          {notSoftDeleted(state.deliveries).length === 0 ? (
             <EmptyState title="No deliveries" detail="Create a delivery from a posted supply." />
           ) : filtered.length === 0 ? (
             <EmptyState title="No deliveries match your search." detail="Try another number, order, or customer." />
@@ -1198,6 +1343,13 @@ export function DeliveriesModule({
             <table className="tlb-customers-table">
               <thead>
                 <tr>
+                  {canBulkTrash ? (
+                    <SelectAllHeader
+                      allSelected={deliverySelection.allVisibleSelected}
+                      someSelected={deliverySelection.someVisibleSelected}
+                      onToggle={deliverySelection.toggleAllVisible}
+                    />
+                  ) : null}
                   <th className="tlb-col-priority">Delivery #</th>
                   <th className="tlb-col-priority">Customer</th>
                   <th className="tlb-col-priority">Order</th>
@@ -1222,6 +1374,14 @@ export function DeliveriesModule({
                       }
                     }}
                   >
+                    {canBulkTrash ? (
+                      <SelectRowCell
+                        id={d.id}
+                        checked={deliverySelection.isSelected(d.id)}
+                        onToggle={deliverySelection.toggle}
+                        label={`Select ${d.number}`}
+                      />
+                    ) : null}
                     <td className="tlb-col-priority">
                       <strong>{d.number}</strong>
                     </td>

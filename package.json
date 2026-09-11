@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test:domain": "npx --yes tsx scripts/phase30-verify.ts",
+    "test:trash": "npx --yes tsx scripts/trash-verify.ts",
     "test:repo": "npx --yes tsx scripts/repo-verify.ts"
   },
   "overrides": {

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, Search } from "lucide-react";
 
+import { MoveToTrashButton } from "@/components/modules/move-to-trash-button";
 import { Button } from "@/components/ui/button";
 import { statusTone } from "@/lib/domain/calculations";
+import { notSoftDeleted } from "@/lib/domain/trash";
 import {
   ASK_TLB_PRESETS,
   accountsPayable,
@@ -16,7 +18,7 @@ import {
   stockPosition,
   type AskTlbPresetId,
 } from "@/lib/domain/inventory";
-import { formatMoney } from "@/lib/store/tlb-store";
+import { formatMoney, trashBlockReason } from "@/lib/store/tlb-store";
 import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
 import type { StockIssueReason, TransferStatus } from "@/lib/domain/types";
 
@@ -55,7 +57,7 @@ export function LiveStockMovementsModule({
   periodLabel?: string;
 }) {
   const rows = useMemo(() => {
-    return store.state.stockMovements.filter((m) => {
+    return notSoftDeleted(store.state.stockMovements).filter((m) => {
       if (!range) return true;
       const d = m.at.slice(0, 10);
       return d >= range.from && d <= range.to;
@@ -92,6 +94,7 @@ export function LiveStockMovementsModule({
                   <th>After</th>
                   <th>Ref</th>
                   <th>Who</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -110,6 +113,15 @@ export function LiveStockMovementsModule({
                       <td>{m.qtyAfter}</td>
                       <td>{m.refNumber ?? m.reason ?? "—"}</td>
                       <td>{m.actor}</td>
+                      <td>
+                        <MoveToTrashButton
+                          store={store}
+                          entityType="stock_movement"
+                          entityId={m.id}
+                          recordLabel={m.number}
+                          variant="outline"
+                        />
+                      </td>
                     </tr>
                   );
                 })}
@@ -139,7 +151,7 @@ export function LiveBatchesModule({
     setSelected(focusId);
     onFocusConsumed?.();
   }, [focusId, onFocusConsumed]);
-  const batch = store.state.batches.find((b) => b.id === selected);
+  const batch = notSoftDeleted(store.state.batches).find((b) => b.id === selected);
 
   if (batch) {
     const product = store.state.products.find((p) => p.id === batch.productId);
@@ -155,9 +167,18 @@ export function LiveBatchesModule({
               {product?.name} · remain {batch.remainingQty} · cost {formatMoney(batch.unitCost)}
             </p>
           </div>
-          <Button type="button" variant="outline" onClick={() => setSelected(null)}>
-            Back to batches
-          </Button>
+          <div className="tlb-inline-actions">
+            <MoveToTrashButton
+              store={store}
+              entityType="batch"
+              entityId={batch.id}
+              recordLabel={batch.code}
+              onTrashed={() => setSelected(null)}
+            />
+            <Button type="button" variant="outline" onClick={() => setSelected(null)}>
+              Back to batches
+            </Button>
+          </div>
         </div>
         <article className="tlb-panel">
           <div className="tlb-panel-heading">
@@ -237,7 +258,7 @@ export function LiveBatchesModule({
               </tr>
             </thead>
             <tbody>
-              {store.state.batches.map((b) => {
+              {notSoftDeleted(store.state.batches).map((b) => {
                 const product = store.state.products.find((p) => p.id === b.productId);
                 const wh = store.state.warehouses.find((w) => w.id === b.warehouseId);
                 const band = batchExpiryBand(b);
@@ -307,11 +328,12 @@ export function GoodsInModule({
     onFocusConsumed?.();
   }, [focusId, onFocusConsumed]);
 
-  const detail = store.state.goodsReceipts.find((g) => g.id === detailId);
+  const detail = notSoftDeleted(store.state.goodsReceipts).find((g) => g.id === detailId);
 
   if (detail) {
     const lines = store.state.goodsReceiptLines.filter((l) => l.grnId === detail.id);
     const supplier = store.state.suppliers.find((s) => s.id === detail.supplierId);
+    const grnTrashBlock = trashBlockReason(store.state, "goods_receipt", detail.id);
     return (
       <div className="tlb-module tlb-record-detail">
         <div className="tlb-module-toolbar">
@@ -320,7 +342,18 @@ export function GoodsInModule({
             <strong>{detail.number}</strong>
             <p className="tlb-muted-line">{supplier?.name} · {detail.nonPo ? "Non-PO" : "PO-linked"}</p>
           </div>
-          <Button type="button" variant="outline" onClick={() => setDetailId(null)}>Back</Button>
+          <div className="tlb-inline-actions">
+            <MoveToTrashButton
+              store={store}
+              entityType="goods_receipt"
+              entityId={detail.id}
+              recordLabel={detail.number}
+              disabled={Boolean(grnTrashBlock)}
+              disabledReason={grnTrashBlock ?? undefined}
+              onTrashed={() => setDetailId(null)}
+            />
+            <Button type="button" variant="outline" onClick={() => setDetailId(null)}>Back</Button>
+          </div>
         </div>
         <article className="tlb-panel">
           <div className="tlb-kv-grid" style={{ padding: 16 }}>
@@ -491,7 +524,7 @@ export function GoodsInModule({
         </article>
       ) : null}
       <article className="tlb-panel tlb-orders-panel">
-        {store.state.goodsReceipts.length === 0 ? (
+        {notSoftDeleted(store.state.goodsReceipts).length === 0 ? (
           <EmptyState title="No GRNs" detail="Post a goods receipt to start the inbound ledger." />
         ) : (
           <div className="tlb-table-scroll">
@@ -508,7 +541,7 @@ export function GoodsInModule({
                 </tr>
               </thead>
               <tbody>
-                {store.state.goodsReceipts.map((g) => (
+                {notSoftDeleted(store.state.goodsReceipts).map((g) => (
                   <tr key={g.id}>
                     <td><strong>{g.number}</strong></td>
                     <td>{store.state.suppliers.find((s) => s.id === g.supplierId)?.name}</td>
@@ -607,18 +640,28 @@ export function GoodsOutModule({ store }: { store: TlbStoreApi }) {
                 <th>Reason</th>
                 <th>When</th>
                 <th>By</th>
+                <th />
               </tr>
             </thead>
             <tbody>
-              {store.state.stockIssues.length === 0 ? (
-                <tr><td colSpan={4}><EmptyState title="No issues yet" detail="Post a goods-out to create ledger rows." /></td></tr>
+              {notSoftDeleted(store.state.stockIssues).length === 0 ? (
+                <tr><td colSpan={5}><EmptyState title="No issues yet" detail="Post a goods-out to create ledger rows." /></td></tr>
               ) : (
-                store.state.stockIssues.map((i) => (
+                notSoftDeleted(store.state.stockIssues).map((i) => (
                   <tr key={i.id}>
                     <td><strong>{i.number}</strong></td>
                     <td>{i.reason}</td>
                     <td>{i.issuedAt.slice(0, 16).replace("T", " ")}</td>
                     <td>{i.issuedBy}</td>
+                    <td>
+                      <MoveToTrashButton
+                        store={store}
+                        entityType="stock_issue"
+                        entityId={i.id}
+                        recordLabel={i.number}
+                        variant="outline"
+                      />
+                    </td>
                   </tr>
                 ))
               )}
@@ -702,9 +745,10 @@ export function TransfersModule({ store }: { store: TlbStoreApi }) {
               </tr>
             </thead>
             <tbody>
-              {store.state.transfers.map((t) => {
+              {notSoftDeleted(store.state.transfers).map((t) => {
                 const from = store.state.warehouses.find((w) => w.id === t.fromWarehouseId)?.code;
                 const to = store.state.warehouses.find((w) => w.id === t.toWarehouseId)?.code;
+                const transferTrashBlock = trashBlockReason(store.state, "transfer", t.id);
                 return (
                   <tr key={t.id}>
                     <td><strong>{t.number}</strong></td>
@@ -727,6 +771,15 @@ export function TransfersModule({ store }: { store: TlbStoreApi }) {
                             Receive
                           </Button>
                         ) : null}
+                        <MoveToTrashButton
+                          store={store}
+                          entityType="transfer"
+                          entityId={t.id}
+                          recordLabel={t.number}
+                          variant="outline"
+                          disabled={Boolean(transferTrashBlock)}
+                          disabledReason={transferTrashBlock ?? undefined}
+                        />
                       </div>
                     </td>
                   </tr>
@@ -806,18 +859,28 @@ export function AdjustmentsModule({ store }: { store: TlbStoreApi }) {
                 <th>Kind</th>
                 <th>Status</th>
                 <th>By</th>
+                <th />
               </tr>
             </thead>
             <tbody>
-              {store.state.adjustments.length === 0 ? (
-                <tr><td colSpan={4}><EmptyState title="No adjustments" detail="Post a count or variance." /></td></tr>
+              {notSoftDeleted(store.state.adjustments).length === 0 ? (
+                <tr><td colSpan={5}><EmptyState title="No adjustments" detail="Post a count or variance." /></td></tr>
               ) : (
-                store.state.adjustments.map((a) => (
+                notSoftDeleted(store.state.adjustments).map((a) => (
                   <tr key={a.id}>
                     <td><strong>{a.number}</strong></td>
                     <td>{a.kind}</td>
                     <td><StatusBadge tone={statusTone(a.status)}>{a.status}</StatusBadge></td>
                     <td>{a.createdBy}</td>
+                    <td>
+                      <MoveToTrashButton
+                        store={store}
+                        entityType="adjustment"
+                        entityId={a.id}
+                        recordLabel={a.number}
+                        variant="outline"
+                      />
+                    </td>
                   </tr>
                 ))
               )}
@@ -999,7 +1062,7 @@ export function ApprovalsModule({ store }: { store: TlbStoreApi }) {
         </div>
       </div>
       <article className="tlb-panel tlb-orders-panel">
-        {store.state.approvals.length === 0 ? (
+        {notSoftDeleted(store.state.approvals).length === 0 ? (
           <EmptyState title="No approvals" detail="Approval requests will appear here." />
         ) : (
           <div className="tlb-table-scroll">
@@ -1014,7 +1077,7 @@ export function ApprovalsModule({ store }: { store: TlbStoreApi }) {
                 </tr>
               </thead>
               <tbody>
-                {store.state.approvals.map((a) => (
+                {notSoftDeleted(store.state.approvals).map((a) => (
                   <tr key={a.id}>
                     <td>
                       <strong>{a.title}</strong>
@@ -1024,18 +1087,27 @@ export function ApprovalsModule({ store }: { store: TlbStoreApi }) {
                     <td><StatusBadge tone={statusTone(a.status)}>{a.status}</StatusBadge></td>
                     <td>{a.requestedAt.slice(0, 10)} · {a.requestedBy}</td>
                     <td>
-                      {a.status === "Pending" ? (
-                        <div className="tlb-inline-actions compact">
-                          <Button type="button" variant="outline" onClick={() => store.decideApproval(a.id, "Approved")}>
-                            Approve
-                          </Button>
-                          <Button type="button" variant="outline" onClick={() => store.decideApproval(a.id, "Rejected")}>
-                            Reject
-                          </Button>
-                        </div>
-                      ) : (
-                        <span className="tlb-muted-line">{a.decidedBy ?? "—"}</span>
-                      )}
+                      <div className="tlb-inline-actions compact">
+                        {a.status === "Pending" ? (
+                          <>
+                            <Button type="button" variant="outline" onClick={() => store.decideApproval(a.id, "Approved")}>
+                              Approve
+                            </Button>
+                            <Button type="button" variant="outline" onClick={() => store.decideApproval(a.id, "Rejected")}>
+                              Reject
+                            </Button>
+                          </>
+                        ) : (
+                          <span className="tlb-muted-line">{a.decidedBy ?? "—"}</span>
+                        )}
+                        <MoveToTrashButton
+                          store={store}
+                          entityType="approval"
+                          entityId={a.id}
+                          recordLabel={a.title}
+                          variant="outline"
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))}

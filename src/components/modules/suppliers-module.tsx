@@ -26,7 +26,7 @@ import {
   resolveSelectionRange,
   selectionLabel,
 } from "@/lib/domain/period-range";
-import { formatMoney } from "@/lib/store/tlb-store";
+import { formatMoney, trashBlockReason } from "@/lib/store/tlb-store";
 import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
 
 const TERMS: PaymentTerms[] = ["COD", "Net 7", "Net 15", "Net 30", "Net 45", "Net 60"];
@@ -530,16 +530,16 @@ function SupplierDetailModule({
         payments: [] as typeof state.supplierPayments,
       };
     }
-    const purchaseOrders = state.supplierPurchaseOrders.filter(
+    const purchaseOrders = notSoftDeleted(state.supplierPurchaseOrders).filter(
       (po) => po.supplierId === selected.id && isoInRange(po.orderDate, range),
     );
-    const outstandingPos = state.supplierPurchaseOrders.filter(
+    const outstandingPos = notSoftDeleted(state.supplierPurchaseOrders).filter(
       (po) => po.supplierId === selected.id && OUTSTANDING_PO_STATUSES.has(po.status),
     );
-    const receipts = state.supplierReceipts.filter(
+    const receipts = notSoftDeleted(state.supplierReceipts).filter(
       (r) => r.supplierId === selected.id && isoInRange(r.receivedAt, range),
     );
-    const payments = state.supplierPayments.filter(
+    const payments = notSoftDeleted(state.supplierPayments).filter(
       (p) => p.supplierId === selected.id && isoInRange(p.paymentDate, range),
     );
     return { purchaseOrders, outstandingPos, receipts, payments };
@@ -802,10 +802,13 @@ function SupplierDetailModule({
                   <th>Value</th>
                   <th>Expected</th>
                   <th>Status</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
-                {supplierHistory.purchaseOrders.map((po) => (
+                {supplierHistory.purchaseOrders.map((po) => {
+                  const poTrashBlock = trashBlockReason(state, "supplier_po", po.id);
+                  return (
                   <tr key={po.id}>
                     <td>
                       <strong>{po.number}</strong>
@@ -816,8 +819,20 @@ function SupplierDetailModule({
                     <td>
                       <StatusBadge tone={statusTone(po.status)}>{po.status}</StatusBadge>
                     </td>
+                    <td>
+                      <MoveToTrashButton
+                        store={store}
+                        entityType="supplier_po"
+                        entityId={po.id}
+                        recordLabel={po.number}
+                        variant="outline"
+                        disabled={Boolean(poTrashBlock)}
+                        disabledReason={poTrashBlock ?? undefined}
+                      />
+                    </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -874,6 +889,7 @@ function SupplierDetailModule({
                   <th>Qty</th>
                   <th>Warehouse</th>
                   <th>Received</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -886,6 +902,15 @@ function SupplierDetailModule({
                     <td>{r.quantity ?? "—"}</td>
                     <td>{warehouseName(r.warehouseId)}</td>
                     <td>{new Date(r.receivedAt).toLocaleString()}</td>
+                    <td>
+                      <MoveToTrashButton
+                        store={store}
+                        entityType="supplier_receipt"
+                        entityId={r.id}
+                        recordLabel={r.number}
+                        variant="outline"
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -909,6 +934,7 @@ function SupplierDetailModule({
                   <th>Method</th>
                   <th>Amount</th>
                   <th>Date</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -920,6 +946,15 @@ function SupplierDetailModule({
                     <td>{p.method}</td>
                     <td>{formatMoney(p.amount)}</td>
                     <td>{new Date(p.paymentDate).toLocaleDateString()}</td>
+                    <td>
+                      <MoveToTrashButton
+                        store={store}
+                        entityType="supplier_payment"
+                        entityId={p.id}
+                        recordLabel={p.number}
+                        variant="outline"
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>

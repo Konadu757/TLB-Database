@@ -58,174 +58,167 @@ export function trashTypeLabel(entityType: TrashEntityType, module?: string): st
       return "Ops Request";
     case "ops_driver":
       return "Driver";
+    case "ops_discrepancy":
+      return "Ops Discrepancy";
+    case "ops_message":
+      return "Ops Message";
+    case "quotation":
+      return "Quotation";
+    case "invoice":
+      return "Invoice";
+    case "receipt":
+      return "Receipt";
+    case "payment":
+      return "Payment";
+    case "delivery":
+      return "Delivery";
+    case "goods_receipt":
+      return "Goods Receipt";
+    case "stock_issue":
+      return "Stock Issue";
+    case "transfer":
+      return "Transfer";
+    case "adjustment":
+      return "Adjustment";
+    case "batch":
+      return "Batch";
+    case "stock_movement":
+      return "Stock Movement";
+    case "supply":
+      return "Supply";
+    case "supplier_po":
+      return "Supplier PO";
+    case "supplier_receipt":
+      return "Supplier Receipt";
+    case "supplier_payment":
+      return "Supplier Payment";
+    case "approval":
+      return "Approval";
+    case "notification":
+      return "Notification";
     default:
       return entityType;
   }
+}
+
+function pushTrash(
+  items: TrashListItem[],
+  entityType: TrashEntityType,
+  entityId: string,
+  label: string,
+  meta: SoftDeleteFields,
+  subtitle?: string,
+): void {
+  if (!meta.deletedAt) return;
+  items.push({
+    id: `${entityType}:${entityId}`,
+    entityType,
+    entityId,
+    typeLabel: trashTypeLabel(entityType),
+    label,
+    ...(subtitle ? { subtitle } : {}),
+    deletedAt: meta.deletedAt,
+    deletedBy: meta.deletedBy ?? "—",
+    ...(meta.deletedReason ? { deletedReason: meta.deletedReason } : {}),
+  });
 }
 
 export function listTrashItems(state: TlbState): TrashListItem[] {
   const items: TrashListItem[] = [];
 
   for (const c of state.customers) {
-    if (!c.deletedAt) continue;
-    items.push({
-      id: `customer:${c.id}`,
-      entityType: "customer",
-      entityId: c.id,
-      typeLabel: "Customer",
-      label: `${c.code} · ${c.name}`,
-      subtitle: c.category,
-      deletedAt: c.deletedAt,
-      deletedBy: c.deletedBy ?? "—",
-      ...(c.deletedReason ? { deletedReason: c.deletedReason } : {}),
-    });
+    pushTrash(items, "customer", c.id, `${c.code} · ${c.name}`, c, c.category);
   }
-
   for (const s of state.suppliers) {
-    if (!s.deletedAt) continue;
-    items.push({
-      id: `supplier:${s.id}`,
-      entityType: "supplier",
-      entityId: s.id,
-      typeLabel: "Supplier",
-      label: `${s.code} · ${s.name}`,
-      subtitle: s.category,
-      deletedAt: s.deletedAt,
-      deletedBy: s.deletedBy ?? "—",
-      ...(s.deletedReason ? { deletedReason: s.deletedReason } : {}),
-    });
+    pushTrash(items, "supplier", s.id, `${s.code} · ${s.name}`, s, s.category);
   }
-
   for (const p of state.products) {
-    if (!p.deletedAt) continue;
-    items.push({
-      id: `product:${p.id}`,
-      entityType: "product",
-      entityId: p.id,
-      typeLabel: "Product",
-      label: `${p.sku} · ${p.name}`,
-      subtitle: p.category,
-      deletedAt: p.deletedAt,
-      deletedBy: p.deletedBy ?? "—",
-      ...(p.deletedReason ? { deletedReason: p.deletedReason } : {}),
-    });
+    pushTrash(items, "product", p.id, `${p.sku} · ${p.name}`, p, p.category);
   }
-
   for (const w of state.warehouses) {
-    if (!w.deletedAt) continue;
-    items.push({
-      id: `warehouse:${w.id}`,
-      entityType: "warehouse",
-      entityId: w.id,
-      typeLabel: "Warehouse",
-      label: `${w.code} · ${w.name}`,
-      subtitle: w.location,
-      deletedAt: w.deletedAt,
-      deletedBy: w.deletedBy ?? "—",
-      ...(w.deletedReason ? { deletedReason: w.deletedReason } : {}),
-    });
+    pushTrash(items, "warehouse", w.id, `${w.code} · ${w.name}`, w, w.location);
   }
-
   for (const o of state.orders) {
-    if (!o.deletedAt) continue;
     const customer = state.customers.find((c) => c.id === o.customerId);
-    items.push({
-      id: `order:${o.id}`,
-      entityType: "order",
-      entityId: o.id,
-      typeLabel: "Sales Order",
-      label: o.number,
-      subtitle: customer?.name ?? o.status,
-      deletedAt: o.deletedAt,
-      deletedBy: o.deletedBy ?? "—",
-      ...(o.deletedReason ? { deletedReason: o.deletedReason } : {}),
-    });
+    pushTrash(items, "order", o.id, o.number, o, customer?.name ?? o.status);
   }
-
   for (const r of state.customerReturns ?? []) {
-    if (!r.deletedAt) continue;
-    items.push({
-      id: `customer_return:${r.id}`,
-      entityType: "customer_return",
-      entityId: r.id,
-      typeLabel: "Customer Return",
-      label: r.number,
-      subtitle: r.disposition,
-      deletedAt: r.deletedAt,
-      deletedBy: r.deletedBy ?? "—",
-      ...(r.deletedReason ? { deletedReason: r.deletedReason } : {}),
-    });
+    pushTrash(items, "customer_return", r.id, r.number, r, r.disposition);
   }
   for (const r of state.supplierReturns ?? []) {
-    if (!r.deletedAt) continue;
-    items.push({
-      id: `supplier_return:${r.id}`,
-      entityType: "supplier_return",
-      entityId: r.id,
-      typeLabel: "Supplier Return",
-      label: r.number,
-      subtitle: r.status,
-      deletedAt: r.deletedAt,
-      deletedBy: r.deletedBy ?? "—",
-      ...(r.deletedReason ? { deletedReason: r.deletedReason } : {}),
-    });
+    pushTrash(items, "supplier_return", r.id, r.number, r, r.status);
   }
   for (const n of state.nonPoPurchases ?? []) {
-    if (!n.deletedAt) continue;
-    items.push({
-      id: `non_po_purchase:${n.id}`,
-      entityType: "non_po_purchase",
-      entityId: n.id,
-      typeLabel: "Non-PO Purchase",
-      label: n.number,
-      subtitle: n.reason,
-      deletedAt: n.deletedAt,
-      deletedBy: n.deletedBy ?? "—",
-      ...(n.deletedReason ? { deletedReason: n.deletedReason } : {}),
-    });
+    pushTrash(items, "non_po_purchase", n.id, n.number, n, n.reason);
   }
   for (const s of state.importShipments ?? []) {
-    if (!s.deletedAt) continue;
-    items.push({
-      id: `import_shipment:${s.id}`,
-      entityType: "import_shipment",
-      entityId: s.id,
-      typeLabel: "Import Shipment",
-      label: s.number,
-      subtitle: s.originCountry,
-      deletedAt: s.deletedAt,
-      deletedBy: s.deletedBy ?? "—",
-      ...(s.deletedReason ? { deletedReason: s.deletedReason } : {}),
-    });
+    pushTrash(items, "import_shipment", s.id, s.number, s, s.originCountry);
   }
   for (const s of state.exportShipments ?? []) {
-    if (!s.deletedAt) continue;
-    items.push({
-      id: `export_shipment:${s.id}`,
-      entityType: "export_shipment",
-      entityId: s.id,
-      typeLabel: "Export Shipment",
-      label: s.number,
-      subtitle: s.destinationCountry,
-      deletedAt: s.deletedAt,
-      deletedBy: s.deletedBy ?? "—",
-      ...(s.deletedReason ? { deletedReason: s.deletedReason } : {}),
-    });
+    pushTrash(items, "export_shipment", s.id, s.number, s, s.destinationCountry);
   }
-
   for (const d of state.opsDrivers ?? []) {
-    if (!d.deletedAt) continue;
-    items.push({
-      id: `ops_driver:${d.id}`,
-      entityType: "ops_driver",
-      entityId: d.id,
-      typeLabel: "Driver",
-      label: `${d.code} · ${d.name}`,
-      subtitle: d.vehicle ?? d.phone,
-      deletedAt: d.deletedAt,
-      deletedBy: d.deletedBy ?? "—",
-      ...(d.deletedReason ? { deletedReason: d.deletedReason } : {}),
-    });
+    pushTrash(items, "ops_driver", d.id, `${d.code} · ${d.name}`, d, d.vehicle ?? d.phone);
+  }
+  for (const r of state.opsRequests ?? []) {
+    pushTrash(items, "ops_request", r.id, r.number, r, `${r.title} · ${r.status}`);
+  }
+  for (const d of state.opsDiscrepancies ?? []) {
+    pushTrash(items, "ops_discrepancy", d.id, `${d.kind} × ${d.quantity}`, d, d.requestId);
+  }
+  for (const m of state.opsMessages ?? []) {
+    pushTrash(items, "ops_message", m.id, m.body.slice(0, 60) || m.id, m, m.actor);
+  }
+  for (const q of state.quotations ?? []) {
+    pushTrash(items, "quotation", q.id, q.number, q, q.customerName);
+  }
+  for (const i of state.invoices) {
+    pushTrash(items, "invoice", i.id, i.number, i, i.paymentStatus);
+  }
+  for (const r of state.receipts) {
+    pushTrash(items, "receipt", r.id, r.number, r, r.paymentMethod);
+  }
+  for (const p of state.payments) {
+    pushTrash(items, "payment", p.id, p.number, p, p.method);
+  }
+  for (const d of state.deliveries) {
+    pushTrash(items, "delivery", d.id, d.number, d, d.status);
+  }
+  for (const g of state.goodsReceipts ?? []) {
+    pushTrash(items, "goods_receipt", g.id, g.number, g, g.status);
+  }
+  for (const g of state.stockIssues ?? []) {
+    pushTrash(items, "stock_issue", g.id, g.number, g, g.reason);
+  }
+  for (const t of state.transfers ?? []) {
+    pushTrash(items, "transfer", t.id, t.number, t, t.status);
+  }
+  for (const a of state.adjustments ?? []) {
+    pushTrash(items, "adjustment", a.id, a.number, a, a.status);
+  }
+  for (const b of state.batches ?? []) {
+    pushTrash(items, "batch", b.id, b.code, b, b.status);
+  }
+  for (const m of state.stockMovements ?? []) {
+    pushTrash(items, "stock_movement", m.id, m.number, m, m.type);
+  }
+  for (const s of state.supplies) {
+    pushTrash(items, "supply", s.id, s.number, s, s.suppliedBy);
+  }
+  for (const p of state.supplierPurchaseOrders ?? []) {
+    pushTrash(items, "supplier_po", p.id, p.number, p, p.status);
+  }
+  for (const r of state.supplierReceipts ?? []) {
+    pushTrash(items, "supplier_receipt", r.id, r.number, r);
+  }
+  for (const p of state.supplierPayments ?? []) {
+    pushTrash(items, "supplier_payment", p.id, p.number, p, String(p.amount));
+  }
+  for (const a of state.approvals ?? []) {
+    pushTrash(items, "approval", a.id, a.title, a, a.status);
+  }
+  for (const n of state.notifications) {
+    pushTrash(items, "notification", n.id, n.title, n, n.type);
   }
 
   for (const d of state.catalogDeletions) {

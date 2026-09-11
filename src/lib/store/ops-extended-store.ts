@@ -342,6 +342,52 @@ export function createSupplierReturn(
   return { ok: true, data: { state: next, data: { returnId, number: row.number } } };
 }
 
+export function updateNonPoPurchase(
+  state: TlbState,
+  nonPoId: string,
+  input: {
+    reason?: string;
+    invoiceRef?: string;
+    receiptRef?: string;
+    notes?: string;
+  },
+): MutResult<{ nonPoId: string }> {
+  if (!hasPermission(state, "stock.receive") && !hasPermission(state, "approvals.manage") && !hasPermission(state, "records.edit")) {
+    return { ok: false, error: `Role ${state.currentRole} cannot edit Non-PO purchases.` };
+  }
+  const next = cloneState(state);
+  next.nonPoPurchases = next.nonPoPurchases ?? [];
+  const row = next.nonPoPurchases.find((n) => n.id === nonPoId);
+  if (!row || isSoftDeleted(row)) return { ok: false, error: "Non-PO purchase not found." };
+  if (row.status !== "Pending Approval") {
+    return {
+      ok: false,
+      error: `Only Pending Approval Non-PO requests can be edited (current: ${row.status}).`,
+    };
+  }
+  if (input.reason !== undefined) {
+    const reason = input.reason.trim();
+    if (!reason) return { ok: false, error: "Reason is required." };
+    row.reason = reason;
+  }
+  if (input.invoiceRef !== undefined) row.invoiceRef = input.invoiceRef.trim() || undefined;
+  if (input.receiptRef !== undefined) row.receiptRef = input.receiptRef.trim() || undefined;
+  if (input.notes !== undefined) row.notes = input.notes.trim() || undefined;
+  pushAudit(next, {
+    action: "non_po.updated",
+    entityType: "non_po_purchase",
+    entityId: row.id,
+    summary: `Updated Non-PO ${row.number} before approval.`,
+  });
+  pushAudit(next, {
+    action: "record.edited",
+    entityType: "non_po_purchase",
+    entityId: row.id,
+    summary: `Edited Non-PO ${row.number}.`,
+  });
+  return { ok: true, data: { state: next, data: { nonPoId: row.id } } };
+}
+
 export function createNonPoPurchase(
   state: TlbState,
   input: {
@@ -530,7 +576,13 @@ export function upsertImportShipment(
   let row: ImportShipment;
   if (input.id) {
     const existing = next.importShipments.find((s) => s.id === input.id);
-    if (!existing || isSoftDeleted(existing)) return { ok: false, error: "Import shipment not found." };
+    if (!existing || isSoftDeleted(existing)) return { ok: false, error: "Import shipment not found. Restore from trash first if deleted." };
+    if (existing.status === "Warehouse Received" || existing.status === "Cancelled") {
+      return {
+        ok: false,
+        error: `Cannot edit an import that is ${existing.status}.`,
+      };
+    }
     Object.assign(existing, {
       supplierId: input.supplierId,
       originCountry: input.originCountry,
@@ -665,7 +717,12 @@ export function upsertExportShipment(
   let row: ExportShipment;
   if (input.id) {
     const existing = next.exportShipments.find((s) => s.id === input.id);
-    if (!existing || isSoftDeleted(existing)) return { ok: false, error: "Export shipment not found." };
+    if (!existing || isSoftDeleted(existing)) {
+      return { ok: false, error: "Export shipment not found. Restore from trash first if deleted." };
+    }
+    if (existing.status === "Delivered" || existing.status === "Cancelled") {
+      return { ok: false, error: `Cannot edit an export that is ${existing.status}.` };
+    }
     Object.assign(existing, {
       customerId: input.customerId,
       destinationCountry: input.destinationCountry,

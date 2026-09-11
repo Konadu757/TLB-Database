@@ -122,6 +122,7 @@ export type Permission =
   | "trash.view"
   | "records.delete"
   | "trash.purge"
+  | "records.edit"
   | "ops.request"
   | "ops.approve"
   | "ops.warehouse"
@@ -194,8 +195,14 @@ export type AuditAction =
   | "customer.updated"
   | "supplier.created"
   | "supplier.updated"
+  | "product.created"
+  | "product.updated"
+  | "warehouse.created"
+  | "warehouse.updated"
   | "order.created"
+  | "order.updated"
   | "quotation.created"
+  | "quotation.updated"
   | "order.status_changed"
   | "order.confirmed"
   | "order.cancelled"
@@ -219,6 +226,7 @@ export type AuditAction =
   | "invoice.voided"
   | "receipt.created"
   | "delivery.created"
+  | "delivery.updated"
   | "delivery.status_changed"
   | "payment.recorded"
   | "settings.updated"
@@ -229,15 +237,19 @@ export type AuditAction =
   | "user.updated"
   | "user.role_assigned"
   | "session.user_switched"
+  | "record.edited"
   | "record.trashed"
   | "record.restored"
   | "record.purged"
   | "return.customer_created"
   | "return.supplier_created"
   | "non_po.created"
+  | "non_po.updated"
   | "non_po.status_changed"
   | "shipment.import_upserted"
   | "shipment.export_upserted"
+  | "driver.created"
+  | "driver.updated"
   | "ops.request_created"
   | "ops.request_submitted"
   | "ops.request_acknowledged"
@@ -276,7 +288,26 @@ export type TrashEntityType =
   | "import_shipment"
   | "export_shipment"
   | "ops_request"
-  | "ops_driver";
+  | "ops_driver"
+  | "ops_discrepancy"
+  | "ops_message"
+  | "quotation"
+  | "invoice"
+  | "receipt"
+  | "payment"
+  | "delivery"
+  | "goods_receipt"
+  | "stock_issue"
+  | "transfer"
+  | "adjustment"
+  | "batch"
+  | "stock_movement"
+  | "supply"
+  | "supplier_po"
+  | "supplier_receipt"
+  | "supplier_payment"
+  | "approval"
+  | "notification";
 
 /** Soft-deleted catalog (quotations / sandbox list) rows. */
 export interface CatalogDeletion {
@@ -363,8 +394,11 @@ export interface StockBalance {
   allocatedQty?: number;
 }
 
-/** Immutable stock movement ledger row. */
-export interface StockMovement {
+/**
+ * Stock movement ledger row.
+ * Soft-delete only hides from operational lists — purge is blocked to keep audit integrity.
+ */
+export interface StockMovement extends SoftDeleteFields {
   id: string;
   number: string;
   type: StockMovementType;
@@ -386,7 +420,7 @@ export interface StockMovement {
 }
 
 /** Batch / lot with remaining qty and recall timeline. */
-export interface BatchLot {
+export interface BatchLot extends SoftDeleteFields {
   id: string;
   code: string;
   productId: string;
@@ -421,7 +455,7 @@ export interface GoodsReceiptLine {
 }
 
 /** Full goods-in (GRN) — extends supplier receipt with QC / approval. */
-export interface GoodsReceiptNote {
+export interface GoodsReceiptNote extends SoftDeleteFields {
   id: string;
   number: string;
   supplierId: string;
@@ -450,7 +484,7 @@ export interface StockIssueLine {
   quantity: number;
 }
 
-export interface StockIssue {
+export interface StockIssue extends SoftDeleteFields {
   id: string;
   number: string;
   reason: StockIssueReason;
@@ -473,7 +507,7 @@ export interface WarehouseTransferLine {
   quantity: number;
 }
 
-export interface WarehouseTransfer {
+export interface WarehouseTransfer extends SoftDeleteFields {
   id: string;
   number: string;
   fromWarehouseId: string;
@@ -503,7 +537,7 @@ export interface StockAdjustmentLine {
   reason: string;
 }
 
-export interface StockAdjustment {
+export interface StockAdjustment extends SoftDeleteFields {
   id: string;
   number: string;
   status: AdjustmentStatus;
@@ -519,7 +553,7 @@ export interface StockAdjustment {
   requiresApproval: boolean;
 }
 
-export interface ApprovalRequest {
+export interface ApprovalRequest extends SoftDeleteFields {
   id: string;
   kind: ApprovalKind;
   status: ApprovalStatus;
@@ -579,7 +613,7 @@ export interface Supplier extends SoftDeleteFields {
 }
 
 /** Purchase order placed with a supplier (inbound procurement). */
-export interface SupplierPurchaseOrder {
+export interface SupplierPurchaseOrder extends SoftDeleteFields {
   id: string;
   number: string;
   supplierId: string;
@@ -593,7 +627,7 @@ export interface SupplierPurchaseOrder {
 }
 
 /** Goods receipt / stock intake linked to a supplier. */
-export interface SupplierStockReceipt {
+export interface SupplierStockReceipt extends SoftDeleteFields {
   id: string;
   number: string;
   supplierId: string;
@@ -606,7 +640,7 @@ export interface SupplierStockReceipt {
 }
 
 /** Outbound payment to a supplier. */
-export interface SupplierPayment {
+export interface SupplierPayment extends SoftDeleteFields {
   id: string;
   number: string;
   supplierId: string;
@@ -657,7 +691,7 @@ export interface CustomerPurchaseOrder extends SoftDeleteFields {
   createdBy: string;
 }
 
-export interface SupplyHeader {
+export interface SupplyHeader extends SoftDeleteFields {
   id: string;
   number: string;
   orderId: string;
@@ -711,7 +745,7 @@ export interface InvoiceLine {
   supplyLineId?: string;
 }
 
-export interface Invoice {
+export interface Invoice extends SoftDeleteFields {
   id: string;
   number: string;
   customerId: string;
@@ -743,7 +777,7 @@ export interface ReceiptLine {
   lineTotal: number;
 }
 
-export interface Receipt {
+export interface Receipt extends SoftDeleteFields {
   id: string;
   number: string;
   customerId: string;
@@ -768,7 +802,7 @@ export interface DeliveryItem {
   orderLineId?: string;
 }
 
-export interface Delivery {
+export interface Delivery extends SoftDeleteFields {
   id: string;
   number: string;
   customerId: string;
@@ -790,7 +824,7 @@ export interface Delivery {
   createdBy: string;
 }
 
-export interface Payment {
+export interface Payment extends SoftDeleteFields {
   id: string;
   number: string;
   customerId: string;
@@ -806,7 +840,7 @@ export interface Payment {
   createdAt: string;
 }
 
-export interface AppNotification {
+export interface AppNotification extends SoftDeleteFields {
   id: string;
   type: NotificationType;
   title: string;
@@ -1210,7 +1244,7 @@ export interface OpsRequest extends SoftDeleteFields {
   updatedAt: string;
 }
 
-export interface OpsRequestMessage {
+export interface OpsRequestMessage extends SoftDeleteFields {
   id: string;
   requestId: string;
   at: string;
@@ -1241,7 +1275,7 @@ export interface OpsCustodyEvent {
   holderName?: string | undefined;
 }
 
-export interface OpsDiscrepancy {
+export interface OpsDiscrepancy extends SoftDeleteFields {
   id: string;
   requestId: string;
   lineId: string;
@@ -1296,7 +1330,7 @@ export interface OpsActionItem {
 }
 
 /** User-created commercial quotations (unique TLB-QTE numbers). */
-export interface Quotation {
+export interface Quotation extends SoftDeleteFields {
   id: string;
   number: string;
   customerId?: string;

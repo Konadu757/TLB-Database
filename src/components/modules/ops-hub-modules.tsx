@@ -43,6 +43,7 @@ import type {
   OpsWarehouseAvailability,
 } from "@/lib/domain/types";
 import { findDriverBlockingAssignment, listDriverTodayJobs } from "@/lib/store/ops-hub-store";
+import { trashBlockReason } from "@/lib/store/tlb-store";
 import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
 
 function Flash({ error, notice, onClear }: { error: string | null; notice: string | null; onClear: () => void }) {
@@ -164,10 +165,11 @@ export function OpsRequestDetail({
 }) {
   const { state } = store;
   const lines = linesFor(store, request.id);
-  const messages = (state.opsMessages ?? []).filter((m) => m.requestId === request.id);
+  const messages = (state.opsMessages ?? []).filter((m) => m.requestId === request.id && !m.deletedAt);
   const activity = (state.opsActivity ?? []).filter((a) => a.requestId === request.id);
   const custody = (state.opsCustody ?? []).filter((c) => c.requestId === request.id);
-  const discrepancies = (state.opsDiscrepancies ?? []).filter((d) => d.requestId === request.id);
+  const discrepancies = (state.opsDiscrepancies ?? []).filter((d) => d.requestId === request.id && !d.deletedAt);
+  const requestTrashBlock = trashBlockReason(state, "ops_request", request.id);
 
   const [approvalNote, setApprovalNote] = useState("");
   const [lineApprovals, setLineApprovals] = useState<Record<string, number>>(() =>
@@ -199,6 +201,15 @@ export function OpsRequestDetail({
   const [vehicle, setVehicle] = useState(request.vehicle ?? "");
   const [chatBody, setChatBody] = useState("");
   const [cancelReason, setCancelReason] = useState("");
+  const [editingDraft, setEditingDraft] = useState(false);
+  const [draftForm, setDraftForm] = useState({
+    title: request.title,
+    destination: request.destination,
+    priority: request.priority,
+    priorityReason: request.priorityReason ?? "",
+    notes: request.notes ?? "",
+    neededBy: request.neededBy ?? "",
+  });
   const [reviewNotes, setReviewNotes] = useState<Record<string, { availability: OpsWarehouseAvailability; note: string; wh: string }>>(
     () =>
       Object.fromEntries(
@@ -268,6 +279,25 @@ export function OpsRequestDetail({
       flash={<Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />}
       actions={
         <div className="tlb-inline-actions">
+          {request.status === "Draft" && (store.can("ops.request") || store.can("ops.view")) ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setDraftForm({
+                  title: request.title,
+                  destination: request.destination,
+                  priority: request.priority,
+                  priorityReason: request.priorityReason ?? "",
+                  notes: request.notes ?? "",
+                  neededBy: request.neededBy ?? "",
+                });
+                setEditingDraft(true);
+              }}
+            >
+              Edit draft
+            </Button>
+          ) : null}
           {request.status === "Draft" ? (
             <Button type="button" onClick={() => store.submitOpsRequest(request.id)}>
               Submit
@@ -290,9 +320,103 @@ export function OpsRequestDetail({
               Cancel
             </Button>
           ) : null}
+          <MoveToTrashButton
+            store={store}
+            entityType="ops_request"
+            entityId={request.id}
+            recordLabel={request.number}
+            disabled={Boolean(requestTrashBlock)}
+            disabledReason={requestTrashBlock ?? undefined}
+            onTrashed={onBack}
+          />
         </div>
       }
     >
+      {editingDraft && request.status === "Draft" ? (
+        <article className="tlb-panel tlb-form-panel tlb-span-2">
+          <form
+            className="tlb-form-grid"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const ok = store.updateOpsDraft(request.id, {
+                title: draftForm.title,
+                destination: draftForm.destination,
+                priority: draftForm.priority,
+                priorityReason: draftForm.priorityReason || undefined,
+                notes: draftForm.notes || undefined,
+                neededBy: draftForm.neededBy || undefined,
+              });
+              if (ok) setEditingDraft(false);
+            }}
+          >
+            <div className="tlb-panel-heading">
+              <div>
+                <span>{request.number}</span>
+                <strong>Edit draft request</strong>
+              </div>
+              <button type="button" onClick={() => setEditingDraft(false)}>
+                Cancel
+              </button>
+            </div>
+            <label className="tlb-span-2">
+              Title
+              <input
+                required
+                value={draftForm.title}
+                onChange={(e) => setDraftForm((f) => ({ ...f, title: e.target.value }))}
+              />
+            </label>
+            <label className="tlb-span-2">
+              Destination
+              <input
+                required
+                value={draftForm.destination}
+                onChange={(e) => setDraftForm((f) => ({ ...f, destination: e.target.value }))}
+              />
+            </label>
+            <label>
+              Priority
+              <select
+                value={draftForm.priority}
+                onChange={(e) =>
+                  setDraftForm((f) => ({
+                    ...f,
+                    priority: e.target.value as typeof draftForm.priority,
+                  }))
+                }
+              >
+                <option value="Low">Low</option>
+                <option value="Normal">Normal</option>
+                <option value="High">High</option>
+                <option value="Critical">Critical</option>
+              </select>
+            </label>
+            <label>
+              Needed by
+              <input
+                type="date"
+                value={draftForm.neededBy.slice(0, 10)}
+                onChange={(e) => setDraftForm((f) => ({ ...f, neededBy: e.target.value }))}
+              />
+            </label>
+            <label className="tlb-span-2">
+              Priority reason
+              <input
+                value={draftForm.priorityReason}
+                onChange={(e) => setDraftForm((f) => ({ ...f, priorityReason: e.target.value }))}
+                placeholder="Required for Critical"
+              />
+            </label>
+            <label className="tlb-span-2">
+              Notes
+              <input value={draftForm.notes} onChange={(e) => setDraftForm((f) => ({ ...f, notes: e.target.value }))} />
+            </label>
+            <div className="tlb-form-actions tlb-span-2">
+              <Button type="submit">Save draft</Button>
+            </div>
+          </form>
+        </article>
+      ) : null}
       <RecordDetailSection tone="summary" kicker="Overview" title="Request summary" span2>
         <div className="tlb-customer-summary">
           <div className="tlb-customer-summary-tile--info">
@@ -849,11 +973,20 @@ export function OpsRequestDetail({
           </table>
         </div>
         {discrepancies.length > 0 ? (
-          <ul className="tlb-muted-line" style={{ padding: 12, margin: 0 }}>
+          <ul className="tlb-muted-line" style={{ padding: 12, margin: 0, listStyle: "none" }}>
             {discrepancies.map((d) => (
-              <li key={d.id}>
-                {d.kind} × {d.quantity} · {productLabel(store, d.productId)}
-                {d.resolvedAt ? " (resolved)" : ""}
+              <li key={d.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span>
+                  {d.kind} × {d.quantity} · {productLabel(store, d.productId)}
+                  {d.resolvedAt ? " (resolved)" : ""}
+                </span>
+                <MoveToTrashButton
+                  store={store}
+                  entityType="ops_discrepancy"
+                  entityId={d.id}
+                  recordLabel={`${d.kind} · ${request.number}`}
+                  variant="outline"
+                />
               </li>
             ))}
           </ul>
@@ -907,6 +1040,7 @@ export function OpsRequestDetail({
                     <th>When</th>
                     <th>Who</th>
                     <th>Message</th>
+                    <th />
                   </tr>
                 </thead>
                 <tbody>
@@ -918,6 +1052,15 @@ export function OpsRequestDetail({
                         <td>{m.actor}</td>
                         <td>
                           {m.chip ? <StatusBadge tone="info">{m.chip}</StatusBadge> : null} {m.body}
+                        </td>
+                        <td>
+                          <MoveToTrashButton
+                            store={store}
+                            entityType="ops_message"
+                            entityId={m.id}
+                            recordLabel={`Message · ${request.number}`}
+                            variant="outline"
+                          />
                         </td>
                       </tr>
                     ))}
@@ -1591,6 +1734,10 @@ function DriverDetailModule({
   onBack: () => void;
   onOpenRequest: (requestId: string) => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ code: "", name: "", phone: "", vehicle: "", notes: "", active: true });
+  const canEdit =
+    store.can("ops.dispatch") || store.can("delivery.manage") || store.can("records.edit") || store.can("settings.manage");
   const selected =
     (store.state.opsDrivers ?? []).find((d) => d.id === driverId && !isSoftDeleted(d)) ?? null;
 
@@ -1672,18 +1819,106 @@ function DriverDetailModule({
         </>
       }
       actions={
-        <MoveToTrashButton
-          store={store}
-          entityType="ops_driver"
-          entityId={selected.id}
-          recordLabel={`${selected.code} · ${selected.name}`}
-          disabled={Boolean(blocking)}
-          disabledReason={blockReason}
-          onTrashed={onBack}
-        />
+        !editing ? (
+          <>
+            {canEdit ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setForm({
+                    code: selected.code,
+                    name: selected.name,
+                    phone: selected.phone,
+                    vehicle: selected.vehicle ?? "",
+                    notes: selected.notes ?? "",
+                    active: selected.active,
+                  });
+                  setEditing(true);
+                }}
+              >
+                Edit driver
+              </Button>
+            ) : null}
+            <MoveToTrashButton
+              store={store}
+              entityType="ops_driver"
+              entityId={selected.id}
+              recordLabel={`${selected.code} · ${selected.name}`}
+              disabled={Boolean(blocking)}
+              disabledReason={blockReason}
+              onTrashed={onBack}
+            />
+          </>
+        ) : null
       }
       flash={<Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />}
     >
+      {editing ? (
+        <article className="tlb-panel tlb-form-panel tlb-span-2">
+          <form
+            className="tlb-form-grid"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const ok = store.saveOpsDriver({
+                id: selected.id,
+                code: form.code,
+                name: form.name,
+                phone: form.phone,
+                vehicle: form.vehicle || undefined,
+                notes: form.notes || undefined,
+                active: form.active,
+              });
+              if (ok) setEditing(false);
+            }}
+          >
+            <div className="tlb-panel-heading">
+              <div>
+                <span>{selected.code}</span>
+                <strong>Edit driver</strong>
+              </div>
+              <button type="button" onClick={() => setEditing(false)}>
+                Cancel
+              </button>
+            </div>
+            <label>
+              Code
+              <input required value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} />
+            </label>
+            <label>
+              Name
+              <input required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+            </label>
+            <label>
+              Phone
+              <input required value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+            </label>
+            <label>
+              Vehicle
+              <input value={form.vehicle} onChange={(e) => setForm((f) => ({ ...f, vehicle: e.target.value }))} />
+            </label>
+            <label>
+              Active
+              <select
+                value={form.active ? "yes" : "no"}
+                onChange={(e) => setForm((f) => ({ ...f, active: e.target.value === "yes" }))}
+              >
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </label>
+            <label className="tlb-span-2">
+              Notes
+              <input value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
+            </label>
+            <div className="tlb-form-actions tlb-span-2">
+              <Button type="submit">Save driver</Button>
+            </div>
+          </form>
+        </article>
+      ) : null}
+      {editing ? null : (
+      <>
       <RecordDetailSection tone="summary" kicker="Overview" title="Today's jobs" span2>
         <div className="tlb-customer-summary" aria-label="Driver today summary">
           <div className={todayJobs.length > 0 ? "tlb-customer-summary-tile--info" : "tlb-customer-summary-tile--muted"}>
@@ -1876,6 +2111,8 @@ function DriverDetailModule({
           </div>
         )}
       </RecordDetailSection>
+      </>
+      )}
     </RecordDetailPage>
   );
 }

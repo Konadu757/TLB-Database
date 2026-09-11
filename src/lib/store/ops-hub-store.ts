@@ -178,32 +178,60 @@ export function upsertOpsDriver(
     notes?: string | undefined;
   },
 ): MutResult<{ driverId: string }> {
-  const blocked = requireAny(state, ["ops.dispatch", "ops.view", "settings.manage", "delivery.manage"]);
+  const blocked = requireAny(state, ["ops.dispatch", "ops.view", "settings.manage", "delivery.manage", "records.edit"]);
   if (blocked) return { ok: false, error: blocked };
+  const code = input.code.trim();
+  const name = input.name.trim();
+  const phone = input.phone.trim();
+  if (!code) return { ok: false, error: "Driver code is required." };
+  if (!name) return { ok: false, error: "Driver name is required." };
+  if (!phone) return { ok: false, error: "Phone is required." };
+
   const next = cloneState(state);
   ensureOpsCollections(next);
   const id = input.id ?? uid("drv");
   const existing = next.opsDrivers.find((d) => d.id === id);
   if (existing) {
+    if (existing.deletedAt) {
+      return { ok: false, error: "Restore this driver from trash before editing." };
+    }
     Object.assign(existing, {
-      code: input.code.trim(),
-      name: input.name.trim(),
-      phone: input.phone.trim(),
+      code,
+      name,
+      phone,
       vehicle: input.vehicle?.trim(),
       active: input.active ?? existing.active,
       userId: input.userId,
       notes: input.notes,
     });
+    pushAudit(next, {
+      action: "driver.updated",
+      entityType: "ops_driver",
+      entityId: id,
+      summary: `Updated driver ${code} · ${name}.`,
+    });
+    pushAudit(next, {
+      action: "record.edited",
+      entityType: "ops_driver",
+      entityId: id,
+      summary: `Edited driver ${code}.`,
+    });
   } else {
     next.opsDrivers.push({
       id,
-      code: input.code.trim(),
-      name: input.name.trim(),
-      phone: input.phone.trim(),
+      code,
+      name,
+      phone,
       vehicle: input.vehicle?.trim(),
       active: input.active ?? true,
       userId: input.userId,
       notes: input.notes,
+    });
+    pushAudit(next, {
+      action: "driver.created",
+      entityType: "ops_driver",
+      entityId: id,
+      summary: `Created driver ${code} · ${name}.`,
     });
   }
   return { ok: true, data: { state: next, data: { driverId: id } } };
@@ -333,6 +361,7 @@ export function updateOpsRequestDraft(
   ensureOpsCollections(next);
   const req = getRequest(next, requestId);
   if (!req) return { ok: false, error: "Request not found." };
+  if (req.deletedAt) return { ok: false, error: "Restore this request from trash before editing." };
   if (req.status !== "Draft") return { ok: false, error: "Only draft requests can be edited." };
   if (input.priority === "Critical" && !(input.priorityReason ?? req.priorityReason)?.trim()) {
     return { ok: false, error: "Critical priority requires a reason." };
@@ -373,6 +402,13 @@ export function updateOpsRequestDraft(
   }
   touch(req, now);
   pushActivity(next, requestId, "updated", `Draft ${req.number} updated.`, undefined, now);
+  pushAudit(next, {
+    action: "record.edited",
+    entityType: "ops_request",
+    entityId: requestId,
+    summary: `Edited draft ops request ${req.number}.`,
+    at: now,
+  });
   return { ok: true, data: { state: next, data: { requestId } } };
 }
 

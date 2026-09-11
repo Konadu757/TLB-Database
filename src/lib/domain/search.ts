@@ -163,6 +163,7 @@ export function buildSearchIndex(state: TlbState): SearchDocument[] {
   }
 
   for (const inv of state.invoices) {
+    if (isSoftDeleted(inv)) continue;
     const cust = customerNames.get(inv.customerId) ?? "";
     push({
       kind: "Invoice",
@@ -185,6 +186,7 @@ export function buildSearchIndex(state: TlbState): SearchDocument[] {
   }
 
   for (const r of state.receipts) {
+    if (isSoftDeleted(r)) continue;
     const cust = customerNames.get(r.customerId) ?? "";
     push({
       kind: "Receipt",
@@ -205,6 +207,7 @@ export function buildSearchIndex(state: TlbState): SearchDocument[] {
   }
 
   for (const pay of state.payments) {
+    if (isSoftDeleted(pay)) continue;
     const cust = customerNames.get(pay.customerId) ?? "";
     push({
       kind: "Payment",
@@ -225,6 +228,7 @@ export function buildSearchIndex(state: TlbState): SearchDocument[] {
   }
 
   for (const d of state.deliveries) {
+    if (isSoftDeleted(d)) continue;
     const cust = customerNames.get(d.customerId) ?? "";
     push({
       kind: "Delivery",
@@ -290,6 +294,7 @@ export function buildSearchIndex(state: TlbState): SearchDocument[] {
   }
 
   for (const s of state.supplies) {
+    if (isSoftDeleted(s)) continue;
     push({
       kind: "Supply",
       id: s.id,
@@ -341,7 +346,7 @@ export function buildSearchIndex(state: TlbState): SearchDocument[] {
   }
 
   for (const g of state.goodsReceipts ?? []) {
-    const supplier = supplierNames.get(g.supplierId) ?? "";
+    if (isSoftDeleted(g)) continue;    const supplier = supplierNames.get(g.supplierId) ?? "";
     push({
       kind: "GRN",
       id: g.id,

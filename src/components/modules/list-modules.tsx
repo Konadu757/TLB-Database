@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { MoveToTrashButton } from "@/components/modules/move-to-trash-button";
 import {
   RecordBrowser,
+  RecordDetailPage,
   type BrowserColumn,
 } from "@/components/modules/record-browser";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,17 @@ function money(n: number): string {
   return `GHS ${n.toLocaleString("en-GH", { minimumFractionDigits: 2 })}`;
 }
 
+function Flash({ error, notice, onClear }: { error: string | null; notice: string | null; onClear: () => void }) {
+  if (!error && !notice) return null;
+  return (
+    <div className={`tlb-flash ${error ? "tlb-flash--error" : "tlb-flash--notice"}`} role="status">
+      <span>{error ?? notice}</span>
+      <button type="button" onClick={onClear}>Dismiss</button>
+    </div>
+  );
+}
+
+
 function CatalogModule({
   module,
   range,
@@ -48,6 +60,10 @@ function CatalogModule({
   toolbarExtra,
   listExtra,
   userQuotations,
+  selectedId: controlledSelectedId,
+  onSelect: controlledOnSelect,
+  onBack: controlledOnBack,
+  detailActions: customDetailActions,
 }: {
   module: string;
   range?: DateRange | null | undefined;
@@ -57,6 +73,10 @@ function CatalogModule({
   toolbarExtra?: ReactNode;
   listExtra?: ReactNode;
   userQuotations?: readonly Quotation[];
+  selectedId?: string | null;
+  onSelect?: (id: string) => void;
+  onBack?: () => void;
+  detailActions?: (row: CatalogRecord) => ReactNode;
 }) {
   const meta = MODULE_META[module] ?? {
     kicker: "TLB",
@@ -85,10 +105,19 @@ function CatalogModule({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- range object identity is unstable
     [module, range?.from, range?.to, hideIds, userQuotations],
   );
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-
-  const onSelect = useCallback((id: string) => setSelectedId(id), []);
-  const onBack = useCallback(() => setSelectedId(null), []);
+  const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null);
+  const selectedId = controlledSelectedId !== undefined ? controlledSelectedId : internalSelectedId;
+  const onSelect = useCallback(
+    (id: string) => {
+      if (controlledOnSelect) controlledOnSelect(id);
+      else setInternalSelectedId(id);
+    },
+    [controlledOnSelect],
+  );
+  const onBack = useCallback(() => {
+    if (controlledOnBack) controlledOnBack();
+    else setInternalSelectedId(null);
+  }, [controlledOnBack]);
 
   const columns: BrowserColumn<CatalogRecord>[] = listColumns ?? [
     {
@@ -137,15 +166,18 @@ function CatalogModule({
       {...(store
         ? {
             trash: { store, entityType: "catalog" as const },
-            detailActions: (row: CatalogRecord) => (
-              <MoveToTrashButton
-                store={store}
-                entityType="catalog"
-                entityId={row.id}
-                recordLabel={`${module} ${row.primary}`}
-                onTrashed={onBack}
-              />
-            ),
+            detailActions: (row: CatalogRecord) =>
+              customDetailActions ? (
+                customDetailActions(row)
+              ) : (
+                <MoveToTrashButton
+                  store={store}
+                  entityType="catalog"
+                  entityId={row.id}
+                  recordLabel={`${module} ${row.primary}`}
+                  onTrashed={onBack}
+                />
+              ),
           }
         : {})}
       detailSummary={(row) =>
@@ -227,6 +259,8 @@ export function QuotationsModule(props: CatalogModuleProps) {
   const onCreatingChange = props.onCreatingChange;
 
   const [creating, setCreating] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
   const [customerId, setCustomerId] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [contact, setContact] = useState("");
@@ -235,7 +269,10 @@ export function QuotationsModule(props: CatalogModuleProps) {
   const [unitPrice, setUnitPrice] = useState("0");
   const [paymentTerms, setPaymentTerms] = useState("Net 30");
   const [notes, setNotes] = useState("");
+  const [status, setStatus] = useState<"Draft" | "Sent">("Draft");
   const [previewNumber, setPreviewNumber] = useState<string | null>(null);
+  const canEdit = Boolean(store && (store.can("quotations.view") || store.can("records.edit")));
+  const editingQuote = editing && selectedId && store ? store.state.quotations.find((q) => q.id === selectedId) : null;
 
   const openCreate = useCallback(() => {
     setCreating(true);
@@ -277,14 +314,164 @@ export function QuotationsModule(props: CatalogModuleProps) {
 
   const customers = store ? notSoftDeleted(store.state.customers).filter((c) => c.active) : [];
 
+  if (editingQuote && store) {
+    return (
+      <RecordDetailPage
+        backLabel="Quotations"
+        onBack={() => setEditing(false)}
+        code={editingQuote.number}
+        title={editingQuote.number}
+        subtitle="Edit quotation"
+        flash={<Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />}
+      >
+        <article className="tlb-panel tlb-form-panel tlb-span-2">
+          <form
+            className="tlb-form-grid"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const ok = store.updateQuotation(editingQuote.id, {
+                customerName,
+                itemLabel,
+                qty: Number(qty),
+                unitPrice: Number(unitPrice),
+                paymentTerms,
+                status,
+                ...(customerId ? { customerId } : {}),
+                ...(contact.trim() ? { contact: contact.trim() } : {}),
+                ...(notes.trim() ? { notes: notes.trim() } : {}),
+              });
+              if (ok) setEditing(false);
+            }}
+          >
+            <div className="tlb-panel-heading">
+              <div>
+                <span>{editingQuote.number}</span>
+                <strong>Edit quotation</strong>
+              </div>
+              <button type="button" onClick={() => setEditing(false)}>Cancel</button>
+            </div>
+            <label>
+              Customer
+              <select
+                value={customerId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setCustomerId(id);
+                  const c = customers.find((row) => row.id === id);
+                  if (c) {
+                    setCustomerName(c.name);
+                    setContact([c.contactName, c.email].filter(Boolean).join(" · "));
+                    setPaymentTerms(c.paymentTerms || "Net 30");
+                  }
+                }}
+              >
+                <option value="">Custom / walk-in</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.code} · {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Customer name
+              <input required value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+            </label>
+            <label>
+              Contact
+              <input value={contact} onChange={(e) => setContact(e.target.value)} />
+            </label>
+            <label>
+              Payment terms
+              <input value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} />
+            </label>
+            <label>
+              Status
+              <select value={status} onChange={(e) => setStatus(e.target.value as "Draft" | "Sent")}>
+                <option value="Draft">Draft</option>
+                <option value="Sent">Sent</option>
+              </select>
+            </label>
+            <label className="tlb-span-2">
+              Item / description
+              <input required value={itemLabel} onChange={(e) => setItemLabel(e.target.value)} />
+            </label>
+            <label>
+              Qty
+              <input required type="number" min={0.01} step="any" value={qty} onChange={(e) => setQty(e.target.value)} />
+            </label>
+            <label>
+              Unit price (GHS)
+              <input required type="number" min={0} step="0.01" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} />
+            </label>
+            <label className="tlb-span-2">
+              Notes
+              <input value={notes} onChange={(e) => setNotes(e.target.value)} />
+            </label>
+            <div className="tlb-form-actions tlb-span-2">
+              <Button type="submit">Save quotation</Button>
+            </div>
+          </form>
+        </article>
+      </RecordDetailPage>
+    );
+  }
+
   return (
     <CatalogModule
       module="Quotations"
+      selectedId={selectedId}
+      onSelect={setSelectedId}
+      onBack={() => {
+        setSelectedId(null);
+        setEditing(false);
+      }}
+      detailActions={
+        store
+          ? (row) => {
+              const live = store.state.quotations.find((q) => q.id === row.id);
+              return (
+                <>
+                  {live && canEdit ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setCustomerId(live.customerId ?? "");
+                        setCustomerName(live.customerName);
+                        setContact(live.contact ?? "");
+                        setItemLabel(live.itemLabel);
+                        setQty(String(live.qty));
+                        setUnitPrice(String(live.unitPrice));
+                        setPaymentTerms(live.paymentTerms);
+                        setNotes(live.notes ?? "");
+                        setStatus(live.status);
+                        setEditing(true);
+                      }}
+                    >
+                      Edit quotation
+                    </Button>
+                  ) : null}
+                  <MoveToTrashButton
+                    store={store}
+                    entityType="quotation"
+                    entityId={row.id}
+                    recordLabel={`Quotations ${row.primary}`}
+                    onTrashed={() => {
+                      setSelectedId(null);
+                      setEditing(false);
+                    }}
+                  />
+                </>
+              );
+            }
+          : undefined
+      }
       listColumns={quotationColumns}
       {...(props.range !== undefined ? { range: props.range } : {})}
       {...(props.periodLabel !== undefined ? { periodLabel: props.periodLabel } : {})}
       {...(store ? { store } : {})}
-      {...(store ? { userQuotations: store.state.quotations } : {})}
+      {...(store ? { userQuotations: notSoftDeleted(store.state.quotations) } : {})}
       toolbarExtra={
         store ? (
           <Button type="button" onClick={() => (creating ? closeCreate() : openCreate())}>
@@ -668,14 +855,92 @@ export function ProductsModule({
   }, [state.products, state.stock, state.warehouses]);
 
   const [selectedId, setSelectedId] = useState<string | null>(focusId ?? null);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ sku: "", name: "", unit: "", category: "", active: true });
+  const canEdit = store.can("records.edit") || store.can("stock.view");
   useEffect(() => {
     if (!focusId) return;
     setSelectedId(focusId);
     onFocusConsumed?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-shot on focusId
   }, [focusId]);
-  const onSelect = useCallback((id: string) => setSelectedId(id), []);
-  const onBack = useCallback(() => setSelectedId(null), []);
+  const onSelect = useCallback((id: string) => {
+    setSelectedId(id);
+    setEditing(false);
+  }, []);
+  const onBack = useCallback(() => {
+    setSelectedId(null);
+    setEditing(false);
+  }, []);
+
+  const selectedProduct = selectedId ? state.products.find((p) => p.id === selectedId) : null;
+  if (selectedProduct && editing) {
+    return (
+      <RecordDetailPage
+        backLabel="Products"
+        onBack={() => setEditing(false)}
+        code={selectedProduct.sku}
+        title={selectedProduct.name}
+        subtitle="Edit product"
+        flash={<Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />}
+      >
+        <article className="tlb-panel tlb-form-panel tlb-span-2">
+          <form
+            className="tlb-form-grid"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const ok = store.saveProduct({
+                id: selectedProduct.id,
+                sku: form.sku,
+                name: form.name,
+                unit: form.unit,
+                category: form.category,
+                active: form.active,
+              });
+              if (ok) setEditing(false);
+            }}
+          >
+            <div className="tlb-panel-heading">
+              <div>
+                <span>{selectedProduct.sku}</span>
+                <strong>Edit product</strong>
+              </div>
+              <button type="button" onClick={() => setEditing(false)}>Cancel</button>
+            </div>
+            <label>
+              SKU
+              <input required value={form.sku} onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))} />
+            </label>
+            <label>
+              Name
+              <input required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+            </label>
+            <label>
+              Unit
+              <input required value={form.unit} onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))} />
+            </label>
+            <label>
+              Category
+              <input required value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} />
+            </label>
+            <label>
+              Active
+              <select
+                value={form.active ? "yes" : "no"}
+                onChange={(e) => setForm((f) => ({ ...f, active: e.target.value === "yes" }))}
+              >
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </label>
+            <div className="tlb-form-actions tlb-span-2">
+              <Button type="submit">Save product</Button>
+            </div>
+          </form>
+        </article>
+      </RecordDetailPage>
+    );
+  }
 
   const columns: BrowserColumn<ProductRow>[] = [
     { key: "sku", header: "SKU", className: "tlb-col-priority", render: (r) => <strong>{r.sku}</strong> },
@@ -724,13 +989,35 @@ export function ProductsModule({
       detailCode={(r) => r.sku}
       trash={{ store, entityType: "product" }}
       detailActions={(r) => (
-        <MoveToTrashButton
-          store={store}
-          entityType="product"
-          entityId={r.id}
-          recordLabel={`${r.sku} · ${r.name}`}
-          onTrashed={onBack}
-        />
+        <>
+          {canEdit ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                const p = state.products.find((x) => x.id === r.id);
+                if (!p) return;
+                setForm({
+                  sku: p.sku,
+                  name: p.name,
+                  unit: p.unit,
+                  category: p.category,
+                  active: p.active,
+                });
+                setEditing(true);
+              }}
+            >
+              Edit product
+            </Button>
+          ) : null}
+          <MoveToTrashButton
+            store={store}
+            entityType="product"
+            entityId={r.id}
+            recordLabel={`${r.sku} · ${r.name}`}
+            onTrashed={onBack}
+          />
+        </>
       )}
       detailSummary={(r) => [
         { label: "On hand", value: r.onHand, tileClass: "tlb-customer-summary-tile--info" },
@@ -810,14 +1097,87 @@ export function WarehousesModule({
   }, [state.warehouses, state.stock]);
 
   const [selectedId, setSelectedId] = useState<string | null>(focusId ?? null);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ code: "", name: "", location: "", active: true });
+  const canEdit = store.can("records.edit") || store.can("stock.view");
   useEffect(() => {
     if (!focusId) return;
     setSelectedId(focusId);
     onFocusConsumed?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-shot on focusId
   }, [focusId]);
-  const onSelect = useCallback((id: string) => setSelectedId(id), []);
-  const onBack = useCallback(() => setSelectedId(null), []);
+  const onSelect = useCallback((id: string) => {
+    setSelectedId(id);
+    setEditing(false);
+  }, []);
+  const onBack = useCallback(() => {
+    setSelectedId(null);
+    setEditing(false);
+  }, []);
+
+  const selectedWh = selectedId ? state.warehouses.find((w) => w.id === selectedId) : null;
+  if (selectedWh && editing) {
+    return (
+      <RecordDetailPage
+        backLabel="Warehouses"
+        onBack={() => setEditing(false)}
+        code={selectedWh.code}
+        title={selectedWh.name}
+        subtitle="Edit warehouse"
+        flash={<Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />}
+      >
+        <article className="tlb-panel tlb-form-panel tlb-span-2">
+          <form
+            className="tlb-form-grid"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const ok = store.saveWarehouse({
+                id: selectedWh.id,
+                code: form.code,
+                name: form.name,
+                location: form.location,
+                active: form.active,
+              });
+              if (ok) setEditing(false);
+            }}
+          >
+            <div className="tlb-panel-heading">
+              <div>
+                <span>{selectedWh.code}</span>
+                <strong>Edit warehouse</strong>
+              </div>
+              <button type="button" onClick={() => setEditing(false)}>Cancel</button>
+            </div>
+            <label>
+              Code
+              <input required value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} />
+            </label>
+            <label>
+              Name
+              <input required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+            </label>
+            <label className="tlb-span-2">
+              Location
+              <input required value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} />
+            </label>
+            <label>
+              Active
+              <select
+                value={form.active ? "yes" : "no"}
+                onChange={(e) => setForm((f) => ({ ...f, active: e.target.value === "yes" }))}
+              >
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </label>
+            <div className="tlb-form-actions tlb-span-2">
+              <Button type="submit">Save warehouse</Button>
+            </div>
+          </form>
+        </article>
+      </RecordDetailPage>
+    );
+  }
 
   return (
     <RecordBrowser
@@ -856,13 +1216,29 @@ export function WarehousesModule({
       detailCode={(r) => r.code}
       trash={{ store, entityType: "warehouse" }}
       detailActions={(r) => (
-        <MoveToTrashButton
-          store={store}
-          entityType="warehouse"
-          entityId={r.id}
-          recordLabel={`${r.code} · ${r.name}`}
-          onTrashed={onBack}
-        />
+        <>
+          {canEdit ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                const w = state.warehouses.find((x) => x.id === r.id);
+                if (!w) return;
+                setForm({ code: w.code, name: w.name, location: w.location, active: w.active });
+                setEditing(true);
+              }}
+            >
+              Edit warehouse
+            </Button>
+          ) : null}
+          <MoveToTrashButton
+            store={store}
+            entityType="warehouse"
+            entityId={r.id}
+            recordLabel={`${r.code} · ${r.name}`}
+            onTrashed={onBack}
+          />
+        </>
       )}
       detailSummary={(r) => [
         { label: "SKUs", value: r.skuCount, tileClass: "tlb-customer-summary-tile--info" },

@@ -16,6 +16,7 @@ import { MoveToTrashButton } from "@/components/modules/move-to-trash-button";
 import { Button } from "@/components/ui/button";
 import { calcAvailable, calcOutstanding, statusTone } from "@/lib/domain/calculations";
 import { isSoftDeleted, notSoftDeleted } from "@/lib/domain/trash";
+import { trashBlockReason } from "@/lib/store/tlb-store";
 import type {
   Customer,
   CustomerCategory,
@@ -540,7 +541,7 @@ function CustomerDetailModule({
       }));
     const orderById = new Map(state.orders.map((o) => [o.id, o]));
     const orderIds = new Set(orders.map((o) => o.order.id));
-    const supplies = state.supplies
+    const supplies = notSoftDeleted(state.supplies)
       .filter((s) => orderIds.has(s.orderId))
       .map((s) => ({
         id: s.id,
@@ -1526,7 +1527,8 @@ function OrderDetailModule({
 
   const customer = state.customers.find((c) => c.id === order.customerId);
   const lines = state.orderLines.filter((l) => l.orderId === order.id);
-  const supplies = state.supplies.filter((s) => s.orderId === order.id);
+  const supplies = notSoftDeleted(state.supplies).filter((s) => s.orderId === order.id);
+  const orderTrashBlock = trashBlockReason(state, "order", order.id);
   const audit = state.audit.filter(
     (a) =>
       a.entityId === order.id ||
@@ -1580,6 +1582,8 @@ function OrderDetailModule({
             entityType="order"
             entityId={order.id}
             recordLabel={order.number}
+            disabled={Boolean(orderTrashBlock)}
+            disabledReason={orderTrashBlock ?? undefined}
             onTrashed={onBack}
           />
         </>
