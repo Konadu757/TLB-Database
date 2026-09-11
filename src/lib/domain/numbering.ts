@@ -2,6 +2,29 @@ import type { DocumentCounters } from "./types";
 
 const pad = (n: number, width = 5) => String(n).padStart(width, "0");
 
+/**
+ * First commercial document sequence to issue (e.g. TLB-ORD-YYMM-00125).
+ * Counters store the last-used value, so floor them at START - 1.
+ */
+export const MATURE_SEQUENCE_START = 125;
+export const MATURE_SEQUENCE_FLOOR = MATURE_SEQUENCE_START - 1;
+
+/** Raise low commercial counters so the next number is at least MATURE_SEQUENCE_START. */
+export function floorMatureCommercialCounters(c: DocumentCounters): DocumentCounters {
+  const floor = (n: number | undefined) => Math.max(n ?? 0, MATURE_SEQUENCE_FLOOR);
+  return {
+    ...c,
+    order: floor(c.order),
+    supply: floor(c.supply),
+    invoice: floor(c.invoice),
+    receipt: floor(c.receipt),
+    delivery: floor(c.delivery),
+    payment: floor(c.payment),
+    quotation: floor(c.quotation),
+    opsRequest: floor(c.opsRequest),
+  };
+}
+
 export type DocumentKind =
   | "order"
   | "supply"

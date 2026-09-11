@@ -17,7 +17,7 @@ const THIS_YEAR = "2026-03-18T10:00:00.000Z";
 export function createSeedState(): TlbState {
   const roles = createSystemRoles();
   return {
-    version: 11,
+    version: 12,
     currentUserId: OWNER_USER_ID,
     currentUser: "TLB Owner",
     currentRoleId: SYSTEM_ROLE_IDS.Owner,
@@ -78,18 +78,18 @@ export function createSeedState(): TlbState {
     company: { ...DEFAULT_COMPANY },
     vatRates: DEFAULT_VAT.map((v) => ({ ...v })),
     counters: {
-      order: 5,
-      supply: 0,
+      order: 124,
+      supply: 124,
       customer: 3,
       supplier: 3,
       supplierPo: 5,
       supplierReceipt: 5,
       supplierPayment: 4,
-      invoice: 0,
-      receipt: 2,
-      delivery: 0,
-      payment: 5,
-      quotation: 0,
+      invoice: 124,
+      receipt: 124,
+      delivery: 124,
+      payment: 124,
+      quotation: 124,
       stockMovement: 6,
       stockIssue: 0,
       transfer: 1,
@@ -100,7 +100,7 @@ export function createSeedState(): TlbState {
       nonPoPurchase: 1,
       importShipment: 2,
       exportShipment: 1,
-      opsRequest: 0,
+      opsRequest: 124,
     },
     opsRequests: [],
     opsRequestLines: [],
@@ -1034,7 +1034,7 @@ export function createSeedState(): TlbState {
     orders: [
       {
         id: "ord-phase30",
-        number: "TLB-ORD-2609-00001",
+        number: "TLB-ORD-2609-00101",
         customerId: "cus-demo",
         customerPoNumber: "DCL-PO-8841",
         status: "Confirmed",
@@ -1048,7 +1048,7 @@ export function createSeedState(): TlbState {
       },
       {
         id: "ord-today",
-        number: "TLB-ORD-2609-00002",
+        number: "TLB-ORD-2609-00102",
         customerId: "cus-korle",
         customerPoNumber: "KV-PO-2201",
         status: "Confirmed",
@@ -1062,7 +1062,7 @@ export function createSeedState(): TlbState {
       },
       {
         id: "ord-week",
-        number: "TLB-ORD-2609-00003",
+        number: "TLB-ORD-2609-00103",
         customerId: "cus-apex",
         customerPoNumber: "AAL-PO-5510",
         status: "Ready for Supply",
@@ -1076,7 +1076,7 @@ export function createSeedState(): TlbState {
       },
       {
         id: "ord-quarter",
-        number: "TLB-ORD-2608-00004",
+        number: "TLB-ORD-2608-00104",
         customerId: "cus-korle",
         customerPoNumber: "KV-PO-2099",
         status: "Partially Supplied",
@@ -1090,7 +1090,7 @@ export function createSeedState(): TlbState {
       },
       {
         id: "ord-year",
-        number: "TLB-ORD-2603-00005",
+        number: "TLB-ORD-2603-00105",
         customerId: "cus-apex",
         customerPoNumber: "AAL-PO-4402",
         status: "Fully Supplied",
@@ -1189,7 +1189,7 @@ export function createSeedState(): TlbState {
     receipts: [
       {
         id: "rct-sep-cash",
-        number: "TLB-RCT-2609-00001",
+        number: "TLB-RCT-2609-00101",
         customerId: "cus-demo",
         orderId: "ord-phase30",
         receiptDate: EARLIER,
@@ -1203,7 +1203,7 @@ export function createSeedState(): TlbState {
       },
       {
         id: "rct-aug-covered",
-        number: "TLB-RCT-2608-00002",
+        number: "TLB-RCT-2608-00102",
         customerId: "cus-korle",
         orderId: "ord-quarter",
         receiptDate: THIS_QUARTER,
@@ -1222,7 +1222,7 @@ export function createSeedState(): TlbState {
     payments: [
       {
         id: "pay-today",
-        number: "TLB-PAY-2609-00001",
+        number: "TLB-PAY-2609-00101",
         customerId: "cus-korle",
         orderId: "ord-today",
         paymentDate: TODAY_AM,
@@ -1235,7 +1235,7 @@ export function createSeedState(): TlbState {
       },
       {
         id: "pay-week",
-        number: "TLB-PAY-2609-00002",
+        number: "TLB-PAY-2609-00102",
         customerId: "cus-apex",
         orderId: "ord-week",
         paymentDate: THIS_WEEK,
@@ -1248,7 +1248,7 @@ export function createSeedState(): TlbState {
       },
       {
         id: "pay-month",
-        number: "TLB-PAY-2609-00003",
+        number: "TLB-PAY-2609-00103",
         customerId: "cus-demo",
         orderId: "ord-phase30",
         paymentDate: EARLIER,
@@ -1261,7 +1261,7 @@ export function createSeedState(): TlbState {
       },
       {
         id: "pay-prev-month",
-        number: "TLB-PAY-2608-00004",
+        number: "TLB-PAY-2608-00104",
         customerId: "cus-korle",
         orderId: "ord-quarter",
         receiptId: "rct-aug-covered",
@@ -1275,7 +1275,7 @@ export function createSeedState(): TlbState {
       },
       {
         id: "pay-year",
-        number: "TLB-PAY-2603-00005",
+        number: "TLB-PAY-2603-00105",
         customerId: "cus-apex",
         orderId: "ord-year",
         paymentDate: THIS_YEAR,
@@ -1299,7 +1299,7 @@ export function createSeedState(): TlbState {
         action: "order.created",
         entityType: "customer_purchase_order",
         entityId: "ord-phase30",
-        summary: "Created customer order TLB-ORD-2609-00001 for Demo Chemical Labs.",
+        summary: "Created customer order TLB-ORD-2609-00101 for Demo Chemical Labs.",
       },
       {
         id: "aud-2",
@@ -1308,7 +1308,7 @@ export function createSeedState(): TlbState {
         action: "order.confirmed",
         entityType: "customer_purchase_order",
         entityId: "ord-phase30",
-        summary: "Confirmed TLB-ORD-2609-00001.",
+        summary: "Confirmed TLB-ORD-2609-00101.",
       },
     ],
   };

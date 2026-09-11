@@ -58,8 +58,8 @@ test("Today active orders only include same-day seed order", () => {
   const state = createSeedState();
   const today = buildDashboardSnapshot(state, "Today");
   assert(today.recentOrders.every((o) => o.orderDate === "2026-09-09"), "only today dates");
-  assert(today.recentOrders.some((o) => o.number === "TLB-ORD-2609-00002"), "includes today order");
-  assert(!today.recentOrders.some((o) => o.number === "TLB-ORD-2603-00005"), "excludes March order");
+  assert(today.recentOrders.some((o) => o.number === "TLB-ORD-2609-00102"), "includes today order");
+  assert(!today.recentOrders.some((o) => o.number === "TLB-ORD-2603-00105"), "excludes March order");
 });
 
 test("catalog modules filter by range (Today ≠ Year)", () => {

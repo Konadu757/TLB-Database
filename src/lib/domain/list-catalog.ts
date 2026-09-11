@@ -181,7 +181,7 @@ export const QUOTATION_RECORDS: CatalogRecord[] = [
       { label: "Valid until", value: "16 Sep 2026" },
       { label: "Prepared by", value: "TLB Owner" },
       { label: "Payment terms", value: "Net 30" },
-      { label: "Notes", value: "Accepted — convert to TLB-ORD-2609-00001 when stock clears." },
+      { label: "Notes", value: "Accepted — convert to TLB-ORD-2609-00101 when stock clears." },
     ],
     summary: [
       { label: "Total", value: money(16600), note: "ex-VAT" },
@@ -212,7 +212,7 @@ export const QUOTATION_RECORDS: CatalogRecord[] = [
       { label: "Contact", value: "Efua Boateng · orders@apexlabs.gh" },
       { label: "Quote date", value: "14 Aug 2026" },
       { label: "Valid until", value: "28 Aug 2026" },
-      { label: "Converted order", value: "TLB-ORD-2608-00004" },
+      { label: "Converted order", value: "TLB-ORD-2608-00104" },
       { label: "Payment terms", value: "Net 15" },
       { label: "Notes", value: "Converted to sales order; partial supply still open." },
     ],
@@ -224,7 +224,7 @@ export const QUOTATION_RECORDS: CatalogRecord[] = [
     ],
     lines: [{ id: "qtl-5", label: "Hydrochloric Acid 32%", qty: 40, amount: 25600, note: "CHEM-001" }],
     history: [
-      { id: "qth-6", at: THIS_QUARTER, label: "Converted", detail: "Linked to TLB-ORD-2608-00004" },
+      { id: "qth-6", at: THIS_QUARTER, label: "Converted", detail: "Linked to TLB-ORD-2608-00104" },
       { id: "qth-7", at: THIS_QUARTER, label: "Accepted", detail: "Verbal + email confirmation" },
     ],
   },
@@ -327,7 +327,7 @@ export const SANDBOX_RECORDS: CatalogRecord[] = [
       { label: "Warehouse", value: "Main Warehouse" },
       { label: "Original qty", value: "30 drums" },
       { label: "Closed", value: "18 Mar 2026" },
-      { label: "Notes", value: "Fully issued against TLB-ORD-2603-00005." },
+      { label: "Notes", value: "Fully issued against TLB-ORD-2603-00105." },
     ],
     summary: [
       { label: "Issued", value: "30" },
@@ -401,7 +401,7 @@ export const SANDBOX_RECORDS: CatalogRecord[] = [
     fields: [
       { label: "Type", value: "Issue" },
       { label: "Product", value: "Ethanol 96%" },
-      { label: "Order", value: "TLB-ORD-2608-00004" },
+      { label: "Order", value: "TLB-ORD-2608-00104" },
       { label: "Qty", value: "20 drums" },
       { label: "Warehouse", value: "Main Warehouse" },
     ],

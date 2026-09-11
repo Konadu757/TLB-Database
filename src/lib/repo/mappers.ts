@@ -34,6 +34,7 @@ import type {
   VatRate,
   Warehouse,
 } from "@/lib/domain/types";
+import { floorMatureCommercialCounters } from "@/lib/domain/numbering";
 
 type Tables = Database["public"]["Tables"];
 
@@ -684,8 +685,8 @@ export function countersFromRow(
   row: Tables["document_counters"]["Row"] | null,
   local: DocumentCounters,
 ): DocumentCounters {
-  if (!row) return local;
-  return {
+  if (!row) return floorMatureCommercialCounters(local);
+  return floorMatureCommercialCounters({
     ...local,
     order: row.order_seq,
     supply: row.supply_seq,
@@ -694,7 +695,7 @@ export function countersFromRow(
     receipt: row.receipt_seq,
     delivery: row.delivery_seq,
     payment: row.payment_seq,
-  };
+  });
 }
 
 export function countersToRow(c: DocumentCounters): Tables["document_counters"]["Insert"] {

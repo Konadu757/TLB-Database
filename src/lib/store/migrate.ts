@@ -17,6 +17,7 @@ import type {
   VatRate,
 } from "../domain/types";
 import { DEFAULT_INVENTORY_SETTINGS } from "../domain/inventory";
+import { MATURE_SEQUENCE_FLOOR, floorMatureCommercialCounters } from "../domain/numbering";
 import { createSeedState } from "./seed";
 
 const DEFAULT_COMPANY: CompanyProfile = {
@@ -46,18 +47,18 @@ const DEFAULT_AGEING: AgeingSettings = {
 };
 
 const DEFAULT_COUNTERS: DocumentCounters = {
-  order: 0,
-  supply: 0,
+  order: MATURE_SEQUENCE_FLOOR,
+  supply: MATURE_SEQUENCE_FLOOR,
   customer: 0,
   supplier: 0,
   supplierPo: 0,
   supplierReceipt: 0,
   supplierPayment: 0,
-  invoice: 0,
-  receipt: 0,
-  delivery: 0,
-  payment: 0,
-  quotation: 0,
+  invoice: MATURE_SEQUENCE_FLOOR,
+  receipt: MATURE_SEQUENCE_FLOOR,
+  delivery: MATURE_SEQUENCE_FLOOR,
+  payment: MATURE_SEQUENCE_FLOOR,
+  quotation: MATURE_SEQUENCE_FLOOR,
   stockMovement: 0,
   stockIssue: 0,
   transfer: 0,
@@ -68,7 +69,7 @@ const DEFAULT_COUNTERS: DocumentCounters = {
   nonPoPurchase: 0,
   importShipment: 0,
   exportShipment: 0,
-  opsRequest: 0,
+  opsRequest: MATURE_SEQUENCE_FLOOR,
 };
 
 function defaultUsers(roles: RoleDefinition[]): AppUser[] {
@@ -236,7 +237,7 @@ export function migrateState(raw: unknown): TlbState {
   };
 
   const next: TlbState = {
-    version: 11,
+    version: 12,
     warehouses: needsOpsHubSeed
       ? mergeById(parsed.warehouses?.length ? parsed.warehouses : seed.warehouses, seed.warehouses)
       : parsed.warehouses?.length
@@ -334,7 +335,7 @@ export function migrateState(raw: unknown): TlbState {
     notifications: parsed.notifications ?? [],
     reservations: parsed.reservations ?? [],
     audit: parsed.audit ?? [],
-    counters: {
+    counters: floorMatureCommercialCounters({
       ...(needsCollectionSeed || needsPeriodSpanSeed
         ? {
             ...counters,
@@ -370,7 +371,7 @@ export function migrateState(raw: unknown): TlbState {
         : {}),
       opsRequest: Math.max(counters.opsRequest ?? 0, seed.counters.opsRequest ?? 0),
       quotation: Math.max(counters.quotation ?? 0, seed.counters.quotation ?? 0, parsed.quotations?.length ?? 0),
-    },
+    }),
     ageing,
     company: parsed.company ?? DEFAULT_COMPANY,
     vatRates: parsed.vatRates?.length ? parsed.vatRates : DEFAULT_VAT,
