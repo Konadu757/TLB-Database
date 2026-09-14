@@ -208,7 +208,7 @@
 @utility tabular { font-variant-numeric: tabular-nums; }
 
 .tlb-app-shell { min-height: 100%; display: flex; background: #ffffff !important; background-color: #ffffff !important; }
-.tlb-sidebar { width: 248px; height: 100vh; display: flex; flex-direction: column; background: var(--sidebar); color: var(--sidebar-foreground); border-right: 1px solid var(--sidebar-border); transition: width 180ms ease; overflow: hidden; }
+.tlb-sidebar { width: 248px; height: 100vh; display: flex; flex-direction: column; background: var(--sidebar); color: var(--sidebar-foreground); border-right: 1px solid var(--sidebar-border); border-radius: var(--radius-2xl); transition: width 180ms ease; overflow: hidden; }
 .tlb-sidebar-collapsed { width: 68px; }
 .tlb-brand {
   min-height: 82px;
@@ -399,7 +399,7 @@
     left: auto;
   }
 }
-.tlb-header { height: 64px; display: flex; align-items: center; gap: 18px; padding: 0 28px; position: sticky; top: 0; z-index: 60; overflow: visible; background: #ffffff !important; background-color: #ffffff !important; border-bottom: 1px solid var(--border); }
+.tlb-header { height: 64px; display: flex; align-items: center; gap: 18px; padding: 0 28px; position: sticky; top: 0; z-index: 60; overflow: visible; background: #ffffff !important; background-color: #ffffff !important; border-bottom: 1px solid var(--border); border-radius: var(--radius-2xl); }
 .tlb-header-back-slot {
   flex: none;
   display: flex;
