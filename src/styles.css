@@ -741,7 +741,8 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   display: block;
   margin-top: auto;
   margin-bottom: auto;
-  font-size: clamp(1.125rem, 2.4vw, 1.5rem);
+  font-family: var(--font-display);
+  font-size: clamp(1.25rem, 2.6vw, 1.625rem);
   font-weight: 700;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;

@@ -1472,7 +1472,7 @@ function TLBDashboardInner() {
                     <ChevronRight />
                   </button>
                 </div>
-                <strong className="tlb-metric-value">{metric.value}</strong>
+                <strong className="tlb-metric-value font-display">{metric.value}</strong>
                 <p className={metric.trend === "up" ? "metric-positive" : metric.trend === "down" ? "metric-negative" : ""}>
                   {metric.trend === "up" && <ArrowUpRight />}
                   {metric.trend === "down" && <ArrowDownRight />}
