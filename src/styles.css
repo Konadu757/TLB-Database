@@ -338,6 +338,11 @@
 .tlb-nav-item:hover { background: color-mix(in oklab, var(--sidebar-accent) 68%, transparent); color: var(--sidebar-accent-foreground); }
 .tlb-nav-item svg { width: 17px; height: 17px; flex: none; }
 .tlb-nav-active { background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); }
+/* Selected: gold icon only; label keeps accent-foreground / white from rules above */
+.tlb-nav-active svg,
+.tlb-nav-group-items .tlb-nav-item.tlb-nav-active svg {
+  color: var(--brand-gold);
+}
 .tlb-nav-badge { margin-left: auto; min-width: 20px; padding: 1px 5px; border-radius: 4px; background: color-mix(in oklab, var(--brand-gold) 18%, transparent); color: var(--brand-gold); font-size: 11.6875px; text-align: center; }
 .tlb-sidebar-collapsed .tlb-nav-group-toggle { display: none; }
 .tlb-sidebar-collapsed .tlb-nav-group-items,
