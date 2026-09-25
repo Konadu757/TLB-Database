@@ -111,7 +111,6 @@ import {
 } from "@/components/modules/p1-modules";
 import { NotificationsModule } from "@/components/modules/notifications-module";
 import { TrashModule } from "@/components/modules/trash-module";
-import { DueAwarenessPanel } from "@/components/due-awareness-panel";
 import { Button } from "@/components/ui/button";
 import { buildDashboardSnapshot } from "@/lib/domain/dashboard-metrics";
 import { listVisibleNotifications } from "@/lib/domain/notifications";
@@ -137,6 +136,17 @@ import { cn } from "@/lib/utils";
 function countBadgeLabel(count: number): string | undefined {
   if (count <= 0) return undefined;
   return count > 99 ? "99+" : String(count);
+}
+
+function metricIconForLabel(label: string): typeof LayoutDashboard {
+  const key = label.toLowerCase();
+  if (key.includes("collect") || key.includes("sales")) return CircleDollarSign;
+  if (key.includes("inventory")) return Boxes;
+  if (key.includes("receivable")) return Receipt;
+  if (key.includes("order")) return ShoppingCart;
+  if (key.includes("import")) return Ship;
+  if (key.includes("production")) return Factory;
+  return Gauge;
 }
 
 type NavItem = { label: string; icon: typeof LayoutDashboard; badge?: string };
@@ -1443,10 +1453,17 @@ function TLBDashboardInner() {
           ) : (
             <>
           <section className="tlb-metrics" aria-label="Key performance indicators">
-            {dash.metrics.map((metric) => (
+            {dash.metrics.map((metric) => {
+              const MetricIcon = metricIconForLabel(metric.label);
+              return (
               <article className="tlb-metric" key={metric.label}>
                 <div className="tlb-metric-label">
-                  <span>{metric.label}</span>
+                  <div className="tlb-metric-heading">
+                    <span className="tlb-metric-icon" aria-hidden="true">
+                      <MetricIcon />
+                    </span>
+                    <span className="tlb-metric-title">{metric.label}</span>
+                  </div>
                   <button
                     type="button"
                     aria-label={`Open ${metric.label}`}
@@ -1455,23 +1472,16 @@ function TLBDashboardInner() {
                     <ChevronRight />
                   </button>
                 </div>
-                <strong>{metric.value}</strong>
+                <strong className="tlb-metric-value">{metric.value}</strong>
                 <p className={metric.trend === "up" ? "metric-positive" : metric.trend === "down" ? "metric-negative" : ""}>
                   {metric.trend === "up" && <ArrowUpRight />}
                   {metric.trend === "down" && <ArrowDownRight />}
                   {metric.note}
                 </p>
               </article>
-            ))}
+              );
+            })}
           </section>
-
-          <DueAwarenessPanel
-            state={store.state}
-            outstanding={store.outstanding}
-            onNavigate={(nav, orderId, productId, customerId, supplierId, opsRequestId) => {
-              openLiveModule(nav, orderId, productId, customerId, supplierId, opsRequestId);
-            }}
-          />
 
           <section className="tlb-dashboard-grid">
             <article className="tlb-panel tlb-sales-panel">
