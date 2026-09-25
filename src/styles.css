@@ -825,11 +825,14 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-metric-title {
   min-width: 0;
   color: color-mix(in oklab, var(--foreground) 72%, #523784);
-  font-size: 0.875rem; /* sm */
+  font-size: 0.6875rem;
   line-height: 1.2;
   font-weight: 500;
   text-transform: none;
   letter-spacing: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .tlb-metric-label button {
   flex: none;
@@ -847,12 +850,15 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   margin-top: auto;
   margin-bottom: auto;
   font-family: var(--font-display);
-  font-size: clamp(1.125rem, 2.2vw, 1.375rem);
+  font-size: 1.25rem;
   font-weight: 700;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
   color: var(--foreground);
-  word-break: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 .tlb-metric > p {
   flex: none;
@@ -869,11 +875,11 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-metric .metric-positive { color: var(--success); }
 .tlb-metric .metric-negative { color: var(--danger); }
 .tlb-dashboard-grid { margin-top: 14px; display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, .9fr); gap: 14px; }
-/* Needs attention — 2-row summary (~120px); click opens Notifications */
+/* Needs attention — compact 2-row summary; click opens Notifications */
 .tlb-due-panel--summary {
   margin-top: 14px;
   width: 100%;
-  height: 120px;
+  height: auto;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -893,7 +899,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-due-panel-title {
   flex: none;
   display: block;
-  padding: 12px 18px 8px;
+  padding: 8px 14px 4px;
   color: var(--muted-foreground);
   font-size: 0.6875rem;
   font-weight: 700;
@@ -902,34 +908,38 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   line-height: 1.2;
 }
 .tlb-due-panel-body {
-  flex: 1;
-  min-height: 0;
+  flex: none;
+  min-width: 0;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-  margin: 0 10px 10px;
-  padding: 12px 14px;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 8px 8px;
+  padding: 8px 12px;
   border-radius: var(--radius-sm);
   background: color-mix(in oklab, var(--info-muted) 70%, var(--cream-light));
+  overflow: hidden;
 }
 .tlb-due-panel--has-overdue .tlb-due-panel-body {
   background: color-mix(in oklab, var(--danger-muted) 35%, var(--cream-light));
 }
 .tlb-due-panel-total {
-  font-size: 1.25rem;
+  flex: none;
+  font-size: 1rem;
   font-weight: 700;
-  line-height: 1.15;
+  line-height: 1.2;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .tlb-due-panel-summary {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--muted-foreground);
   font-size: 0.8125rem;
-  line-height: 1.35;
+  line-height: 1.2;
 }
 .tlb-panel { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-md); background: #ffffff; box-shadow: var(--tlb-shadow); overflow: hidden; transition: box-shadow 180ms ease; }
 .tlb-panel:hover { box-shadow: var(--tlb-shadow-hover); }
