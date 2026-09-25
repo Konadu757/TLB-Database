@@ -1,3 +1,18 @@
+/* Self-hosted web fonts — only DM Sans, Cormorant Garamond, JetBrains Mono */
+@import "@fontsource/dm-sans/400.css";
+@import "@fontsource/dm-sans/500.css";
+@import "@fontsource/dm-sans/600.css";
+@import "@fontsource/dm-sans/700.css";
+@import "@fontsource/dm-sans/400-italic.css";
+@import "@fontsource/dm-sans/500-italic.css";
+@import "@fontsource/cormorant-garamond/500.css";
+@import "@fontsource/cormorant-garamond/600.css";
+@import "@fontsource/cormorant-garamond/700.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+@import "@fontsource/jetbrains-mono/600.css";
+@import "@fontsource/jetbrains-mono/700.css";
+
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
@@ -71,8 +86,8 @@
   --color-brand-gold: var(--brand-gold);
   --color-brand-gold-muted: var(--brand-gold-muted);
   --font-sans: "DM Sans", system-ui, sans-serif;
-  --font-display: "Cormorant Garamond", Georgia, serif;
-  --font-mono: "JetBrains Mono", monospace;
+  --font-display: "Cormorant Garamond", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
 :root {
@@ -185,6 +200,7 @@
     background: #ffffff !important;
     background-color: #ffffff !important;
     font-size: var(--font-size-root);
+    font-family: var(--font-sans);
   }
 
   body {
@@ -205,9 +221,9 @@
     min-height: 100%;
   }
 
-  button, input, select { font: inherit; }
+  button, input, select, textarea { font: inherit; font-family: inherit; }
   button { cursor: pointer; }
-  button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 }
 
 @utility tabular { font-variant-numeric: tabular-nums; }
@@ -219,6 +235,19 @@
 .font-mono,
 .tlb-mono {
   font-family: var(--font-mono);
+}
+
+/* App chrome inherits DM Sans — never serif on general UI */
+.tlb-app-shell,
+.tlb-sidebar,
+.tlb-main,
+.tlb-header,
+.tlb-content,
+.tlb-panel,
+.tlb-nav-group,
+.tlb-table,
+table.tlb-table {
+  font-family: var(--font-sans);
 }
 
 /* Shell chrome: sidebar + header as standalone rounded panels with visible gaps */
@@ -301,7 +330,23 @@
   overflow-y: auto;
   padding: 13px 10px;
   padding-bottom: 25px;
+  /* Custom thin scrollbar — light brand purple (#523784 family) */
   scrollbar-width: thin;
+  scrollbar-color: #a894c4 color-mix(in oklab, #523784 22%, transparent);
+}
+.tlb-nav::-webkit-scrollbar {
+  width: 7px;
+}
+.tlb-nav::-webkit-scrollbar-track {
+  background: color-mix(in oklab, #523784 22%, transparent);
+  border-radius: 999px;
+}
+.tlb-nav::-webkit-scrollbar-thumb {
+  background: #a894c4;
+  border-radius: 999px;
+}
+.tlb-nav::-webkit-scrollbar-thumb:hover {
+  background: #b8a6d0;
 }
 .tlb-nav-group + .tlb-nav-group { margin-top: 8px; }
 .tlb-nav-group-toggle {
