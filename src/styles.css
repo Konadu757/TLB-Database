@@ -449,7 +449,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-avatar { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: var(--primary); color: var(--primary-foreground); font-size: 0.75rem; font-weight: 700; }
 .tlb-user-copy { display: flex; flex-direction: column; }.tlb-user-copy strong { font-size: 0.8125rem; }.tlb-user-copy span { margin-top: 1px; color: var(--muted-foreground); font-size: 0.6875rem; }.tlb-user > svg { width: 14px; }
 .tlb-mobile-menu { display: none; }
-.tlb-content { max-width: 1580px; margin: 0 auto; padding: 24px 28px 44px; background: #ffffff !important; background-color: #ffffff !important; }
+.tlb-content { max-width: 1580px; margin: 0 auto; padding: 24px 28px 44px; background: transparent; background-color: transparent; }
 .tlb-breadcrumb { display: flex; align-items: center; gap: 6px; color: var(--muted-foreground); font-size: 0.75rem; }.tlb-breadcrumb svg { width: 12px; }.tlb-breadcrumb span:last-child { color: var(--foreground); }
 .tlb-page-heading { margin-top: 13px; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; position: relative; z-index: 40; overflow: visible; }
 /* Quick-action / page-heading menus must stack above sticky .tlb-filter-bar (z-index 50). */
