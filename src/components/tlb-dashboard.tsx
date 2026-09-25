@@ -896,6 +896,11 @@ function TLBDashboardInner() {
             <Menu />
           </Button>
           <HeaderDetailBack />
+          {showPeriodBar && !detailOpen && (
+            <p className="tlb-header-context" title={`Wednesday, 09 September 2026 · ${periodCaption} · ${warehouse}`}>
+              Wednesday, 09 September 2026 · {periodCaption} · {warehouse}
+            </p>
+          )}
           <div className="tlb-header-actions">
             <div className="tlb-popover-wrap tlb-global-search-wrap" ref={searchWrapRef}>
               <label className={cn("tlb-global-search", searchOpen && "tlb-global-search-active")}>
@@ -1121,7 +1126,6 @@ function TLBDashboardInner() {
           {!detailOpen && (
           <div className={cn("tlb-page-heading", quickOpen && "tlb-page-heading--overlay-open")}>
             <div>
-              <p className="tlb-eyebrow">Wednesday, 09 September 2026 · {periodCaption} · {warehouse}</p>
               <h1>{activeNav === "Dashboard" ? `Good evening, ${firstName(store.state.currentUser)}` : activeNav}</h1>
               {activeNav !== "Dashboard" && (
                 <p>{MODULE_BLURBS[activeNav] ?? "Operational records for this module."}</p>
