@@ -473,30 +473,31 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  background: var(--cream);
-  background-color: var(--cream);
-  border-radius: var(--radius-md);
-  box-shadow:
-    var(--tlb-shadow),
-    0 -12px 0 0 #ffffff;
+  padding: 10px 0;
+  border: none;
+  /* Match .tlb-main grey — no cream/white panel or top white strip */
+  background: #F3F4F6;
+  background-color: #F3F4F6;
+  border-radius: 0;
+  box-shadow: none;
   position: sticky;
   top: 64px;
   z-index: 50;
-  transition: box-shadow 180ms ease;
 }
 .tlb-filter-bar:hover {
-  box-shadow:
-    var(--tlb-shadow-hover),
-    0 -12px 0 0 #ffffff;
+  box-shadow: none;
 }
 /* Module-local chip bars (Outstanding / Reports tabs) stay in document flow. */
 .tlb-module-filters {
   margin-top: 0;
+  padding: 10px 12px;
   position: static;
   top: auto;
   z-index: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--cream);
+  background-color: var(--cream);
   box-shadow: var(--tlb-shadow);
 }
 .tlb-module-filters:hover {
