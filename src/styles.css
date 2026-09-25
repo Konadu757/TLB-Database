@@ -626,7 +626,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   color: var(--foreground);
 }
 .tlb-periods button.active {
-  background: var(--sidebar);
+  background: color-mix(in oklab, var(--sidebar) 78%, white);
   color: var(--cream);
   border-color: transparent;
   font-weight: 700;
