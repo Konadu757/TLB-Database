@@ -294,7 +294,8 @@ table.tlb-table,
   gap: 10px;
   padding: 12px 14px;
   background: var(--cream-light);
-  border: 1px solid var(--sidebar);
+  border: 0;
+  border-radius: 22px 22px 0 0;
 }
 .tlb-brand-mark {
   flex: none;
