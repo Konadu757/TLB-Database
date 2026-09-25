@@ -5,8 +5,33 @@ import { Button } from "@/components/ui/button";
 import { statusTone } from "@/lib/domain/calculations";
 import { ALL_PERMISSIONS, PERMISSION_LABELS, listAssignableRoles } from "@/lib/domain/permissions";
 import type { Permission } from "@/lib/domain/types";
+import { buildInviteLink, isInvitePending } from "@/lib/domain/invites";
 import { formatMoney } from "@/lib/store/tlb-store";
 import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* fallback below */
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
 
 function StatusBadge({ children, tone }: { children: React.ReactNode; tone: string }) {
   return <span className={`status-badge status-${tone}`}>{children}</span>;
@@ -183,6 +208,43 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
             <div className="tlb-panel-heading">
               <div><span>Access</span><strong>Users &amp; role assignment</strong></div>
             </div>
+            {store.lastInvite ? (
+              <div
+                className="tlb-flash tlb-flash-ok"
+                style={{ margin: "12px 12px 0", flexDirection: "column", alignItems: "stretch" }}
+                role="status"
+              >
+                <strong style={{ fontSize: "0.875rem" }}>
+                  Invite ready for {store.lastInvite.name} ({store.lastInvite.email})
+                </strong>
+                <p className="tlb-muted-line" style={{ margin: "6px 0 0" }}>
+                  Send manually — email is not sent. Treat the link and access code as credentials.
+                </p>
+                <div className="tlb-inline-actions" style={{ marginTop: 10, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    className="tlb-link-btn"
+                    onClick={() => {
+                      void copyToClipboard(buildInviteLink(store.lastInvite!.inviteToken));
+                    }}
+                  >
+                    Copy invite link
+                  </button>
+                  <button
+                    type="button"
+                    className="tlb-link-btn"
+                    onClick={() => {
+                      void copyToClipboard(store.lastInvite!.inviteCode);
+                    }}
+                  >
+                    Copy access code
+                  </button>
+                  <button type="button" className="tlb-link-btn" onClick={store.clearLastInvite}>
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            ) : null}
             {store.state.users.length === 0 ? (
               <EmptyState title="No users" detail="Create a user to assign roles." />
             ) : (
@@ -215,7 +277,15 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                             ))}
                           </select>
                         </td>
-                        <td>{user.active ? "Active" : "Inactive"}</td>
+                        <td>
+                          {user.active ? "Active" : "Inactive"}
+                          {isInvitePending(user) ? (
+                            <>
+                              {" "}
+                              <StatusBadge tone="warning">Pending</StatusBadge>
+                            </>
+                          ) : null}
+                        </td>
                         <td>
                           {store.state.currentUserId === user.id ? (
                             <StatusBadge tone="success">Signed in</StatusBadge>
@@ -226,6 +296,26 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                           )}
                         </td>
                         <td>
+                          {isInvitePending(user) && user.inviteToken ? (
+                            <>
+                              <button
+                                type="button"
+                                className="tlb-link-btn"
+                                onClick={() => {
+                                  void copyToClipboard(buildInviteLink(user.inviteToken!));
+                                }}
+                              >
+                                Copy invite
+                              </button>{" "}
+                              <button
+                                type="button"
+                                className="tlb-link-btn"
+                                onClick={() => store.issueUserInvite(user.id)}
+                              >
+                                Re-issue
+                              </button>{" "}
+                            </>
+                          ) : null}
                           <button
                             type="button"
                             className="tlb-link-btn"

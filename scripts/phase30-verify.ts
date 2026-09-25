@@ -59,6 +59,7 @@ import {
 } from "../src/lib/store/ops-hub-store";
 import { opsDiscrepancyMissing, opsOutstandingShortage, listOutstandingOpsRows } from "../src/lib/domain/ops-hub";
 import {
+  acceptInvite,
   assignUserRole,
   confirmCustomerOrder,
   createDeliveryFromSupply,
@@ -69,6 +70,7 @@ import {
   createSupply,
   deactivateRole,
   getOutstandingRows,
+  issueUserInvite,
   markDelivered,
   receiveStock,
   resetToSeed,
@@ -206,6 +208,36 @@ function testPermissions() {
   assert.equal(edited.data.data.name, "Ama Mensah Updated");
   assert.equal(edited.data.data.email, "ama.updated@tlb.gh");
   assert.ok(edited.data.state.audit.some((a) => a.action === "user.updated" && a.entityId === "user-sales"));
+}
+
+function testInvites() {
+  const state = createSeedState();
+  const created = upsertAppUser(state, {
+    name: "Invite Test User",
+    email: "invite.test@tlb.gh",
+    roleId: SYSTEM_ROLE_IDS.Warehouse,
+  });
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+  const user = created.data.data;
+  assert.ok(user.inviteToken);
+  assert.ok(user.inviteCode);
+  assert.equal(user.invitePending, true);
+
+  const accepted = acceptInvite(created.data.state, { code: user.inviteCode! });
+  assert.equal(accepted.ok, true);
+  if (!accepted.ok) return;
+  assert.equal(accepted.data.state.currentUserId, user.id);
+  assert.equal(accepted.data.data.invitePending, false);
+
+  const backAsOwner = switchSessionUser(accepted.data.state, OWNER_USER_ID);
+  assert.equal(backAsOwner.ok, true);
+  if (!backAsOwner.ok) return;
+  const reissued = issueUserInvite(backAsOwner.data.state, user.id);
+  assert.equal(reissued.ok, true);
+  if (!reissued.ok) return;
+  assert.notEqual(reissued.data.data.inviteCode, user.inviteCode);
+  assert.equal(reissued.data.data.invitePending, true);
 }
 
 function testPhase30Scenario() {
@@ -752,6 +784,7 @@ testSupplyValidation();
 testAgeing();
 testNumbering();
 testPermissions();
+testInvites();
 testPhase30Scenario();
 testInventoryEngine();
 testDeferredOpsPack();

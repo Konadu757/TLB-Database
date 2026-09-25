@@ -236,6 +236,8 @@ export type AuditAction =
   | "role.deactivated"
   | "user.updated"
   | "user.role_assigned"
+  | "user.invite_issued"
+  | "user.invite_accepted"
   | "session.user_switched"
   | "record.edited"
   | "record.trashed"
@@ -351,6 +353,11 @@ export interface AppUser {
   email: string;
   roleId: string;
   active: boolean;
+  inviteToken?: string;
+  inviteCode?: string;
+  inviteCreatedAt?: string;
+  inviteAcceptedAt?: string;
+  invitePending?: boolean;
 }
 export interface Warehouse extends SoftDeleteFields {
   id: string;

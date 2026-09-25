@@ -5,7 +5,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
-import type { Product, StockBalance, TlbState } from "@/lib/domain/types";
+import type { AppUser, Product, RoleDefinition, StockBalance, TlbState } from "@/lib/domain/types";
 import { loadState, saveState } from "@/lib/store/tlb-store";
 import { createSeedState } from "@/lib/store/seed";
 import {
@@ -61,6 +61,23 @@ const PRODUCT_EXTRAS_KEY = "tlb.enterprise.product-extras.v1";
 const STOCK_EXTRAS_KEY = "tlb.enterprise.stock-extras.v1";
 
 type Sb = SupabaseClient<Database>;
+
+function mergeById<T extends { id: string }>(primary: T[], secondary: T[]): T[] {
+  const ids = new Set(primary.map((e) => e.id));
+  return [...primary, ...secondary.filter((e) => !ids.has(e.id))];
+}
+
+function authDirectoryFromSettings(value: unknown): {
+  users?: AppUser[];
+  roles?: RoleDefinition[];
+} {
+  if (!value || typeof value !== "object") return {};
+  const v = value as { users?: unknown; roles?: unknown };
+  return {
+    users: Array.isArray(v.users) ? (v.users as AppUser[]) : undefined,
+    roles: Array.isArray(v.roles) ? (v.roles as RoleDefinition[]) : undefined,
+  };
+}
 
 type LocalOnlySlice = Pick<
   TlbState,
@@ -379,6 +396,10 @@ export class SupabaseTlbRepository implements TlbRepository {
         key: "soft_delete_overlay",
         value: buildSoftDeleteOverlay(state) as unknown as Json,
       },
+      {
+        key: "auth_directory",
+        value: { users: state.users, roles: state.roles } as unknown as Json,
+      },
     ];
     this.remoteFingerprints.set("app_settings", rowFingerprint(settingsPayload));
   }
@@ -477,11 +498,20 @@ export class SupabaseTlbRepository implements TlbRepository {
       const ageing = ageingFromSettings(settingsMap.get("outstanding_ageing"), seed.ageing);
       const company = companyFromSettings(settingsMap.get("company_profile"), seed.company);
       const softOverlay = (settingsMap.get("soft_delete_overlay") ?? {}) as SoftDeleteOverlay;
+      const authDir = authDirectoryFromSettings(settingsMap.get("auth_directory"));
+      const mergedUsers = authDir.users?.length
+        ? mergeById(authDir.users, localOnly.users)
+        : localOnly.users;
+      const mergedRoles = authDir.roles?.length
+        ? mergeById(authDir.roles, localOnly.roles)
+        : localOnly.roles;
 
       const prior = loadState();
       const merged: TlbState = {
         ...seed,
         ...localOnly,
+        users: mergedUsers,
+        roles: mergedRoles,
         warehouses: warehouses.map((row) => warehouseFromRow(row, softOverlay)),
         products: products.map((row) => productFromRow(row, productExtras[row.id], softOverlay)),
         stock: stock.map((row) => stockFromRow(row, stockExtras[row.id])),
@@ -591,6 +621,10 @@ export class SupabaseTlbRepository implements TlbRepository {
         {
           key: "soft_delete_overlay",
           value: buildSoftDeleteOverlay(state) as unknown as Json,
+        },
+        {
+          key: "auth_directory",
+          value: { users: state.users, roles: state.roles } as unknown as Json,
         },
       ];
       const settingsFp = rowFingerprint(settingsPayload);

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { AppRole, DeliveryStatus, Permission, TlbState } from "@/lib/domain/types";
+import type { AppRole, AppUser, DeliveryStatus, Permission, TlbState } from "@/lib/domain/types";
 import { createTlbRepository } from "@/lib/repo/tlb-repository";
 import { can as canPerm } from "@/lib/store/tlb-store";
 import {
@@ -34,6 +34,8 @@ import {
   restoreTrashItem,
   softDeleteRecord,
   switchRole,
+  acceptInvite,
+  issueUserInvite,
   switchSessionUser,
   updateAgeingSettings,
   updateCompanyProfile,
@@ -88,7 +90,26 @@ type MutFn = (state: TlbState) =>
   | { ok: true; data: { state: TlbState; data: unknown } }
   | { ok: false; error: string };
 
+export type LastStaffInvite = {
+  userId: string;
+  name: string;
+  email: string;
+  inviteToken: string;
+  inviteCode: string;
+};
+
 const SAVE_DEBOUNCE_MS = 450;
+
+function inviteSnapshot(user: AppUser): LastStaffInvite | null {
+  if (!user.inviteToken || !user.inviteCode) return null;
+  return {
+    userId: user.id,
+    name: user.name,
+    email: user.email,
+    inviteToken: user.inviteToken,
+    inviteCode: user.inviteCode,
+  };
+}
 
 export function useTlbStore() {
   const repo = useMemo(() => createTlbRepository(), []);
@@ -98,6 +119,7 @@ export function useTlbStore() {
   const [hydrated, setHydrated] = useState(false);
   const [persistError, setPersistError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [lastInvite, setLastInvite] = useState<LastStaffInvite | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipNextPersist = useRef(true);
 
@@ -180,6 +202,28 @@ export function useTlbStore() {
     return true;
   }, []);
 
+  const applyCapture = useCallback((fn: MutFn, successMessage?: string) => {
+    setError(null);
+    setNotice(null);
+    let failed: string | null = null;
+    let captured: unknown = null;
+    setState((prev) => {
+      const result = fn(prev);
+      if (!result.ok) {
+        failed = result.error;
+        return prev;
+      }
+      captured = result.data.data;
+      return result.data.state;
+    });
+    if (failed) {
+      setError(failed);
+      return { ok: false as const, data: null };
+    }
+    if (successMessage) setNotice(successMessage);
+    return { ok: true as const, data: captured };
+  }, []);
+
   const outstanding = useMemo(() => getOutstandingRows(state), [state]);
 
   return {
@@ -189,7 +233,9 @@ export function useTlbStore() {
     backend: repo.backend,
     error: error ?? persistError,
     notice,
+    lastInvite,
     persistError,
+    clearLastInvite: () => setLastInvite(null),
     clearMessages: () => {
       setError(null);
       setNotice(null);
@@ -326,8 +372,24 @@ export function useTlbStore() {
       apply((s) => deactivateRole(s, roleId), "Role deactivated."),
     assignUserRole: (userId: string, roleId: string) =>
       apply((s) => assignUserRole(s, userId, roleId), "User role assigned."),
-    saveUser: (input: Parameters<typeof upsertAppUser>[1]) =>
-      apply((s) => upsertAppUser(s, input), "User saved."),
+    saveUser: (input: Parameters<typeof upsertAppUser>[1]) => {
+      const result = applyCapture((s) => upsertAppUser(s, input), "User saved.");
+      if (result.ok && !input.id && result.data) {
+        const snap = inviteSnapshot(result.data as AppUser);
+        if (snap) setLastInvite(snap);
+      }
+      return result.ok;
+    },
+    issueUserInvite: (userId: string) => {
+      const result = applyCapture((s) => issueUserInvite(s, userId), "Invite re-issued.");
+      if (result.ok && result.data) {
+        const snap = inviteSnapshot(result.data as AppUser);
+        if (snap) setLastInvite(snap);
+      }
+      return result.ok;
+    },
+    acceptInvite: (input: Parameters<typeof acceptInvite>[1]) =>
+      applyCapture((s) => acceptInvite(s, input), "Signed in."),
     createInvoice: (input: Parameters<typeof createInvoiceFromSupply>[1]) =>
       apply((s) => createInvoiceFromSupply(s, input), "VAT invoice created."),
     createReceipt: (input: Parameters<typeof createOrdinaryReceipt>[1]) =>

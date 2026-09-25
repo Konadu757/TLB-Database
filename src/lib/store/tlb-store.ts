@@ -12,7 +12,17 @@ import {
 } from "../domain/calculations";
 import { buildNotifications } from "../domain/notifications";
 import { nextDocumentNumber } from "../domain/numbering";
+import {
+  applyFreshInvite,
+  findUserByInviteCode,
+  findUserByInviteToken,
+  isInvitePending,
+  markInviteAccepted,
+  normalizeAccessCode,
+} from "../domain/invites";
 import { hasPermission } from "../domain/permissions";
+
+export { buildInviteLink, isInvitePending } from "../domain/invites";
 import { isSoftDeleted } from "../domain/trash";
 import type {
   AppRole,
@@ -1548,13 +1558,14 @@ export function upsertAppUser(
   if (next.users.some((u) => u.email === email)) {
     return { ok: false, error: "A user with this email already exists." };
   }
-  const created: AppUser = {
+  let created: AppUser = {
     id: uid("user"),
     name,
     email,
     roleId: role.id,
     active: input.active ?? true,
   };
+  created = applyFreshInvite(created);
   next.users.push(created);
   pushAudit(next, {
     action: "user.updated",
@@ -1562,7 +1573,96 @@ export function upsertAppUser(
     entityId: created.id,
     summary: `Created user ${created.name}.`,
   });
+  pushAudit(next, {
+    action: "user.invite_issued",
+    entityType: "user",
+    entityId: created.id,
+    summary: `Issued invite for ${created.name}.`,
+  });
   return { ok: true, data: { state: next, data: created } };
+}
+
+export function issueUserInvite(state: TlbState, userId: string): MutResult<AppUser> {
+  const blocked = requirePerm(state, "users.manage");
+  if (blocked) return { ok: false, error: blocked };
+  const next = cloneState(state);
+  const idx = next.users.findIndex((u) => u.id === userId);
+  if (idx === -1) return { ok: false, error: "User not found." };
+  const existing = next.users[idx]!;
+  if (!existing.active) return { ok: false, error: "User is inactive." };
+  const updated = applyFreshInvite(existing);
+  next.users[idx] = updated;
+  pushAudit(next, {
+    action: "user.invite_issued",
+    entityType: "user",
+    entityId: updated.id,
+    summary: `Re-issued invite for ${updated.name}.`,
+  });
+  return { ok: true, data: { state: next, data: updated } };
+}
+
+export function acceptInvite(
+  state: TlbState,
+  input: { token?: string; code?: string },
+): MutResult<AppUser> {
+  const token = input.token?.trim();
+  const code = input.code?.trim();
+  if (!token && !code) {
+    return { ok: false, error: "Enter an access code or open your invite link." };
+  }
+
+  let user: AppUser | undefined;
+  if (token) user = findUserByInviteToken(state.users, token);
+  if (!user && code) user = findUserByInviteCode(state.users, code);
+  if (!user) return { ok: false, error: "Invalid or expired invite." };
+  if (!user.active) return { ok: false, error: "User account is inactive." };
+
+  if (token && code) {
+    const byCode = findUserByInviteCode(state.users, code);
+    if (byCode && byCode.id !== user.id) {
+      return { ok: false, error: "Invite link and access code do not match." };
+    }
+  }
+
+  const next = cloneState(state);
+  const idx = next.users.findIndex((u) => u.id === user!.id);
+  if (idx === -1) return { ok: false, error: "User not found." };
+  let updated = next.users[idx]!;
+
+  if (token && updated.inviteToken !== token) {
+    return { ok: false, error: "Invalid or expired invite." };
+  }
+  if (
+    code &&
+    updated.inviteCode &&
+    normalizeAccessCode(updated.inviteCode) !== normalizeAccessCode(code)
+  ) {
+    return { ok: false, error: "Invalid or expired invite." };
+  }
+  if (!updated.inviteToken && !updated.inviteCode) {
+    return { ok: false, error: "No active invite for this user." };
+  }
+
+  if (isInvitePending(updated)) {
+    updated = markInviteAccepted(updated);
+    next.users[idx] = updated;
+    pushAudit(next, {
+      action: "user.invite_accepted",
+      entityType: "user",
+      entityId: updated.id,
+      summary: `${updated.name} activated invite and signed in.`,
+    });
+  }
+
+  next.currentUserId = updated.id;
+  syncSessionIdentity(next);
+  pushAudit(next, {
+    action: "session.user_switched",
+    entityType: "session",
+    entityId: updated.id,
+    summary: `Signed in as ${updated.name} (${next.currentRole}) via invite.`,
+  });
+  return { ok: true, data: { state: next, data: updated } };
 }
 
 export function markNotificationRead(state: TlbState, id: string): MutResult<null> {
