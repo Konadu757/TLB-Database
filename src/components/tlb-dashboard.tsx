@@ -111,7 +111,6 @@ import {
 } from "@/components/modules/p1-modules";
 import { NotificationsModule } from "@/components/modules/notifications-module";
 import { TrashModule } from "@/components/modules/trash-module";
-import { DueNewsCrawler } from "@/components/due-news-crawler";
 import { Button } from "@/components/ui/button";
 import { buildDashboardSnapshot } from "@/lib/domain/dashboard-metrics";
 import { listVisibleNotifications } from "@/lib/domain/notifications";
@@ -359,11 +358,7 @@ function TLBDashboardInner() {
   const [orderReturnNav, setOrderReturnNav] = useState<string | null>(null);
   const [quoteCreateRequest, setQuoteCreateRequest] = useState(false);
   const [quoteFormOpen, setQuoteFormOpen] = useState(false);
-  const [dueTickerVisible, setDueTickerVisible] = useState(false);
   const clearQuoteCreateRequest = useCallback(() => setQuoteCreateRequest(false), []);
-  const onDueTickerVisibility = useCallback((visible: boolean) => {
-    setDueTickerVisible(visible);
-  }, []);
 
   const [isNavMobile, setIsNavMobile] = useState(false);
   const [openNavGroups, setOpenNavGroups] = useState<Record<string, boolean>>(readStoredOpenNavGroups);
@@ -879,7 +874,7 @@ function TLBDashboardInner() {
       {mobileOpen && <div className="tlb-mobile-overlay" onClick={() => setMobileOpen(false)} aria-hidden="true" />}
       <div className={cn("tlb-mobile-sidebar", mobileOpen && "tlb-mobile-sidebar-open")}>{sidebar}</div>
 
-      <div className={cn("tlb-main", detailOpen && "tlb-main--detail-open", dueTickerVisible && "tlb-main--ticker")}>
+      <div className={cn("tlb-main", detailOpen && "tlb-main--detail-open")}>
         <header className="tlb-header">
           <Button
             variant="ghost"
@@ -1687,13 +1682,6 @@ function TLBDashboardInner() {
           )}
         </main>
       </div>
-
-      <DueNewsCrawler
-        state={store.state}
-        outstanding={store.outstanding}
-        onNavigate={openLiveModule}
-        onVisibilityChange={onDueTickerVisibility}
-      />
 
       {inspector && (
         <div
