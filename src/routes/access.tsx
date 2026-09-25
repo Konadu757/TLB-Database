@@ -36,7 +36,7 @@ function AccessPage() {
         <div className="tlb-panel-heading">
           <div>
             <span>Access</span>
-            <strong>Activate invite</strong>
+            <strong className="font-display">Activate invite</strong>
           </div>
         </div>
         <form
@@ -65,6 +65,7 @@ function AccessPage() {
           <label className="tlb-span-2">
             Access code
             <input
+              className="tlb-mono"
               value={code}
               onChange={(e) => setCode(e.target.value)}
               placeholder="TLB-XXXX-XXXX"

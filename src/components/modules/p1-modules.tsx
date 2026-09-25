@@ -199,6 +199,9 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                 <p className="tlb-muted-line" style={{ margin: "6px 0 0" }}>
                   Send manually — email is not sent. Treat the link and access code as credentials.
                 </p>
+                <p className="tlb-mono" style={{ margin: "8px 0 0", fontSize: "0.9375rem", fontWeight: 600 }}>
+                  {store.lastInvite.inviteCode}
+                </p>
                 <div className="tlb-inline-actions" style={{ marginTop: 10, flexWrap: "wrap" }}>
                   <button
                     type="button"
