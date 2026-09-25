@@ -1367,47 +1367,60 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
   }
 }
 
-/* —— Goods In (GRN) status / handlers panel —— */
+/* —— Ops handler strip (Goods In / Returns / Transfers) —— */
+.tlb-ops-handler .tlb-panel-heading .status-badge,
+.tlb-goods-in-status .tlb-panel-heading .status-badge {
+  flex: none;
+}
+
+.tlb-ops-handler-rail,
 .tlb-goods-in-status-rail {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0;
+  gap: 10px;
   margin: 0;
+  padding: 14px 16px;
+  background: color-mix(in oklab, var(--cream-light, #faf8f5) 70%, white);
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
-  background: color-mix(in oklab, var(--cream-light, #faf8f5) 75%, white);
 }
 
+.tlb-ops-handler-rail--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.tlb-ops-handler-card,
 .tlb-goods-in-status-card {
   display: flex;
   flex-direction: column;
   gap: 6px;
   min-width: 0;
-  padding: 14px 16px 16px;
+  padding: 12px 14px 13px;
   background: #fff;
-  border-right: 1px solid var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--foreground) 4%, transparent);
 }
 
-.tlb-goods-in-status-card:last-child {
-  border-right: 0;
-}
-
+.tlb-ops-handler-kicker,
 .tlb-goods-in-status-kicker {
   color: var(--muted-foreground);
   font-size: 0.625rem;
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
+.tlb-ops-handler-card strong,
 .tlb-goods-in-status-card strong {
   color: var(--foreground);
   font-size: 0.875rem;
   font-weight: 700;
-  line-height: 1.25;
+  line-height: 1.3;
   word-break: break-word;
 }
 
+.tlb-ops-handler-card small,
 .tlb-goods-in-status-card small {
   color: var(--muted-foreground);
   font-size: 0.6875rem;
@@ -1415,68 +1428,196 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
   line-height: 1.35;
 }
 
+.tlb-ops-handler-card--status,
 .tlb-goods-in-status-card--status {
-  background: color-mix(in oklab, var(--brand-gold-muted, #f9cd5b33) 55%, white);
   gap: 8px;
+  background: color-mix(in oklab, var(--brand-gold-muted, #f9cd5b33) 60%, white);
+  border-color: color-mix(in oklab, var(--brand-gold, #f9cd5b) 45%, var(--border));
 }
 
+.tlb-ops-handler-card--status .status-badge,
 .tlb-goods-in-status-card--status .status-badge {
+  width: fit-content;
   font-size: 0.75rem;
   padding: 5px 10px;
   letter-spacing: 0.02em;
 }
 
+.tlb-ops-handler-card--actor,
 .tlb-goods-in-status-card--received {
-  background: color-mix(in oklab, var(--info-muted, #52378422) 40%, white);
+  background: color-mix(in oklab, var(--info-muted, #52378422) 38%, white);
+  border-color: color-mix(in oklab, var(--primary, #523784) 22%, var(--border));
 }
 
+.tlb-ops-handler-card--actor strong,
 .tlb-goods-in-status-card--received strong {
   color: var(--primary, #523784);
 }
 
+.tlb-ops-handler-card--empty,
+.tlb-goods-in-status-card--empty {
+  background: color-mix(in oklab, var(--muted, #f3f1ee) 55%, white);
+  border-style: dashed;
+}
+
+.tlb-ops-handler-card--empty strong,
 .tlb-goods-in-status-card--empty strong {
   color: var(--muted-foreground);
   font-weight: 600;
   font-style: italic;
 }
 
+.tlb-ops-handler-meta,
 .tlb-goods-in-status-meta {
   background: color-mix(in oklab, var(--cream-light, #faf8f5) 45%, white);
 }
 
-.tlb-goods-in-status .tlb-panel-heading .status-badge {
-  flex: none;
+.tlb-ops-handler-meta + .tlb-ops-handler-meta,
+.tlb-ops-handler .tlb-kv + .tlb-kv {
+  border-top: 1px solid var(--border);
 }
 
-@media (max-width: 900px) {
-  .tlb-goods-in-status-rail {
+/* —— Trace Product layout —— */
+.tlb-trace-layout {
+  display: grid;
+  gap: 14px;
+}
+
+.tlb-trace-identity {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px 17px 18px;
+  background: color-mix(in oklab, var(--cream-light, #faf8f5) 55%, white);
+  border-bottom: 1px solid var(--border);
+}
+
+.tlb-trace-identity-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding-right: 8px;
+}
+
+.tlb-trace-identity-main .tlb-eyebrow {
+  margin: 0;
+}
+
+.tlb-trace-identity-main strong {
+  font-size: 1.125rem;
+  line-height: 1.25;
+  color: var(--primary, #523784);
+}
+
+.tlb-trace-identity-main p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.tlb-trace-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+}
+
+.tlb-trace-stat span {
+  color: var(--muted-foreground);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.tlb-trace-stat strong {
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.tlb-trace-stat small {
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+}
+
+.tlb-trace-toolbar-select {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: min(280px, 100%);
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tlb-trace-toolbar-select select {
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  background: #fff;
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.tlb-trace-split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.tlb-trace-timeline-row td:first-child {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+
+.tlb-trace-timeline-row td strong {
+  font-size: 0.8125rem;
+}
+
+@media (max-width: 980px) {
+  .tlb-ops-handler-rail,
+  .tlb-goods-in-status-rail,
+  .tlb-ops-handler-rail--3 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .tlb-goods-in-status-card:nth-child(2n) {
-    border-right: 0;
+  .tlb-trace-identity {
+    grid-template-columns: 1fr 1fr;
   }
 
-  .tlb-goods-in-status-card:nth-child(-n+2) {
-    border-bottom: 1px solid var(--border);
+  .tlb-trace-identity-main {
+    grid-column: 1 / -1;
+    padding-right: 0;
+  }
+
+  .tlb-trace-split {
+    grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 560px) {
-  .tlb-goods-in-status-rail {
+  .tlb-ops-handler-rail,
+  .tlb-goods-in-status-rail,
+  .tlb-ops-handler-rail--3 {
     grid-template-columns: 1fr;
   }
 
-  .tlb-goods-in-status-card {
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .tlb-goods-in-status-card:last-child {
-    border-bottom: 0;
-  }
-
-  .tlb-goods-in-status-card:nth-child(-n+2) {
-    border-bottom: 1px solid var(--border);
+  .tlb-trace-identity {
+    grid-template-columns: 1fr;
   }
 }

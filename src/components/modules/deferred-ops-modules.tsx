@@ -26,6 +26,19 @@ function StatusBadge({ children, tone }: { children: React.ReactNode; tone: stri
   return <span className={`status-badge status-${tone}`}>{children}</span>;
 }
 
+function formatHandlerWhen(iso?: string | null) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 16).replace("T", " ");
+  return d.toLocaleString(undefined, {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function EmptyState({ title, detail }: { title: string; detail: string }) {
   return (
     <div className="tlb-empty-state">
@@ -116,6 +129,17 @@ export function ReturnsModule({
       ? store.state.customers.find((c) => c.id === (detail as typeof custDetail)!.customerId)?.name
       : store.state.suppliers.find((s) => s.id === (detail as typeof supDetail)!.supplierId)?.name;
     const product = store.state.products.find((p) => p.id === detail.productId);
+    const warehouse = store.state.warehouses.find((w) => w.id === detail.warehouseId);
+    const primaryActorLabel = isCust ? "Received by" : "Requested by";
+    const primaryActor = isCust
+      ? (detail as typeof custDetail)!.receivedBy
+      : (detail as typeof supDetail)!.requestedBy;
+    const primaryAt = isCust
+      ? (detail as typeof custDetail)!.receivedAt
+      : (detail as typeof supDetail)!.requestedAt;
+    const primaryWhen = formatHandlerWhen(primaryAt);
+    const approvedWhen = formatHandlerWhen(detail.approvedAt);
+
     return (
       <div className="tlb-module tlb-record-detail">
         <div className="tlb-module-toolbar">
@@ -137,62 +161,85 @@ export function ReturnsModule({
             </Button>
           </div>
         </div>
-        <article className="tlb-panel">
-          <div className="tlb-kv-grid" style={{ padding: 16 }}>
+
+        <article className="tlb-panel tlb-record-detail-section tlb-record-detail-section--summary tlb-ops-handler">
+          <div className="tlb-panel-heading">
             <div>
-              <span>Status</span>
-              <strong>
-                <StatusBadge tone={statusTone(detail.status)}>{detail.status}</StatusBadge>
-              </strong>
+              <span>Return</span>
+              <strong>Status &amp; handlers</strong>
+            </div>
+            <StatusBadge tone={statusTone(detail.status)}>{detail.status}</StatusBadge>
+          </div>
+
+          <div className="tlb-ops-handler-rail tlb-ops-handler-rail--3" aria-label="Return status and handlers">
+            <div className="tlb-ops-handler-card tlb-ops-handler-card--status">
+              <span className="tlb-ops-handler-kicker">Status</span>
+              <StatusBadge tone={statusTone(detail.status)}>{detail.status}</StatusBadge>
+              <small>{isCust ? "Customer return" : "Supplier return"}</small>
+            </div>
+
+            <div className="tlb-ops-handler-card tlb-ops-handler-card--actor">
+              <span className="tlb-ops-handler-kicker">{primaryActorLabel}</span>
+              <strong>{primaryActor || "—"}</strong>
+              <small>{primaryWhen ?? "—"}</small>
+            </div>
+
+            <div className={`tlb-ops-handler-card${detail.approvedBy ? "" : " tlb-ops-handler-card--empty"}`}>
+              <span className="tlb-ops-handler-kicker">Approved by</span>
+              <strong>{detail.approvedBy || "Pending"}</strong>
+              <small>{approvedWhen ?? (detail.approvedBy ? "—" : "Not approved yet")}</small>
+            </div>
+          </div>
+
+          <dl className="tlb-kv tlb-ops-handler-meta">
+            <div>
+              <dt>{isCust ? "Customer" : "Supplier"}</dt>
+              <dd>{party ?? "—"}</dd>
             </div>
             <div>
-              <span>Qty</span>
-              <strong>{detail.quantity}</strong>
+              <dt>Product</dt>
+              <dd>{product ? `${product.sku} · ${product.name}` : detail.productId}</dd>
             </div>
             <div>
-              <span>Reason</span>
-              <strong>{detail.reason}</strong>
+              <dt>Qty</dt>
+              <dd>{detail.quantity}</dd>
+            </div>
+            <div>
+              <dt>Warehouse</dt>
+              <dd>{warehouse?.name ?? detail.warehouseId}</dd>
+            </div>
+            <div>
+              <dt>Reason</dt>
+              <dd>{detail.reason}</dd>
             </div>
             {isCust ? (
               <>
                 <div>
-                  <span>Condition</span>
-                  <strong>{(detail as typeof custDetail)!.condition}</strong>
+                  <dt>Condition</dt>
+                  <dd>{(detail as typeof custDetail)!.condition}</dd>
                 </div>
                 <div>
-                  <span>Disposition</span>
-                  <strong>{(detail as typeof custDetail)!.disposition}</strong>
-                </div>
-                <div>
-                  <span>Received by</span>
-                  <strong>{(detail as typeof custDetail)!.receivedBy}</strong>
+                  <dt>Disposition</dt>
+                  <dd>{(detail as typeof custDetail)!.disposition}</dd>
                 </div>
               </>
             ) : (
               <>
                 <div>
-                  <span>Credit note</span>
-                  <strong>{(detail as typeof supDetail)!.creditNoteRef ?? "—"}</strong>
+                  <dt>Credit note</dt>
+                  <dd>{(detail as typeof supDetail)!.creditNoteRef ?? "—"}</dd>
                 </div>
                 <div>
-                  <span>Replacement</span>
-                  <strong>{(detail as typeof supDetail)!.replacementExpected ? "Yes" : "No"}</strong>
-                </div>
-                <div>
-                  <span>Requested by</span>
-                  <strong>{(detail as typeof supDetail)!.requestedBy}</strong>
+                  <dt>Replacement</dt>
+                  <dd>{(detail as typeof supDetail)!.replacementExpected ? "Yes" : "No"}</dd>
                 </div>
               </>
             )}
-            <div>
-              <span>Approved by</span>
-              <strong>{detail.approvedBy ?? "—"}</strong>
+            <div className="tlb-span-2">
+              <dt>Notes</dt>
+              <dd>{detail.notes?.trim() ? detail.notes : "—"}</dd>
             </div>
-            <div>
-              <span>Notes</span>
-              <strong>{detail.notes ?? "—"}</strong>
-            </div>
-          </div>
+          </dl>
         </article>
       </div>
     );

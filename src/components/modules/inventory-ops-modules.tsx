@@ -26,6 +26,19 @@ function StatusBadge({ children, tone }: { children: React.ReactNode; tone: stri
   return <span className={`status-badge status-${tone}`}>{children}</span>;
 }
 
+function formatHandlerWhen(iso?: string | null) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 16).replace("T", " ");
+  return d.toLocaleString(undefined, {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function EmptyState({ title, detail }: { title: string; detail: string }) {
   return (
     <div className="tlb-empty-state">
@@ -335,18 +348,7 @@ export function GoodsInModule({
     const supplier = store.state.suppliers.find((s) => s.id === detail.supplierId);
     const warehouse = store.state.warehouses.find((w) => w.id === detail.warehouseId);
     const grnTrashBlock = trashBlockReason(store.state, "goods_receipt", detail.id);
-    const formatWhen = (iso?: string) => {
-      if (!iso) return null;
-      const d = new Date(iso);
-      if (Number.isNaN(d.getTime())) return iso.slice(0, 16).replace("T", " ");
-      return d.toLocaleString(undefined, {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    };
+    const formatWhen = (iso?: string) => formatHandlerWhen(iso);
     const receivedWhen = formatWhen(detail.receivedAt);
     const checkedWhen = formatWhen(detail.checkedAt);
     const approvedWhen = formatWhen(detail.approvedAt);
@@ -373,7 +375,7 @@ export function GoodsInModule({
           </div>
         </div>
 
-        <article className="tlb-panel tlb-record-detail-section tlb-record-detail-section--summary tlb-goods-in-status">
+        <article className="tlb-panel tlb-record-detail-section tlb-record-detail-section--summary tlb-ops-handler">
           <div className="tlb-panel-heading">
             <div>
               <span>Receipt</span>
@@ -382,33 +384,33 @@ export function GoodsInModule({
             <StatusBadge tone={statusTone(detail.status)}>{detail.status}</StatusBadge>
           </div>
 
-          <div className="tlb-goods-in-status-rail" aria-label="GRN status and handlers">
-            <div className="tlb-goods-in-status-card tlb-goods-in-status-card--status">
-              <span className="tlb-goods-in-status-kicker">Status</span>
+          <div className="tlb-ops-handler-rail" aria-label="GRN status and handlers">
+            <div className="tlb-ops-handler-card tlb-ops-handler-card--status">
+              <span className="tlb-ops-handler-kicker">Status</span>
               <StatusBadge tone={statusTone(detail.status)}>{detail.status}</StatusBadge>
               <small>{receivedWhen ? `Received ${receivedWhen}` : "Awaiting receipt timestamp"}</small>
             </div>
 
-            <div className="tlb-goods-in-status-card tlb-goods-in-status-card--received">
-              <span className="tlb-goods-in-status-kicker">Brought in by</span>
+            <div className="tlb-ops-handler-card tlb-ops-handler-card--actor">
+              <span className="tlb-ops-handler-kicker">Brought in by</span>
               <strong>{detail.receivedBy || "—"}</strong>
               <small>{receivedWhen ?? "—"}</small>
             </div>
 
-            <div className={`tlb-goods-in-status-card${detail.checkedBy ? "" : " tlb-goods-in-status-card--empty"}`}>
-              <span className="tlb-goods-in-status-kicker">Checked by</span>
+            <div className={`tlb-ops-handler-card${detail.checkedBy ? "" : " tlb-ops-handler-card--empty"}`}>
+              <span className="tlb-ops-handler-kicker">Checked by</span>
               <strong>{detail.checkedBy || "Pending"}</strong>
               <small>{checkedWhen ?? (detail.checkedBy ? "—" : "Not checked yet")}</small>
             </div>
 
-            <div className={`tlb-goods-in-status-card${detail.approvedBy ? "" : " tlb-goods-in-status-card--empty"}`}>
-              <span className="tlb-goods-in-status-kicker">Approved by</span>
+            <div className={`tlb-ops-handler-card${detail.approvedBy ? "" : " tlb-ops-handler-card--empty"}`}>
+              <span className="tlb-ops-handler-kicker">Approved by</span>
               <strong>{detail.approvedBy || "Pending"}</strong>
               <small>{approvedWhen ?? (detail.approvedBy ? "—" : "Not approved yet")}</small>
             </div>
           </div>
 
-          <dl className="tlb-kv tlb-goods-in-status-meta">
+          <dl className="tlb-kv tlb-ops-handler-meta">
             <div>
               <dt>Warehouse</dt>
               <dd>{warehouse?.name ?? detail.warehouseId}</dd>
@@ -897,16 +899,63 @@ export function TransfersModule({
             </Button>
           </div>
         </div>
-        <article className="tlb-panel">
-          <div className="tlb-kv-grid" style={{ padding: 16 }}>
-            <div><span>Status</span><strong><StatusBadge tone={statusTone(detail.status)}>{detail.status}</StatusBadge></strong></div>
-            <div><span>Requested</span><strong>{detail.requestedAt.slice(0, 16).replace("T", " ")} · {detail.requestedBy}</strong></div>
-            <div><span>Approved</span><strong>{detail.approvedAt ? `${detail.approvedAt.slice(0, 16).replace("T", " ")} · ${detail.approvedBy ?? "—"}` : "—"}</strong></div>
-            <div><span>Received</span><strong>{detail.receivedAt ? `${detail.receivedAt.slice(0, 16).replace("T", " ")} · ${detail.receivedBy ?? "—"}` : "—"}</strong></div>
-            <div><span>Notes</span><strong>{detail.notes ?? "—"}</strong></div>
+        <article className="tlb-panel tlb-record-detail-section tlb-record-detail-section--summary tlb-ops-handler">
+          <div className="tlb-panel-heading">
+            <div>
+              <span>Transfer</span>
+              <strong>Status &amp; handlers</strong>
+            </div>
+            <StatusBadge tone={statusTone(detail.status)}>{detail.status}</StatusBadge>
           </div>
+
+          <div className="tlb-ops-handler-rail" aria-label="Transfer status and handlers">
+            <div className="tlb-ops-handler-card tlb-ops-handler-card--status">
+              <span className="tlb-ops-handler-kicker">Status</span>
+              <StatusBadge tone={statusTone(detail.status)}>{detail.status}</StatusBadge>
+              <small>{from?.code ?? "—"} → {to?.code ?? "—"}</small>
+            </div>
+
+            <div className="tlb-ops-handler-card tlb-ops-handler-card--actor">
+              <span className="tlb-ops-handler-kicker">Requested by</span>
+              <strong>{detail.requestedBy || "—"}</strong>
+              <small>{formatHandlerWhen(detail.requestedAt) ?? "—"}</small>
+            </div>
+
+            <div className={`tlb-ops-handler-card${detail.approvedBy ? "" : " tlb-ops-handler-card--empty"}`}>
+              <span className="tlb-ops-handler-kicker">Approved by</span>
+              <strong>{detail.approvedBy || "Pending"}</strong>
+              <small>{formatHandlerWhen(detail.approvedAt) ?? (detail.approvedBy ? "—" : "Not approved yet")}</small>
+            </div>
+
+            <div className={`tlb-ops-handler-card${detail.receivedBy ? "" : " tlb-ops-handler-card--empty"}`}>
+              <span className="tlb-ops-handler-kicker">Received by</span>
+              <strong>{detail.receivedBy || "Pending"}</strong>
+              <small>{formatHandlerWhen(detail.receivedAt) ?? (detail.receivedBy ? "—" : "Not received yet")}</small>
+            </div>
+          </div>
+
+          <dl className="tlb-kv tlb-ops-handler-meta">
+            <div>
+              <dt>From</dt>
+              <dd>{from?.name ?? detail.fromWarehouseId}</dd>
+            </div>
+            <div>
+              <dt>To</dt>
+              <dd>{to?.name ?? detail.toWarehouseId}</dd>
+            </div>
+            <div className="tlb-span-2">
+              <dt>Notes</dt>
+              <dd>{detail.notes?.trim() ? detail.notes : "—"}</dd>
+            </div>
+          </dl>
         </article>
-        <article className="tlb-panel tlb-orders-panel">
+        <article className="tlb-panel tlb-orders-panel tlb-record-detail-section tlb-record-detail-section--lines">
+          <div className="tlb-panel-heading">
+            <div>
+              <span>Lines</span>
+              <strong>Transfer quantities</strong>
+            </div>
+          </div>
           <div className="tlb-table-scroll">
             <table>
               <thead>
@@ -1263,15 +1312,50 @@ export function TraceProductModule({
   const nodes = useMemo(() => buildProductTrace(store.state, productId), [store.state, productId]);
   const product = store.state.products.find((p) => p.id === productId);
 
+  const stockRows = useMemo(() => {
+    return store.state.stock
+      .filter((s) => s.productId === productId)
+      .map((s) => {
+        const wh = store.state.warehouses.find((w) => w.id === s.warehouseId);
+        const pos = stockPosition(s);
+        return { id: s.id, warehouse: wh?.name ?? s.warehouseId, code: wh?.code ?? "—", ...pos };
+      })
+      .sort((a, b) => a.warehouse.localeCompare(b.warehouse));
+  }, [store.state.stock, store.state.warehouses, productId]);
+
+  const batches = useMemo(() => {
+    return notSoftDeleted(store.state.batches)
+      .filter((b) => b.productId === productId)
+      .slice()
+      .sort((a, b) => (b.receivedAt || "").localeCompare(a.receivedAt || ""));
+  }, [store.state.batches, productId]);
+
+  const totals = useMemo(() => {
+    return stockRows.reduce(
+      (acc, row) => {
+        acc.physical += row.physical;
+        acc.available += row.available;
+        acc.reserved += row.reserved;
+        return acc;
+      },
+      { physical: 0, available: 0, reserved: 0 },
+    );
+  }, [stockRows]);
+
+  const timeline = useMemo(
+    () => nodes.filter((n) => n.kind !== "product"),
+    [nodes],
+  );
+
   return (
-    <div className="tlb-module">
+    <div className="tlb-module tlb-trace-layout">
       <div className="tlb-module-toolbar">
         <div>
           <span className="tlb-eyebrow">Traceability</span>
           <strong>Trace Product</strong>
-          <p className="tlb-muted-line">WHAT · WHERE · WHEN · WHO · HOW MUCH · WHY</p>
+          <p className="tlb-muted-line">Identity · stock position · batches · movement timeline</p>
         </div>
-        <label>
+        <label className="tlb-trace-toolbar-select">
           Product
           <select value={productId} onChange={(e) => setProductId(e.target.value)}>
             {store.state.products.map((p) => (
@@ -1280,12 +1364,140 @@ export function TraceProductModule({
           </select>
         </label>
       </div>
-      <article className="tlb-panel">
+
+      <article className="tlb-panel tlb-record-detail-section tlb-record-detail-section--summary">
         <div className="tlb-panel-heading">
           <div>
-            <span>{product?.sku}</span>
-            <strong>{product?.name}</strong>
+            <span>Product</span>
+            <strong>Identity &amp; current position</strong>
           </div>
+          {product ? (
+            <StatusBadge tone={product.active ? "success" : "warning"}>
+              {product.active ? "Active" : "Inactive"}
+            </StatusBadge>
+          ) : null}
+        </div>
+        <div className="tlb-trace-identity">
+          <div className="tlb-trace-identity-main">
+            <span className="tlb-eyebrow">{product?.sku ?? "—"}</span>
+            <strong>{product?.name ?? "Product not found"}</strong>
+            <p>
+              {product
+                ? `${product.category} · ${product.unit}${product.issueStrategy ? ` · ${product.issueStrategy}` : ""}`
+                : "Select a product to inspect stock and movements."}
+            </p>
+          </div>
+          <div className="tlb-trace-stat">
+            <span>Physical</span>
+            <strong>{totals.physical}</strong>
+            <small>Across warehouses</small>
+          </div>
+          <div className="tlb-trace-stat">
+            <span>Available</span>
+            <strong>{totals.available}</strong>
+            <small>Usable now</small>
+          </div>
+          <div className="tlb-trace-stat">
+            <span>Reserved</span>
+            <strong>{totals.reserved}</strong>
+            <small>Allocated / held</small>
+          </div>
+        </div>
+      </article>
+
+      <div className="tlb-trace-split">
+        <article className="tlb-panel tlb-orders-panel tlb-record-detail-section tlb-record-detail-section--stock">
+          <div className="tlb-panel-heading">
+            <div>
+              <span>Stock</span>
+              <strong>By warehouse</strong>
+            </div>
+          </div>
+          <div className="tlb-table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Warehouse</th>
+                  <th>Physical</th>
+                  <th>Available</th>
+                  <th>Reserved</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stockRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={4}>
+                      <EmptyState title="No stock rows" detail="This product has no warehouse balances yet." />
+                    </td>
+                  </tr>
+                ) : (
+                  stockRows.map((row) => (
+                    <tr key={row.id}>
+                      <td>
+                        <strong>{row.code}</strong>
+                        <div className="tlb-muted-line">{row.warehouse}</div>
+                      </td>
+                      <td>{row.physical}</td>
+                      <td>{row.available}</td>
+                      <td>{row.reserved}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article className="tlb-panel tlb-orders-panel tlb-record-detail-section tlb-record-detail-section--stock">
+          <div className="tlb-panel-heading">
+            <div>
+              <span>Batches</span>
+              <strong>Open lots</strong>
+            </div>
+          </div>
+          <div className="tlb-table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Batch</th>
+                  <th>Remain</th>
+                  <th>Status</th>
+                  <th>Expiry</th>
+                </tr>
+              </thead>
+              <tbody>
+                {batches.length === 0 ? (
+                  <tr>
+                    <td colSpan={4}>
+                      <EmptyState title="No batches" detail="No lot records for this product." />
+                    </td>
+                  </tr>
+                ) : (
+                  batches.map((b) => (
+                    <tr key={b.id}>
+                      <td>
+                        <strong>{b.code}</strong>
+                        <div className="tlb-muted-line">{formatHandlerWhen(b.receivedAt) ?? "—"}</div>
+                      </td>
+                      <td>{b.remainingQty}</td>
+                      <td><StatusBadge tone={statusTone(b.status)}>{b.status}</StatusBadge></td>
+                      <td>{b.expiresAt ? b.expiresAt.slice(0, 10) : "—"}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+
+      <article className="tlb-panel tlb-orders-panel tlb-record-detail-section tlb-record-detail-section--activity">
+        <div className="tlb-panel-heading">
+          <div>
+            <span>Timeline</span>
+            <strong>WHAT · WHERE · WHEN · WHO · HOW MUCH</strong>
+          </div>
+          <span className="tlb-muted-line">{timeline.length} event{timeline.length === 1 ? "" : "s"}</span>
         </div>
         <div className="tlb-table-scroll">
           <table>
@@ -1299,12 +1511,16 @@ export function TraceProductModule({
               </tr>
             </thead>
             <tbody>
-              {nodes.length === 0 ? (
-                <tr><td colSpan={5}><EmptyState title="No trace nodes" detail="No matching records for this product." /></td></tr>
+              {timeline.length === 0 ? (
+                <tr>
+                  <td colSpan={5}>
+                    <EmptyState title="No trace nodes" detail="No matching records for this product." />
+                  </td>
+                </tr>
               ) : (
-                nodes.map((n) => (
-                  <tr key={`${n.kind}-${n.id}-${n.at}`}>
-                    <td>{n.at ? n.at.slice(0, 10) : "—"}</td>
+                timeline.map((n) => (
+                  <tr key={`${n.kind}-${n.id}-${n.at}`} className="tlb-trace-timeline-row">
+                    <td>{n.at ? formatHandlerWhen(n.at) ?? n.at.slice(0, 10) : "—"}</td>
                     <td><StatusBadge tone="info">{n.kind}</StatusBadge></td>
                     <td><strong>{n.title}</strong></td>
                     <td>{n.detail}</td>
