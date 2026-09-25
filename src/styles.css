@@ -70,7 +70,9 @@
   --color-info-muted: var(--info-muted);
   --color-brand-gold: var(--brand-gold);
   --color-brand-gold-muted: var(--brand-gold-muted);
-  --font-sans: "Aptos", "Segoe UI", system-ui, sans-serif;
+  --font-sans: "DM Sans", system-ui, sans-serif;
+  --font-display: "Cormorant Garamond", Georgia, serif;
+  --font-mono: "JetBrains Mono", monospace;
 }
 
 :root {
@@ -209,6 +211,15 @@
 }
 
 @utility tabular { font-variant-numeric: tabular-nums; }
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-mono,
+.tlb-mono {
+  font-family: var(--font-mono);
+}
 
 .tlb-app-shell { min-height: 100%; display: flex; background: #ffffff !important; background-color: #ffffff !important; }
 .tlb-sidebar { width: 248px; height: 100vh; display: flex; flex-direction: column; background: var(--sidebar); color: var(--sidebar-foreground); border-right: 1px solid var(--sidebar-border); transition: width 180ms ease; overflow: hidden; }
@@ -460,7 +471,14 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-page-heading--overlay-open { z-index: 70; }
 .tlb-content--overlay-open > .tlb-filter-bar { visibility: hidden; pointer-events: none; }
 .tlb-eyebrow { margin: 0 0 5px; color: var(--primary); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
-.tlb-page-heading h1 { margin: 0; font-size: 1.75rem; line-height: 1.15; font-weight: 700; }.tlb-page-heading p:last-child { margin: 7px 0 0; color: var(--muted-foreground); font-size: 0.875rem; }
+.tlb-page-heading h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  line-height: 1.15;
+  font-weight: 700;
+}
+.tlb-page-heading p:last-child { margin: 7px 0 0; color: var(--muted-foreground); font-size: 0.875rem; }
 /* Detail views: drop the bulky module title so Back sits near the top under sticky chrome. */
 .tlb-content:has(.tlb-record-detail-page) .tlb-page-heading,
 .tlb-content--detail-open .tlb-page-heading {
@@ -929,11 +947,15 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
   display: inline-flex; width: fit-content;
   padding: 2px 8px; border-radius: 4px;
   background: color-mix(in oklab, var(--primary) 12%, white);
-  color: var(--primary); font-size: 10px; font-weight: 800; letter-spacing: 0.04em;
+  color: var(--primary);
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 800; letter-spacing: 0.04em;
 }
 .tlb-record-detail-identity strong,
 .tlb-customer-detail-identity strong {
-  display: block; font-size: 20px; line-height: 1.2; color: var(--foreground);
+  display: block;
+  font-family: var(--font-display);
+  font-size: 20px; line-height: 1.2; color: var(--foreground);
 }
 .tlb-record-detail-identity .tlb-muted-line,
 .tlb-customer-detail-identity .tlb-muted-line { margin: 0; }
@@ -1144,7 +1166,7 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
   font-size: 12px;
 }
 .tlb-trash-dialog .tlb-trash-type-confirm label strong {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family: var(--font-mono);
   letter-spacing: 0.02em;
 }
 .tlb-trash-dialog .tlb-trash-type-hint {
