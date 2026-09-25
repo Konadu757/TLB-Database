@@ -111,6 +111,7 @@ import {
 } from "@/components/modules/p1-modules";
 import { NotificationsModule } from "@/components/modules/notifications-module";
 import { TrashModule } from "@/components/modules/trash-module";
+import { DueAwarenessPanel } from "@/components/due-awareness-panel";
 import { Button } from "@/components/ui/button";
 import { buildDashboardSnapshot } from "@/lib/domain/dashboard-metrics";
 import { listVisibleNotifications } from "@/lib/domain/notifications";
@@ -1482,6 +1483,14 @@ function TLBDashboardInner() {
               );
             })}
           </section>
+
+          <DueAwarenessPanel
+            state={store.state}
+            outstanding={store.outstanding}
+            onNavigate={(nav, orderId, productId, customerId, supplierId, opsRequestId) => {
+              openLiveModule(nav, orderId, productId, customerId, supplierId, opsRequestId);
+            }}
+          />
 
           <section className="tlb-dashboard-grid">
             <article className="tlb-panel tlb-sales-panel">

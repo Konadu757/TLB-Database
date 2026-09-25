@@ -37,7 +37,7 @@ export interface DueAwarenessItem {
   sortKey: number;
 }
 
-/** Notification types that warrant footer crawler attention when unread. */
+/** Notification types that warrant due-awareness attention when unread. */
 const SERIOUS_NOTIFICATION_TYPES = new Set<NotificationType>([
   "overdue",
   "expected_date_reached",
@@ -113,7 +113,7 @@ function isSeriousUnreadNotification(n: AppNotification): boolean {
 }
 
 /**
- * Collect due / overdue awareness items for the footer news crawler.
+ * Collect due / overdue awareness items for the dashboard Due & overdue panel.
  * Includes overdue/due-today work, unread serious notifications, expired stock,
  * open exceptions, and stale approvals.
  */
