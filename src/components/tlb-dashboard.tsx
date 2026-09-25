@@ -344,8 +344,6 @@ function TLBDashboardInner() {
     mode: "preset",
     period: "This Month",
   });
-  const [customFrom, setCustomFrom] = useState("2026-08-01");
-  const [customTo, setCustomTo] = useState("2026-08-31");
   const [warehouse, setWarehouse] = useState("All warehouses");
   const [searchOpen, setSearchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -1199,62 +1197,6 @@ function TLBDashboardInner() {
                 ))}
               </div>
               <label className="tlb-select"><Warehouse /><select value={warehouse} onChange={(event) => setWarehouse(event.target.value)} aria-label="Warehouse"><option>All warehouses</option><option>Main Warehouse</option><option>Factory Store</option></select><ChevronDown /></label>
-            </section>
-          )}
-
-          {activeNav === "Dashboard" && (
-            <section className="tlb-history-lookup" aria-label="Sales history lookup">
-              <div className="tlb-history-copy">
-                <span className="tlb-eyebrow">Collected sales history</span>
-                <strong>Review previous month or any custom dates</strong>
-              </div>
-              <div className="tlb-history-controls">
-                <button
-                  type="button"
-                  className={`tlb-history-card tlb-history-card--prev${rangeSelection.mode === "previousMonth" ? " active" : ""}`}
-                  onClick={() => setRangeSelection({ mode: "previousMonth" })}
-                >
-                  Previous month
-                </button>
-                <label className="tlb-history-card tlb-history-card--from">
-                  From
-                  <input
-                    type="date"
-                    value={customFrom}
-                    onChange={(e) => setCustomFrom(e.target.value)}
-                    aria-label="Custom from date"
-                  />
-                </label>
-                <label className="tlb-history-card tlb-history-card--to">
-                  To
-                  <input
-                    type="date"
-                    value={customTo}
-                    onChange={(e) => setCustomTo(e.target.value)}
-                    aria-label="Custom to date"
-                  />
-                </label>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="tlb-history-card tlb-history-card--apply"
-                  onClick={() => {
-                    if (!customFrom || !customTo) return;
-                    setRangeSelection({ mode: "custom", from: customFrom, to: customTo });
-                  }}
-                >
-                  Apply custom range
-                </Button>
-                {(rangeSelection.mode === "previousMonth" || rangeSelection.mode === "custom") && (
-                  <button type="button" className="tlb-text-action" onClick={() => selectPreset("This Month")}>
-                    Back to this month
-                  </button>
-                )}
-              </div>
-              <p className="tlb-history-result">
-                Showing <strong>{dash.salesTotalLabel}</strong> collected · {dash.collectionCount} receipt/payment
-                {dash.collectionCount === 1 ? "" : "s"} · {dash.periodLabel}
-              </p>
             </section>
           )}
 
