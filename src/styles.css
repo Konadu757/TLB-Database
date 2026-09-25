@@ -869,50 +869,60 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-metric .metric-positive { color: var(--success); }
 .tlb-metric .metric-negative { color: var(--danger); }
 .tlb-dashboard-grid { margin-top: 14px; display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, .9fr); gap: 14px; }
-/* Needs attention — compact summary card (~120px); click opens Notifications */
+/* Needs attention — 2-row summary (~120px); click opens Notifications */
 .tlb-due-panel--summary {
   margin-top: 14px;
   width: 100%;
   height: 120px;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-rows: auto 1fr auto;
-  align-content: center;
-  gap: 4px 12px;
-  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
   border-left: 3px solid color-mix(in oklab, var(--warning) 55%, var(--border));
   background: #ffffff;
   color: inherit;
   text-align: left;
   cursor: pointer;
   font: inherit;
+  overflow: hidden;
 }
 .tlb-due-panel--summary:hover { box-shadow: var(--tlb-shadow-hover); }
 .tlb-due-panel--has-overdue {
   border-left-color: var(--danger);
-  background: color-mix(in oklab, var(--danger-muted) 22%, #ffffff);
 }
-.tlb-due-panel-kicker {
-  grid-column: 1;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.tlb-due-panel-title {
+  flex: none;
+  display: block;
+  padding: 12px 18px 8px;
   color: var(--muted-foreground);
   font-size: 0.6875rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  line-height: 1.2;
 }
-.tlb-due-panel-kicker svg { width: 13px; height: 13px; color: var(--danger); }
+.tlb-due-panel-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  margin: 0 10px 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--info-muted) 70%, var(--cream-light));
+}
+.tlb-due-panel--has-overdue .tlb-due-panel-body {
+  background: color-mix(in oklab, var(--danger-muted) 35%, var(--cream-light));
+}
 .tlb-due-panel-total {
-  grid-column: 1;
   font-size: 1.25rem;
   font-weight: 700;
   line-height: 1.15;
   font-variant-numeric: tabular-nums;
 }
 .tlb-due-panel-summary {
-  grid-column: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -921,19 +931,6 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   font-size: 0.8125rem;
   line-height: 1.35;
 }
-.tlb-due-panel-cta {
-  grid-column: 2;
-  grid-row: 1 / -1;
-  align-self: center;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  color: var(--primary);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
-.tlb-due-panel-cta svg { width: 13px; height: 13px; }
 .tlb-panel { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-md); background: #ffffff; box-shadow: var(--tlb-shadow); overflow: hidden; transition: box-shadow 180ms ease; }
 .tlb-panel:hover { box-shadow: var(--tlb-shadow-hover); }
 .tlb-panel-heading { min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 17px; border-bottom: 1px solid var(--border); }.tlb-panel-heading > div { display: flex; flex-direction: column; gap: 4px; }.tlb-panel-heading span { color: var(--muted-foreground); font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; }.tlb-panel-heading strong { font-size: 0.9375rem; }.tlb-panel-heading button { display: flex; align-items: center; gap: 2px; border: 0; background: transparent; color: var(--primary); font-size: 0.6875rem; font-weight: 700; }.tlb-panel-heading button svg { width: 13px; }

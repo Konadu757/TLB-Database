@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { AlertTriangle, ChevronRight } from "lucide-react";
 
 import {
   buildDueAwarenessItems,
@@ -73,23 +72,18 @@ export function DueAwarenessPanel({ state, outstanding, onOpenNotifications }: P
       onClick={onOpenNotifications}
       aria-label={
         hasAttention
-          ? `Needs attention: ${summaryLine}. Open notifications.`
+          ? `Needs attention: ${total} items. ${summaryLine}. Open notifications.`
           : "Needs attention: all clear. Open notifications."
       }
     >
-      <span className="tlb-due-panel-kicker">
-        <AlertTriangle aria-hidden="true" />
-        Needs attention
-      </span>
-      <strong className="tlb-due-panel-total">
-        {hasAttention
-          ? `${total} item${total === 1 ? "" : "s"}`
-          : "All clear"}
-      </strong>
-      <span className="tlb-due-panel-summary">{summaryLine}</span>
-      <span className="tlb-due-panel-cta">
-        View notifications
-        <ChevronRight aria-hidden="true" />
+      <span className="tlb-due-panel-title">Needs attention</span>
+      <span className="tlb-due-panel-body">
+        <strong className="tlb-due-panel-total">
+          {hasAttention
+            ? `${total} item${total === 1 ? "" : "s"}`
+            : "All clear"}
+        </strong>
+        <span className="tlb-due-panel-summary">{summaryLine}</span>
       </span>
     </button>
   );
