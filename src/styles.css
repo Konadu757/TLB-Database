@@ -803,9 +803,11 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 }
 .tlb-metric-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 2px 6px;
   min-width: 0;
+  flex: 1 1 auto;
 }
 .tlb-metric-icon {
   flex: none;
@@ -820,16 +822,19 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 }
 .tlb-metric-icon svg { width: 14px; height: 14px; }
 .tlb-metric-title {
-  min-width: 0;
+  flex: 1 1 auto;
+  min-width: min-content;
+  margin-inline-start: auto;
+  padding-left: 4px;
+  text-align: right;
   color: color-mix(in oklab, var(--foreground) 72%, #523784);
-  font-size: 0.6875rem;
-  line-height: 1.2;
+  font-size: 0.5625rem;
+  line-height: 1.15;
   font-weight: 500;
   text-transform: none;
-  letter-spacing: 0;
+  letter-spacing: -0.03em;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
 }
 .tlb-metric-label button {
   flex: none;
