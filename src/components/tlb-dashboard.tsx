@@ -1455,53 +1455,145 @@ function TLBDashboardInner() {
             <>
           <section className="tlb-overview-section" aria-labelledby="tlb-business-overview-heading">
             <h2 id="tlb-business-overview-heading" className="tlb-section-title">Business overview</h2>
-            <div className="tlb-metrics" role="list">
-              {dash.metrics.map((metric) => {
-                const MetricIcon = metricIconForLabel(metric.label);
-                return (
-                  <button
-                    type="button"
-                    className="tlb-metric"
-                    key={metric.label}
-                    role="listitem"
-                    aria-label={`${metric.label}: ${metric.value}`}
-                    onClick={() =>
-                      openInspector({
-                        title: metric.label,
-                        kicker: "KPI",
-                        lines: [
-                          `Value: ${metric.value}`,
-                          metric.note,
-                          dash.salesBasisLabel,
-                          `Filter: ${periodCaption} · ${warehouse}`,
-                          `Range: ${dash.periodLabel}`,
-                        ],
-                      })
-                    }
-                  >
-                    <div className="tlb-metric-label">
-                      <span className="tlb-metric-title">{metric.label}</span>
-                      <span className="tlb-metric-icon" aria-hidden="true">
-                        <MetricIcon />
-                      </span>
-                    </div>
-                    <strong className="tlb-metric-value">{metric.value}</strong>
-                    <p
-                      className={
-                        metric.trend === "up"
-                          ? "metric-positive"
-                          : metric.trend === "down"
-                            ? "metric-negative"
-                            : ""
+            <div className="tlb-overview-grid">
+              <div className="tlb-overview-primary" role="list">
+                {dash.metrics.slice(0, 2).map((metric, index) => {
+                  const MetricIcon = metricIconForLabel(metric.label);
+                  return (
+                    <button
+                      type="button"
+                      className={cn(
+                        "tlb-metric tlb-metric--primary",
+                        index === 0 && "tlb-metric--hero",
+                      )}
+                      key={metric.label}
+                      role="listitem"
+                      aria-label={`${metric.label}: ${metric.value}`}
+                      onClick={() => {
+                        if (index === 1) {
+                          setActiveNav("Stock");
+                          return;
+                        }
+                        openInspector({
+                          title: metric.label,
+                          kicker: "KPI",
+                          lines: [
+                            `Value: ${metric.value}`,
+                            metric.note,
+                            dash.salesBasisLabel,
+                            `Filter: ${periodCaption} · ${warehouse}`,
+                            `Range: ${dash.periodLabel}`,
+                          ],
+                        });
+                      }}
+                    >
+                      <div className="tlb-metric-label">
+                        <span className="tlb-metric-title">{metric.label}</span>
+                        <span className="tlb-metric-icon" aria-hidden="true">
+                          <MetricIcon />
+                        </span>
+                      </div>
+                      <strong className="tlb-metric-value">{metric.value}</strong>
+                      {index === 1 ? (
+                        <>
+                          <div
+                            className="tlb-metric-progress"
+                            aria-hidden="true"
+                          >
+                            <span
+                              style={{
+                                width: `${Math.max(
+                                  4,
+                                  Math.min(
+                                    100,
+                                    dash.stockItemCount > 0
+                                      ? ((dash.stockItemCount - dash.outOfStock) /
+                                          Math.max(dash.stockItemCount, 1)) *
+                                        100
+                                      : 0,
+                                  ),
+                                )}%`,
+                              }}
+                            />
+                          </div>
+                          <p className="tlb-metric-link">
+                            Stock board <ChevronRight />
+                          </p>
+                        </>
+                      ) : (
+                        <p
+                          className={
+                            metric.trend === "up"
+                              ? "metric-positive"
+                              : metric.trend === "down"
+                                ? "metric-negative"
+                                : ""
+                          }
+                        >
+                          {metric.trend === "up" && <ArrowUpRight />}
+                          {metric.trend === "down" && <ArrowDownRight />}
+                          {metric.note}
+                        </p>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="tlb-overview-kpis" role="list">
+                {dash.metrics.slice(2, 5).map((metric) => {
+                  const MetricIcon = metricIconForLabel(metric.label);
+                  return (
+                    <button
+                      type="button"
+                      className="tlb-metric tlb-metric--compact"
+                      key={metric.label}
+                      role="listitem"
+                      aria-label={`${metric.label}: ${metric.value}`}
+                      onClick={() =>
+                        openInspector({
+                          title: metric.label,
+                          kicker: "KPI",
+                          lines: [
+                            `Value: ${metric.value}`,
+                            metric.note,
+                            dash.salesBasisLabel,
+                            `Filter: ${periodCaption} · ${warehouse}`,
+                            `Range: ${dash.periodLabel}`,
+                          ],
+                        })
                       }
                     >
-                      {metric.trend === "up" && <ArrowUpRight />}
-                      {metric.trend === "down" && <ArrowDownRight />}
-                      {metric.note}
-                    </p>
-                  </button>
-                );
-              })}
+                      <div className="tlb-metric-label">
+                        <span className="tlb-metric-title">{metric.label}</span>
+                        <span className="tlb-metric-icon" aria-hidden="true">
+                          <MetricIcon />
+                        </span>
+                      </div>
+                      <strong className="tlb-metric-value">{metric.value}</strong>
+                      <p
+                        className={
+                          metric.trend === "up"
+                            ? "metric-positive"
+                            : metric.trend === "down"
+                              ? "metric-negative"
+                              : ""
+                        }
+                      >
+                        {metric.trend === "up" && <ArrowUpRight />}
+                        {metric.trend === "down" && <ArrowDownRight />}
+                        {metric.note}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+              <aside className="tlb-overview-aside" aria-label="Outstanding supplies">
+                <OutstandingDashboardWidget
+                  store={store}
+                  dateFilter={dash.range}
+                  onOpen={() => openLiveModule("Outstanding Supplies")}
+                />
+              </aside>
             </div>
           </section>
 
@@ -1631,12 +1723,6 @@ function TLBDashboardInner() {
                 )}
               </div>
             </article>
-
-            <OutstandingDashboardWidget
-              store={store}
-              dateFilter={dash.range}
-              onOpen={() => openLiveModule("Outstanding Supplies")}
-            />
 
             <InventoryAlertsWidget store={store} onOpenNav={(nav) => openLiveModule(nav)} />
 

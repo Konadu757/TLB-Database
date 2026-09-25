@@ -1,4 +1,4 @@
-/* Self-hosted web fonts — Inter (MOJO screenshot match) + JetBrains Mono for codes/IDs */
+/* Self-hosted web fonts ? Inter (MOJO screenshot match) + JetBrains Mono for codes/IDs */
 @import "@fontsource/inter/400.css";
 @import "@fontsource/inter/500.css";
 @import "@fontsource/inter/600.css";
@@ -89,18 +89,18 @@
 
 :root {
   --radius: 0.45rem;
-  /* Base UI size — bump here to scale rem-based text and body (sidebar rem locked to px below) */
+  /* Base UI size ? bump here to scale rem-based text and body (sidebar rem locked to px below) */
   --font-size-root: 18px;
   /* Explicit content floor for main workspace (inherits onto non-rem text too) */
   --font-size-content: 18px;
-  /* Pure workspace white — never cream/muted as page fill */
+  /* Pure workspace white ? never cream/muted as page fill */
   --background: #ffffff;
   --color-background: #ffffff;
   --foreground: oklch(0.24 0.05 296);
   /* Cream cards must contrast against pure white (was nearly invisible) */
   --cream: oklch(0.965 0.042 92);
   --cream-light: oklch(0.99 0.016 92);
-  /* Even-row tint: cream + whisper of brand purple — lighter than hover/selected */
+  /* Even-row tint: cream + whisper of brand purple ? lighter than hover/selected */
   --table-zebra: color-mix(in oklab, var(--cream-light) 82%, color-mix(in oklab, var(--primary) 5%, white));
   --card: var(--cream);
   --card-foreground: oklch(0.24 0.05 296);
@@ -110,7 +110,7 @@
   --primary-foreground: oklch(0.99 0.02 95);
   --secondary: oklch(0.96 0.05 92);
   --secondary-foreground: oklch(0.4 0.16 296);
-  /* Cool muted for chips only — not a warm page wash */
+  /* Cool muted for chips only ? not a warm page wash */
   --muted: oklch(0.965 0.006 92);
   --muted-foreground: oklch(0.46 0.05 296);
   --accent: oklch(0.94 0.08 92);
@@ -144,7 +144,7 @@
   --danger-muted: oklch(0.96 0.05 25);
   --info: oklch(0.5 0.14 296);
   --info-muted: oklch(0.95 0.05 296);
-  /* Shared elevation — readable on cream/white cards (avoid neon/purple glow) */
+  /* Shared elevation ? readable on cream/white cards (avoid neon/purple glow) */
   --tlb-shadow: 0 4px 16px color-mix(in oklab, var(--foreground) 10%, transparent);
   --tlb-shadow-hover: 0 10px 28px color-mix(in oklab, var(--foreground) 14%, transparent);
 }
@@ -241,7 +241,7 @@
   font-family: var(--font-mono);
 }
 
-/* App chrome inherits Inter — one geometric sans for body, titles, and KPI figures */
+/* App chrome inherits Inter ? one geometric sans for body, titles, and KPI figures */
 .tlb-app-shell,
 .tlb-sidebar,
 .tlb-main,
@@ -340,7 +340,7 @@ table.tlb-table,
   overflow-y: auto;
   padding: 13px 10px;
   padding-bottom: 25px;
-  /* Custom thin scrollbar — light brand purple (#523784 family) */
+  /* Custom thin scrollbar ? light brand purple (#523784 family) */
   scrollbar-width: thin;
   scrollbar-color: #a894c4 color-mix(in oklab, #523784 22%, transparent);
 }
@@ -426,7 +426,7 @@ table.tlb-table,
 .tlb-nav-item:hover { background: color-mix(in oklab, #ffffff 12%, transparent); color: #ffffff; }
 .tlb-nav-item svg { width: 17px; height: 17px; flex: none; }
 .tlb-nav-active { background: color-mix(in oklab, #ffffff 18%, #6b4fa0); color: #ffffff; }
-/* Selected: keep icon lucid white/gold whisper — no left gold bar */
+/* Selected: keep icon lucid white/gold whisper ? no left gold bar */
 .tlb-nav-active svg,
 .tlb-nav-group-items .tlb-nav-item.tlb-nav-active svg {
   color: var(--brand-gold);
@@ -561,7 +561,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-content { max-width: 1580px; margin: 0 auto; padding: 24px 28px 44px; background: transparent; background-color: transparent; }
 .tlb-breadcrumb { display: flex; align-items: center; gap: 6px; color: var(--muted-foreground); font-size: 0.75rem; }.tlb-breadcrumb svg { width: 12px; }.tlb-breadcrumb span:last-child { color: var(--foreground); }
 .tlb-page-heading { margin-top: 13px; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; position: relative; z-index: 40; overflow: visible; }
-/* Quick Action trigger — fully rounded pill */
+/* Quick Action trigger ? fully rounded pill */
 .tlb-heading-actions > .tlb-popover-wrap > button { border-radius: 9999px; }
 /* Quick-action / page-heading menus must stack above sticky .tlb-filter-bar (z-index 50). */
 .tlb-page-heading--overlay-open { z-index: 70; }
@@ -595,7 +595,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   gap: 16px;
   padding: 10px 0;
   border: none;
-  /* Match chrome canvas grey — no cream/white panel or top white strip */
+  /* Match chrome canvas grey ? no cream/white panel or top white strip */
   background: var(--tlb-chrome-canvas);
   background-color: var(--tlb-chrome-canvas);
   border-radius: 0;
@@ -690,7 +690,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   text-transform: none;
   box-shadow: 0 1px 3px color-mix(in oklab, var(--foreground) 6%, transparent);
 }
-/* Previous month — bright yellow */
+/* Previous month ? bright yellow */
 .tlb-history-card--prev {
   background: #ffe566;
   border-color: #f0c929;
@@ -703,7 +703,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   color: #3d3200;
   box-shadow: 0 0 0 2px color-mix(in oklab, #ffd400 55%, transparent);
 }
-/* From date — bright gray */
+/* From date ? bright gray */
 .tlb-history-card--from {
   background: #e8eaed;
   border-color: #c5c9d0;
@@ -713,7 +713,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   background: #f8f9fa;
   border-color: #b0b5bd;
 }
-/* To date — soft brand purple */
+/* To date ? soft brand purple */
 .tlb-history-card--to {
   background: color-mix(in oklab, #523784 14%, #f7f4fb);
   border-color: color-mix(in oklab, #523784 28%, #d4cce3);
@@ -723,7 +723,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   background: color-mix(in oklab, #f9cd5b 12%, white);
   border-color: color-mix(in oklab, #523784 22%, #d4cce3);
 }
-/* Apply custom range — bright green */
+/* Apply custom range ? bright green */
 .tlb-history-card--apply {
   background: #3ddc84 !important;
   border-color: #22c55e !important;
@@ -759,6 +759,49 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   background: #523784;
   flex: none;
 }
+/* MOJO business-overview composition: left KPI cluster + tall right panel */
+.tlb-overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(280px, 0.95fr);
+  grid-template-rows: auto auto;
+  gap: 14px;
+  align-items: stretch;
+}
+.tlb-overview-primary {
+  grid-column: 1;
+  grid-row: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.9fr);
+  gap: 14px;
+  min-width: 0;
+}
+.tlb-overview-kpis {
+  grid-column: 1;
+  grid-row: 2;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  min-width: 0;
+}
+.tlb-overview-aside {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tlb-overview-aside > .tlb-panel {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  height: 100%;
+}
+.tlb-overview-aside .tlb-table-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+}
 .tlb-metrics {
   margin-top: 0;
   display: grid;
@@ -771,7 +814,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-metric {
   box-sizing: border-box;
   width: 100%;
-  min-height: 148px;
+  min-height: 132px;
   margin: 0;
   flex: none;
   display: flex;
@@ -789,6 +832,39 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   font-family: var(--font-sans);
   color: inherit;
   transition: box-shadow 180ms ease, transform 180ms ease;
+}
+.tlb-metric--primary {
+  min-height: 188px;
+}
+.tlb-metric--hero .tlb-metric-value {
+  font-size: clamp(1.35rem, 2.1vw, 1.85rem);
+}
+.tlb-metric--compact {
+  min-height: 124px;
+  padding: 14px 14px 12px;
+}
+.tlb-metric--compact .tlb-metric-value {
+  font-size: clamp(0.9375rem, 1.2vw, 1.125rem);
+}
+.tlb-overview-primary .tlb-metric:nth-child(1) .tlb-metric-icon {
+  background: color-mix(in oklab, #22c55e 18%, white);
+  color: #15803d;
+}
+.tlb-overview-primary .tlb-metric:nth-child(2) .tlb-metric-icon {
+  background: color-mix(in oklab, #523784 16%, white);
+  color: #523784;
+}
+.tlb-overview-kpis .tlb-metric:nth-child(1) .tlb-metric-icon {
+  background: color-mix(in oklab, #ef4444 16%, white);
+  color: #b91c1c;
+}
+.tlb-overview-kpis .tlb-metric:nth-child(2) .tlb-metric-icon {
+  background: color-mix(in oklab, #F9CD5B 42%, white);
+  color: #92640a;
+}
+.tlb-overview-kpis .tlb-metric:nth-child(3) .tlb-metric-icon {
+  background: color-mix(in oklab, #6366f1 16%, white);
+  color: #4338ca;
 }
 .tlb-metric:nth-child(1) .tlb-metric-icon {
   background: color-mix(in oklab, #22c55e 18%, white);
@@ -814,11 +890,6 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   background: color-mix(in oklab, #0ea5e9 16%, white);
   color: #0369a1;
 }
-@media (min-width: 641px) {
-  .tlb-metric {
-    min-height: 156px;
-  }
-}
 .tlb-metric:hover {
   box-shadow: 0 10px 28px color-mix(in oklab, #523784 12%, transparent);
   transform: translateY(-1px);
@@ -840,6 +911,10 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   margin-bottom: 12px;
   border-bottom: 1px solid color-mix(in oklab, #523784 10%, #e8e6ef);
 }
+.tlb-metric--compact .tlb-metric-label {
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+}
 .tlb-metric-heading {
   display: contents;
 }
@@ -854,7 +929,13 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   color: #523784;
   border: 0;
 }
+.tlb-metric--compact .tlb-metric-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
 .tlb-metric-icon svg { width: 15px; height: 15px; }
+.tlb-metric--compact .tlb-metric-icon svg { width: 13px; height: 13px; }
 .tlb-metric-title {
   flex: 1 1 auto;
   min-width: 0;
@@ -895,6 +976,27 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   max-width: 100%;
   letter-spacing: -0.03em;
 }
+.tlb-metric-progress {
+  height: 6px;
+  margin: 4px 0 10px;
+  border-radius: 999px;
+  background: color-mix(in oklab, #523784 10%, #e8e6ef);
+  overflow: hidden;
+}
+.tlb-metric-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #523784;
+}
+.tlb-metric-link {
+  color: #523784 !important;
+  font-weight: 600 !important;
+}
+.tlb-metric-link svg {
+  width: 12px;
+  height: 12px;
+}
 .tlb-metric > p {
   flex: none;
   min-height: 0;
@@ -916,7 +1018,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-metric .metric-positive { color: var(--success); }
 .tlb-metric .metric-negative { color: var(--danger); }
 .tlb-dashboard-grid { margin-top: 0; display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, .9fr); gap: 16px; }
-/* Needs attention — compact 2-row summary; click opens Notifications */
+/* Needs attention ? compact 2-row summary; click opens Notifications */
 .tlb-due-panel--summary {
   margin-top: 14px;
   width: 100%;
@@ -991,7 +1093,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .status-warning { background: var(--warning-muted); color: var(--warning-foreground); }
 .status-gold { background: var(--brand-gold-muted); color: var(--warning-foreground); }
 .status-neutral { background: var(--muted); color: var(--muted-foreground); }
-/* Sales order / line status pills — distinct within TLB tokens */
+/* Sales order / line status pills ? distinct within TLB tokens */
 .status-draft { background: color-mix(in oklab, var(--muted) 70%, white); color: var(--muted-foreground); }
 .status-pending { background: var(--brand-gold-muted); color: var(--warning-foreground); }
 .status-confirmed { background: var(--info-muted); color: var(--primary); }
@@ -1033,7 +1135,7 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
 .tlb-inspector-list { margin: 0; padding-left: 18px; font-size: 0.8125rem; }
 .tlb-inspector-list li { margin: 6px 0; }
 
-/* Commerce / fulfilment modules — extend existing tlb patterns */
+/* Commerce / fulfilment modules ? extend existing tlb patterns */
 .status-danger { background: var(--danger-muted); color: var(--danger); }
 
 /* Sales Orders list */
@@ -1207,8 +1309,8 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
 .tlb-customers-table { min-width: 860px; }
 .tlb-customers-list-panel { width: 100%; }
 
-/* —— Customer detail page: color-coded identification —— */
-/* Shared full-page record detail (Customers + all list→detail modules) */
+/* ?? Customer detail page: color-coded identification ?? */
+/* Shared full-page record detail (Customers + all list?detail modules) */
 .tlb-record-detail-page,
 .tlb-customer-detail-page { gap: 14px; }
 .tlb-record-detail-header,
@@ -1223,7 +1325,7 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
 }
 .tlb-record-detail-header .tlb-text-link,
 .tlb-customer-detail-header .tlb-text-link { color: var(--primary); }
-/* Sticky back row — always under floating .tlb-header. Period filter is hidden on detail. */
+/* Sticky back row ? always under floating .tlb-header. Period filter is hidden on detail. */
 .tlb-record-back-bar {
   display: flex;
   align-items: center;
@@ -1540,8 +1642,31 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
   .tlb-customers-table { min-width: 520px; }
 }
 
+@media (max-width: 1100px) {
+  .tlb-overview-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+  }
+  .tlb-overview-primary,
+  .tlb-overview-kpis,
+  .tlb-overview-aside {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  .tlb-overview-aside > .tlb-panel {
+    min-height: 0;
+    height: auto;
+  }
+}
 @media (max-width: 900px) {
   .tlb-desktop-sidebar { display: none; }.tlb-mobile-menu { display: inline-flex; }.tlb-mobile-overlay { display: block; position: fixed; inset: 0; z-index: 60; background: color-mix(in oklab, var(--foreground) 35%, transparent); }.tlb-mobile-sidebar { display: block; position: fixed; left: var(--tlb-chrome-gap); top: var(--tlb-chrome-gap); z-index: 70; transform: translateX(calc(-100% - var(--tlb-chrome-gap))); transition: transform 180ms ease; }.tlb-mobile-sidebar-open { transform: translateX(0); }.tlb-mobile-sidebar .tlb-sidebar { width: 270px; height: calc(100dvh - (2 * var(--tlb-chrome-gap))); }.tlb-dashboard-grid { grid-template-columns: 1fr; }.tlb-user-copy { display: none; }.tlb-header { margin-left: var(--tlb-chrome-gap); padding-inline: 18px; }.tlb-content { padding-inline: 18px; }
+  .tlb-overview-primary { grid-template-columns: 1fr 1fr; }
+  .tlb-overview-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .tlb-overview-primary { grid-template-columns: 1fr; }
+  .tlb-overview-kpis { grid-template-columns: 1fr; }
+  .tlb-metric--primary { min-height: 156px; }
 }
 @media (max-width: 640px) {
   :root { --tlb-header-h: 58px; }
@@ -1549,7 +1674,7 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }
 
-/* —— Ops handler strip (Goods In / Returns / Transfers) —— */
+/* ?? Ops handler strip (Goods In / Returns / Transfers) ?? */
 .tlb-ops-handler .tlb-panel-heading .status-badge,
 .tlb-goods-in-status .tlb-panel-heading .status-badge {
   flex: none;
@@ -1659,7 +1784,7 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
   border-top: 1px solid var(--border);
 }
 
-/* —— Trace Product layout —— */
+/* ?? Trace Product layout ?? */
 .tlb-trace-layout {
   display: grid;
   gap: 14px;
