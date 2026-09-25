@@ -15,7 +15,7 @@ import {
   createQuotation,
   createRole,
   createSupply,
-  deactivateRole,
+  deleteRole,
   getOutstandingRows,
   loadState,
   markDelivered,
@@ -368,8 +368,10 @@ export function useTlbStore() {
       apply((s) => createRole(s, input), "Role created."),
     updateRole: (roleId: string, input: Parameters<typeof updateRole>[2]) =>
       apply((s) => updateRole(s, roleId, input), "Role updated."),
+    deleteRole: (roleId: string) =>
+      apply((s) => deleteRole(s, roleId), "Role deleted."),
     deactivateRole: (roleId: string) =>
-      apply((s) => deactivateRole(s, roleId), "Role deactivated."),
+      apply((s) => deleteRole(s, roleId), "Role deleted."),
     assignUserRole: (userId: string, roleId: string) =>
       apply((s) => assignUserRole(s, userId, roleId), "User role assigned."),
     saveUser: (input: Parameters<typeof upsertAppUser>[1]) => {

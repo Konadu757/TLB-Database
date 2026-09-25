@@ -2,10 +2,12 @@ import { useMemo, useState } from "react";
 import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { listAssignableRoles } from "@/lib/domain/permissions";
+import { listAssignableRoles, resolveRole } from "@/lib/domain/permissions";
 import { buildInviteLink, isInvitePending } from "@/lib/domain/invites";
 import { formatMoney } from "@/lib/store/tlb-store";
 import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
+
+const ROLE_DELETE_CONFIRM_PHRASE = "DELETE";
 
 async function copyToClipboard(text: string): Promise<boolean> {
   try {
@@ -125,6 +127,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
   const editingUser = store.state.users.find((u) => u.id === editingUserId) ?? null;
   const canManageUsers = store.can("users.manage");
   const canManageSettings = store.can("settings.manage");
+  const isOwnerSession = resolveRole(store.state)?.systemKey === "Owner";
 
   const startEditUser = (user: (typeof store.state.users)[number]) => {
     setEditingUserId(user.id);
@@ -431,8 +434,10 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
               <div><span>Access</span><strong>Roles</strong></div>
             </div>
             <p className="tlb-muted-line" style={{ padding: "0 17px 8px" }}>
-              Permissions are predefined per role and cannot be customized. Owner cannot be removed.
-              Deactivate unused roles only after reassigning any active users.
+              Permissions are predefined per role and cannot be customized. The Owner role is protected.
+              {isOwnerSession
+                ? " Deleting a role reassigns its users to Owner automatically."
+                : " Only the Owner can delete roles."}
             </p>
             <div className="tlb-table-scroll tlb-orders-panel">
               <table>
@@ -447,6 +452,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                 </thead>
                 <tbody>
                   {[...store.state.roles]
+                    .filter((role) => role.active)
                     .sort((a, b) => {
                       if (a.systemKey === "Owner") return -1;
                       if (b.systemKey === "Owner") return 1;
@@ -454,7 +460,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                     })
                     .map((role) => {
                       const assigned = store.state.users.filter((u) => u.roleId === role.id && u.active).length;
-                      const isOwner = role.systemKey === "Owner";
+                      const isOwnerRole = role.systemKey === "Owner";
                       return (
                         <tr key={role.id}>
                           <td>
@@ -465,35 +471,37 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                           </td>
                           <td>{role.systemKey ? "System" : "Custom"}</td>
                           <td>{assigned}</td>
-                          <td>{role.active ? "Active" : "Inactive"}</td>
+                          <td>Active</td>
                           <td>
-                            {isOwner ? (
+                            {isOwnerRole ? (
                               <StatusBadge tone="neutral">Protected</StatusBadge>
-                            ) : !role.active ? (
-                              <span className="tlb-muted">Deactivated</span>
-                            ) : (
+                            ) : isOwnerSession ? (
                               <button
                                 type="button"
                                 className="tlb-link-btn"
                                 onClick={() => {
-                                  if (assigned > 0) {
-                                    window.alert(
-                                      `Cannot deactivate “${role.name}” — assigned to ${assigned} active user(s). Reassign them under Users first.`,
-                                    );
-                                    return;
-                                  }
+                                  const assignedUsers = store.state.users.filter(
+                                    (u) => u.roleId === role.id,
+                                  ).length;
+                                  const promptMsg =
+                                    assignedUsers > 0
+                                      ? `Delete role “${role.name}”? ${assignedUsers} user(s) will be reassigned to Owner.\n\nType ${ROLE_DELETE_CONFIRM_PHRASE} to confirm:`
+                                      : `Delete role “${role.name}”?\n\nType ${ROLE_DELETE_CONFIRM_PHRASE} to confirm:`;
+                                  const typed = window.prompt(promptMsg);
                                   if (
-                                    !window.confirm(
-                                      `Deactivate role “${role.name}”? It will no longer be assignable.`,
-                                    )
+                                    !typed ||
+                                    typed.trim().toLowerCase() !==
+                                      ROLE_DELETE_CONFIRM_PHRASE.toLowerCase()
                                   ) {
                                     return;
                                   }
-                                  store.deactivateRole(role.id);
+                                  store.deleteRole(role.id);
                                 }}
                               >
-                                Deactivate
+                                Delete
                               </button>
+                            ) : (
+                              <span className="tlb-muted">Owner only</span>
                             )}
                           </td>
                         </tr>

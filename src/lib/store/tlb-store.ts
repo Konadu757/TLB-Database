@@ -20,7 +20,7 @@ import {
   markInviteAccepted,
   normalizeAccessCode,
 } from "../domain/invites";
-import { hasPermission } from "../domain/permissions";
+import { hasPermission, resolveRole } from "../domain/permissions";
 
 export { buildInviteLink, isInvitePending } from "../domain/invites";
 import { isSoftDeleted } from "../domain/trash";
@@ -1409,28 +1409,55 @@ export function updateRole(
   return { ok: true, data: { state: next, data: role } };
 }
 
-export function deactivateRole(state: TlbState, roleId: string): MutResult<RoleDefinition> {
-  const blocked = requirePerm(state, "users.manage");
-  if (blocked) return { ok: false, error: blocked };
+/**
+ * Owner-only role delete. Reassigns every user on the role to Owner, then
+ * soft-deletes the role (hidden from the Roles list and unassignable).
+ * The Owner role itself cannot be deleted.
+ */
+export function deleteRole(state: TlbState, roleId: string): MutResult<RoleDefinition> {
+  const current = resolveRole(state);
+  if (current?.systemKey !== "Owner") {
+    return { ok: false, error: "Only the Owner can delete roles." };
+  }
   const next = cloneState(state);
   const role = next.roles.find((r) => r.id === roleId);
   if (!role) return { ok: false, error: "Role not found." };
-  if (role.systemKey === "Owner") return { ok: false, error: "Cannot deactivate the Owner role." };
-  const assigned = next.users.filter((u) => u.roleId === roleId && u.active);
-  if (assigned.length > 0) {
-    return {
-      ok: false,
-      error: `Cannot deactivate — assigned to ${assigned.length} active user(s). Reassign them first.`,
-    };
+  if (!role.active) return { ok: false, error: "Role already deleted." };
+  if (role.systemKey === "Owner") {
+    return { ok: false, error: "The Owner role cannot be deleted." };
   }
+
+  const ownerRole = next.roles.find((r) => r.systemKey === "Owner" && r.active);
+  if (!ownerRole) {
+    return { ok: false, error: "Owner role is missing — cannot reassign users." };
+  }
+
+  const affected = next.users.filter((u) => u.roleId === roleId);
+  for (const user of affected) {
+    user.roleId = ownerRole.id;
+  }
+
   role.active = false;
+  syncSessionIdentity(next);
   pushAudit(next, {
-    action: "role.deactivated",
+    action: "role.deleted",
     entityType: "role",
     entityId: role.id,
-    summary: `Deactivated role ${role.name}.`,
+    summary:
+      affected.length > 0
+        ? `Deleted role ${role.name}; reassigned ${affected.length} user(s) to Owner.`
+        : `Deleted role ${role.name}.`,
+    meta: {
+      reassignedCount: affected.length,
+      reassignedToRoleId: ownerRole.id,
+    },
   });
   return { ok: true, data: { state: next, data: role } };
+}
+
+/** @deprecated Use deleteRole — kept for older call sites / tests. */
+export function deactivateRole(state: TlbState, roleId: string): MutResult<RoleDefinition> {
+  return deleteRole(state, roleId);
 }
 
 /** Blocks demoting or deactivating the last active Owner. */

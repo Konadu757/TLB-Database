@@ -66,9 +66,8 @@ import {
   createInvoiceFromSupply,
   createOrdinaryReceipt,
   createReceiptFromSupply,
-  createRole,
   createSupply,
-  deactivateRole,
+  deleteRole,
   getOutstandingRows,
   issueUserInvite,
   markDelivered,
@@ -160,28 +159,29 @@ function testPermissions() {
   assert.equal(canAccessNav(state, "Settings"), true);
   assert.equal(canAccessNav(state, "Finance"), true);
 
-  const created = createRole(state, {
-    name: "Procurement Lead",
-    description: "Supplier and stock intake",
-    permissions: ["dashboard.view", "suppliers.manage", "stock.receive", "stock.view"],
-  });
-  assert.equal(created.ok, true);
-  if (!created.ok) return;
-  const roleId = created.data.data.id;
-  const assigned = assignUserRole(created.data.state, "user-sales", roleId);
+  // Non-Owner session cannot delete roles.
+  const asSales = switchSessionUser(state, "user-sales");
+  assert.equal(asSales.ok, true);
+  if (!asSales.ok) return;
+  const blockedDelete = deleteRole(asSales.data.state, SYSTEM_ROLE_IDS.Warehouse);
+  assert.equal(blockedDelete.ok, false);
+
+  // Owner can delete a system role; assigned users are reassigned to Owner.
+  const assigned = assignUserRole(state, "user-sales", SYSTEM_ROLE_IDS.Warehouse);
   assert.equal(assigned.ok, true);
   if (!assigned.ok) return;
-  const switched = switchSessionUser(assigned.data.state, "user-sales");
-  assert.equal(switched.ok, true);
-  if (!switched.ok) return;
-  assert.equal(switched.data.state.currentRole, "Procurement Lead");
-  assert.equal(hasPermission(switched.data.state, "suppliers.manage"), true);
-  assert.equal(hasPermission(switched.data.state, "invoice.create"), false);
-  assert.equal(canAccessNav(switched.data.state, "Suppliers"), true);
-  assert.equal(canAccessNav(switched.data.state, "Finance"), false);
+  const deleted = deleteRole(assigned.data.state, SYSTEM_ROLE_IDS.Warehouse);
+  assert.equal(deleted.ok, true);
+  if (!deleted.ok) return;
+  const warehouseGone = deleted.data.state.roles.find((r) => r.id === SYSTEM_ROLE_IDS.Warehouse);
+  assert.equal(warehouseGone?.active, false);
+  const salesUser = deleted.data.state.users.find((u) => u.id === "user-sales");
+  assert.equal(salesUser?.roleId, SYSTEM_ROLE_IDS.Owner);
+  assert.ok(deleted.data.state.audit.some((a) => a.action === "role.deleted"));
 
-  const blockedDelete = deactivateRole(switched.data.state, roleId);
-  assert.equal(blockedDelete.ok, false);
+  // Owner role itself cannot be deleted.
+  const blockOwner = deleteRole(deleted.data.state, SYSTEM_ROLE_IDS.Owner);
+  assert.equal(blockOwner.ok, false);
 
   // Last active Owner cannot be demoted or deactivated.
   const demoteLast = assignUserRole(state, OWNER_USER_ID, SYSTEM_ROLE_IDS.Admin);

@@ -234,6 +234,7 @@ export type AuditAction =
   | "role.created"
   | "role.updated"
   | "role.deactivated"
+  | "role.deleted"
   | "user.updated"
   | "user.role_assigned"
   | "user.invite_issued"
