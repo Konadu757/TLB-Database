@@ -4,8 +4,6 @@
 import { useMemo, useState } from "react";
 import { Bell, CheckCheck, Trash2, X } from "lucide-react";
 
-import { isSoftDeleted } from "@/lib/domain/trash";
-
 import {
   SelectAllHeader,
   SelectRowCell,
@@ -14,7 +12,7 @@ import {
 import { TrashConfirmDialog } from "@/components/modules/trash-confirm-dialog";
 import { Button } from "@/components/ui/button";
 import {
-  isNotificationVisibleToSession,
+  listVisibleNotifications,
 } from "@/lib/domain/notifications";
 import {
   canManageAllNotifications,
@@ -90,9 +88,7 @@ export function NotificationsModule({
       systemKey: role?.systemKey,
       manageAll,
     };
-    return [...store.state.notifications]
-      .filter((n) => !isSoftDeleted(n) && isNotificationVisibleToSession(n, session))
-      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+    return listVisibleNotifications(store.state.notifications, session);
   }, [store.state, manageAll, role?.name, role?.systemKey]);
 
   const unreadIds = useMemo(() => visible.filter((n) => !n.readAt).map((n) => n.id), [visible]);

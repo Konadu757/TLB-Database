@@ -1,10 +1,20 @@
 import { ageingBand, calcAvailable, calcOutstanding, daysBetween, stockKey, buildStockMap } from "./calculations";
+import { isSoftDeleted } from "./trash";
 import type {
   AppNotification,
   OutstandingRow,
   RelatedRecord,
   TlbState,
 } from "./types";
+
+/** Session context for notification visibility (header badge + Notifications page). */
+export type NotificationSession = {
+  currentUserId: string;
+  currentRole: string;
+  roleName?: string | undefined;
+  systemKey?: string | undefined;
+  manageAll: boolean;
+};
 
 function uid(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
@@ -239,13 +249,7 @@ export function deleteNotificationsById(state: TlbState, ids: string[]): AppNoti
 /** Owner/Admin see all; others see broadcast + own user/role targets. */
 export function isNotificationVisibleToSession(
   n: AppNotification,
-  session: {
-    currentUserId: string;
-    currentRole: string;
-    roleName?: string | undefined;
-    systemKey?: string | undefined;
-    manageAll: boolean;
-  },
+  session: NotificationSession,
 ): boolean {
   if (session.manageAll) return true;
   if (!n.targetUserId && !n.targetRole) return true;
@@ -257,6 +261,19 @@ export function isNotificationVisibleToSession(
     if (session.systemKey?.toLowerCase() === role) return true;
   }
   return false;
+}
+
+/**
+ * Same list for header badge/dropdown and the Notifications page:
+ * exclude trash, apply session targeting, newest first.
+ */
+export function listVisibleNotifications(
+  notifications: AppNotification[],
+  session: NotificationSession,
+): AppNotification[] {
+  return [...notifications]
+    .filter((n) => !isSoftDeleted(n) && isNotificationVisibleToSession(n, session))
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
 
 export { calcOutstanding, ageingBand };

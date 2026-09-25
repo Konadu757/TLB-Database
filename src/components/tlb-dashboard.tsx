@@ -114,7 +114,7 @@ import { TrashModule } from "@/components/modules/trash-module";
 import { DueNewsCrawler } from "@/components/due-news-crawler";
 import { Button } from "@/components/ui/button";
 import { buildDashboardSnapshot } from "@/lib/domain/dashboard-metrics";
-import { isNotificationVisibleToSession } from "@/lib/domain/notifications";
+import { listVisibleNotifications } from "@/lib/domain/notifications";
 import {
   DASHBOARD_PERIODS,
   DEMO_AS_OF,
@@ -422,7 +422,7 @@ function TLBDashboardInner() {
       systemKey: role?.systemKey,
       manageAll: manageAllNotifications,
     };
-    return store.state.notifications.filter((n) => isNotificationVisibleToSession(n, session));
+    return listVisibleNotifications(store.state.notifications, session);
   }, [
     store.state.notifications,
     store.state.currentUserId,
@@ -1058,24 +1058,11 @@ function TLBDashboardInner() {
                       </div>
                     </button>
                   ))}
-                  {visibleNotifications.length === 0 &&
-                    store.outstanding.slice(0, 2).map((row) => (
-                      <button
-                        type="button"
-                        className="tlb-mini-alert"
-                        key={row.lineId}
-                        onClick={() => {
-                          setNotificationsOpen(false);
-                          openLiveModule("Outstanding Supplies");
-                        }}
-                      >
-                        <span className={`tlb-alert-dot tlb-alert-${row.ageingBand === "Overdue" ? "danger" : row.ageingBand === "Attention" ? "warning" : "info"}`} />
-                        <div>
-                          <strong>{row.orderNumber} · {row.productSku}</strong>
-                          <span>{row.outstandingQty} outstanding · {row.ageDays}d · {row.ageingBand}</span>
-                        </div>
-                      </button>
-                    ))}
+                  {visibleNotifications.length === 0 ? (
+                    <p className="tlb-muted" style={{ margin: "0.5rem 0.75rem", fontSize: "0.8125rem" }}>
+                      No notifications yet.
+                    </p>
+                  ) : null}
                   <button
                     type="button"
                     className="tlb-text-action"

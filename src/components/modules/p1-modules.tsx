@@ -425,6 +425,84 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
               </form>
             )}
           </article>
+
+          <article className="tlb-panel" style={{ marginBottom: 14 }}>
+            <div className="tlb-panel-heading">
+              <div><span>Access</span><strong>Roles</strong></div>
+            </div>
+            <p className="tlb-muted-line" style={{ padding: "0 17px 8px" }}>
+              Permissions are predefined per role and cannot be customized. Owner cannot be removed.
+              Deactivate unused roles only after reassigning any active users.
+            </p>
+            <div className="tlb-table-scroll tlb-orders-panel">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Role</th>
+                    <th>Type</th>
+                    <th>Active users</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...store.state.roles]
+                    .sort((a, b) => {
+                      if (a.systemKey === "Owner") return -1;
+                      if (b.systemKey === "Owner") return 1;
+                      return a.name.localeCompare(b.name);
+                    })
+                    .map((role) => {
+                      const assigned = store.state.users.filter((u) => u.roleId === role.id && u.active).length;
+                      const isOwner = role.systemKey === "Owner";
+                      return (
+                        <tr key={role.id}>
+                          <td>
+                            <strong>{role.name}</strong>
+                            {role.description ? (
+                              <div className="tlb-muted">{role.description}</div>
+                            ) : null}
+                          </td>
+                          <td>{role.systemKey ? "System" : "Custom"}</td>
+                          <td>{assigned}</td>
+                          <td>{role.active ? "Active" : "Inactive"}</td>
+                          <td>
+                            {isOwner ? (
+                              <StatusBadge tone="neutral">Protected</StatusBadge>
+                            ) : !role.active ? (
+                              <span className="tlb-muted">Deactivated</span>
+                            ) : (
+                              <button
+                                type="button"
+                                className="tlb-link-btn"
+                                onClick={() => {
+                                  if (assigned > 0) {
+                                    window.alert(
+                                      `Cannot deactivate “${role.name}” — assigned to ${assigned} active user(s). Reassign them under Users first.`,
+                                    );
+                                    return;
+                                  }
+                                  if (
+                                    !window.confirm(
+                                      `Deactivate role “${role.name}”? It will no longer be assignable.`,
+                                    )
+                                  ) {
+                                    return;
+                                  }
+                                  store.deactivateRole(role.id);
+                                }}
+                              >
+                                Deactivate
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </article>
         </>
       ) : (
         <article className="tlb-panel" style={{ marginBottom: 14 }}>
