@@ -1485,7 +1485,7 @@ function TLBDashboardInner() {
                         <MetricIcon />
                       </span>
                     </div>
-                    <strong className="tlb-metric-value font-display">{metric.value}</strong>
+                    <strong className="tlb-metric-value">{metric.value}</strong>
                     <p
                       className={
                         metric.trend === "up"
@@ -1518,7 +1518,7 @@ function TLBDashboardInner() {
               <div className="tlb-panel-heading">
                 <div>
                   <span>Collected sales</span>
-                  <strong className="font-display">{dash.salesTotalLabel}</strong>
+                  <strong>{dash.salesTotalLabel}</strong>
                 </div>
                 <StatusBadge tone={dash.salesDeltaTone}>{dash.salesDeltaLabel}</StatusBadge>
               </div>
