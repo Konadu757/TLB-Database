@@ -1044,7 +1044,8 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   display: block;
   padding: 8px 14px 4px;
   color: var(--muted-foreground);
-  font-size: 0.6875rem;
+  font-family: var(--font-sans);
+  font-size: 0.5625rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1068,7 +1069,8 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 }
 .tlb-due-panel-total {
   flex: none;
-  font-size: 1rem;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
   font-weight: 700;
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
@@ -1081,7 +1083,8 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--muted-foreground);
-  font-size: 0.8125rem;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
   line-height: 1.2;
 }
 .tlb-panel { min-width: 0; border: 0; border-radius: 22px; background: #ffffff; box-shadow: 0 6px 22px color-mix(in oklab, #523784 7%, transparent); overflow: hidden; transition: box-shadow 180ms ease; }
