@@ -333,7 +333,24 @@ export function GoodsInModule({
   if (detail) {
     const lines = store.state.goodsReceiptLines.filter((l) => l.grnId === detail.id);
     const supplier = store.state.suppliers.find((s) => s.id === detail.supplierId);
+    const warehouse = store.state.warehouses.find((w) => w.id === detail.warehouseId);
     const grnTrashBlock = trashBlockReason(store.state, "goods_receipt", detail.id);
+    const formatWhen = (iso?: string) => {
+      if (!iso) return null;
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return iso.slice(0, 16).replace("T", " ");
+      return d.toLocaleString(undefined, {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    };
+    const receivedWhen = formatWhen(detail.receivedAt);
+    const checkedWhen = formatWhen(detail.checkedAt);
+    const approvedWhen = formatWhen(detail.approvedAt);
+
     return (
       <div className="tlb-module tlb-record-detail">
         <div className="tlb-module-toolbar">
@@ -355,17 +372,69 @@ export function GoodsInModule({
             <Button type="button" variant="outline" onClick={() => setDetailId(null)}>Back</Button>
           </div>
         </div>
-        <article className="tlb-panel">
-          <div className="tlb-kv-grid" style={{ padding: 16 }}>
-            <div><span>Status</span><strong><StatusBadge tone={statusTone(detail.status)}>{detail.status}</StatusBadge></strong></div>
-            <div><span>Received by</span><strong>{detail.receivedBy}</strong></div>
-            <div><span>Checked by</span><strong>{detail.checkedBy ?? "—"}</strong></div>
-            <div><span>Approved by</span><strong>{detail.approvedBy ?? "—"}</strong></div>
-            <div><span>Docs</span><strong>{detail.documentRefs ?? "—"}</strong></div>
-            <div><span>Notes</span><strong>{detail.notes ?? "—"}</strong></div>
+
+        <article className="tlb-panel tlb-record-detail-section tlb-record-detail-section--summary tlb-goods-in-status">
+          <div className="tlb-panel-heading">
+            <div>
+              <span>Receipt</span>
+              <strong>Status &amp; who brought it in</strong>
+            </div>
+            <StatusBadge tone={statusTone(detail.status)}>{detail.status}</StatusBadge>
           </div>
+
+          <div className="tlb-goods-in-status-rail" aria-label="GRN status and handlers">
+            <div className="tlb-goods-in-status-card tlb-goods-in-status-card--status">
+              <span className="tlb-goods-in-status-kicker">Status</span>
+              <StatusBadge tone={statusTone(detail.status)}>{detail.status}</StatusBadge>
+              <small>{receivedWhen ? `Received ${receivedWhen}` : "Awaiting receipt timestamp"}</small>
+            </div>
+
+            <div className="tlb-goods-in-status-card tlb-goods-in-status-card--received">
+              <span className="tlb-goods-in-status-kicker">Brought in by</span>
+              <strong>{detail.receivedBy || "—"}</strong>
+              <small>{receivedWhen ?? "—"}</small>
+            </div>
+
+            <div className={`tlb-goods-in-status-card${detail.checkedBy ? "" : " tlb-goods-in-status-card--empty"}`}>
+              <span className="tlb-goods-in-status-kicker">Checked by</span>
+              <strong>{detail.checkedBy || "Pending"}</strong>
+              <small>{checkedWhen ?? (detail.checkedBy ? "—" : "Not checked yet")}</small>
+            </div>
+
+            <div className={`tlb-goods-in-status-card${detail.approvedBy ? "" : " tlb-goods-in-status-card--empty"}`}>
+              <span className="tlb-goods-in-status-kicker">Approved by</span>
+              <strong>{detail.approvedBy || "Pending"}</strong>
+              <small>{approvedWhen ?? (detail.approvedBy ? "—" : "Not approved yet")}</small>
+            </div>
+          </div>
+
+          <dl className="tlb-kv tlb-goods-in-status-meta">
+            <div>
+              <dt>Warehouse</dt>
+              <dd>{warehouse?.name ?? detail.warehouseId}</dd>
+            </div>
+            <div>
+              <dt>Receipt type</dt>
+              <dd>{detail.nonPo ? "Non-PO purchase" : "PO-linked"}</dd>
+            </div>
+            <div>
+              <dt>Documents</dt>
+              <dd>{detail.documentRefs?.trim() ? detail.documentRefs : "—"}</dd>
+            </div>
+            <div className="tlb-span-2">
+              <dt>Notes</dt>
+              <dd>{detail.notes?.trim() ? detail.notes : "—"}</dd>
+            </div>
+          </dl>
         </article>
-        <article className="tlb-panel tlb-orders-panel">
+
+        <article className="tlb-panel tlb-orders-panel tlb-record-detail-section tlb-record-detail-section--lines">
+          <div className="tlb-panel-heading">
+            <div>
+              <span>Lines</span>
+              <strong>Received quantities</strong>
+            </div>
+          </div>
           <div className="tlb-table-scroll">
             <table>
               <thead>

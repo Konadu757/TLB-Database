@@ -1366,3 +1366,117 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
     animation: none !important;
   }
 }
+
+/* —— Goods In (GRN) status / handlers panel —— */
+.tlb-goods-in-status-rail {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in oklab, var(--cream-light, #faf8f5) 75%, white);
+}
+
+.tlb-goods-in-status-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 14px 16px 16px;
+  background: #fff;
+  border-right: 1px solid var(--border);
+}
+
+.tlb-goods-in-status-card:last-child {
+  border-right: 0;
+}
+
+.tlb-goods-in-status-kicker {
+  color: var(--muted-foreground);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.tlb-goods-in-status-card strong {
+  color: var(--foreground);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.tlb-goods-in-status-card small {
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.tlb-goods-in-status-card--status {
+  background: color-mix(in oklab, var(--brand-gold-muted, #f9cd5b33) 55%, white);
+  gap: 8px;
+}
+
+.tlb-goods-in-status-card--status .status-badge {
+  font-size: 0.75rem;
+  padding: 5px 10px;
+  letter-spacing: 0.02em;
+}
+
+.tlb-goods-in-status-card--received {
+  background: color-mix(in oklab, var(--info-muted, #52378422) 40%, white);
+}
+
+.tlb-goods-in-status-card--received strong {
+  color: var(--primary, #523784);
+}
+
+.tlb-goods-in-status-card--empty strong {
+  color: var(--muted-foreground);
+  font-weight: 600;
+  font-style: italic;
+}
+
+.tlb-goods-in-status-meta {
+  background: color-mix(in oklab, var(--cream-light, #faf8f5) 45%, white);
+}
+
+.tlb-goods-in-status .tlb-panel-heading .status-badge {
+  flex: none;
+}
+
+@media (max-width: 900px) {
+  .tlb-goods-in-status-rail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tlb-goods-in-status-card:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .tlb-goods-in-status-card:nth-child(-n+2) {
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+@media (max-width: 560px) {
+  .tlb-goods-in-status-rail {
+    grid-template-columns: 1fr;
+  }
+
+  .tlb-goods-in-status-card {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .tlb-goods-in-status-card:last-child {
+    border-bottom: 0;
+  }
+
+  .tlb-goods-in-status-card:nth-child(-n+2) {
+    border-bottom: 1px solid var(--border);
+  }
+}
