@@ -628,16 +628,13 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-periods button.active {
   background: var(--sidebar);
   color: var(--cream);
-  border-color: var(--brand-gold);
+  border-color: transparent;
   font-weight: 700;
   box-shadow: 0 1px 2px color-mix(in oklab, var(--sidebar) 40%, transparent);
 }
 .tlb-periods button:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
-}
-.tlb-periods button.active:focus-visible {
-  outline-color: var(--brand-gold);
 }
 .tlb-history-lookup { margin-top: 12px; display: grid; gap: 12px; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--cream-light); }
 .tlb-history-copy .tlb-eyebrow { display: block; margin-bottom: 4px; }
