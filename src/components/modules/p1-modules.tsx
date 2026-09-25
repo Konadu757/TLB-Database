@@ -2,11 +2,7 @@ import { useMemo, useState } from "react";
 import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  PERMISSION_LABELS,
-  effectivePermissions,
-  listAssignableRoles,
-} from "@/lib/domain/permissions";
+import { listAssignableRoles } from "@/lib/domain/permissions";
 import { buildInviteLink, isInvitePending } from "@/lib/domain/invites";
 import { formatMoney } from "@/lib/store/tlb-store";
 import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
@@ -116,9 +112,6 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
     active: true,
   });
   const [ageing, setAgeing] = useState(store.state.ageing);
-  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(
-    store.state.roles.find((r) => r.active)?.id ?? null,
-  );
   const [newUser, setNewUser] = useState({ name: "", email: "", roleId: store.state.roles[0]?.id ?? "" });
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editUser, setEditUser] = useState({
@@ -129,27 +122,9 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
   });
 
   const activeRoles = useMemo(() => listAssignableRoles(store.state.roles), [store.state.roles]);
-  const selectedRole = store.state.roles.find((r) => r.id === selectedRoleId) ?? null;
   const editingUser = store.state.users.find((u) => u.id === editingUserId) ?? null;
   const canManageUsers = store.can("users.manage");
   const canManageSettings = store.can("settings.manage");
-
-  const selectedCaps = useMemo(
-    () => effectivePermissions(selectedRole ?? undefined),
-    [selectedRole],
-  );
-
-  const selectedCapGroups = useMemo(() => {
-    const groups = new Map<string, string[]>();
-    for (const perm of selectedCaps) {
-      const meta = PERMISSION_LABELS[perm];
-      if (!meta) continue;
-      const list = groups.get(meta.module) ?? [];
-      list.push(meta.label);
-      groups.set(meta.module, list);
-    }
-    return [...groups.entries()];
-  }, [selectedCaps]);
 
   const startEditUser = (user: (typeof store.state.users)[number]) => {
     setEditingUserId(user.id);
@@ -450,90 +425,10 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
               </form>
             )}
           </article>
-
-          <article className="tlb-panel" style={{ marginBottom: 14 }}>
-            <div className="tlb-panel-heading">
-              <div><span>Access</span><strong>Roles &amp; permissions</strong></div>
-            </div>
-            <p className="tlb-muted-line" style={{ padding: "0 17px 4px" }}>
-              Each role has a fixed set of capabilities. Permissions cannot be customized.
-            </p>
-            <div className="tlb-roles-layout">
-              <div className="tlb-roles-list">
-                {activeRoles.length === 0 ? (
-                  <EmptyState title="No roles" detail="System roles will appear here once seeded." />
-                ) : (
-                  activeRoles.map((role) => {
-                    const caps = effectivePermissions(role);
-                    return (
-                      <button
-                        key={role.id}
-                        type="button"
-                        className={`tlb-role-chip ${selectedRoleId === role.id ? "active" : ""}`}
-                        onClick={() => setSelectedRoleId(role.id)}
-                      >
-                        <strong>{role.name}</strong>
-                        <span>
-                          {role.systemKey ? "System" : "Custom"} · {caps.length} caps
-                        </span>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-              <div className="tlb-roles-detail">
-                {selectedRole ? (
-                  <>
-                    <div className="tlb-inline-actions compact" style={{ marginBottom: 10 }}>
-                      <div style={{ flex: 1 }}>
-                        <span className="tlb-eyebrow">Role</span>
-                        <strong style={{ display: "block", fontSize: "1rem" }}>{selectedRole.name}</strong>
-                      </div>
-                      {!selectedRole.systemKey && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => {
-                            if (store.deactivateRole(selectedRole.id)) {
-                              const next = activeRoles.find((r) => r.id !== selectedRole.id);
-                              setSelectedRoleId(next?.id ?? null);
-                            }
-                          }}
-                        >
-                          Deactivate
-                        </Button>
-                      )}
-                    </div>
-                    <p className="tlb-muted-line" style={{ padding: "0 0 10px" }}>
-                      {selectedRole.description || "No description"}
-                    </p>
-                    {selectedCapGroups.length === 0 ? (
-                      <EmptyState title="No capabilities" detail="This role has no predefined permissions." />
-                    ) : (
-                      <div className="tlb-perm-matrix">
-                        {selectedCapGroups.map(([module, labels]) => (
-                          <div key={module} className="tlb-perm-group">
-                            <strong>{module}</strong>
-                            <ul className="tlb-perm-readonly">
-                              {labels.map((label) => (
-                                <li key={label}>{label}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <EmptyState title="Select a role" detail="Choose a role to view its predefined capabilities." />
-                )}
-              </div>
-            </div>
-          </article>
         </>
       ) : (
         <article className="tlb-panel" style={{ marginBottom: 14 }}>
-          <EmptyState title="Users & roles restricted" detail="Owner or Admin required to create roles and assign users." />
+          <EmptyState title="Users & roles restricted" detail="Owner or Admin required to assign users to roles." />
         </article>
       )}
 
