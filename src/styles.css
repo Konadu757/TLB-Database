@@ -130,6 +130,9 @@
   --danger-muted: oklch(0.96 0.05 25);
   --info: oklch(0.5 0.14 296);
   --info-muted: oklch(0.95 0.05 296);
+  /* Shared elevation — readable on cream/white cards (avoid neon/purple glow) */
+  --tlb-shadow: 0 4px 16px color-mix(in oklab, var(--foreground) 10%, transparent);
+  --tlb-shadow-hover: 0 10px 28px color-mix(in oklab, var(--foreground) 14%, transparent);
 }
 
 .dark {
@@ -477,7 +480,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   background-color: var(--cream);
   border-radius: var(--radius-md);
   box-shadow:
-    0 2px 8px color-mix(in oklab, var(--foreground) 4%, transparent),
+    var(--tlb-shadow),
     0 -12px 0 0 #ffffff;
   position: sticky;
   top: 64px;
@@ -486,7 +489,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 }
 .tlb-filter-bar:hover {
   box-shadow:
-    0 8px 22px color-mix(in oklab, var(--foreground) 10%, transparent),
+    var(--tlb-shadow-hover),
     0 -12px 0 0 #ffffff;
 }
 /* Module-local chip bars (Outstanding / Reports tabs) stay in document flow. */
@@ -495,10 +498,10 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   position: static;
   top: auto;
   z-index: auto;
-  box-shadow: 0 2px 8px color-mix(in oklab, var(--foreground) 4%, transparent);
+  box-shadow: var(--tlb-shadow);
 }
 .tlb-module-filters:hover {
-  box-shadow: 0 8px 22px color-mix(in oklab, var(--foreground) 10%, transparent);
+  box-shadow: var(--tlb-shadow-hover);
 }
 .tlb-periods { display: flex; gap: 3px; }
 .tlb-periods button {
@@ -617,14 +620,14 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-history-result strong { color: var(--foreground); font-variant-numeric: tabular-nums; }
 .tlb-select { height: 32px; display: flex; align-items: center; gap: 7px; padding: 0 9px; border-left: 1px solid var(--border); color: var(--muted-foreground); }.tlb-select svg { width: 14px; }.tlb-select select { appearance: none; border: 0; background: transparent; color: var(--foreground); font-size: 0.75rem; font-weight: 600; outline: 0; }
 .tlb-metrics { margin-top: 14px; display: grid; grid-template-columns: repeat(6, minmax(145px, 1fr)); gap: 12px; background: transparent; border: 0; overflow: visible; }
-.tlb-metric { min-width: 0; padding: 15px 16px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--cream); box-shadow: 0 2px 8px color-mix(in oklab, var(--foreground) 4%, transparent); transition: box-shadow 180ms ease; }
+.tlb-metric { min-width: 0; padding: 15px 16px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--cream); box-shadow: var(--tlb-shadow); transition: box-shadow 180ms ease; }
 .tlb-metrics > .tlb-metric:nth-child(even) { background: var(--cream-light); }
-.tlb-metric:hover { box-shadow: 0 8px 22px color-mix(in oklab, var(--foreground) 10%, transparent); }
+.tlb-metric:hover { box-shadow: var(--tlb-shadow-hover); }
 .tlb-metric-label { display: flex; align-items: center; justify-content: space-between; color: var(--muted-foreground); font-size: 0.6875rem; text-transform: uppercase; font-weight: 700; }.tlb-metric-label button { display: grid; place-items: center; padding: 0; border: 0; background: transparent; color: var(--muted-foreground); }.tlb-metric-label svg { width: 13px; }
 .tlb-metric > strong { display: block; margin-top: 10px; font-size: 1.375rem; line-height: 1; font-variant-numeric: tabular-nums; }.tlb-metric > p { min-height: 14px; margin: 8px 0 0; display: flex; align-items: center; gap: 3px; color: var(--muted-foreground); font-size: 0.6875rem; }.tlb-metric > p svg { width: 12px; }.tlb-metric .metric-positive { color: var(--success); }.tlb-metric .metric-negative { color: var(--danger); }
 .tlb-dashboard-grid { margin-top: 14px; display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, .9fr); gap: 14px; }
-.tlb-panel { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-md); background: #ffffff; box-shadow: 0 2px 8px color-mix(in oklab, var(--foreground) 4%, transparent); overflow: hidden; transition: box-shadow 180ms ease; }
-.tlb-panel:hover { box-shadow: 0 8px 22px color-mix(in oklab, var(--foreground) 10%, transparent); }
+.tlb-panel { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-md); background: #ffffff; box-shadow: var(--tlb-shadow); overflow: hidden; transition: box-shadow 180ms ease; }
+.tlb-panel:hover { box-shadow: var(--tlb-shadow-hover); }
 .tlb-panel-heading { min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 17px; border-bottom: 1px solid var(--border); }.tlb-panel-heading > div { display: flex; flex-direction: column; gap: 4px; }.tlb-panel-heading span { color: var(--muted-foreground); font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; }.tlb-panel-heading strong { font-size: 0.9375rem; }.tlb-panel-heading button { display: flex; align-items: center; gap: 2px; border: 0; background: transparent; color: var(--primary); font-size: 0.6875rem; font-weight: 700; }.tlb-panel-heading button svg { width: 13px; }
 .status-badge { display: inline-flex; align-items: center; width: fit-content; padding: 3px 7px; border-radius: 4px; font-size: 0.625rem; font-weight: 700; white-space: nowrap; border: 1px solid color-mix(in oklab, currentColor 14%, transparent); }
 .status-success { background: var(--success-muted); color: var(--success); }
@@ -644,7 +647,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .status-cancelled { background: color-mix(in oklab, var(--danger-muted) 45%, var(--muted)); color: var(--danger); }
 .tlb-chart { height: 230px; display: flex; gap: 10px; padding: 22px 18px 8px; }.tlb-chart-axis { width: 34px; display: flex; flex-direction: column; justify-content: space-between; padding-bottom: 21px; color: var(--muted-foreground); font-size: 9px; text-align: right; }.tlb-bars { flex: 1; display: flex; align-items: end; gap: clamp(5px, 1.2vw, 13px); border-bottom: 1px solid var(--border); background-image: linear-gradient(to bottom, var(--border) 1px, transparent 1px); background-size: 100% 33.33%; }.tlb-bar-column { height: 100%; flex: 1; display: flex; flex-direction: column; justify-content: end; align-items: center; gap: 7px; }.tlb-bar { width: 100%; max-width: 24px; min-height: 4px; background: color-mix(in oklab, var(--primary) 58%, var(--secondary)); border-radius: 3px 3px 0 0; transition: filter 150ms ease; }.tlb-bar:hover { filter: brightness(.86); }.tlb-bar-current { background: var(--primary); }.tlb-bar-column span { margin-bottom: -20px; color: var(--muted-foreground); font-size: 8px; }
 .tlb-chart-footer { display: flex; justify-content: space-between; padding: 12px 18px 16px; color: var(--muted-foreground); font-size: 9px; }.tlb-chart-footer span { display: flex; align-items: center; gap: 6px; }.tlb-chart-footer i { width: 8px; height: 8px; border-radius: 2px; background: var(--primary); }
-.tlb-inventory-value { margin: 16px 17px 12px; display: flex; align-items: center; justify-content: space-between; padding: 12px; background: var(--muted); border-radius: var(--radius-sm); box-shadow: 0 2px 8px color-mix(in oklab, var(--foreground) 4%, transparent); }.tlb-inventory-value div { display: flex; flex-direction: column; gap: 4px; }.tlb-inventory-value span { color: var(--muted-foreground); font-size: 10px; }.tlb-inventory-value strong { font-size: 17px; font-variant-numeric: tabular-nums; }.tlb-inventory-value svg { color: var(--primary); }
+.tlb-inventory-value { margin: 16px 17px 12px; display: flex; align-items: center; justify-content: space-between; padding: 12px; background: var(--muted); border-radius: var(--radius-sm); box-shadow: var(--tlb-shadow); }.tlb-inventory-value div { display: flex; flex-direction: column; gap: 4px; }.tlb-inventory-value span { color: var(--muted-foreground); font-size: 10px; }.tlb-inventory-value strong { font-size: 17px; font-variant-numeric: tabular-nums; }.tlb-inventory-value svg { color: var(--primary); }
 .tlb-stock-list { display: grid; gap: 11px; padding: 2px 17px 16px; }.tlb-stock-list > div > div:first-child { display: flex; justify-content: space-between; font-size: 10px; }.tlb-stock-list strong { font-variant-numeric: tabular-nums; }.tlb-progress { height: 5px; margin-top: 5px; border-radius: 2px; background: var(--muted); overflow: hidden; }.tlb-progress span { display: block; height: 100%; }
 .tlb-stock-summary { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--border); }.tlb-stock-summary > div { display: flex; flex-direction: column; gap: 4px; padding: 12px; border-right: 1px solid var(--border); }.tlb-stock-summary > div:last-child { border: 0; }.tlb-stock-summary span { color: var(--muted-foreground); font-size: 9px; }.tlb-stock-summary strong { font-size: 15px; }.text-danger { color: var(--danger); }.text-warning-foreground { color: var(--warning-foreground); }
 .tlb-table-scroll { overflow-x: auto; }
@@ -684,7 +687,7 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
   border-radius: var(--radius-md);
   background:
     linear-gradient(180deg, var(--cream) 0%, var(--cream-light) 72%, #fff 100%);
-  box-shadow: 0 2px 8px color-mix(in oklab, var(--foreground) 4%, transparent);
+  box-shadow: var(--tlb-shadow);
 }
 .tlb-sales-orders-module .tlb-module-toolbar strong { color: var(--foreground); }
 .tlb-sales-orders-list-panel .tlb-panel-heading,
@@ -850,7 +853,7 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
   border-radius: var(--radius-md);
   background:
     linear-gradient(180deg, var(--cream) 0%, var(--cream-light) 72%, #fff 100%);
-  box-shadow: 0 2px 8px color-mix(in oklab, var(--foreground) 4%, transparent);
+  box-shadow: var(--tlb-shadow);
 }
 .tlb-record-detail-header .tlb-text-link,
 .tlb-customer-detail-header .tlb-text-link { color: var(--primary); }
@@ -867,7 +870,7 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
   background: #ffffff;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  box-shadow: 0 2px 8px color-mix(in oklab, var(--foreground) 6%, transparent);
+  box-shadow: var(--tlb-shadow);
 }
 .tlb-content:has(> .tlb-filter-bar) .tlb-record-back-bar {
   top: 64px; /* filter is hidden on detail; keep under header */
@@ -1007,24 +1010,14 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
 .tlb-customer-detail .tlb-customer-summary > div {
   background: #fff;
 }
-.tlb-customer-summary-tile--info { border-top: 2px solid var(--info); }
 .tlb-customer-summary-tile--warning {
-  border-top: 2px solid var(--warning);
   background: color-mix(in oklab, var(--warning-muted) 45%, white) !important;
 }
 .tlb-customer-summary-tile--danger {
-  border-top: 2px solid var(--danger);
   background: color-mix(in oklab, var(--danger-muted) 40%, white) !important;
 }
 .tlb-customer-summary-tile--success {
-  border-top: 2px solid var(--success);
   background: color-mix(in oklab, var(--success-muted) 35%, white) !important;
-}
-.tlb-customer-summary-tile--gold {
-  border-top: 2px solid var(--brand-gold);
-}
-.tlb-customer-summary-tile--muted {
-  border-top: 2px solid color-mix(in oklab, var(--muted-foreground) 35%, var(--border));
 }
 .tlb-customer-summary-tile--warning strong,
 .tlb-customer-summary-tile--danger strong { color: var(--warning-foreground); }
