@@ -644,7 +644,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .status-cancelled { background: color-mix(in oklab, var(--danger-muted) 45%, var(--muted)); color: var(--danger); }
 .tlb-chart { height: 230px; display: flex; gap: 10px; padding: 22px 18px 8px; }.tlb-chart-axis { width: 34px; display: flex; flex-direction: column; justify-content: space-between; padding-bottom: 21px; color: var(--muted-foreground); font-size: 9px; text-align: right; }.tlb-bars { flex: 1; display: flex; align-items: end; gap: clamp(5px, 1.2vw, 13px); border-bottom: 1px solid var(--border); background-image: linear-gradient(to bottom, var(--border) 1px, transparent 1px); background-size: 100% 33.33%; }.tlb-bar-column { height: 100%; flex: 1; display: flex; flex-direction: column; justify-content: end; align-items: center; gap: 7px; }.tlb-bar { width: 100%; max-width: 24px; min-height: 4px; background: color-mix(in oklab, var(--primary) 58%, var(--secondary)); border-radius: 3px 3px 0 0; transition: filter 150ms ease; }.tlb-bar:hover { filter: brightness(.86); }.tlb-bar-current { background: var(--primary); }.tlb-bar-column span { margin-bottom: -20px; color: var(--muted-foreground); font-size: 8px; }
 .tlb-chart-footer { display: flex; justify-content: space-between; padding: 12px 18px 16px; color: var(--muted-foreground); font-size: 9px; }.tlb-chart-footer span { display: flex; align-items: center; gap: 6px; }.tlb-chart-footer i { width: 8px; height: 8px; border-radius: 2px; background: var(--primary); }
-.tlb-inventory-value { margin: 16px 17px 12px; display: flex; align-items: center; justify-content: space-between; padding: 12px; background: var(--muted); border-left: 3px solid var(--brand-gold); }.tlb-inventory-value div { display: flex; flex-direction: column; gap: 4px; }.tlb-inventory-value span { color: var(--muted-foreground); font-size: 10px; }.tlb-inventory-value strong { font-size: 17px; font-variant-numeric: tabular-nums; }.tlb-inventory-value svg { color: var(--primary); }
+.tlb-inventory-value { margin: 16px 17px 12px; display: flex; align-items: center; justify-content: space-between; padding: 12px; background: var(--muted); border-radius: var(--radius-sm); box-shadow: 0 2px 8px color-mix(in oklab, var(--foreground) 4%, transparent); }.tlb-inventory-value div { display: flex; flex-direction: column; gap: 4px; }.tlb-inventory-value span { color: var(--muted-foreground); font-size: 10px; }.tlb-inventory-value strong { font-size: 17px; font-variant-numeric: tabular-nums; }.tlb-inventory-value svg { color: var(--primary); }
 .tlb-stock-list { display: grid; gap: 11px; padding: 2px 17px 16px; }.tlb-stock-list > div > div:first-child { display: flex; justify-content: space-between; font-size: 10px; }.tlb-stock-list strong { font-variant-numeric: tabular-nums; }.tlb-progress { height: 5px; margin-top: 5px; border-radius: 2px; background: var(--muted); overflow: hidden; }.tlb-progress span { display: block; height: 100%; }
 .tlb-stock-summary { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--border); }.tlb-stock-summary > div { display: flex; flex-direction: column; gap: 4px; padding: 12px; border-right: 1px solid var(--border); }.tlb-stock-summary > div:last-child { border: 0; }.tlb-stock-summary span { color: var(--muted-foreground); font-size: 9px; }.tlb-stock-summary strong { font-size: 15px; }.text-danger { color: var(--danger); }.text-warning-foreground { color: var(--warning-foreground); }
 .tlb-table-scroll { overflow-x: auto; }
@@ -682,7 +682,6 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
   padding: 14px 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  border-left: 4px solid var(--primary);
   background:
     linear-gradient(180deg, var(--cream) 0%, var(--cream-light) 72%, #fff 100%);
   box-shadow: 0 2px 8px color-mix(in oklab, var(--foreground) 4%, transparent);
@@ -694,9 +693,6 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
   color: var(--primary);
   font-weight: 800;
   letter-spacing: 0.03em;
-}
-.tlb-sales-orders-list-panel {
-  border-left: 3px solid var(--primary);
 }
 .tlb-sales-orders-list-panel tbody tr.tlb-row-clickable:hover {
   background: color-mix(in oklab, var(--brand-gold-muted) 40%, white);
@@ -854,7 +850,6 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
   border-radius: var(--radius-md);
   background:
     linear-gradient(180deg, var(--cream) 0%, var(--cream-light) 72%, #fff 100%);
-  border-left: 4px solid var(--primary);
   box-shadow: 0 2px 8px color-mix(in oklab, var(--foreground) 4%, transparent);
 }
 .tlb-record-detail-header .tlb-text-link,
@@ -938,7 +933,6 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
 .tlb-customer-detail > .tlb-panel { min-width: 0; }
 .tlb-record-detail-section,
 .tlb-customer-detail-section {
-  border-left: 3px solid var(--primary);
   background: #fff;
 }
 .tlb-record-detail-section .tlb-panel-heading,
@@ -950,48 +944,25 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
 .tlb-customer-detail-section .tlb-panel-heading span {
   color: var(--primary); letter-spacing: 0.04em;
 }
-.tlb-record-detail-section--summary,
-.tlb-customer-detail-section--summary {
-  border-left-color: var(--brand-gold);
-}
 .tlb-record-detail-section--summary .tlb-panel-heading,
 .tlb-customer-detail-section--summary .tlb-panel-heading {
   background: color-mix(in oklab, var(--brand-gold-muted) 70%, white);
 }
 .tlb-record-detail-section--summary .tlb-panel-heading span,
 .tlb-customer-detail-section--summary .tlb-panel-heading span { color: var(--warning-foreground); }
-.tlb-record-detail-section--profile,
-.tlb-customer-detail-section--profile {
-  border-left-color: var(--primary);
-}
 .tlb-record-detail-section--profile .tlb-panel-heading,
 .tlb-customer-detail-section--profile .tlb-panel-heading {
   background: color-mix(in oklab, var(--info-muted) 70%, white);
-}
-.tlb-record-detail-section--activity,
-.tlb-record-detail-section--history,
-.tlb-customer-detail-section--activity {
-  border-left-color: var(--info);
 }
 .tlb-record-detail-section--activity .tlb-panel-heading,
 .tlb-record-detail-section--history .tlb-panel-heading,
 .tlb-customer-detail-section--activity .tlb-panel-heading {
   background: color-mix(in oklab, var(--info-muted) 65%, white);
 }
-.tlb-record-detail-section--orders,
-.tlb-record-detail-section--lines,
-.tlb-customer-detail-section--orders {
-  border-left-color: var(--primary);
-}
 .tlb-record-detail-section--orders .tlb-panel-heading,
 .tlb-record-detail-section--lines .tlb-panel-heading,
 .tlb-customer-detail-section--orders .tlb-panel-heading {
   background: color-mix(in oklab, var(--info-muted) 60%, white);
-}
-.tlb-record-detail-section--stock,
-.tlb-record-detail-section--supplies,
-.tlb-customer-detail-section--supplies {
-  border-left-color: var(--brand-gold);
 }
 .tlb-record-detail-section--stock .tlb-panel-heading,
 .tlb-record-detail-section--supplies .tlb-panel-heading,
@@ -1001,27 +972,15 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
 .tlb-record-detail-section--stock .tlb-panel-heading span,
 .tlb-record-detail-section--supplies .tlb-panel-heading span,
 .tlb-customer-detail-section--supplies .tlb-panel-heading span { color: var(--warning-foreground); }
-.tlb-record-detail-section--outstanding,
-.tlb-customer-detail-section--outstanding {
-  border-left-color: var(--warning);
-}
 .tlb-record-detail-section--outstanding .tlb-panel-heading,
 .tlb-customer-detail-section--outstanding .tlb-panel-heading {
   background: color-mix(in oklab, var(--warning-muted) 75%, white);
 }
 .tlb-record-detail-section--outstanding .tlb-panel-heading span,
 .tlb-customer-detail-section--outstanding .tlb-panel-heading span { color: var(--warning-foreground); }
-.tlb-record-detail-section--invoices,
-.tlb-customer-detail-section--invoices {
-  border-left-color: var(--info);
-}
 .tlb-record-detail-section--invoices .tlb-panel-heading,
 .tlb-customer-detail-section--invoices .tlb-panel-heading {
   background: color-mix(in oklab, var(--info-muted) 70%, white);
-}
-.tlb-record-detail-section--receipts,
-.tlb-customer-detail-section--receipts {
-  border-left-color: var(--success);
 }
 .tlb-record-detail-section--receipts .tlb-panel-heading,
 .tlb-customer-detail-section--receipts .tlb-panel-heading {
@@ -1029,17 +988,9 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
 }
 .tlb-record-detail-section--receipts .tlb-panel-heading span,
 .tlb-customer-detail-section--receipts .tlb-panel-heading span { color: var(--success); }
-.tlb-record-detail-section--deliveries,
-.tlb-customer-detail-section--deliveries {
-  border-left-color: var(--info);
-}
 .tlb-record-detail-section--deliveries .tlb-panel-heading,
 .tlb-customer-detail-section--deliveries .tlb-panel-heading {
   background: color-mix(in oklab, var(--info-muted) 55%, white);
-}
-.tlb-record-detail-section--payments,
-.tlb-customer-detail-section--payments {
-  border-left-color: var(--success);
 }
 .tlb-record-detail-section--payments .tlb-panel-heading,
 .tlb-customer-detail-section--payments .tlb-panel-heading {
