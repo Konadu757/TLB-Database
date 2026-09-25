@@ -411,7 +411,7 @@ function buildCollectionsChart(
 }
 
 function salesLabelForSelection(selection: DashboardRangeSelection): string {
-  if (selection.mode === "previousMonth") return "Previous month collected";
+  if (selection.mode === "previousMonth") return "Prev. month collected";
   if (selection.mode === "custom") return "Collected sales";
   switch (selection.period) {
     case "Today":
@@ -542,7 +542,7 @@ export function buildDashboardSnapshot(
       trend: deltaPct > 0 ? "up" : deltaPct < 0 ? "down" : "neutral",
     },
     {
-      label: "Inventory value",
+      label: "Inventory",
       value: formatCompact(inventoryValue),
       note: warehouseId ? warehouse : `Across ${state.warehouses.length} warehouses`,
       trend: "neutral",
@@ -566,7 +566,7 @@ export function buildDashboardSnapshot(
       trend: "neutral",
     },
     {
-      label: "Production in progress",
+      label: "Production",
       value: String(production.length),
       note: production.length ? `${production.filter((p) => p.progress >= 40).length} on schedule` : "None in period",
       trend: "neutral",

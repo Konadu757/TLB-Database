@@ -1453,35 +1453,56 @@ function TLBDashboardInner() {
             ) : null
           ) : (
             <>
-          <section className="tlb-metrics" aria-label="Key performance indicators">
-            {dash.metrics.map((metric) => {
-              const MetricIcon = metricIconForLabel(metric.label);
-              return (
-              <article className="tlb-metric" key={metric.label}>
-                <div className="tlb-metric-label">
-                  <div className="tlb-metric-heading">
-                    <span className="tlb-metric-icon" aria-hidden="true">
-                      <MetricIcon />
-                    </span>
-                    <span className="tlb-metric-title">{metric.label}</span>
-                  </div>
+          <section className="tlb-overview-section" aria-labelledby="tlb-business-overview-heading">
+            <h2 id="tlb-business-overview-heading" className="tlb-section-title">Business overview</h2>
+            <div className="tlb-metrics" role="list">
+              {dash.metrics.map((metric) => {
+                const MetricIcon = metricIconForLabel(metric.label);
+                return (
                   <button
                     type="button"
-                    aria-label={`Open ${metric.label}`}
-                    onClick={() => openInspector({ title: metric.label, kicker: "KPI", lines: [`Value: ${metric.value}`, metric.note, dash.salesBasisLabel, `Filter: ${periodCaption} · ${warehouse}`, `Range: ${dash.periodLabel}`] })}
+                    className="tlb-metric"
+                    key={metric.label}
+                    role="listitem"
+                    aria-label={`${metric.label}: ${metric.value}`}
+                    onClick={() =>
+                      openInspector({
+                        title: metric.label,
+                        kicker: "KPI",
+                        lines: [
+                          `Value: ${metric.value}`,
+                          metric.note,
+                          dash.salesBasisLabel,
+                          `Filter: ${periodCaption} · ${warehouse}`,
+                          `Range: ${dash.periodLabel}`,
+                        ],
+                      })
+                    }
                   >
-                    <ChevronRight />
+                    <div className="tlb-metric-label">
+                      <span className="tlb-metric-title">{metric.label}</span>
+                      <span className="tlb-metric-icon" aria-hidden="true">
+                        <MetricIcon />
+                      </span>
+                    </div>
+                    <strong className="tlb-metric-value font-display">{metric.value}</strong>
+                    <p
+                      className={
+                        metric.trend === "up"
+                          ? "metric-positive"
+                          : metric.trend === "down"
+                            ? "metric-negative"
+                            : ""
+                      }
+                    >
+                      {metric.trend === "up" && <ArrowUpRight />}
+                      {metric.trend === "down" && <ArrowDownRight />}
+                      {metric.note}
+                    </p>
                   </button>
-                </div>
-                <strong className="tlb-metric-value font-display">{metric.value}</strong>
-                <p className={metric.trend === "up" ? "metric-positive" : metric.trend === "down" ? "metric-negative" : ""}>
-                  {metric.trend === "up" && <ArrowUpRight />}
-                  {metric.trend === "down" && <ArrowDownRight />}
-                  {metric.note}
-                </p>
-              </article>
-              );
-            })}
+                );
+              })}
+            </div>
           </section>
 
           <DueAwarenessPanel
@@ -1490,12 +1511,14 @@ function TLBDashboardInner() {
             onOpenNotifications={() => openLiveModule("Notifications")}
           />
 
-          <section className="tlb-dashboard-grid">
+          <section className="tlb-overview-section" aria-labelledby="tlb-ops-overview-heading">
+            <h2 id="tlb-ops-overview-heading" className="tlb-section-title">Operations snapshot</h2>
+          <div className="tlb-dashboard-grid">
             <article className="tlb-panel tlb-sales-panel">
               <div className="tlb-panel-heading">
                 <div>
                   <span>Collected sales</span>
-                  <strong>{dash.salesTotalLabel}</strong>
+                  <strong className="font-display">{dash.salesTotalLabel}</strong>
                 </div>
                 <StatusBadge tone={dash.salesDeltaTone}>{dash.salesDeltaLabel}</StatusBadge>
               </div>
@@ -1702,6 +1725,7 @@ function TLBDashboardInner() {
                 ))}
               </div>
             </article>
+          </div>
           </section>
             </>
           )}
