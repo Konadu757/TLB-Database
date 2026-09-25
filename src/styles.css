@@ -96,92 +96,96 @@
   /* Page fill matches chrome canvas; cards stay pure white via --card / --cream */
   --background: #ffffff;
   --color-background: #ffffff;
-  --foreground: oklch(0.24 0.05 296);
+  --foreground: oklch(0.26 0.065 296);
   /* Cream cards must contrast against pure white (was nearly invisible) */
-  --cream: oklch(0.965 0.042 92);
-  --cream-light: oklch(0.99 0.016 92);
+  --cream: oklch(0.97 0.05 92);
+  --cream-light: oklch(0.992 0.02 92);
   /* Even-row tint: cream + whisper of brand purple ? lighter than hover/selected */
   --table-zebra: color-mix(in oklab, var(--cream-light) 82%, color-mix(in oklab, var(--primary) 5%, white));
   --card: var(--cream);
-  --card-foreground: oklch(0.24 0.05 296);
+  --card-foreground: oklch(0.26 0.065 296);
   --popover: var(--cream);
-  --popover-foreground: oklch(0.24 0.05 296);
-  --primary: oklch(0.45 0.175 296);
-  --primary-foreground: oklch(0.99 0.02 95);
-  --secondary: oklch(0.96 0.05 92);
-  --secondary-foreground: oklch(0.4 0.16 296);
+  --popover-foreground: oklch(0.26 0.065 296);
+  /* Brighter, more saturated brand purple (was oklch 0.45 / 0.175) */
+  --primary: oklch(0.48 0.20 296);
+  --primary-foreground: oklch(0.995 0.02 95);
+  --secondary: oklch(0.965 0.07 92);
+  --secondary-foreground: oklch(0.40 0.18 296);
   /* Cool muted for chips only ? not a warm page wash */
-  --muted: oklch(0.965 0.006 92);
-  --muted-foreground: oklch(0.46 0.05 296);
-  --accent: oklch(0.94 0.08 92);
-  --accent-foreground: oklch(0.36 0.14 296);
-  --destructive: oklch(0.6 0.22 28);
+  --muted: oklch(0.97 0.012 280);
+  --muted-foreground: oklch(0.40 0.07 296);
+  --accent: oklch(0.945 0.11 92);
+  --accent-foreground: oklch(0.34 0.16 296);
+  --destructive: oklch(0.58 0.24 28);
   --destructive-foreground: oklch(0.99 0.01 95);
-  --border: oklch(0.9 0.04 92);
-  --input: oklch(0.9 0.04 92);
-  --ring: oklch(0.45 0.175 296);
-  --chart-1: oklch(0.45 0.175 296);
-  --chart-2: oklch(0.89 0.175 92);
-  --chart-3: oklch(0.55 0.14 296);
-  --chart-4: oklch(0.62 0.17 150);
-  --chart-5: oklch(0.72 0.12 85);
-  --sidebar: oklch(0.32 0.12 296);
-  --sidebar-foreground: oklch(0.97 0.02 95);
-  --sidebar-primary: oklch(0.89 0.175 92);
-  --sidebar-primary-foreground: oklch(0.24 0.05 296);
-  --sidebar-accent: oklch(0.42 0.14 296);
-  --sidebar-accent-foreground: oklch(0.99 0.02 95);
-  --sidebar-border: oklch(0.42 0.1 296);
-  --sidebar-ring: oklch(0.89 0.175 92);
-  --brand-gold: oklch(0.89 0.175 92);
-  --brand-gold-muted: oklch(0.97 0.07 92);
-  --success: oklch(0.58 0.18 150);
-  --success-muted: oklch(0.96 0.055 150);
-  --warning: oklch(0.8 0.17 85);
-  --warning-muted: oklch(0.97 0.07 88);
-  --warning-foreground: oklch(0.42 0.1 70);
-  --danger: oklch(0.58 0.21 28);
-  --danger-muted: oklch(0.96 0.05 25);
-  --info: oklch(0.5 0.14 296);
-  --info-muted: oklch(0.95 0.05 296);
+  --border: oklch(0.90 0.05 92);
+  --input: oklch(0.90 0.05 92);
+  --ring: oklch(0.48 0.20 296);
+  --chart-1: oklch(0.48 0.20 296);
+  --chart-2: oklch(0.91 0.195 92);
+  --chart-3: oklch(0.56 0.17 296);
+  --chart-4: oklch(0.62 0.20 150);
+  --chart-5: oklch(0.74 0.15 85);
+  /* Deep sidebar ? slightly richer chroma so purple reads vivid, not muddy */
+  --sidebar: oklch(0.36 0.155 296);
+  --sidebar-foreground: oklch(0.98 0.02 95);
+  --sidebar-primary: oklch(0.91 0.195 92);
+  --sidebar-primary-foreground: oklch(0.26 0.065 296);
+  --sidebar-accent: oklch(0.46 0.17 296);
+  --sidebar-accent-foreground: oklch(0.995 0.02 95);
+  --sidebar-border: oklch(0.46 0.13 296);
+  --sidebar-ring: oklch(0.91 0.195 92);
+  --brand-gold: oklch(0.91 0.195 92);
+  --brand-gold-muted: oklch(0.97 0.09 92);
+  --success: oklch(0.60 0.20 150);
+  --success-muted: oklch(0.95 0.075 150);
+  --warning: oklch(0.82 0.19 85);
+  --warning-muted: oklch(0.97 0.09 88);
+  --warning-foreground: oklch(0.42 0.12 70);
+  --danger: oklch(0.58 0.24 28);
+  --danger-muted: oklch(0.96 0.07 25);
+  --info: oklch(0.52 0.18 296);
+  --info-muted: oklch(0.95 0.075 296);
   /* Shared elevation ? readable on cream/white cards (avoid neon/purple glow) */
   --tlb-shadow: 0 4px 16px color-mix(in oklab, var(--foreground) 10%, transparent);
   --tlb-shadow-hover: 0 10px 28px color-mix(in oklab, var(--foreground) 14%, transparent);
 }
 
 .dark {
-  --background: oklch(0.22 0.06 296);
-  --foreground: oklch(0.97 0.02 95);
-  --card: oklch(0.28 0.07 296);
-  --card-foreground: oklch(0.97 0.02 95);
-  --popover: oklch(0.28 0.07 296);
-  --popover-foreground: oklch(0.97 0.02 95);
-  --primary: oklch(0.89 0.175 92);
-  --primary-foreground: oklch(0.24 0.05 296);
-  --secondary: oklch(0.34 0.08 296);
-  --secondary-foreground: oklch(0.97 0.02 95);
-  --muted: oklch(0.32 0.06 296);
-  --muted-foreground: oklch(0.82 0.04 95);
-  --accent: oklch(0.36 0.1 296);
-  --accent-foreground: oklch(0.97 0.02 95);
-  --destructive: oklch(0.68 0.2 28);
+  --background: oklch(0.22 0.07 296);
+  --foreground: oklch(0.98 0.02 95);
+  --card: oklch(0.28 0.08 296);
+  --card-foreground: oklch(0.98 0.02 95);
+  --popover: oklch(0.28 0.08 296);
+  --popover-foreground: oklch(0.98 0.02 95);
+  --primary: oklch(0.91 0.195 92);
+  --primary-foreground: oklch(0.26 0.065 296);
+  --secondary: oklch(0.34 0.10 296);
+  --secondary-foreground: oklch(0.98 0.02 95);
+  --muted: oklch(0.32 0.07 296);
+  --muted-foreground: oklch(0.84 0.05 95);
+  --accent: oklch(0.38 0.13 296);
+  --accent-foreground: oklch(0.98 0.02 95);
+  --destructive: oklch(0.68 0.23 28);
   --destructive-foreground: oklch(0.99 0.01 95);
   --border: oklch(1 0 0 / 14%);
   --input: oklch(1 0 0 / 18%);
-  --ring: oklch(0.89 0.175 92);
-  --chart-1: oklch(0.72 0.14 296);
-  --chart-2: oklch(0.89 0.175 92);
-  --chart-3: oklch(0.62 0.16 150);
-  --chart-4: oklch(0.8 0.14 85);
-  --chart-5: oklch(0.7 0.1 296);
-  --sidebar: oklch(0.26 0.1 296);
-  --sidebar-foreground: oklch(0.97 0.02 95);
-  --sidebar-primary: oklch(0.89 0.175 92);
-  --sidebar-primary-foreground: oklch(0.24 0.05 296);
-  --sidebar-accent: oklch(0.38 0.12 296);
-  --sidebar-accent-foreground: oklch(0.99 0.02 95);
+  --ring: oklch(0.91 0.195 92);
+  --chart-1: oklch(0.74 0.16 296);
+  --chart-2: oklch(0.91 0.195 92);
+  --chart-3: oklch(0.64 0.18 150);
+  --chart-4: oklch(0.82 0.16 85);
+  --chart-5: oklch(0.72 0.12 296);
+  --sidebar: oklch(0.28 0.135 296);
+  --sidebar-foreground: oklch(0.98 0.02 95);
+  --sidebar-primary: oklch(0.91 0.195 92);
+  --sidebar-primary-foreground: oklch(0.26 0.065 296);
+  --sidebar-accent: oklch(0.40 0.15 296);
+  --sidebar-accent-foreground: oklch(0.995 0.02 95);
   --sidebar-border: oklch(1 0 0 / 14%);
-  --sidebar-ring: oklch(0.89 0.175 92);
+  --sidebar-ring: oklch(0.91 0.195 92);
+  --brand-gold: oklch(0.91 0.195 92);
+  --brand-gold-muted: oklch(0.42 0.1 92);
 }
 
 @layer base {
@@ -195,15 +199,15 @@
 
   html {
     /* Match --tlb-chrome-canvas so desktop zoom:0.95 gap isn't a white footer strip */
-    background: #F4F3F8 !important;
-    background-color: #F4F3F8 !important;
+    background: var(--tlb-chrome-canvas) !important;
+    background-color: var(--tlb-chrome-canvas) !important;
     font-size: var(--font-size-root);
     font-family: var(--font-sans);
   }
 
   body {
-    background: #F4F3F8 !important;
-    background-color: #F4F3F8 !important;
+    background: var(--tlb-chrome-canvas) !important;
+    background-color: var(--tlb-chrome-canvas) !important;
     color: var(--color-foreground);
     font-family: var(--font-sans);
     font-size: 1rem;
@@ -214,8 +218,8 @@
   }
 
   #root {
-    background: #F4F3F8 !important;
-    background-color: #F4F3F8 !important;
+    background: var(--tlb-chrome-canvas) !important;
+    background-color: var(--tlb-chrome-canvas) !important;
     min-height: 100%;
   }
 
@@ -261,10 +265,13 @@ table.tlb-table,
 /* Shell chrome: sidebar + header as standalone rounded panels with visible gaps */
 :root {
   --tlb-chrome-gap: 12px;
-  --tlb-chrome-canvas: #F4F3F8;
+  /* Fresher lilac canvas (was muddy #F4F3F8) */
+  --tlb-chrome-canvas: #F6F4FC;
   --tlb-header-h: 64px;
-  --tlb-purple: #523784;
-  --tlb-gold: #F9CD5B;
+  /* Brand purple lifted + saturated (was #523784); gold pops more (was #F9CD5B) */
+  --tlb-purple: #5E3F9A;
+  --tlb-gold: #FFD45E;
+  --tlb-surface-soft: #F3F0FA;
 }
 
 .tlb-app-shell {
@@ -278,13 +285,13 @@ table.tlb-table,
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #523784;
+  background: var(--tlb-purple);
   color: var(--sidebar-foreground);
   border: 0;
   border-radius: 22px;
   transition: width 180ms ease;
   overflow: hidden;
-  box-shadow: 0 8px 28px color-mix(in oklab, #523784 28%, transparent);
+  box-shadow: 0 8px 28px color-mix(in oklab, var(--tlb-purple) 28%, transparent);
 }
 .tlb-sidebar-collapsed { width: 68px; }
 .tlb-brand {
@@ -312,7 +319,7 @@ table.tlb-table,
 .tlb-brand-logo { width: 100%; height: 100%; display: block; object-fit: contain; }
 .tlb-brand-copy { min-width: 126px; display: flex; flex-direction: column; }
 .tlb-brand-copy strong {
-  color: var(--sidebar);
+  color: var(--tlb-purple);
   /* Locked to prior 17px-root size so content root bumps leave sidebar alone */
   font-size: 17px;
   font-weight: 700;
@@ -322,15 +329,15 @@ table.tlb-table,
 .tlb-brand-copy span { margin-top: 3px; color: color-mix(in oklab, var(--brand-gold) 88%, white); font-size: 11.6875px; text-transform: uppercase; }
 .tlb-collapse {
   margin-left: auto;
-  color: var(--sidebar);
+  color: var(--tlb-purple);
 }
 .tlb-collapse svg {
-  color: var(--sidebar);
+  color: var(--tlb-purple);
 }
 .tlb-collapse:hover,
 .tlb-collapse:focus-visible {
-  color: var(--sidebar);
-  background: color-mix(in oklab, var(--sidebar) 10%, transparent);
+  color: var(--tlb-purple);
+  background: color-mix(in oklab, var(--tlb-purple) 10%, transparent);
 }
 .tlb-sidebar-collapsed .tlb-brand { flex-direction: column; justify-content: center; padding-inline: 10px; gap: 4px; }
 .tlb-sidebar-collapsed .tlb-brand-copy, .tlb-sidebar-collapsed .tlb-nav-label, .tlb-sidebar-collapsed .tlb-nav-item span { display: none; }
@@ -342,23 +349,23 @@ table.tlb-table,
   overflow-y: auto;
   padding: 13px 10px;
   padding-bottom: 25px;
-  /* Custom thin scrollbar ? light brand purple (#523784 family) */
+  /* Custom thin scrollbar ? light brand purple (var(--tlb-purple) family) */
   scrollbar-width: thin;
-  scrollbar-color: #a894c4 color-mix(in oklab, #523784 22%, transparent);
+  scrollbar-color: #B8A4D8 color-mix(in oklab, var(--tlb-purple) 22%, transparent);
 }
 .tlb-nav::-webkit-scrollbar {
   width: 7px;
 }
 .tlb-nav::-webkit-scrollbar-track {
-  background: color-mix(in oklab, #523784 22%, transparent);
+  background: color-mix(in oklab, var(--tlb-purple) 22%, transparent);
   border-radius: 999px;
 }
 .tlb-nav::-webkit-scrollbar-thumb {
-  background: #a894c4;
+  background: #B8A4D8;
   border-radius: 999px;
 }
 .tlb-nav::-webkit-scrollbar-thumb:hover {
-  background: #b8a6d0;
+  background: #C6B4E2;
 }
 .tlb-nav-group + .tlb-nav-group { margin-top: 8px; }
 .tlb-nav-group-toggle {
@@ -371,7 +378,7 @@ table.tlb-table,
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: color-mix(in oklab, #ffffff 48%, #523784);
+  color: color-mix(in oklab, #ffffff 48%, var(--tlb-purple));
   font-weight: 700;
   cursor: pointer;
   text-align: left;
@@ -421,19 +428,19 @@ table.tlb-table,
   color: #ffffff;
 }
 .tlb-nav-group-items .tlb-nav-item.tlb-nav-active {
-  background: color-mix(in oklab, #ffffff 18%, #6b4fa0);
+  background: color-mix(in oklab, #ffffff 18%, #7A58B5);
   color: #ffffff;
 }
 .tlb-nav-item { width: 100%; min-height: 40px; display: flex; align-items: center; gap: 11px; padding: 8px 12px; border: 0; border-radius: 12px; background: transparent; color: color-mix(in oklab, #ffffff 78%, transparent); font-size: 14.5px; font-weight: 500; text-align: left; }
 .tlb-nav-item:hover { background: color-mix(in oklab, #ffffff 12%, transparent); color: #ffffff; }
 .tlb-nav-item svg { width: 17px; height: 17px; flex: none; }
-.tlb-nav-active { background: color-mix(in oklab, #ffffff 18%, #6b4fa0); color: #ffffff; }
+.tlb-nav-active { background: color-mix(in oklab, #ffffff 18%, #7A58B5); color: #ffffff; }
 /* Selected: keep icon lucid white/gold whisper ? no left gold bar */
 .tlb-nav-active svg,
 .tlb-nav-group-items .tlb-nav-item.tlb-nav-active svg {
   color: var(--brand-gold);
 }
-.tlb-nav-badge { margin-left: auto; min-width: 20px; padding: 2px 6px; border-radius: 999px; background: #F9CD5B; color: #2a1f12; font-size: 10.5px; font-weight: 700; text-align: center; }
+.tlb-nav-badge { margin-left: auto; min-width: 20px; padding: 2px 6px; border-radius: 999px; background: var(--tlb-gold); color: #2a1f12; font-size: 10.5px; font-weight: 700; text-align: center; }
 .tlb-sidebar-collapsed .tlb-nav-group-toggle { display: none; }
 .tlb-sidebar-collapsed .tlb-nav-group-items,
 .tlb-sidebar-collapsed .tlb-nav-group-items-collapsed {
@@ -511,7 +518,7 @@ table.tlb-table,
   background-color: #ffffff !important;
   border: 0;
   border-radius: 22px;
-  box-shadow: 0 4px 20px color-mix(in oklab, #523784 8%, transparent);
+  box-shadow: 0 4px 20px color-mix(in oklab, var(--tlb-purple) 8%, transparent);
 }
 .tlb-header-back-slot {
   flex: none;
@@ -532,7 +539,7 @@ table.tlb-table,
   width: min(280px, 32vw);
 }
 .tlb-global-search-wrap { flex: 0 1 auto; width: min(380px, 40vw); min-width: 0; }
-.tlb-global-search { width: 100%; height: 40px; display: flex; align-items: center; gap: 9px; padding: 0 14px; border: 1px solid color-mix(in oklab, #523784 10%, #e5e7eb); border-radius: 999px; background: #F7F7FA; color: var(--muted-foreground); text-align: left; cursor: text; }
+.tlb-global-search { width: 100%; height: 40px; display: flex; align-items: center; gap: 9px; padding: 0 14px; border: 1px solid color-mix(in oklab, var(--tlb-purple) 10%, #e5e7eb); border-radius: 999px; background: var(--tlb-surface-soft); color: var(--muted-foreground); text-align: left; cursor: text; }
 .tlb-global-search-active { border-color: color-mix(in oklab, var(--primary) 45%, var(--border)); box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 12%, transparent); }
 .tlb-global-search svg { width: 16px; flex: none; }
 .tlb-global-search input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--foreground); font: inherit; font-size: 0.875rem; }
@@ -556,8 +563,8 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   text-overflow: ellipsis;
 }
 .tlb-header-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-.tlb-user { display: flex; align-items: center; gap: 9px; padding: 4px 8px 4px 4px; border: 0; border-radius: 999px; background: #F7F7FA; color: inherit; cursor: pointer; }
-.tlb-avatar { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: #523784; color: #fff; font-size: 0.75rem; font-weight: 700; }
+.tlb-user { display: flex; align-items: center; gap: 9px; padding: 4px 8px 4px 4px; border: 0; border-radius: 999px; background: var(--tlb-surface-soft); color: inherit; cursor: pointer; }
+.tlb-avatar { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: var(--tlb-purple); color: #fff; font-size: 0.75rem; font-weight: 700; }
 .tlb-user-copy { display: flex; flex-direction: column; }.tlb-user-copy strong { font-size: 0.8125rem; }.tlb-user-copy span { margin-top: 1px; color: var(--muted-foreground); font-size: 0.6875rem; }.tlb-user > svg { width: 14px; }
 .tlb-mobile-menu { display: none; }
 .tlb-content { max-width: 1580px; margin: 0 auto; padding: 24px 28px 44px; background: transparent; background-color: transparent; }
@@ -632,22 +639,22 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: #523784;
+  color: var(--tlb-purple);
   font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 150ms ease, color 150ms ease, box-shadow 150ms ease;
 }
 .tlb-periods button:hover:not(.active) {
-  background: color-mix(in oklab, #523784 8%, white);
-  color: #523784;
+  background: color-mix(in oklab, var(--tlb-purple) 12%, white);
+  color: var(--tlb-purple);
 }
 .tlb-periods button.active {
-  background: #F9CD5B;
+  background: var(--tlb-gold);
   color: #2a1f12;
   border-color: transparent;
   font-weight: 700;
-  box-shadow: 0 2px 8px color-mix(in oklab, #F9CD5B 45%, transparent);
+  box-shadow: 0 2px 10px color-mix(in oklab, var(--tlb-gold) 55%, transparent);
 }
 .tlb-periods button:focus-visible {
   outline: 2px solid var(--ring);
@@ -717,13 +724,13 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 }
 /* To date ? soft brand purple */
 .tlb-history-card--to {
-  background: color-mix(in oklab, #523784 14%, #f7f4fb);
-  border-color: color-mix(in oklab, #523784 28%, #d4cce3);
-  color: #523784;
+  background: color-mix(in oklab, var(--tlb-purple) 14%, #f7f4fb);
+  border-color: color-mix(in oklab, var(--tlb-purple) 28%, #d4cce3);
+  color: var(--tlb-purple);
 }
 .tlb-history-card--to input[type="date"] {
-  background: color-mix(in oklab, #f9cd5b 12%, white);
-  border-color: color-mix(in oklab, #523784 22%, #d4cce3);
+  background: color-mix(in oklab, var(--tlb-gold) 12%, white);
+  border-color: color-mix(in oklab, var(--tlb-purple) 22%, #d4cce3);
 }
 /* Apply custom range ? bright green */
 .tlb-history-card--apply {
@@ -758,7 +765,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   width: 4px;
   height: 1.05em;
   border-radius: 999px;
-  background: #523784;
+  background: var(--tlb-purple);
   flex: none;
 }
 /* MOJO business-overview composition: left KPI cluster + tall right panel */
@@ -827,7 +834,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   border: 0;
   border-radius: 22px;
   background: #ffffff;
-  box-shadow: 0 6px 22px color-mix(in oklab, #523784 7%, transparent);
+  box-shadow: 0 6px 22px color-mix(in oklab, var(--tlb-purple) 7%, transparent);
   text-align: left;
   cursor: pointer;
   font: inherit;
@@ -849,55 +856,55 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   font-size: clamp(0.9375rem, 1.2vw, 1.125rem);
 }
 .tlb-overview-primary .tlb-metric:nth-child(1) .tlb-metric-icon {
-  background: color-mix(in oklab, #22c55e 18%, white);
-  color: #15803d;
+  background: color-mix(in oklab, #22c55e 28%, white);
+  color: #16a34a;
 }
 .tlb-overview-primary .tlb-metric:nth-child(2) .tlb-metric-icon {
-  background: color-mix(in oklab, #523784 16%, white);
-  color: #523784;
+  background: color-mix(in oklab, var(--tlb-purple) 24%, white);
+  color: var(--tlb-purple);
 }
 .tlb-overview-kpis .tlb-metric:nth-child(1) .tlb-metric-icon {
-  background: color-mix(in oklab, #ef4444 16%, white);
-  color: #b91c1c;
+  background: color-mix(in oklab, #ef4444 24%, white);
+  color: #dc2626;
 }
 .tlb-overview-kpis .tlb-metric:nth-child(2) .tlb-metric-icon {
-  background: color-mix(in oklab, #F9CD5B 42%, white);
-  color: #92640a;
+  background: color-mix(in oklab, var(--tlb-gold) 58%, white);
+  color: #a16207;
 }
 .tlb-overview-kpis .tlb-metric:nth-child(3) .tlb-metric-icon {
-  background: color-mix(in oklab, #6366f1 16%, white);
-  color: #4338ca;
+  background: color-mix(in oklab, #6366f1 24%, white);
+  color: #4f46e5;
 }
 .tlb-metric:nth-child(1) .tlb-metric-icon {
-  background: color-mix(in oklab, #22c55e 18%, white);
-  color: #15803d;
+  background: color-mix(in oklab, #22c55e 28%, white);
+  color: #16a34a;
 }
 .tlb-metric:nth-child(2) .tlb-metric-icon {
-  background: color-mix(in oklab, #523784 16%, white);
-  color: #523784;
+  background: color-mix(in oklab, var(--tlb-purple) 24%, white);
+  color: var(--tlb-purple);
 }
 .tlb-metric:nth-child(3) .tlb-metric-icon {
-  background: color-mix(in oklab, #ef4444 16%, white);
-  color: #b91c1c;
+  background: color-mix(in oklab, #ef4444 24%, white);
+  color: #dc2626;
 }
 .tlb-metric:nth-child(4) .tlb-metric-icon {
-  background: color-mix(in oklab, #F9CD5B 42%, white);
-  color: #92640a;
+  background: color-mix(in oklab, var(--tlb-gold) 58%, white);
+  color: #a16207;
 }
 .tlb-metric:nth-child(5) .tlb-metric-icon {
-  background: color-mix(in oklab, #6366f1 16%, white);
-  color: #4338ca;
+  background: color-mix(in oklab, #6366f1 24%, white);
+  color: #4f46e5;
 }
 .tlb-metric:nth-child(6) .tlb-metric-icon {
-  background: color-mix(in oklab, #0ea5e9 16%, white);
-  color: #0369a1;
+  background: color-mix(in oklab, #0ea5e9 24%, white);
+  color: #0284c7;
 }
 .tlb-metric:hover {
-  box-shadow: 0 10px 28px color-mix(in oklab, #523784 12%, transparent);
+  box-shadow: 0 10px 28px color-mix(in oklab, var(--tlb-purple) 12%, transparent);
   transform: translateY(-1px);
 }
 .tlb-metric:focus-visible {
-  outline: 2px solid #523784;
+  outline: 2px solid var(--tlb-purple);
   outline-offset: 2px;
 }
 .tlb-metric-label {
@@ -911,7 +918,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   min-width: 0;
   padding-bottom: 12px;
   margin-bottom: 12px;
-  border-bottom: 1px solid color-mix(in oklab, #523784 10%, #e8e6ef);
+  border-bottom: 1px solid color-mix(in oklab, var(--tlb-purple) 10%, #e8e6ef);
 }
 .tlb-metric--compact .tlb-metric-label {
   padding-bottom: 10px;
@@ -927,8 +934,8 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   width: 32px;
   height: 32px;
   border-radius: 10px;
-  background: color-mix(in oklab, #523784 14%, white);
-  color: #523784;
+  background: color-mix(in oklab, var(--tlb-purple) 14%, white);
+  color: var(--tlb-purple);
   border: 0;
 }
 .tlb-metric--compact .tlb-metric-icon {
@@ -944,7 +951,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   margin: 0;
   padding: 0;
   text-align: left;
-  color: color-mix(in oklab, var(--foreground) 68%, #523784);
+  color: color-mix(in oklab, var(--foreground) 68%, var(--tlb-purple));
   font-family: var(--font-sans);
   font-size: 0.5625rem;
   line-height: 1.25;
@@ -982,17 +989,17 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   height: 6px;
   margin: 4px 0 10px;
   border-radius: 999px;
-  background: color-mix(in oklab, #523784 10%, #e8e6ef);
+  background: color-mix(in oklab, var(--tlb-purple) 10%, #e8e6ef);
   overflow: hidden;
 }
 .tlb-metric-progress > span {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: #523784;
+  background: var(--tlb-purple);
 }
 .tlb-metric-link {
-  color: #523784 !important;
+  color: var(--tlb-purple) !important;
   font-weight: 600 !important;
 }
 .tlb-metric-link svg {
@@ -1089,8 +1096,8 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   font-size: 0.6875rem;
   line-height: 1.2;
 }
-.tlb-panel { min-width: 0; border: 0; border-radius: 22px; background: #ffffff; box-shadow: 0 6px 22px color-mix(in oklab, #523784 7%, transparent); overflow: hidden; transition: box-shadow 180ms ease; }
-.tlb-panel:hover { box-shadow: 0 10px 28px color-mix(in oklab, #523784 11%, transparent); }
+.tlb-panel { min-width: 0; border: 0; border-radius: 22px; background: #ffffff; box-shadow: 0 6px 22px color-mix(in oklab, var(--tlb-purple) 7%, transparent); overflow: hidden; transition: box-shadow 180ms ease; }
+.tlb-panel:hover { box-shadow: 0 10px 28px color-mix(in oklab, var(--tlb-purple) 11%, transparent); }
 .tlb-panel-heading { min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 17px; border-bottom: 1px solid var(--border); }.tlb-panel-heading > div { display: flex; flex-direction: column; gap: 4px; }.tlb-panel-heading span { color: var(--muted-foreground); font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; }.tlb-panel-heading strong { font-size: 0.9375rem; }.tlb-panel-heading button { display: flex; align-items: center; gap: 2px; border: 0; background: transparent; color: var(--primary); font-size: 0.6875rem; font-weight: 700; }.tlb-panel-heading button svg { width: 13px; }
 .status-badge { display: inline-flex; align-items: center; width: fit-content; padding: 3px 7px; border-radius: 4px; font-size: 0.625rem; font-weight: 700; white-space: nowrap; border: 1px solid color-mix(in oklab, currentColor 14%, transparent); }
 .status-success { background: var(--success-muted); color: var(--success); }
@@ -1743,8 +1750,8 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
 .tlb-ops-handler-card--status,
 .tlb-goods-in-status-card--status {
   gap: 8px;
-  background: color-mix(in oklab, var(--brand-gold-muted, #f9cd5b33) 60%, white);
-  border-color: color-mix(in oklab, var(--brand-gold, #f9cd5b) 45%, var(--border));
+  background: color-mix(in oklab, var(--brand-gold-muted, var(--tlb-gold)33) 60%, white);
+  border-color: color-mix(in oklab, var(--brand-gold, var(--tlb-gold)) 45%, var(--border));
 }
 
 .tlb-ops-handler-card--status .status-badge,
@@ -1757,13 +1764,13 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
 
 .tlb-ops-handler-card--actor,
 .tlb-goods-in-status-card--received {
-  background: color-mix(in oklab, var(--info-muted, #52378422) 38%, white);
-  border-color: color-mix(in oklab, var(--primary, #523784) 22%, var(--border));
+  background: color-mix(in oklab, var(--info-muted, var(--tlb-purple)22) 38%, white);
+  border-color: color-mix(in oklab, var(--primary, var(--tlb-purple)) 22%, var(--border));
 }
 
 .tlb-ops-handler-card--actor strong,
 .tlb-goods-in-status-card--received strong {
-  color: var(--primary, #523784);
+  color: var(--primary, var(--tlb-purple));
 }
 
 .tlb-ops-handler-card--empty,
@@ -1819,7 +1826,7 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
 .tlb-trace-identity-main strong {
   font-size: 1.125rem;
   line-height: 1.25;
-  color: var(--primary, #523784);
+  color: var(--primary, var(--tlb-purple));
 }
 
 .tlb-trace-identity-main p {
