@@ -111,6 +111,7 @@ import {
 } from "@/components/modules/p1-modules";
 import { NotificationsModule } from "@/components/modules/notifications-module";
 import { TrashModule } from "@/components/modules/trash-module";
+import { DueAwarenessPanel } from "@/components/due-awareness-panel";
 import { Button } from "@/components/ui/button";
 import { buildDashboardSnapshot } from "@/lib/domain/dashboard-metrics";
 import { listVisibleNotifications } from "@/lib/domain/notifications";
@@ -127,7 +128,6 @@ import { useTlbStore } from "@/lib/store/use-tlb-store";
 import {
   canAccessNav,
   canManageAllNotifications,
-  firstName,
   resolveRole,
   userInitials,
 } from "@/lib/domain/permissions";
@@ -1108,7 +1108,7 @@ function TLBDashboardInner() {
           {!detailOpen && (
           <div className={cn("tlb-page-heading", quickOpen && "tlb-page-heading--overlay-open")}>
             <div>
-              <h1>{activeNav === "Dashboard" ? `Good evening, ${firstName(store.state.currentUser)}` : activeNav}</h1>
+              <h1>{activeNav === "Dashboard" ? "Dashboard" : activeNav}</h1>
               {activeNav !== "Dashboard" && (
                 <p>{MODULE_BLURBS[activeNav] ?? "Operational records for this module."}</p>
               )}
@@ -1464,6 +1464,14 @@ function TLBDashboardInner() {
               </article>
             ))}
           </section>
+
+          <DueAwarenessPanel
+            state={store.state}
+            outstanding={store.outstanding}
+            onNavigate={(nav, orderId, productId, customerId, supplierId, opsRequestId) => {
+              openLiveModule(nav, orderId, productId, customerId, supplierId, opsRequestId);
+            }}
+          />
 
           <section className="tlb-dashboard-grid">
             <article className="tlb-panel tlb-sales-panel">
