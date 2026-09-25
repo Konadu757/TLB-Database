@@ -4,138 +4,93 @@ import { AlertTriangle, ChevronRight } from "lucide-react";
 import {
   buildDueAwarenessItems,
   type DueAwarenessItem,
-  type DueAwarenessNav,
-  type DueAwarenessSeverity,
 } from "@/lib/domain/due-awareness";
 import type { OutstandingRow, TlbState } from "@/lib/domain/types";
 import { cn } from "@/lib/utils";
 
-export type DueAwarenessNavigate = (
-  nav: DueAwarenessNav,
-  orderId?: string | null,
-  productId?: string | null,
-  customerId?: string | null,
-  supplierId?: string | null,
-  opsRequestId?: string | null,
-) => void;
-
 type Props = {
   state: TlbState;
   outstanding: OutstandingRow[];
-  onNavigate: DueAwarenessNavigate;
-  /** Cap rows shown; full count still appears in the heading. */
-  limit?: number;
+  /** Opens the Notifications page (full notification list). */
+  onOpenNotifications: () => void;
 };
 
-function severityTone(severity: DueAwarenessSeverity): string {
-  if (severity === "overdue") return "danger";
-  if (severity === "due_today") return "warning";
-  return "info";
+type SummaryPart = { key: string; label: string; count: number; tone?: "danger" | "warning" };
+
+function buildSummaryParts(items: DueAwarenessItem[]): SummaryPart[] {
+  const overdue = items.filter((i) => i.severity === "overdue").length;
+  const dueToday = items.filter((i) => i.severity === "due_today").length;
+  const approvals = items.filter(
+    (i) => i.nav === "Approvals" || i.nav === "Requests",
+  ).length;
+  const stock = items.filter((i) => i.nav === "Batches").length;
+  const supplies = items.filter(
+    (i) => i.nav === "Outstanding Supplies" || i.nav === "Outstanding Requests",
+  ).length;
+  const finance = items.filter(
+    (i) => i.nav === "Accounts Receivable" || i.nav === "Accounts Payable",
+  ).length;
+  const exceptions = items.filter((i) => i.nav === "Exceptions / Discrepancies").length;
+  const notifications = items.filter((i) => i.nav === "Notifications").length;
+
+  const parts: SummaryPart[] = [];
+  if (overdue > 0) parts.push({ key: "overdue", label: "overdue", count: overdue, tone: "danger" });
+  if (dueToday > 0) parts.push({ key: "today", label: "due today", count: dueToday, tone: "warning" });
+  if (approvals > 0) parts.push({ key: "approvals", label: "approvals", count: approvals });
+  if (supplies > 0) parts.push({ key: "supplies", label: "supplies", count: supplies });
+  if (finance > 0) parts.push({ key: "finance", label: "AR / AP", count: finance });
+  if (stock > 0) parts.push({ key: "stock", label: "stock alerts", count: stock });
+  if (exceptions > 0) parts.push({ key: "exceptions", label: "exceptions", count: exceptions });
+  if (notifications > 0) parts.push({ key: "ntf", label: "alerts", count: notifications });
+
+  // Avoid double-counting noise: prefer severity + category mix, max ~4 chips
+  return parts.slice(0, 4);
 }
 
-function handleNavigate(item: DueAwarenessItem, onNavigate: DueAwarenessNavigate) {
-  if (item.nav === "Outstanding Supplies") {
-    onNavigate(item.nav, null, item.entityId ?? null);
-    return;
-  }
-  if (
-    item.nav === "Outstanding Requests" ||
-    item.nav === "Exceptions / Discrepancies" ||
-    item.nav === "Requests"
-  ) {
-    onNavigate(item.nav, null, null, null, null, item.entityId ?? null);
-    return;
-  }
-  if (item.nav === "Approvals" || item.nav === "Batches" || item.nav === "Notifications") {
-    onNavigate(item.nav, null, null, null, null, item.entityId ?? null);
-    return;
-  }
-  onNavigate(item.nav);
-}
-
-export function DueAwarenessPanel({
-  state,
-  outstanding,
-  onNavigate,
-  limit = 8,
-}: Props) {
+export function DueAwarenessPanel({ state, outstanding, onOpenNotifications }: Props) {
   const items = useMemo(
     () => buildDueAwarenessItems(state, outstanding),
     [state, outstanding],
   );
 
+  const parts = useMemo(() => buildSummaryParts(items), [items]);
+  const total = items.length;
   const overdueCount = items.filter((i) => i.severity === "overdue").length;
-  const shown = items.slice(0, limit);
-  const hidden = Math.max(0, items.length - shown.length);
+  const hasAttention = total > 0;
+
+  const summaryLine =
+    parts.length > 0
+      ? parts.map((p) => `${p.count} ${p.label}`).join(" · ")
+      : "No items need attention right now";
 
   return (
-    <article
-      className="tlb-panel tlb-due-panel"
-      aria-label={`Due and overdue, ${items.length} item${items.length === 1 ? "" : "s"}`}
-    >
-      <div className="tlb-panel-heading">
-        <div>
-          <span>Due &amp; overdue</span>
-          <strong>
-            {items.length === 0
-              ? "Nothing needs attention right now"
-              : `${items.length} item${items.length === 1 ? "" : "s"} needing attention`}
-          </strong>
-        </div>
-        {overdueCount > 0 ? (
-          <span className="tlb-due-panel-count" title={`${overdueCount} overdue`}>
-            <AlertTriangle aria-hidden="true" />
-            {overdueCount} overdue
-          </span>
-        ) : null}
-      </div>
-
-      {items.length === 0 ? (
-        <p className="tlb-muted-line" style={{ padding: "1rem 1.05rem" }}>
-          No overdue supplies, receivables, approvals, or serious alerts.
-        </p>
-      ) : (
-        <ul className="tlb-due-list">
-          {shown.map((item) => (
-            <li key={item.id}>
-              <button
-                type="button"
-                className={cn(
-                  "tlb-due-row",
-                  item.severity === "overdue" && "tlb-due-row--overdue",
-                  item.severity === "due_today" && "tlb-due-row--today",
-                )}
-                onClick={() => handleNavigate(item, onNavigate)}
-              >
-                <span
-                  className={cn(
-                    "tlb-due-row-icon",
-                    `tlb-due-row-icon--${severityTone(item.severity)}`,
-                  )}
-                >
-                  <AlertTriangle />
-                </span>
-                <span className="tlb-due-row-copy">
-                  <strong>
-                    <span className={`status-badge status-${severityTone(item.severity)}`}>
-                      {item.label}
-                    </span>
-                    <span className="tlb-due-row-msg">{item.message}</span>
-                  </strong>
-                  <small>{item.nav}</small>
-                </span>
-                <ChevronRight aria-hidden="true" />
-              </button>
-            </li>
-          ))}
-        </ul>
+    <button
+      type="button"
+      className={cn(
+        "tlb-panel tlb-due-panel tlb-due-panel--summary",
+        overdueCount > 0 && "tlb-due-panel--has-overdue",
       )}
-
-      {hidden > 0 ? (
-        <p className="tlb-muted-line tlb-due-panel-more">
-          +{hidden} more — open the linked module from a row above for the full queue.
-        </p>
-      ) : null}
-    </article>
+      onClick={onOpenNotifications}
+      aria-label={
+        hasAttention
+          ? `Needs attention: ${summaryLine}. Open notifications.`
+          : "Needs attention: all clear. Open notifications."
+      }
+    >
+      <span className="tlb-due-panel-kicker">
+        <AlertTriangle aria-hidden="true" />
+        Needs attention
+      </span>
+      <strong className="tlb-due-panel-total">
+        {hasAttention
+          ? `${total} item${total === 1 ? "" : "s"}`
+          : "All clear"}
+      </strong>
+      <span className="tlb-due-panel-summary">{summaryLine}</span>
+      <span className="tlb-due-panel-cta">
+        View notifications
+        <ChevronRight aria-hidden="true" />
+      </span>
+    </button>
   );
 }

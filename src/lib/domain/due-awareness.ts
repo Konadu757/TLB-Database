@@ -113,7 +113,7 @@ function isSeriousUnreadNotification(n: AppNotification): boolean {
 }
 
 /**
- * Collect due / overdue awareness items for the dashboard Due & overdue panel.
+ * Collect due / overdue awareness items for the dashboard Needs attention card.
  * Includes overdue/due-today work, unread serious notifications, expired stock,
  * open exceptions, and stale approvals.
  */
