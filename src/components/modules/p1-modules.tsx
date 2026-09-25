@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { statusTone } from "@/lib/domain/calculations";
-import { ALL_PERMISSIONS, PERMISSION_LABELS, listAssignableRoles } from "@/lib/domain/permissions";
-import type { Permission } from "@/lib/domain/types";
+import {
+  PERMISSION_LABELS,
+  effectivePermissions,
+  listAssignableRoles,
+} from "@/lib/domain/permissions";
 import { buildInviteLink, isInvitePending } from "@/lib/domain/invites";
 import { formatMoney } from "@/lib/store/tlb-store";
 import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
@@ -114,12 +116,9 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
     active: true,
   });
   const [ageing, setAgeing] = useState(store.state.ageing);
-  const [roleName, setRoleName] = useState("");
-  const [roleDescription, setRoleDescription] = useState("");
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(
     store.state.roles.find((r) => r.active)?.id ?? null,
   );
-  const [draftPermissions, setDraftPermissions] = useState<Permission[]>([]);
   const [newUser, setNewUser] = useState({ name: "", email: "", roleId: store.state.roles[0]?.id ?? "" });
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editUser, setEditUser] = useState({
@@ -135,6 +134,23 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
   const canManageUsers = store.can("users.manage");
   const canManageSettings = store.can("settings.manage");
 
+  const selectedCaps = useMemo(
+    () => effectivePermissions(selectedRole ?? undefined),
+    [selectedRole],
+  );
+
+  const selectedCapGroups = useMemo(() => {
+    const groups = new Map<string, string[]>();
+    for (const perm of selectedCaps) {
+      const meta = PERMISSION_LABELS[perm];
+      if (!meta) continue;
+      const list = groups.get(meta.module) ?? [];
+      list.push(meta.label);
+      groups.set(meta.module, list);
+    }
+    return [...groups.entries()];
+  }, [selectedCaps]);
+
   const startEditUser = (user: (typeof store.state.users)[number]) => {
     setEditingUserId(user.id);
     setEditUser({
@@ -149,21 +165,6 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
     setEditingUserId(null);
     setEditUser({ name: "", email: "", roleId: "", active: true });
   };
-
-  useEffect(() => {
-    if (selectedRole) setDraftPermissions([...selectedRole.permissions]);
-  }, [selectedRole]);
-
-  const permissionGroups = useMemo(() => {
-    const groups = new Map<string, Permission[]>();
-    for (const perm of ALL_PERMISSIONS) {
-      const module = PERMISSION_LABELS[perm].module;
-      const list = groups.get(module) ?? [];
-      list.push(perm);
-      groups.set(module, list);
-    }
-    return [...groups.entries()];
-  }, []);
 
   return (
     <div className="tlb-module">
@@ -454,39 +455,40 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
             <div className="tlb-panel-heading">
               <div><span>Access</span><strong>Roles &amp; permissions</strong></div>
             </div>
+            <p className="tlb-muted-line" style={{ padding: "0 17px 4px" }}>
+              Each role has a fixed set of capabilities. Permissions cannot be customized.
+            </p>
             <div className="tlb-roles-layout">
               <div className="tlb-roles-list">
                 {activeRoles.length === 0 ? (
-                  <EmptyState title="No roles" detail="Create a custom role to get started." />
+                  <EmptyState title="No roles" detail="System roles will appear here once seeded." />
                 ) : (
-                  activeRoles.map((role) => (
-                    <button
-                      key={role.id}
-                      type="button"
-                      className={`tlb-role-chip ${selectedRoleId === role.id ? "active" : ""}`}
-                      onClick={() => {
-                        setSelectedRoleId(role.id);
-                        setDraftPermissions([...role.permissions]);
-                      }}
-                    >
-                      <strong>{role.name}</strong>
-                      <span>{role.systemKey ? "System" : "Custom"} · {role.permissions.length} caps</span>
-                    </button>
-                  ))
+                  activeRoles.map((role) => {
+                    const caps = effectivePermissions(role);
+                    return (
+                      <button
+                        key={role.id}
+                        type="button"
+                        className={`tlb-role-chip ${selectedRoleId === role.id ? "active" : ""}`}
+                        onClick={() => setSelectedRoleId(role.id)}
+                      >
+                        <strong>{role.name}</strong>
+                        <span>
+                          {role.systemKey ? "System" : "Custom"} · {caps.length} caps
+                        </span>
+                      </button>
+                    );
+                  })
                 )}
               </div>
               <div className="tlb-roles-detail">
                 {selectedRole ? (
                   <>
                     <div className="tlb-inline-actions compact" style={{ marginBottom: 10 }}>
-                      <label className="tlb-select" style={{ flex: 1 }}>
-                        Role name
-                        <input
-                          value={selectedRole.name}
-                          disabled={!!selectedRole.systemKey}
-                          onChange={(e) => store.updateRole(selectedRole.id, { name: e.target.value })}
-                        />
-                      </label>
+                      <div style={{ flex: 1 }}>
+                        <span className="tlb-eyebrow">Role</span>
+                        <strong style={{ display: "block", fontSize: "1rem" }}>{selectedRole.name}</strong>
+                      </div>
                       {!selectedRole.systemKey && (
                         <Button
                           type="button"
@@ -505,55 +507,28 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                     <p className="tlb-muted-line" style={{ padding: "0 0 10px" }}>
                       {selectedRole.description || "No description"}
                     </p>
-                    <div className="tlb-perm-matrix">
-                      {permissionGroups.map(([module, perms]) => (
-                        <div key={module} className="tlb-perm-group">
-                          <strong>{module}</strong>
-                          {perms.map((perm) => (
-                            <label key={perm} className="tlb-perm-row">
-                              <input
-                                type="checkbox"
-                                checked={draftPermissions.includes(perm)}
-                                onChange={(e) => {
-                                  setDraftPermissions((prev) =>
-                                    e.target.checked ? [...prev, perm] : prev.filter((p) => p !== perm),
-                                  );
-                                }}
-                              />
-                              <span>{PERMISSION_LABELS[perm].label}</span>
-                            </label>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="tlb-form-actions" style={{ paddingTop: 12 }}>
-                      <Button
-                        type="button"
-                        onClick={() => store.updateRole(selectedRole.id, { permissions: draftPermissions })}
-                      >
-                        Save permissions
-                      </Button>
-                    </div>
+                    {selectedCapGroups.length === 0 ? (
+                      <EmptyState title="No capabilities" detail="This role has no predefined permissions." />
+                    ) : (
+                      <div className="tlb-perm-matrix">
+                        {selectedCapGroups.map(([module, labels]) => (
+                          <div key={module} className="tlb-perm-group">
+                            <strong>{module}</strong>
+                            <ul className="tlb-perm-readonly">
+                              {labels.map((label) => (
+                                <li key={label}>{label}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </>
                 ) : (
-                  <EmptyState title="Select a role" detail="Choose a role to edit its permission matrix." />
+                  <EmptyState title="Select a role" detail="Choose a role to view its predefined capabilities." />
                 )}
               </div>
             </div>
-            <form
-              className="tlb-form-grid"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (store.createRole({ name: roleName, description: roleDescription, permissions: ["dashboard.view"] })) {
-                  setRoleName("");
-                  setRoleDescription("");
-                }
-              }}
-            >
-              <label>New role name<input value={roleName} onChange={(e) => setRoleName(e.target.value)} placeholder="e.g. Procurement" /></label>
-              <label>Description<input value={roleDescription} onChange={(e) => setRoleDescription(e.target.value)} placeholder="What this role can access" /></label>
-              <div className="tlb-form-actions tlb-span-2"><Button type="submit">Create role</Button></div>
-            </form>
           </article>
         </>
       ) : (

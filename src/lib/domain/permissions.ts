@@ -302,14 +302,27 @@ export function resolveRole(state: Pick<TlbState, "roles" | "currentRoleId" | "c
   );
 }
 
+/**
+ * Effective capabilities for a role. System roles always use the predefined
+ * catalog — stored `role.permissions` overrides are ignored.
+ */
+export function effectivePermissions(role: RoleDefinition | undefined): Permission[] {
+  if (!role || !role.active) return [];
+  if (role.systemKey) {
+    return [...(SYSTEM_ROLE_PERMISSIONS[role.systemKey] ?? [])];
+  }
+  return [...role.permissions];
+}
+
 export function roleHasPermission(role: RoleDefinition | undefined, permission: Permission): boolean {
   if (!role || !role.active) return false;
-  return role.permissions.includes(permission);
+  return effectivePermissions(role).includes(permission);
 }
 
 /**
  * Primary permission check against the session role catalog.
  * Accepts full state (preferred) or a legacy system role key for tests.
+ * System roles always resolve against SYSTEM_ROLE_PERMISSIONS.
  */
 export function hasPermission(
   stateOrSystemKey: Pick<TlbState, "roles" | "currentRoleId" | "currentRole"> | SystemRoleKey,

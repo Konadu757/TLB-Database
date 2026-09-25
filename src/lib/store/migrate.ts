@@ -237,7 +237,7 @@ export function migrateState(raw: unknown): TlbState {
   };
 
   const next: TlbState = {
-    version: 12,
+    version: 13,
     warehouses: needsOpsHubSeed
       ? mergeById(parsed.warehouses?.length ? parsed.warehouses : seed.warehouses, seed.warehouses)
       : parsed.warehouses?.length
@@ -401,7 +401,7 @@ export function migrateState(raw: unknown): TlbState {
     }
   }
 
-  // v7: trash permissions — keep system roles aligned with the latest capability matrix.
+  // v7/v11: trash + ops caps — merge missing defaults onto system roles.
   if (priorVersion < 7 || priorVersion < 11) {
     for (const role of next.roles) {
       if (!role.systemKey) continue;
@@ -416,6 +416,16 @@ export function migrateState(raw: unknown): TlbState {
         const missing = ALL_PERMISSIONS.filter((p) => !role.permissions.includes(p));
         if (missing.length) role.permissions = [...role.permissions, ...missing];
       }
+    }
+  }
+
+  // v13: permissions are fixed/predefined — reset system roles to the catalog
+  // (clears any localStorage overrides from the old checkbox matrix).
+  if (priorVersion < 13) {
+    for (const role of next.roles) {
+      if (!role.systemKey) continue;
+      const defaults = SYSTEM_ROLE_PERMISSIONS[role.systemKey] as Permission[] | undefined;
+      if (defaults) role.permissions = [...defaults];
     }
   }
 

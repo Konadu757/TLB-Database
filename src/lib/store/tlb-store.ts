@@ -1356,32 +1356,16 @@ export function switchSessionUser(state: TlbState, userId: string): MutResult<Ap
 }
 
 export function createRole(
-  state: TlbState,
-  input: { name: string; description?: string; permissions?: Permission[] },
+  _state: TlbState,
+  _input: { name: string; description?: string; permissions?: Permission[] },
 ): MutResult<RoleDefinition> {
-  const blocked = requirePerm(state, "users.manage");
+  const blocked = requirePerm(_state, "users.manage");
   if (blocked) return { ok: false, error: blocked };
-  const name = input.name.trim();
-  if (!name) return { ok: false, error: "Role name is required." };
-  if (state.roles.some((r) => r.name.toLowerCase() === name.toLowerCase() && r.active)) {
-    return { ok: false, error: "An active role with this name already exists." };
-  }
-  const next = cloneState(state);
-  const created: RoleDefinition = {
-    id: uid("role"),
-    name,
-    description: (input.description ?? "").trim(),
-    permissions: [...(input.permissions ?? ["dashboard.view"])],
-    active: true,
+  // Custom role matrices were removed — only predefined system roles are supported.
+  return {
+    ok: false,
+    error: "Roles are predefined. Assign users to an existing system role instead of creating custom ones.",
   };
-  next.roles.push(created);
-  pushAudit(next, {
-    action: "role.created",
-    entityType: "role",
-    entityId: created.id,
-    summary: `Created role ${created.name}.`,
-  });
-  return { ok: true, data: { state: next, data: created } };
 }
 
 export function updateRole(
@@ -1396,6 +1380,11 @@ export function updateRole(
   if (!role) return { ok: false, error: "Role not found." };
   if (!role.active) return { ok: false, error: "Cannot edit an inactive role." };
 
+  // Permissions are fixed per system role — never persist UI toggles / overrides.
+  if (input.permissions !== undefined) {
+    return { ok: false, error: "Role permissions are predefined and cannot be customized." };
+  }
+
   if (input.name !== undefined) {
     const name = input.name.trim();
     if (!name) return { ok: false, error: "Role name is required." };
@@ -1409,12 +1398,6 @@ export function updateRole(
     role.name = name;
   }
   if (input.description !== undefined) role.description = input.description.trim();
-  if (input.permissions !== undefined) role.permissions = [...input.permissions];
-
-  // Keep Owner/Admin system roles from losing users.manage accidentally
-  if ((role.systemKey === "Owner" || role.systemKey === "Admin") && !role.permissions.includes("users.manage")) {
-    role.permissions.push("users.manage");
-  }
 
   syncSessionIdentity(next);
   pushAudit(next, {
