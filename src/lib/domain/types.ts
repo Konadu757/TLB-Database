@@ -273,7 +273,8 @@ export type TrashEntityType =
   | "supplier_receipt"
   | "supplier_payment"
   | "approval"
-  | "notification";
+  | "notification"
+  | "role";
 
 /** Soft-deleted catalog (quotations / sandbox list) rows. */
 export interface CatalogDeletion {
@@ -300,7 +301,7 @@ export interface TrashListItem {
   module?: string;
 }
 /** Owner-managed role definition (permissions drive nav + actions). */
-export interface RoleDefinition {
+export interface RoleDefinition extends SoftDeleteFields {
   id: string;
   name: string;
   description: string;

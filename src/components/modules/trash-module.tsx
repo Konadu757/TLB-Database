@@ -55,6 +55,7 @@ export function TrashModule({ store }: { store: TlbStoreApi }) {
   const canRestore = store.can("records.delete");
   const canPurge = store.can("trash.purge");
   const [purgeTarget, setPurgeTarget] = useState<TrashListItem | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<TrashListItem | null>(null);
   const itemIds = useMemo(() => items.map((i) => i.id), [items]);
   const selection = useListSelection(canPurge ? itemIds : []);
   const selectedItems = useMemo(
@@ -93,7 +94,7 @@ export function TrashModule({ store }: { store: TlbStoreApi }) {
           {items.length === 0 ? (
             <EmptyState
               title="Trash is empty"
-              detail="Soft-deleted customers, suppliers, orders, products, and catalog records will appear here."
+              detail="Soft-deleted customers, suppliers, orders, products, roles, and catalog records will appear here."
             />
           ) : (
             <table>
@@ -148,12 +149,7 @@ export function TrashModule({ store }: { store: TlbStoreApi }) {
                             type="button"
                             variant="outline"
                             size="sm"
-                            onClick={() =>
-                              store.restoreFromTrash({
-                                entityType: item.entityType,
-                                entityId: item.entityId,
-                              })
-                            }
+                            onClick={() => setRestoreTarget(item)}
                           >
                             <RotateCcw /> Restore
                           </Button>
@@ -183,6 +179,23 @@ export function TrashModule({ store }: { store: TlbStoreApi }) {
           </div>
         ) : null}
       </article>
+
+      <TrashConfirmDialog
+        open={Boolean(restoreTarget)}
+        mode="restore"
+        recordLabel={restoreTarget?.label ?? "this record"}
+        onOpenChange={(open) => {
+          if (!open) setRestoreTarget(null);
+        }}
+        onConfirm={() => {
+          if (!restoreTarget) return;
+          store.restoreFromTrash({
+            entityType: restoreTarget.entityType,
+            entityId: restoreTarget.entityId,
+          });
+          setRestoreTarget(null);
+        }}
+      />
 
       <TrashConfirmDialog
         open={Boolean(purgeTarget)}

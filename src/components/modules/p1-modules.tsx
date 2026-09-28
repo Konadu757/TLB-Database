@@ -1,13 +1,14 @@
 import { useMemo, useState } from "react";
 import { X } from "lucide-react";
 
+import { TrashConfirmDialog } from "@/components/modules/trash-confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { listAssignableRoles, resolveRole } from "@/lib/domain/permissions";
 import { buildInviteLink, isInvitePending } from "@/lib/domain/invites";
+import { isSoftDeleted } from "@/lib/domain/trash";
+import type { RoleDefinition } from "@/lib/domain/types";
 import { formatMoney } from "@/lib/store/tlb-store";
 import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
-
-const ROLE_DELETE_CONFIRM_PHRASE = "DELETE";
 
 async function copyToClipboard(text: string): Promise<boolean> {
   try {
@@ -127,6 +128,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
     email: "",
     roleId: store.state.roles[0]?.id ?? "",
   });
+  const [roleTrash, setRoleTrash] = useState<RoleDefinition | null>(null);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editUser, setEditUser] = useState({
     name: "",
@@ -444,7 +446,8 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
             </div>
             <p className="tlb-muted-line" style={{ padding: "0 17px 8px" }}>
               The workspace signs in as Owner. Owner permissions are predefined and cannot be
-              customized. The Owner role is protected.
+              customized. The Owner role is protected. Other roles can be moved to Trash even when
+              people or tasks are already assigned; those people move to Owner.
             </p>
             <div className="tlb-table-scroll tlb-orders-panel">
               <table>
@@ -459,7 +462,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                 </thead>
                 <tbody>
                   {[...store.state.roles]
-                    .filter((role) => role.active && role.systemKey === "Owner")
+                    .filter((role) => role.active && !isSoftDeleted(role))
                     .sort((a, b) => {
                       if (a.systemKey === "Owner") return -1;
                       if (b.systemKey === "Owner") return 1;
@@ -488,24 +491,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                               <button
                                 type="button"
                                 className="tlb-link-btn"
-                                onClick={() => {
-                                  const assignedUsers = store.state.users.filter(
-                                    (u) => u.roleId === role.id,
-                                  ).length;
-                                  const promptMsg =
-                                    assignedUsers > 0
-                                      ? `Delete role “${role.name}”? ${assignedUsers} user(s) will be reassigned to Owner.\n\nType ${ROLE_DELETE_CONFIRM_PHRASE} to confirm:`
-                                      : `Delete role “${role.name}”?\n\nType ${ROLE_DELETE_CONFIRM_PHRASE} to confirm:`;
-                                  const typed = window.prompt(promptMsg);
-                                  if (
-                                    !typed ||
-                                    typed.trim().toLowerCase() !==
-                                      ROLE_DELETE_CONFIRM_PHRASE.toLowerCase()
-                                  ) {
-                                    return;
-                                  }
-                                  store.deleteRole(role.id);
-                                }}
+                                onClick={() => setRoleTrash(role)}
                               >
                                 Delete
                               </button>
@@ -520,6 +506,25 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
               </table>
             </div>
           </article>
+          <TrashConfirmDialog
+            open={Boolean(roleTrash)}
+            mode="trash"
+            recordLabel={roleTrash?.name ?? "this role"}
+            {...(roleTrash
+              ? {
+                  extraNote: `Assigned people will move to Owner (${store.state.users.filter((u) => u.roleId === roleTrash.id).length} user(s)). Tasks already assigned to this role do not block deletion.`,
+                }
+              : {})}
+            onOpenChange={(open) => {
+              if (!open) setRoleTrash(null);
+            }}
+            onConfirm={(reason) => {
+              if (!roleTrash) return;
+              if (reason) store.deleteRole(roleTrash.id, reason);
+              else store.deleteRole(roleTrash.id);
+              setRoleTrash(null);
+            }}
+          />
         </>
       ) : (
         <article className="tlb-panel" style={{ marginBottom: 14 }}>

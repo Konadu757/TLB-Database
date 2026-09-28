@@ -2016,3 +2016,132 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
     grid-template-columns: 1fr;
   }
 }
+
+/* Quick action menu only. Account menu keeps .tlb-quick-menu. */
+#tlb-quick-menu.tlb-quick-actions {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  left: auto;
+  bottom: auto;
+  z-index: 90;
+  width: min(21rem, calc(100vw - 40px));
+  max-height: min(28rem, calc(100dvh - 7.5rem));
+  margin: 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 0;
+  border-radius: 20px;
+  background: #ffffff;
+  color: #1f1630;
+  font-family: var(--font-sans);
+  box-shadow:
+    0 18px 42px color-mix(in oklab, var(--tlb-purple) 16%, transparent),
+    0 2px 8px color-mix(in oklab, #1f1630 6%, transparent);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--tlb-purple) 32%, white) transparent;
+  animation: tlb-quick-actions-in 180ms ease;
+}
+#tlb-quick-menu.tlb-quick-actions::-webkit-scrollbar {
+  width: 8px;
+}
+#tlb-quick-menu.tlb-quick-actions::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--tlb-purple) 28%, white);
+  border-radius: 999px;
+}
+.tlb-quick-actions-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tlb-quick-actions-group + .tlb-quick-actions-group {
+  margin-top: 4px;
+}
+.tlb-quick-actions-label {
+  margin: 8px 12px 4px;
+  color: color-mix(in oklab, var(--tlb-purple) 72%, #1f1630);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+#tlb-quick-menu.tlb-quick-actions button {
+  width: 100%;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #1f1630;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 180ms ease, transform 120ms ease;
+}
+#tlb-quick-menu.tlb-quick-actions button:hover {
+  background: color-mix(in oklab, var(--tlb-purple) 8%, white);
+}
+#tlb-quick-menu.tlb-quick-actions button:active {
+  transform: translateY(1px);
+}
+#tlb-quick-menu.tlb-quick-actions button:focus-visible {
+  outline: 2px solid var(--tlb-purple);
+  outline-offset: -2px;
+}
+.tlb-quick-actions-icon {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--tlb-purple) 10%, var(--tlb-chrome-canvas));
+  color: var(--tlb-purple);
+  transition: background-color 180ms ease, color 180ms ease;
+}
+#tlb-quick-menu.tlb-quick-actions button:hover .tlb-quick-actions-icon,
+#tlb-quick-menu.tlb-quick-actions button:focus-visible .tlb-quick-actions-icon {
+  background: var(--tlb-purple);
+  color: var(--tlb-gold);
+}
+#tlb-quick-menu.tlb-quick-actions .tlb-quick-actions-icon svg {
+  width: 17px;
+  height: 17px;
+}
+.tlb-quick-actions-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.tlb-quick-actions-copy strong {
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  color: #1f1630;
+}
+.tlb-quick-actions-copy span {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.3;
+}
+@keyframes tlb-quick-actions-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

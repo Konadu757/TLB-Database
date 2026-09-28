@@ -4,7 +4,15 @@
  */
 import assert from "node:assert/strict";
 
-import { listTrashItems, isSoftDeleted } from "../src/lib/domain/trash";
+import { createSystemRoles, SYSTEM_ROLE_IDS } from "../src/lib/domain/permissions";
+import {
+  listTrashItems,
+  isSoftDeleted,
+  PURGE_CONFIRM_PHRASE,
+  RESTORE_CONFIRM_PHRASE,
+  TRASH_CONFIRM_PHRASE,
+} from "../src/lib/domain/trash";
+import { lockWorkspaceToOwner } from "../src/lib/store/migrate";
 import { createSeedState } from "../src/lib/store/seed";
 import {
   purgeTrashItem,
@@ -12,7 +20,7 @@ import {
   softDeleteRecord,
   trashBlockReason,
 } from "../src/lib/store/trash-store";
-import { switchSessionUser } from "../src/lib/store/tlb-store";
+import { deleteRole, switchSessionUser } from "../src/lib/store/tlb-store";
 
 function ownerState() {
   let state = createSeedState();
@@ -211,9 +219,129 @@ function testNotificationSoftDelete() {
   assert.ok(listTrashItems(state).some((t) => t.entityType === "notification"));
 }
 
+function sessionAsSales(state: ReturnType<typeof createSeedState>) {
+  const next = structuredClone(state);
+  const sales = createSystemRoles().find((role) => role.systemKey === "Sales");
+  assert.ok(sales);
+  if (!next.roles.some((role) => role.id === sales.id)) {
+    next.roles.push({ ...sales, permissions: [...sales.permissions] });
+  }
+  const user = next.users.find((item) => item.id === "user-sales") ?? next.users[0];
+  assert.ok(user);
+  user.roleId = sales.id;
+  next.currentUserId = user.id;
+  next.currentRoleId = sales.id;
+  next.currentRole = "Sales";
+  return next;
+}
+
+function testConfirmPhrasesAreDistinct() {
+  const phrases = [TRASH_CONFIRM_PHRASE, PURGE_CONFIRM_PHRASE, RESTORE_CONFIRM_PHRASE];
+  assert.deepEqual(phrases, ["DELETE", "PERMANENT", "RESTORE"]);
+  assert.equal(new Set(phrases.map((phrase) => phrase.toLowerCase())).size, 3);
+}
+
+function testNonOwnerCannotMutateTrash() {
+  const state = sessionAsSales(ownerState());
+  const customer = state.customers[0];
+  assert.ok(customer);
+  const trashed = softDeleteRecord(state, { entityType: "customer", entityId: customer.id });
+  assert.equal(trashed.ok, false);
+
+  const owner = ownerState();
+  const invoice = ensureSeedInvoice(owner);
+  const moved = softDeleteRecord(owner, { entityType: "invoice", entityId: invoice.id });
+  assert.equal(moved.ok, true);
+  if (!moved.ok) return;
+  const asSales = sessionAsSales(moved.data.state);
+  const restored = restoreTrashItem(asSales, { entityType: "invoice", entityId: invoice.id });
+  assert.equal(restored.ok, false);
+  const purged = purgeTrashItem(asSales, { entityType: "invoice", entityId: invoice.id });
+  assert.equal(purged.ok, false);
+}
+
+function testRoleDeleteWithUsersAndTasks() {
+  let state = ownerState();
+  const warehouse = createSystemRoles().find((role) => role.systemKey === "Warehouse");
+  assert.ok(warehouse);
+  state.roles.push({ ...warehouse, permissions: [...warehouse.permissions] });
+  const sales = state.users.find((user) => user.id === "user-sales");
+  assert.ok(sales);
+  sales.roleId = SYSTEM_ROLE_IDS.Warehouse;
+  state.notifications.push({
+    id: "ntf-warehouse-task",
+    type: "ops_approval_needed",
+    title: "Warehouse task",
+    body: "Still assigned after the role is trashed",
+    targetRole: "Warehouse",
+    dedupeKey: "warehouse-task",
+    createdAt: new Date().toISOString(),
+  });
+
+  const blocked = deleteRole(sessionAsSales(state), SYSTEM_ROLE_IDS.Warehouse);
+  assert.equal(blocked.ok, false);
+
+  const deleted = deleteRole(state, SYSTEM_ROLE_IDS.Warehouse, "role no longer used");
+  assert.equal(deleted.ok, true, deleted.ok ? "" : deleted.error);
+  if (!deleted.ok) return;
+  state = deleted.data.state;
+  const trashedRole = state.roles.find((role) => role.id === SYSTEM_ROLE_IDS.Warehouse);
+  assert.equal(trashedRole?.active, false);
+  assert.ok(trashedRole && isSoftDeleted(trashedRole));
+  assert.equal(state.users.find((user) => user.id === "user-sales")?.roleId, SYSTEM_ROLE_IDS.Owner);
+  assert.ok(listTrashItems(state).some((item) => item.entityType === "role" && item.label === "Warehouse"));
+  assert.ok(state.notifications.some((note) => note.id === "ntf-warehouse-task" && !note.deletedAt));
+  assert.ok(state.audit.some((event) => event.action === "role.deleted"));
+
+  const ownerBlocked = deleteRole(state, SYSTEM_ROLE_IDS.Owner);
+  assert.equal(ownerBlocked.ok, false);
+
+  const restored = restoreTrashItem(state, {
+    entityType: "role",
+    entityId: SYSTEM_ROLE_IDS.Warehouse,
+  });
+  assert.equal(restored.ok, true, restored.ok ? "" : restored.error);
+  if (!restored.ok) return;
+  state = restored.data.state;
+  const back = state.roles.find((role) => role.id === SYSTEM_ROLE_IDS.Warehouse);
+  assert.equal(back?.active, true);
+  assert.ok(back && !isSoftDeleted(back));
+  assert.equal(state.users.find((user) => user.id === "user-sales")?.roleId, SYSTEM_ROLE_IDS.Owner);
+  assert.ok(!listTrashItems(state).some((item) => item.entityType === "role"));
+
+  const deletedAgain = deleteRole(state, SYSTEM_ROLE_IDS.Warehouse);
+  assert.equal(deletedAgain.ok, true);
+  if (!deletedAgain.ok) return;
+  state = deletedAgain.data.state;
+  const purged = purgeTrashItem(state, {
+    entityType: "role",
+    entityId: SYSTEM_ROLE_IDS.Warehouse,
+  });
+  assert.equal(purged.ok, true, purged.ok ? "" : purged.error);
+  if (!purged.ok) return;
+  state = purged.data.state;
+  assert.ok(!state.roles.some((role) => role.id === SYSTEM_ROLE_IDS.Warehouse));
+  assert.equal(state.users.find((user) => user.id === "user-sales")?.roleId, SYSTEM_ROLE_IDS.Owner);
+
+  const kept = ownerState();
+  kept.roles.push({
+    ...warehouse,
+    permissions: [...warehouse.permissions],
+    active: false,
+    deletedAt: new Date().toISOString(),
+    deletedBy: "TLB Owner",
+  });
+  lockWorkspaceToOwner(kept);
+  assert.ok(kept.roles.some((role) => role.id === SYSTEM_ROLE_IDS.Warehouse && role.deletedAt));
+  assert.equal(kept.currentRole, "Owner");
+}
+
 testInvoiceTrashRestorePurge();
 testOpsRequestTrashAndBlock();
 testStockMovementHideNoPurge();
 testGoodsReceiptAndDelivery();
 testNotificationSoftDelete();
+testConfirmPhrasesAreDistinct();
+testNonOwnerCannotMutateTrash();
+testRoleDeleteWithUsersAndTasks();
 console.log("trash-verify: ok");

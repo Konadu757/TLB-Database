@@ -347,10 +347,16 @@ export function roleHasPermission(
  * Accepts full state (preferred) or a legacy system role key for tests.
  * System roles always resolve against SYSTEM_ROLE_PERMISSIONS.
  */
+const OWNER_ONLY_TRASH_PERMISSIONS = new Set<Permission>(["records.delete", "trash.purge"]);
+
 export function hasPermission(
   stateOrSystemKey: Pick<TlbState, "roles" | "currentRoleId" | "currentRole"> | SystemRoleKey,
   permission: Permission,
 ): boolean {
+  if (OWNER_ONLY_TRASH_PERMISSIONS.has(permission)) {
+    if (typeof stateOrSystemKey === "string") return stateOrSystemKey === "Owner";
+    return resolveRole(stateOrSystemKey)?.systemKey === "Owner";
+  }
   if (typeof stateOrSystemKey === "string") {
     return SYSTEM_ROLE_PERMISSIONS[stateOrSystemKey]?.includes(permission) ?? false;
   }

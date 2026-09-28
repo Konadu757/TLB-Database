@@ -128,9 +128,10 @@ function defaultUsers(roles: RoleDefinition[]): AppUser[] {
 }
 
 /**
- * App sessions only sign in as Owner. Other system roles stay in the permission
- * catalog and tlb.roles SQL; they are not listed or assignable in the workspace.
- * Users who were on a removed role are reassigned to Owner.
+ * App sessions only sign in as Owner. Other roles stay in the list so the Owner
+ * can move them to Trash; they are not assignable and cannot become the session.
+ * Users whose role is missing or already in Trash are reassigned to Owner.
+ * Soft-deleted roles are kept so Trash survives reload.
  */
 export function lockWorkspaceToOwner(state: TlbState): void {
   const catalogOwner = createSystemRoles().find((r) => r.systemKey === "Owner");
@@ -145,9 +146,18 @@ export function lockWorkspaceToOwner(state: TlbState): void {
     active: true,
     permissions: [...SYSTEM_ROLE_PERMISSIONS.Owner],
   };
-  state.roles = [owner];
+  delete owner.deletedAt;
+  delete owner.deletedBy;
+  delete owner.deletedReason;
+  const others = state.roles.filter(
+    (role) => role.systemKey !== "Owner" && role.id !== SYSTEM_ROLE_IDS.Owner,
+  );
+  state.roles = [owner, ...others];
+  const liveRoleIds = new Set(
+    state.roles.filter((role) => role.active && !role.deletedAt).map((role) => role.id),
+  );
   for (const user of state.users) {
-    user.roleId = owner.id;
+    if (!liveRoleIds.has(user.roleId)) user.roleId = owner.id;
   }
   const ownerUser = state.users.find((u) => u.id === OWNER_USER_ID);
   if (ownerUser) {

@@ -46,13 +46,15 @@ import type {
   Warehouse,
 } from "../domain/types";
 
-export {
+import {
   listTrash,
-  softDeleteRecord,
-  restoreTrashItem,
   purgeTrashItem,
+  restoreTrashItem,
+  softDeleteRecord,
   trashBlockReason,
 } from "./trash-store";
+
+export { listTrash, purgeTrashItem, restoreTrashItem, softDeleteRecord, trashBlockReason };
 import { migrateState, syncSessionIdentity } from "./migrate";
 import { createSeedState } from "./seed";
 import { applySupplyBatchPicks, getOrCreateBalance, postStockMovement } from "./inventory-store";
@@ -1444,49 +1446,28 @@ export function updateRole(
 }
 
 /**
- * Owner-only role delete. Reassigns every user on the role to Owner, then
- * soft-deletes the role (hidden from the Roles list and unassignable).
- * The Owner role itself cannot be deleted.
+ * Owner-only role delete. Assigned users move to Owner even when tasks already
+ * target the role. The role is soft-deleted into Trash. The Owner role cannot
+ * be deleted. Assigned tasks are left in place and do not block this.
  */
-export function deleteRole(state: TlbState, roleId: string): MutResult<RoleDefinition> {
+export function deleteRole(
+  state: TlbState,
+  roleId: string,
+  reason?: string,
+): MutResult<RoleDefinition> {
   const current = resolveRole(state);
   if (current?.systemKey !== "Owner") {
     return { ok: false, error: "Only the Owner can delete roles." };
   }
-  const next = cloneState(state);
-  const role = next.roles.find((r) => r.id === roleId);
-  if (!role) return { ok: false, error: "Role not found." };
-  if (!role.active) return { ok: false, error: "Role already deleted." };
-  if (role.systemKey === "Owner") {
-    return { ok: false, error: "The Owner role cannot be deleted." };
-  }
-
-  const ownerRole = next.roles.find((r) => r.systemKey === "Owner" && r.active);
-  if (!ownerRole) {
-    return { ok: false, error: "Owner role is missing — cannot reassign users." };
-  }
-
-  const affected = next.users.filter((u) => u.roleId === roleId);
-  for (const user of affected) {
-    user.roleId = ownerRole.id;
-  }
-
-  role.active = false;
-  syncSessionIdentity(next);
-  pushAudit(next, {
-    action: "role.deleted",
+  const result = softDeleteRecord(state, {
     entityType: "role",
-    entityId: role.id,
-    summary:
-      affected.length > 0
-        ? `Deleted role ${role.name}; reassigned ${affected.length} user(s) to Owner.`
-        : `Deleted role ${role.name}.`,
-    meta: {
-      reassignedCount: affected.length,
-      reassignedToRoleId: ownerRole.id,
-    },
+    entityId: roleId,
+    ...(reason ? { reason } : {}),
   });
-  return { ok: true, data: { state: next, data: role } };
+  if (!result.ok) return result;
+  const role = result.data.state.roles.find((r) => r.id === roleId);
+  if (!role) return { ok: false, error: "Role not found." };
+  return { ok: true, data: { state: result.data.state, data: role } };
 }
 
 /** @deprecated Use deleteRole — kept for older call sites / tests. */

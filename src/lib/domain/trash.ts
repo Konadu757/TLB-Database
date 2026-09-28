@@ -7,6 +7,15 @@ import type {
 } from "./types";
 import { findCatalogRecord } from "./list-catalog";
 
+/** Soft-delete confirmation phrase (case-insensitive). */
+export const TRASH_CONFIRM_PHRASE = "DELETE";
+
+/** Permanent purge confirmation phrase (case-insensitive). Distinct from DELETE. */
+export const PURGE_CONFIRM_PHRASE = "PERMANENT";
+
+/** Restore confirmation phrase (case-insensitive). Distinct from DELETE and PERMANENT. */
+export const RESTORE_CONFIRM_PHRASE = "RESTORE";
+
 export function isSoftDeleted(item: SoftDeleteFields | null | undefined): boolean {
   return Boolean(item?.deletedAt);
 }
@@ -96,6 +105,8 @@ export function trashTypeLabel(entityType: TrashEntityType, module?: string): st
       return "Approval";
     case "notification":
       return "Notification";
+    case "role":
+      return "Role";
     default:
       return entityType;
   }
@@ -219,6 +230,17 @@ export function listTrashItems(state: TlbState): TrashListItem[] {
   }
   for (const n of state.notifications) {
     pushTrash(items, "notification", n.id, n.title, n, n.type);
+  }
+  for (const role of state.roles) {
+    if (role.systemKey === "Owner") continue;
+    pushTrash(
+      items,
+      "role",
+      role.id,
+      role.name,
+      role,
+      role.systemKey ? "System role" : "Custom role",
+    );
   }
 
   for (const d of state.catalogDeletions) {

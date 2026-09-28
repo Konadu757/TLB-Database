@@ -76,6 +76,7 @@ export function NotificationsModule({
   onOpenRelated: (n: AppNotification) => void;
 }) {
   const manageAll = canManageAllNotifications(store.state);
+  const canTrash = store.can("records.delete");
   const role = resolveRole(store.state);
   const visible = useMemo(() => {
     const session = {
@@ -123,15 +124,17 @@ export function NotificationsModule({
           >
             <CheckCheck /> Mark all read
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={selection.selectedIds.length === 0}
-            onClick={() => setDeleteIds([...selection.selectedIds])}
-          >
-            <Trash2 /> Move to Trash selected
-          </Button>
+          {canTrash ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={selection.selectedIds.length === 0}
+              onClick={() => setDeleteIds([...selection.selectedIds])}
+            >
+              <Trash2 /> Move to Trash selected
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="outline"
@@ -162,11 +165,13 @@ export function NotificationsModule({
               <table>
                 <thead>
                   <tr>
-                    <SelectAllHeader
-                      allSelected={selection.allVisibleSelected}
-                      someSelected={selection.someVisibleSelected}
-                      onToggle={selection.toggleAllVisible}
-                    />
+                    {canTrash ? (
+                      <SelectAllHeader
+                        allSelected={selection.allVisibleSelected}
+                        someSelected={selection.someVisibleSelected}
+                        onToggle={selection.toggleAllVisible}
+                      />
+                    ) : null}
                     <th>Status</th>
                     <th>Title</th>
                     <th>Type</th>
@@ -181,12 +186,14 @@ export function NotificationsModule({
                       className={!n.readAt ? "tlb-row-unread" : undefined}
                       data-selected={selectedId === n.id ? "true" : undefined}
                     >
-                      <SelectRowCell
-                        id={n.id}
-                        checked={selection.isSelected(n.id)}
-                        onToggle={selection.toggle}
-                        label={`Select ${n.title}`}
-                      />
+                      {canTrash ? (
+                        <SelectRowCell
+                          id={n.id}
+                          checked={selection.isSelected(n.id)}
+                          onToggle={selection.toggle}
+                          label={`Select ${n.title}`}
+                        />
+                      ) : null}
                       <td>
                         <span className={`status-badge status-${n.readAt ? "neutral" : "info"}`}>
                           {n.readAt ? "Read" : "Unread"}
@@ -207,15 +214,17 @@ export function NotificationsModule({
                       </td>
                       <td>{formatWhen(n.createdAt)}</td>
                       <td>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          aria-label={`Move ${n.title} to trash`}
-                          onClick={() => setDeleteIds([n.id])}
-                        >
-                          <Trash2 />
-                        </Button>
+                        {canTrash ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            aria-label={`Move ${n.title} to trash`}
+                            onClick={() => setDeleteIds([n.id])}
+                          >
+                            <Trash2 />
+                          </Button>
+                        ) : null}
                       </td>
                     </tr>
                   ))}
@@ -291,14 +300,16 @@ export function NotificationsModule({
                 >
                   Open related
                 </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setDeleteIds([selected.id])}
-                >
-                  <Trash2 /> Move to Trash
-                </Button>
+                {canTrash ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setDeleteIds([selected.id])}
+                  >
+                    <Trash2 /> Move to Trash
+                  </Button>
+                ) : null}
               </div>
             </>
           ) : (

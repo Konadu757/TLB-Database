@@ -431,8 +431,10 @@ export function useTlbStore() {
       apply((s) => createRole(s, input), "Role created."),
     updateRole: (roleId: string, input: Parameters<typeof updateRole>[2]) =>
       apply((s) => updateRole(s, roleId, input), "Role updated."),
-    deleteRole: (roleId: string) => apply((s) => deleteRole(s, roleId), "Role deleted."),
-    deactivateRole: (roleId: string) => apply((s) => deleteRole(s, roleId), "Role deleted."),
+    deleteRole: (roleId: string, reason?: string) =>
+      apply((s) => deleteRole(s, roleId, reason), "Role moved to trash."),
+    deactivateRole: (roleId: string, reason?: string) =>
+      apply((s) => deleteRole(s, roleId, reason), "Role moved to trash."),
     assignUserRole: (userId: string, roleId: string) =>
       apply((s) => assignUserRole(s, userId, roleId), "User role assigned."),
     saveUser: (input: Parameters<typeof upsertAppUser>[1]) => {

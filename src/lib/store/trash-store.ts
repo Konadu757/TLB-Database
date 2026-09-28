@@ -4,6 +4,7 @@
  * Audit events and system Owner role are never trashable.
  */
 import { hasPermission } from "../domain/permissions";
+import { syncSessionIdentity } from "./migrate";
 import {
   buildCatalogDeletion,
   isSoftDeleted,
@@ -504,6 +505,48 @@ export function softDeleteRecord(
       );
       break;
     }
+    case "role": {
+      const role = next.roles.find((r) => r.id === input.entityId);
+      if (!role) {
+        err = "Role not found.";
+        break;
+      }
+      if (role.systemKey === "Owner") {
+        err = "The Owner role cannot be deleted.";
+        break;
+      }
+      if (!role.active || isSoftDeleted(role)) {
+        err = "Role already deleted.";
+        break;
+      }
+      const ownerRole = next.roles.find(
+        (r) => r.systemKey === "Owner" && r.active && !isSoftDeleted(r),
+      );
+      if (!ownerRole) {
+        err = "Owner role is missing — cannot reassign users.";
+        break;
+      }
+      const affected = next.users.filter((u) => u.roleId === role.id);
+      for (const user of affected) user.roleId = ownerRole.id;
+      applySoftDeleteMeta(role, actor, reason);
+      role.active = false;
+      syncSessionIdentity(next);
+      summary =
+        affected.length > 0
+          ? `Moved role ${role.name} to trash; reassigned ${affected.length} user(s) to Owner.`
+          : `Moved role ${role.name} to trash.`;
+      pushAudit(next, {
+        action: "role.deleted",
+        entityType: "role",
+        entityId: role.id,
+        summary,
+        meta: {
+          reassignedCount: affected.length,
+          reassignedToRoleId: ownerRole.id,
+        },
+      });
+      break;
+    }
     default:
       return { ok: false, error: "Unsupported record type." };
   }
@@ -816,6 +859,17 @@ export function restoreTrashItem(
       );
       break;
     }
+    case "role": {
+      const role = next.roles.find((r) => r.id === input.entityId);
+      if (!role || role.systemKey === "Owner" || !isSoftDeleted(role)) {
+        err = "Trashed role not found.";
+        break;
+      }
+      clearSoftDeleteMeta(role);
+      role.active = true;
+      summary = `Restored role ${role.name} from trash. People stay on Owner until someone assigns them again.`;
+      break;
+    }
     default:
       return { ok: false, error: "Unsupported record type." };
   }
@@ -1114,6 +1168,22 @@ export function purgeTrashItem(
         (n) => !(n.id === input.entityId && isSoftDeleted(n)),
       );
       summary = `Permanently deleted notification ${input.entityId}.`;
+      break;
+    }
+    case "role": {
+      const idx = next.roles.findIndex(
+        (r) => r.id === input.entityId && isSoftDeleted(r) && r.systemKey !== "Owner",
+      );
+      if (idx < 0) return { ok: false, error: "Trashed role not found." };
+      const ownerRole = next.roles.find((r) => r.systemKey === "Owner" && r.active);
+      const [removed] = next.roles.splice(idx, 1);
+      if (ownerRole && removed) {
+        for (const user of next.users) {
+          if (user.roleId === removed.id) user.roleId = ownerRole.id;
+        }
+      }
+      syncSessionIdentity(next);
+      summary = `Permanently deleted role ${removed?.name ?? input.entityId}.`;
       break;
     }
     default:

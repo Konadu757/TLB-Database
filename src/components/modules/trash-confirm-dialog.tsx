@@ -11,17 +11,24 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  PURGE_CONFIRM_PHRASE,
+  RESTORE_CONFIRM_PHRASE,
+  TRASH_CONFIRM_PHRASE,
+} from "@/lib/domain/trash";
 
-type Mode = "trash" | "purge";
+type Mode = "trash" | "purge" | "restore";
 
-/** Soft-delete confirmation phrase (case-insensitive). */
-export const TRASH_CONFIRM_PHRASE = "DELETE";
-
-/** Permanent purge confirmation phrase (case-insensitive). */
-export const PURGE_CONFIRM_PHRASE = "DELETE PERMANENTLY";
+export { PURGE_CONFIRM_PHRASE, RESTORE_CONFIRM_PHRASE, TRASH_CONFIRM_PHRASE };
 
 function phrasesMatch(typed: string, expected: string) {
   return typed.trim().toLowerCase() === expected.toLowerCase();
+}
+
+function phraseFor(mode: Mode) {
+  if (mode === "purge") return PURGE_CONFIRM_PHRASE;
+  if (mode === "restore") return RESTORE_CONFIRM_PHRASE;
+  return TRASH_CONFIRM_PHRASE;
 }
 
 export function TrashConfirmDialog({
@@ -29,6 +36,7 @@ export function TrashConfirmDialog({
   mode,
   recordLabel,
   count,
+  extraNote,
   onOpenChange,
   onConfirm,
 }: {
@@ -37,6 +45,8 @@ export function TrashConfirmDialog({
   recordLabel: string;
   /** When set, uses bulk copy (“Move N selected items…”). */
   count?: number;
+  /** Extra Owner-facing note, such as role reassignment. */
+  extraNote?: string;
   onOpenChange: (open: boolean) => void;
   onConfirm: (reason?: string) => void;
 }) {
@@ -56,26 +66,41 @@ export function TrashConfirmDialog({
   };
 
   const isPurge = mode === "purge";
+  const isRestore = mode === "restore";
   const n = count ?? 0;
   const isBulk = n > 1 || (count !== undefined && n === 1 && recordLabel.includes("selected"));
-  const confirmPhrase = isPurge ? PURGE_CONFIRM_PHRASE : TRASH_CONFIRM_PHRASE;
+  const confirmPhrase = phraseFor(mode);
   const confirmed = phrasesMatch(confirmText, confirmPhrase);
+  const subject = recordLabel;
 
   const title = isPurge
     ? isBulk || count !== undefined
       ? `Permanently delete ${count} item${count === 1 ? "" : "s"}?`
-      : "Delete permanently?"
-    : isBulk || count !== undefined
-      ? `Move ${count} selected item${count === 1 ? "" : "s"} to Trash?`
-      : "Move to Trash?";
+      : `Permanently delete ${subject}?`
+    : isRestore
+      ? `Restore ${subject}?`
+      : isBulk || count !== undefined
+        ? `Move ${count} selected item${count === 1 ? "" : "s"} to Trash?`
+        : `Move ${subject} to Trash?`;
 
   const description = isPurge
     ? count !== undefined
       ? `This cannot be undone. Permanently delete ${count} selected item${count === 1 ? "" : "s"} from Trash.`
-      : `This cannot be undone. Permanently delete ${recordLabel}.`
-    : count !== undefined
-      ? `Send ${count} selected item${count === 1 ? "" : "s"} to Trash. You can restore them later from the Trash module.`
-      : `Send ${recordLabel} to Trash. You can restore it later from the Trash module.`;
+      : `This cannot be undone. Permanently delete ${subject}.`
+    : isRestore
+      ? `Restore ${subject} from Trash. This confirmation is separate from the one used to move it here.`
+      : count !== undefined
+        ? `Send ${count} selected item${count === 1 ? "" : "s"} to Trash. You can restore them later from the Trash module.`
+        : `Send ${subject} to Trash. You can restore it later from the Trash module.`;
+
+  const confirm = () => {
+    if (!confirmed) return;
+    const trimmed = reason.trim();
+    if (mode === "trash" && trimmed) onConfirm(trimmed);
+    else onConfirm();
+    resetForm();
+    onOpenChange(false);
+  };
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -86,7 +111,12 @@ export function TrashConfirmDialog({
         </DialogHeader>
 
         <div className="tlb-trash-confirm-fields">
-          {!isPurge ? (
+          {extraNote ? (
+            <p className="tlb-trash-purge-warning" role="note">
+              {extraNote}
+            </p>
+          ) : null}
+          {mode === "trash" ? (
             <div className="tlb-trash-reason">
               <Label htmlFor={reasonId}>Reason (optional)</Label>
               <textarea
@@ -99,8 +129,9 @@ export function TrashConfirmDialog({
             </div>
           ) : (
             <p className="tlb-trash-purge-warning" role="note">
-              Permanent deletion removes this data from Trash forever. Soft-deleted items on list
-              pages are only moved to Trash and can be restored.
+              {isPurge
+                ? "Permanent deletion removes this data from Trash forever. Type PERMANENT — the move-to-trash phrase DELETE will not work here."
+                : "Type RESTORE to bring this item back. DELETE and PERMANENT will not confirm this action."}
             </p>
           )}
 
@@ -121,9 +152,7 @@ export function TrashConfirmDialog({
               onKeyDown={(e) => {
                 if (e.key === "Enter" && confirmed) {
                   e.preventDefault();
-                  onConfirm(reason.trim() || undefined);
-                  resetForm();
-                  onOpenChange(false);
+                  confirm();
                 }
               }}
             />
@@ -141,14 +170,9 @@ export function TrashConfirmDialog({
             type="button"
             variant={isPurge ? "destructive" : "default"}
             disabled={!confirmed}
-            onClick={() => {
-              if (!confirmed) return;
-              onConfirm(reason.trim() || undefined);
-              resetForm();
-              onOpenChange(false);
-            }}
+            onClick={confirm}
           >
-            {isPurge ? "Delete permanently" : "Move to Trash"}
+            {isPurge ? "Delete permanently" : isRestore ? "Restore" : "Move to Trash"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -30,6 +30,7 @@ import {
   PanelLeftOpen,
   Plus,
   Receipt,
+  RotateCcw,
   Route,
   Search,
   Settings,
@@ -242,6 +243,34 @@ const navGroups: NavGroup[] = [
       { label: "Trash", icon: Trash2 },
       { label: "Settings", icon: Settings },
     ],
+  },
+];
+
+type QuickActionItem = {
+  label: string;
+  hint: string;
+  icon: typeof FileText;
+};
+
+const quickActionGroups: { label: string; items: QuickActionItem[] }[] = [
+  {
+    label: "Sales",
+    items: [
+      { label: "Create quotation", hint: "Quotations", icon: FileText },
+      { label: "Create customer order", hint: "Sales orders", icon: ShoppingCart },
+      { label: "Create invoice", hint: "Invoices", icon: FileSpreadsheet },
+    ],
+  },
+  {
+    label: "Stock",
+    items: [
+      { label: "Receive goods", hint: "Stock", icon: Boxes },
+      { label: "View outstanding supplies", hint: "Outstanding supplies", icon: PackageCheck },
+    ],
+  },
+  {
+    label: "Workspace",
+    items: [{ label: "Reset Phase 30 demo", hint: "Sample data", icon: RotateCcw }],
   },
 ];
 
@@ -1166,39 +1195,46 @@ function TLBDashboardInner() {
                   {quickOpen && (
                     <div
                       id="tlb-quick-menu"
-                      className="tlb-popover tlb-quick-menu"
+                      className="tlb-popover tlb-quick-menu tlb-quick-actions"
                       role="menu"
                       aria-label="Quick actions"
                     >
-                      {[
-                        "Create quotation",
-                        "Create customer order",
-                        "Receive goods",
-                        "View outstanding supplies",
-                        "Create invoice",
-                        "Reset Phase 30 demo",
-                      ].map((action) => (
-                        <button
-                          type="button"
-                          role="menuitem"
-                          key={action}
-                          onClick={() => {
-                            setQuickOpen(false);
-                            if (action === "Create quotation") {
-                              setQuoteCreateRequest(true);
-                              openLiveModule("Quotations");
-                            } else if (action === "Create customer order")
-                              openLiveModule("Sales Orders");
-                            else if (action === "Receive goods") openLiveModule("Stock");
-                            else if (action === "View outstanding supplies")
-                              openLiveModule("Outstanding Supplies");
-                            else if (action === "Create invoice") openLiveModule("Invoices");
-                            else store.resetDemo();
-                          }}
-                        >
-                          {action}
-                          <ChevronRight />
-                        </button>
+                      {quickActionGroups.map((group) => (
+                        <div className="tlb-quick-actions-group" key={group.label}>
+                          <p className="tlb-quick-actions-label">{group.label}</p>
+                          {group.items.map((action) => {
+                            const Icon = action.icon;
+                            return (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                key={action.label}
+                                onClick={() => {
+                                  setQuickOpen(false);
+                                  if (action.label === "Create quotation") {
+                                    setQuoteCreateRequest(true);
+                                    openLiveModule("Quotations");
+                                  } else if (action.label === "Create customer order")
+                                    openLiveModule("Sales Orders");
+                                  else if (action.label === "Receive goods") openLiveModule("Stock");
+                                  else if (action.label === "View outstanding supplies")
+                                    openLiveModule("Outstanding Supplies");
+                                  else if (action.label === "Create invoice")
+                                    openLiveModule("Invoices");
+                                  else store.resetDemo();
+                                }}
+                              >
+                                <span className="tlb-quick-actions-icon" aria-hidden="true">
+                                  <Icon />
+                                </span>
+                                <span className="tlb-quick-actions-copy">
+                                  <strong>{action.label}</strong>
+                                  <span>{action.hint}</span>
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       ))}
                     </div>
                   )}
