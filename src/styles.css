@@ -136,9 +136,9 @@
   --sidebar-foreground: oklch(0.98 0.02 95);
   --sidebar-primary: oklch(0.92 0.13 82);
   --sidebar-primary-foreground: oklch(0.26 0.065 296);
-  --sidebar-accent: oklch(0.52 0.20 292);
+  --sidebar-accent: oklch(0.484 0.092 296);
   --sidebar-accent-foreground: oklch(0.995 0.02 95);
-  --sidebar-border: oklch(0.50 0.16 292);
+  --sidebar-border: oklch(0.464 0.052 296);
   --sidebar-ring: oklch(0.92 0.13 82);
   --brand-gold: oklch(0.92 0.13 82);
   --brand-gold-muted: oklch(0.96 0.08 82);
@@ -277,7 +277,7 @@ table.tlb-table,
   /* Pre-zoom shell height. Desktop uses 100dvh / 0.95 so zoom still covers the window. */
   --tlb-shell-h: 100dvh;
   /* Deep vivid violet; gold stays bright */
-  --tlb-purple: #6016C7;
+  --tlb-purple: #523786;
   --tlb-gold: #FFDC7A;
   --tlb-surface-soft: #F3F0FA;
 }

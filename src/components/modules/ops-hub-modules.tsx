@@ -2756,7 +2756,7 @@ export function OpsLiveBoardModule({ store, onOpenRequest }: ModuleProps) {
                     style={{
                       padding: 10,
                       textAlign: "left",
-                      border: "1px solid color-mix(in oklab, var(--tlb-purple, #6016C7) 18%, transparent)",
+                      border: "1px solid color-mix(in oklab, var(--tlb-purple, #523786) 18%, transparent)",
                       background: "color-mix(in oklab, var(--tlb-gold, #FFDC7A) 8%, transparent)",
                       cursor: "pointer",
                     }}
