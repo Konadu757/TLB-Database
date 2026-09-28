@@ -134,7 +134,9 @@ function defaultUsers(roles: RoleDefinition[]): AppUser[] {
  */
 export function lockWorkspaceToOwner(state: TlbState): void {
   const catalogOwner = createSystemRoles().find((r) => r.systemKey === "Owner");
-  const existing = state.roles.find((r) => r.systemKey === "Owner" || r.id === SYSTEM_ROLE_IDS.Owner);
+  const existing = state.roles.find(
+    (r) => r.systemKey === "Owner" || r.id === SYSTEM_ROLE_IDS.Owner,
+  );
   const owner: RoleDefinition = {
     ...(catalogOwner ?? existing)!,
     id: SYSTEM_ROLE_IDS.Owner,
@@ -168,11 +170,16 @@ export function syncSessionIdentity(state: TlbState): void {
     state.roles.find((r) => r.id === user.roleId) ??
     state.roles.find((r) => r.id === state.currentRoleId) ??
     state.roles.find((r) => r.systemKey === "Owner");
+  const owner =
+    state.roles.find((r) => r.systemKey === "Owner" && r.active) ??
+    state.roles.find((r) => r.id === SYSTEM_ROLE_IDS.Owner) ??
+    role;
   state.currentUserId = user.id;
   state.currentUser = user.name;
-  if (role) {
-    state.currentRoleId = role.id;
-    state.currentRole = role.name;
+  if (owner) {
+    user.roleId = owner.id;
+    state.currentRoleId = owner.id;
+    state.currentRole = owner.name;
   }
 }
 

@@ -376,23 +376,13 @@ export function canManageAllNotifications(
   return hasPermission(state, "users.manage");
 }
 
-/** Active roles available for assignment (includes system + custom). */
+/** The only role the workspace can assign. Other system keys stay in the permission catalog. */
 export function listAssignableRoles(roles: RoleDefinition[]): RoleDefinition[] {
-  return roles.filter((r) => r.active);
+  return roles.filter((r) => r.active && r.systemKey === "Owner");
 }
 
-/** @deprecated Prefer listAssignableRoles(state.roles) — fixed system keys only. */
-export const ALL_ROLES: SystemRoleKey[] = [
-  "Owner",
-  "Sales",
-  "Warehouse",
-  "Finance",
-  "Manager",
-  "Admin",
-  "Driver",
-  "Requester",
-  "Receiver",
-];
+/** Roles offered in the app. Permission checks for other system keys stay in SYSTEM_ROLE_PERMISSIONS. */
+export const ALL_ROLES: SystemRoleKey[] = ["Owner"];
 
 export function userInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);

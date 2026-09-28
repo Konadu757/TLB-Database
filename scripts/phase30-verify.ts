@@ -34,6 +34,7 @@ import {
   advanceTransfer,
   createGoodsReceipt,
   createStockIssue,
+  getOrCreateBalance,
   postStockAdjustment,
   requestWarehouseTransfer,
 } from "../src/lib/store/inventory-store";
@@ -81,13 +82,41 @@ import {
   markDelivered,
   receiveStock,
   resetToSeed,
+  switchRole,
   switchSessionUser,
   updateDeliveryStatus,
   upsertAppUser,
 } from "../src/lib/store/tlb-store";
-import { OWNER_USER_ID, SYSTEM_ROLE_IDS } from "../src/lib/domain/permissions";
-import type { CustomerOrderLine, StockBalance } from "../src/lib/domain/types";
-import { getOrCreateBalance } from "../src/lib/store/inventory-store";
+import { createSystemRoles, OWNER_USER_ID, SYSTEM_ROLE_IDS } from "../src/lib/domain/permissions";
+import type {
+  CustomerOrderLine,
+  StockBalance,
+  SystemRoleKey,
+  TlbState,
+} from "../src/lib/domain/types";
+
+function withSystemRole(state: TlbState, key: SystemRoleKey): TlbState {
+  const role = createSystemRoles().find((item) => item.systemKey === key);
+  if (!role) throw new Error(`Missing system role ${key}`);
+  if (!state.roles.some((item) => item.id === role.id)) {
+    state.roles.push({ ...role, permissions: [...role.permissions] });
+  }
+  return state;
+}
+
+/** In-memory session for permission checks. The app itself cannot switch roles. */
+function sessionAs(state: TlbState, userId: string, key: SystemRoleKey): TlbState {
+  const next = structuredClone(state);
+  withSystemRole(next, key);
+  const roleId = SYSTEM_ROLE_IDS[key];
+  const user = next.users.find((item) => item.id === userId);
+  if (!user) throw new Error(`Missing user ${userId}`);
+  user.roleId = roleId;
+  next.currentUserId = userId;
+  next.currentRoleId = roleId;
+  next.currentRole = key;
+  return next;
+}
 
 function testOutstandingNeverNegative() {
   const line: CustomerOrderLine = {
@@ -177,19 +206,29 @@ function testPermissions() {
   assert.equal(hasPermission(state, "users.manage"), true);
   assert.equal(canAccessNav(state, "Settings"), true);
   assert.equal(canAccessNav(state, "Finance"), true);
+  assert.deepEqual(
+    state.roles.map((role) => role.systemKey),
+    ["Owner"],
+  );
+  assert.ok(state.users.every((user) => user.roleId === SYSTEM_ROLE_IDS.Owner));
+  const switched = switchRole(state, "Sales");
+  assert.equal(switched.ok, false);
+  assert.equal(state.currentRole, "Owner");
 
   // Non-Owner session cannot delete roles.
-  const asSales = switchSessionUser(state, "user-sales");
-  assert.equal(asSales.ok, true);
-  if (!asSales.ok) return;
-  const blockedDelete = deleteRole(asSales.data.state, SYSTEM_ROLE_IDS.Warehouse);
+  const asSales = sessionAs(state, "user-sales", "Sales");
+  withSystemRole(asSales, "Warehouse");
+  const blockedDelete = deleteRole(asSales, SYSTEM_ROLE_IDS.Warehouse);
   assert.equal(blockedDelete.ok, false);
 
   // Owner can delete a system role; assigned users are reassigned to Owner.
-  const assigned = assignUserRole(state, "user-sales", SYSTEM_ROLE_IDS.Warehouse);
-  assert.equal(assigned.ok, true);
-  if (!assigned.ok) return;
-  const deleted = deleteRole(assigned.data.state, SYSTEM_ROLE_IDS.Warehouse);
+  const roleState = withSystemRole(structuredClone(state), "Warehouse");
+  const blockedAssign = assignUserRole(roleState, "user-sales", SYSTEM_ROLE_IDS.Warehouse);
+  assert.equal(blockedAssign.ok, false);
+  const salesBeforeDelete = roleState.users.find((u) => u.id === "user-sales");
+  assert.ok(salesBeforeDelete);
+  if (salesBeforeDelete) salesBeforeDelete.roleId = SYSTEM_ROLE_IDS.Warehouse;
+  const deleted = deleteRole(roleState, SYSTEM_ROLE_IDS.Warehouse);
   assert.equal(deleted.ok, true);
   if (!deleted.ok) return;
   const warehouseGone = deleted.data.state.roles.find((r) => r.id === SYSTEM_ROLE_IDS.Warehouse);
@@ -205,7 +244,11 @@ function testPermissions() {
   // Last active Owner cannot be demoted or deactivated.
   const demoteLast = assignUserRole(state, OWNER_USER_ID, SYSTEM_ROLE_IDS.Admin);
   assert.equal(demoteLast.ok, false);
-  const deactivateLast = upsertAppUser(state, {
+  const soleOwner = structuredClone(state);
+  for (const user of soleOwner.users) {
+    if (user.id !== OWNER_USER_ID) user.active = false;
+  }
+  const deactivateLast = upsertAppUser(soleOwner, {
     id: OWNER_USER_ID,
     name: "TLB Owner",
     email: "owner@tlb.gh",
@@ -215,11 +258,11 @@ function testPermissions() {
   assert.equal(deactivateLast.ok, false);
 
   // Editing other staff profile fields succeeds and is audited.
-  const edited = upsertAppUser(state, {
+  const edited = upsertAppUser(structuredClone(state), {
     id: "user-sales",
     name: "Ama Mensah Updated",
     email: "ama.updated@tlb.gh",
-    roleId: SYSTEM_ROLE_IDS.Sales,
+    roleId: SYSTEM_ROLE_IDS.Owner,
     active: true,
   });
   assert.equal(edited.ok, true);
@@ -232,11 +275,11 @@ function testPermissions() {
 }
 
 function testInvites() {
-  const state = createSeedState();
+  const state = withSystemRole(withSystemRole(createSeedState(), "Warehouse"), "Sales");
   const created = upsertAppUser(state, {
     name: "Invite Test User",
     email: "invite.test@tlb.gh",
-    roleId: SYSTEM_ROLE_IDS.Warehouse,
+    roleId: SYSTEM_ROLE_IDS.Owner,
   });
   assert.equal(created.ok, true);
   if (!created.ok) return;
@@ -273,7 +316,7 @@ function testInvites() {
   if (!mirrored.ok) return;
   assert.equal(mirrored.data.state.currentUserId, user.id);
   assert.equal(mirrored.data.data.invitePending, false);
-  assert.equal(mirrored.data.state.currentRole, "Warehouse");
+  assert.equal(mirrored.data.state.currentRole, "Owner");
 
   const createdRemote = applyHostedInviteAcceptance(state, {
     profileId: "22222222-2222-2222-2222-222222222222",
@@ -284,7 +327,7 @@ function testInvites() {
   assert.equal(createdRemote.ok, true);
   if (!createdRemote.ok) return;
   assert.equal(createdRemote.data.state.currentUserId, "22222222-2222-2222-2222-222222222222");
-  assert.equal(createdRemote.data.state.currentRole, "Sales");
+  assert.equal(createdRemote.data.state.currentRole, "Owner");
 
   const badRole = applyHostedInviteAcceptance(state, {
     profileId: "33333333-3333-3333-3333-333333333333",
@@ -542,7 +585,7 @@ function testInventoryEngine() {
 
 function testDeferredOpsPack() {
   const state = createSeedState();
-  assert.equal(state.version, 13);
+  assert.equal(state.version, 14);
   assert.ok((state.customerReturns ?? []).length >= 1, "seed customer returns");
   assert.ok((state.nonPoPurchases ?? []).length >= 1, "seed non-po");
   assert.ok((state.importShipments ?? []).length >= 1, "seed imports");
@@ -912,19 +955,15 @@ function testHandoverWorkflowGaps() {
   if (blocked.ok) return;
   assert.match(blocked.error, /override reason/);
 
-  const asSales = switchSessionUser(state, "user-sales");
-  assert.equal(asSales.ok, true);
-  if (!asSales.ok) return;
-  const salesOverride = confirmCustomerOrder(asSales.data.state, over.data.data.id, "Sales tried");
+  const asSales = sessionAs(state, "user-sales", "Sales");
+  const salesOverride = confirmCustomerOrder(asSales, over.data.data.id, "Sales tried");
   assert.equal(salesOverride.ok, false);
   if (salesOverride.ok) return;
   assert.match(salesOverride.error, /manager approval/);
 
-  const asManager = switchSessionUser(state, "user-manager");
-  assert.equal(asManager.ok, true);
-  if (!asManager.ok) return;
+  const asManager = sessionAs(state, "user-manager", "Manager");
   const managerOverride = confirmCustomerOrder(
-    asManager.data.state,
+    asManager,
     over.data.data.id,
     "Approved for campaign",
   );

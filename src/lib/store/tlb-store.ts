@@ -20,12 +20,7 @@ import {
   markInviteAccepted,
   normalizeAccessCode,
 } from "../domain/invites";
-import {
-  hasPermission,
-  resolveRole,
-  SYSTEM_ROLE_IDS,
-  systemRoleKeyForDbCode,
-} from "../domain/permissions";
+import { hasPermission, resolveRole, systemRoleKeyForDbCode } from "../domain/permissions";
 
 export { buildInviteLink, isInvitePending } from "../domain/invites";
 import { isSoftDeleted } from "../domain/trash";
@@ -160,6 +155,7 @@ export function loadState(): TlbState {
     const migrated = migrateState(parsed);
     recomputeAllOpenOrders(migrated);
     refreshNotifications(migrated);
+    saveState(migrated);
     return migrated;
   } catch {
     return createSeedState();
@@ -1368,26 +1364,8 @@ export function upsertVatRate(
   return { ok: true, data: { state: next, data: created } };
 }
 
-export function switchRole(state: TlbState, roleIdOrName: AppRole): MutResult<AppRole> {
-  const next = cloneState(state);
-  const role =
-    next.roles.find((r) => r.id === roleIdOrName) ??
-    next.roles.find((r) => r.name === roleIdOrName || r.systemKey === roleIdOrName);
-  if (!role) return { ok: false, error: "Role not found." };
-  if (!role.active) return { ok: false, error: "Role is inactive." };
-
-  const user = next.users.find((u) => u.id === next.currentUserId);
-  if (user) user.roleId = role.id;
-  next.currentRoleId = role.id;
-  next.currentRole = role.name;
-  syncSessionIdentity(next);
-  pushAudit(next, {
-    action: "role.switched",
-    entityType: "session",
-    entityId: "current",
-    summary: `Switched session role to ${role.name}.`,
-  });
-  return { ok: true, data: { state: next, data: role.name } };
+export function switchRole(state: TlbState, _roleIdOrName: AppRole): MutResult<AppRole> {
+  return { ok: false, error: "The session stays Owner." };
 }
 
 export function switchSessionUser(state: TlbState, userId: string): MutResult<AppUser> {
@@ -1395,6 +1373,10 @@ export function switchSessionUser(state: TlbState, userId: string): MutResult<Ap
   const user = next.users.find((u) => u.id === userId);
   if (!user) return { ok: false, error: "User not found." };
   if (!user.active) return { ok: false, error: "User is inactive." };
+  const role = next.roles.find((r) => r.id === user.roleId);
+  if (role?.systemKey !== "Owner") {
+    return { ok: false, error: "The session stays Owner." };
+  }
   next.currentUserId = user.id;
   syncSessionIdentity(next);
   pushAudit(next, {
@@ -1556,6 +1538,9 @@ export function assignUserRole(
   const role = next.roles.find((r) => r.id === roleId);
   if (!role) return { ok: false, error: "Role not found." };
   if (!role.active) return { ok: false, error: "Cannot assign an inactive role." };
+  if (role.systemKey !== "Owner") {
+    return { ok: false, error: "Only the Owner role can be assigned." };
+  }
   user.roleId = role.id;
   if (next.currentUserId === user.id) syncSessionIdentity(next);
   pushAudit(next, {
@@ -1580,6 +1565,9 @@ export function upsertAppUser(
   const next = cloneState(state);
   const role = next.roles.find((r) => r.id === input.roleId);
   if (!role || !role.active) return { ok: false, error: "Select an active role." };
+  if (role.systemKey !== "Owner") {
+    return { ok: false, error: "Only the Owner role can be assigned." };
+  }
 
   if (input.id) {
     const lastOwner = guardLastActiveOwner(state, input.id, {
@@ -1720,6 +1708,12 @@ export function acceptInvite(
     });
   }
 
+  const owner = next.roles.find((role) => role.systemKey === "Owner" && role.active);
+  if (owner && updated.roleId !== owner.id) {
+    updated = { ...updated, roleId: owner.id };
+    next.users[idx] = updated;
+  }
+
   next.currentUserId = updated.id;
   syncSessionIdentity(next);
   pushAudit(next, {
@@ -1748,10 +1742,9 @@ export function applyHostedInviteAcceptance(
 ): MutResult<AppUser> {
   const roleKey = systemRoleKeyForDbCode(input.roleCode);
   if (!roleKey) return { ok: false, error: "Invite role is not a system role." };
-  const roleId = SYSTEM_ROLE_IDS[roleKey];
-  if (!state.roles.some((role) => role.id === roleId && role.active)) {
-    return { ok: false, error: "Invite role is not available." };
-  }
+  const owner = state.roles.find((role) => role.systemKey === "Owner" && role.active);
+  if (!owner) return { ok: false, error: "Owner role is missing." };
+  const roleId = owner.id;
   const email = input.email.trim().toLowerCase();
   const name = input.fullName.trim();
   if (!email || !name) return { ok: false, error: "Invite profile is incomplete." };

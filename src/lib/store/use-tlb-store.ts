@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { acceptInviteOnSupabase, createInviteOnSupabase } from "@/lib/access/supabase-invites";
 import { normalizeAccessCode } from "@/lib/domain/invites";
 import { dbRoleCodeForRoleId } from "@/lib/domain/permissions";
-import type { AppRole, AppUser, DeliveryStatus, Permission, TlbState } from "@/lib/domain/types";
+import type { AppUser, DeliveryStatus, Permission, TlbState } from "@/lib/domain/types";
 import { createTlbRepository } from "@/lib/repo/tlb-repository";
 import { can as canPerm } from "@/lib/store/tlb-store";
 import {
@@ -36,11 +36,9 @@ import {
   resetToSeed,
   restoreTrashItem,
   softDeleteRecord,
-  switchRole,
   acceptInvite,
   applyHostedInviteAcceptance,
   issueUserInvite,
-  switchSessionUser,
   updateAgeingSettings,
   updateCompanyProfile,
   updateDeliveryStatus,
@@ -429,9 +427,6 @@ export function useTlbStore() {
       apply((s) => updateCompanyProfile(s, company), "Company profile saved."),
     saveVatRate: (input: Parameters<typeof upsertVatRate>[1]) =>
       apply((s) => upsertVatRate(s, input), "VAT rate saved."),
-    setRole: (role: AppRole) => apply((s) => switchRole(s, role), `Role set to ${role}.`),
-    switchUser: (userId: string) =>
-      apply((s) => switchSessionUser(s, userId), "Signed in as selected user."),
     createRole: (input: Parameters<typeof createRole>[1]) =>
       apply((s) => createRole(s, input), "Role created."),
     updateRole: (roleId: string, input: Parameters<typeof updateRole>[2]) =>

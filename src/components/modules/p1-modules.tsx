@@ -135,7 +135,10 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
     active: true,
   });
 
-  const activeRoles = useMemo(() => listAssignableRoles(store.state.roles), [store.state.roles]);
+  const activeRoles = useMemo(
+    () => listAssignableRoles(store.state.roles).filter((role) => role.systemKey === "Owner"),
+    [store.state.roles],
+  );
   const editingUser = store.state.users.find((u) => u.id === editingUserId) ?? null;
   const canManageUsers = store.can("users.manage");
   const canManageSettings = store.can("settings.manage");
@@ -174,26 +177,8 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
           </div>
         </div>
         <div className="tlb-inline-actions" style={{ padding: 12 }}>
-          <label className="tlb-select">
-            Act as user
-            <select
-              value={store.state.currentUserId}
-              onChange={(e) => store.switchUser(e.target.value)}
-            >
-              {store.state.users
-                .filter((u) => u.active)
-                .map((u) => {
-                  const role = store.state.roles.find((r) => r.id === u.roleId);
-                  return (
-                    <option key={u.id} value={u.id}>
-                      {u.name} · {role?.name ?? "—"}
-                    </option>
-                  );
-                })}
-            </select>
-          </label>
           <span className="tlb-muted-line">
-            Display: {store.state.currentUser} · Role: {store.state.currentRole}
+            Signed in as {store.state.currentUser} · {store.state.currentRole}
           </span>
         </div>
       </article>
@@ -274,18 +259,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                         <td>{user.name}</td>
                         <td>{user.email}</td>
                         <td>
-                          <select
-                            className="tlb-inline-select"
-                            value={user.roleId}
-                            disabled={!user.active || editingUserId === user.id}
-                            onChange={(e) => store.assignUserRole(user.id, e.target.value)}
-                          >
-                            {activeRoles.map((r) => (
-                              <option key={r.id} value={r.id}>
-                                {r.name}
-                              </option>
-                            ))}
-                          </select>
+                          {store.state.roles.find((r) => r.id === user.roleId)?.name ?? "Owner"}
                         </td>
                         <td>
                           {user.active ? "Active" : "Inactive"}
@@ -300,13 +274,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                           {store.state.currentUserId === user.id ? (
                             <StatusBadge tone="success">Signed in</StatusBadge>
                           ) : (
-                            <button
-                              type="button"
-                              className="tlb-link-btn"
-                              onClick={() => store.switchUser(user.id)}
-                            >
-                              Switch
-                            </button>
+                            "—"
                           )}
                         </td>
                         <td>
@@ -475,11 +443,8 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
               </div>
             </div>
             <p className="tlb-muted-line" style={{ padding: "0 17px 8px" }}>
-              Permissions are predefined per role and cannot be customized. The Owner role is
-              protected.
-              {isOwnerSession
-                ? " Deleting a role reassigns its users to Owner automatically."
-                : " Only the Owner can delete roles."}
+              The workspace signs in as Owner. Owner permissions are predefined and cannot be
+              customized. The Owner role is protected.
             </p>
             <div className="tlb-table-scroll tlb-orders-panel">
               <table>
@@ -494,7 +459,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                 </thead>
                 <tbody>
                   {[...store.state.roles]
-                    .filter((role) => role.active)
+                    .filter((role) => role.active && role.systemKey === "Owner")
                     .sort((a, b) => {
                       if (a.systemKey === "Owner") return -1;
                       if (b.systemKey === "Owner") return 1;

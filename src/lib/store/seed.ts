@@ -15,9 +15,9 @@ const THIS_YEAR = "2026-03-18T10:00:00.000Z";
 
 /** Seed includes Phase 30 Chemical A/B scenario ready to demo. */
 export function createSeedState(): TlbState {
-  const roles = createSystemRoles();
+  const roles = createSystemRoles().filter((role) => role.systemKey === "Owner");
   return {
-    version: 13,
+    version: 14,
     currentUserId: OWNER_USER_ID,
     currentUser: "TLB Owner",
     currentRoleId: SYSTEM_ROLE_IDS.Owner,
@@ -35,42 +35,42 @@ export function createSeedState(): TlbState {
         id: "user-sales",
         name: "Ama Mensah",
         email: "sales@tlb.gh",
-        roleId: SYSTEM_ROLE_IDS.Sales,
+        roleId: SYSTEM_ROLE_IDS.Owner,
         active: true,
       },
       {
         id: "user-warehouse",
         name: "Kofi Boateng",
         email: "warehouse@tlb.gh",
-        roleId: SYSTEM_ROLE_IDS.Warehouse,
+        roleId: SYSTEM_ROLE_IDS.Owner,
         active: true,
       },
       {
         id: "user-finance",
         name: "Efua Addo",
         email: "finance@tlb.gh",
-        roleId: SYSTEM_ROLE_IDS.Finance,
+        roleId: SYSTEM_ROLE_IDS.Owner,
         active: true,
       },
       {
         id: "user-manager",
         name: "Yaw Mensah",
         email: "manager@tlb.gh",
-        roleId: SYSTEM_ROLE_IDS.Manager,
+        roleId: SYSTEM_ROLE_IDS.Owner,
         active: true,
       },
       {
         id: "user-driver",
         name: "Kwesi Owusu",
         email: "driver@tlb.gh",
-        roleId: SYSTEM_ROLE_IDS.Driver,
+        roleId: SYSTEM_ROLE_IDS.Owner,
         active: true,
       },
       {
         id: "user-requester",
         name: "Abena Factory",
         email: "factory@tlb.gh",
-        roleId: SYSTEM_ROLE_IDS.Requester,
+        roleId: SYSTEM_ROLE_IDS.Owner,
         active: true,
       },
     ],

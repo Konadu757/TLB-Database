@@ -8,6 +8,7 @@ import type { Database, Json } from "@/integrations/supabase/types";
 import type { AppUser, Product, RoleDefinition, StockBalance, TlbState } from "@/lib/domain/types";
 import { loadState, saveState } from "@/lib/store/tlb-store";
 import { createSeedState } from "@/lib/store/seed";
+import { lockWorkspaceToOwner } from "@/lib/store/migrate";
 import {
   ageingFromSettings,
   auditFromRow,
@@ -549,6 +550,7 @@ export class SupabaseTlbRepository implements TlbRepository {
       if (remoteEmpty) {
         // Bootstrap once from seed — does not truncate; only runs when tables are empty.
         const boot = { ...seed, ...localOnly, version: Math.max(seed.version, localOnly.version) };
+        lockWorkspaceToOwner(boot);
         await this.save(boot);
         return boot;
       }
@@ -606,7 +608,26 @@ export class SupabaseTlbRepository implements TlbRepository {
 
       // After a successful remote load, treat current rows as synced so inbox/ops
       // mutations do not re-upsert warehouses (and other unchanged P0 tables).
+      const roleCatalogDirty =
+        merged.roles.length !== 1 ||
+        merged.roles.some((role) => role.systemKey !== "Owner") ||
+        merged.currentRole !== "Owner" ||
+        merged.users.some((user) => {
+          const role = merged.roles.find((item) => item.id === user.roleId);
+          return role?.systemKey !== "Owner";
+        });
       this.rememberRemoteFingerprints(merged);
+      lockWorkspaceToOwner(merged);
+      if (roleCatalogDirty) {
+        try {
+          await this.save(merged);
+        } catch (persistErr) {
+          console.warn(
+            "[SupabaseTlbRepository] could not persist Owner-only role catalog:",
+            persistErr,
+          );
+        }
+      }
       return merged;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
