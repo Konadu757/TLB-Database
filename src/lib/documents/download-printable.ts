@@ -1,7 +1,7 @@
 import type { CompanyProfile, Invoice, InvoiceLine, Receipt, ReceiptLine } from "@/lib/domain/types";
 import { formatMoney } from "@/lib/store/tlb-store";
 
-const BRAND_PURPLE = "#523786";
+const BRAND_PURPLE = "#803EEA";
 const BRAND_GOLD = "#FFDC7A";
 
 /** Public asset — served from /brand on Vercel and locally. */

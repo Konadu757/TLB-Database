@@ -111,8 +111,8 @@
   --card-foreground: oklch(0.26 0.065 296);
   --popover: var(--cream);
   --popover-foreground: oklch(0.26 0.065 296);
-  /* Deep vivid brand purple (was the lighter oklch 0.56 / #8149E9). White labels stay readable. */
-  --primary: #6420D0;
+  /* Very bright brand purple, same hue as #6420D0 (HSL 263). White labels stay readable. */
+  --primary: #803EEA;
   --primary-foreground: oklch(0.995 0.02 95);
   --secondary: oklch(0.965 0.07 92);
   --secondary-foreground: oklch(0.40 0.18 296);
@@ -125,14 +125,14 @@
   --destructive-foreground: oklch(0.99 0.01 95);
   --border: oklch(0.90 0.05 92);
   --input: oklch(0.90 0.05 92);
-  --ring: #523786;
-  --chart-1: #523786;
+  --ring: #803EEA;
+  --chart-1: #803EEA;
   --chart-2: oklch(0.92 0.13 82);
   --chart-3: oklch(0.66 0.18 296);
   --chart-4: oklch(0.62 0.20 150);
   --chart-5: oklch(0.74 0.15 85);
-  /* Sidebar fill matches the deep vivid brand purple, not the previous light lift */
-  --sidebar: #6420D0;
+  /* Sidebar fill matches the brighter brand purple */
+  --sidebar: #803EEA;
   --sidebar-foreground: oklch(0.98 0.02 95);
   --sidebar-primary: oklch(0.92 0.13 82);
   --sidebar-primary-foreground: oklch(0.26 0.065 296);
@@ -149,7 +149,7 @@
   --warning-foreground: oklch(0.42 0.12 70);
   --danger: oklch(0.58 0.24 28);
   --danger-muted: oklch(0.96 0.07 25);
-  --info: #523786;
+  --info: #803EEA;
   --info-muted: oklch(0.95 0.075 296);
   /* Shared elevation ? readable on cream/white cards (avoid neon/purple glow) */
   --tlb-shadow: 0 4px 16px color-mix(in oklab, var(--foreground) 10%, transparent);
@@ -276,8 +276,8 @@ table.tlb-table,
   --tlb-header-h: 64px;
   /* Pre-zoom shell height. Desktop uses 100dvh / 0.95 so zoom still covers the window. */
   --tlb-shell-h: 100dvh;
-  /* Deep vivid violet; gold stays bright */
-  --tlb-purple: #6420D0;
+  /* Same violet hue as #6420D0, lifted much brighter; gold stays #FFDC7A */
+  --tlb-purple: #803EEA;
   --tlb-gold: #FFDC7A;
   --tlb-surface-soft: #F3F0FA;
 }
