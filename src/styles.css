@@ -271,7 +271,7 @@ table.tlb-table,
   --tlb-header-h: 64px;
   /* Same hues as #5E3F9A / #FFD45E, lifted much brighter */
   --tlb-purple: #8149E9;
-  --tlb-gold: #FFE14A;
+  --tlb-gold: #FFDC7A;
   --tlb-surface-soft: #F3F0FA;
 }
 
@@ -566,23 +566,26 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-header-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .tlb-user { display: flex; align-items: center; gap: 9px; padding: 4px 8px 4px 4px; border: 0; border-radius: 999px; background: var(--tlb-surface-soft); color: inherit; cursor: pointer; }
 .tlb-avatar { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: var(--tlb-purple); color: #fff; font-size: 0.75rem; font-weight: 700; }
-/* Desktop chrome: slimmer rail and header, taller floating sidebar (accounts for html zoom 0.95). */
+/* Desktop chrome: slimmer rail and header, full layout height minus a tighter float gap. */
 @media (min-width: 1024px) {
   :root {
     --tlb-chrome-gap: 8px;
     --tlb-header-h: 52px;
-    --tlb-sidebar-w: 228px;
+    --tlb-sidebar-w: 236px;
   }
   .tlb-sidebar {
     border-radius: 16px;
   }
   .tlb-brand {
-    min-height: 64px;
-    gap: 8px;
-    padding: 8px 12px;
+    min-height: 56px;
+    gap: 6px;
+    padding: 8px 10px;
     border-radius: 16px 16px 0 0;
   }
-  .tlb-brand-mark,
+  .tlb-brand-mark {
+    width: 36px;
+    height: 36px;
+  }
   .tlb-sidebar-collapsed .tlb-brand-mark {
     width: 40px;
     height: 40px;
@@ -592,20 +595,14 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   }
   .tlb-collapse {
     flex: none;
+    width: 32px;
+    height: 32px;
   }
   .tlb-brand-copy strong {
     white-space: nowrap;
   }
-  html,
-  body,
-  #root,
-  .tlb-app-shell,
-  .tlb-main {
-    height: calc(100dvh / 0.95);
-    max-height: calc(100dvh / 0.95);
-  }
   .tlb-desktop-sidebar {
-    height: calc(100dvh / 0.95 - (2 * var(--tlb-chrome-gap)));
+    height: calc(100dvh - (2 * var(--tlb-chrome-gap)));
   }
   .tlb-header {
     gap: 12px;
