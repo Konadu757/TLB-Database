@@ -1,6 +1,6 @@
 -- Canonical tlb schema checks.
 -- Run after every migration in supabase/migrations, including the historical
--- prototype files and 20260928_100001 through 20260928_100004:
+-- prototype files and 20260928_100001 through 20260928_100006:
 --
 --   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/verify-canonical-db.sql
 --
@@ -51,7 +51,8 @@ begin
       ('inventory_balances'),
       ('inventory_reservations'),
       ('document_sequences'),
-      ('audit_events')
+      ('audit_events'),
+      ('invites')
   ) as required(relname)
   where to_regclass('tlb.' || required.relname) is null;
 
@@ -238,8 +239,8 @@ begin
   where schemaname = 'tlb'
     and cmd = 'SELECT';
 
-  if v_count <> 18 then
-    raise exception 'VERIFY FAIL: expected 18 SELECT policies, found %', v_count;
+  if v_count <> 19 then
+    raise exception 'VERIFY FAIL: expected 19 SELECT policies, found %', v_count;
   end if;
 
   if exists (
@@ -511,6 +512,152 @@ begin
     when object_not_in_prerequisite_state then
       null;
   end;
+
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'tlb'
+      and table_name = 'invites'
+      and column_name in ('password', 'password_hash', 'encrypted_password', 'token')
+  ) then
+    raise exception 'VERIFY FAIL: invites stores a raw token or password';
+  end if;
+
+  if exists (select 1 from pg_roles where rolname = 'authenticated') then
+    if exists (
+      select 1
+      from information_schema.role_table_grants g
+      where g.grantee = 'authenticated'
+        and g.table_schema = 'tlb'
+        and g.privilege_type in ('INSERT', 'UPDATE', 'DELETE')
+    ) then
+      raise exception 'VERIFY FAIL: authenticated has table DML on tlb';
+    end if;
+  end if;
+
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    select string_agg(t.relname, ', ' order by t.relname)
+      into v_missing
+    from (
+      values
+        ('stock_movements'),
+        ('batches'),
+        ('goods_receipts'),
+        ('goods_receipt_lines'),
+        ('stock_issues'),
+        ('stock_issue_lines'),
+        ('warehouse_transfers'),
+        ('warehouse_transfer_lines'),
+        ('stock_adjustments'),
+        ('stock_adjustment_lines')
+    ) as t(relname)
+    where to_regclass('public.' || t.relname) is not null
+      and (
+        has_table_privilege('anon', 'public.' || t.relname, 'INSERT')
+        or has_table_privilege('anon', 'public.' || t.relname, 'UPDATE')
+        or has_table_privilege('anon', 'public.' || t.relname, 'DELETE')
+      );
+
+    if v_missing is not null then
+      raise exception 'VERIFY FAIL: anon still has write grant on %', v_missing;
+    end if;
+  end if;
+
+  declare
+    v_role_id uuid;
+    v_accept jsonb;
+  begin
+    select id into v_role_id from tlb.roles where code = 'WAREHOUSE';
+    if v_role_id is null then
+      raise exception 'VERIFY FAIL: WAREHOUSE role missing';
+    end if;
+
+    begin
+      perform tlb.create_invite(
+        'not-a-role@tlb.gh',
+        'Not A Role',
+        'NOT_A_ROLE',
+        'verify-token-value-0001',
+        'TLB-VER1-FY01',
+        now() + interval '2 days',
+        null
+      );
+      raise exception 'VERIFY FAIL: unknown invite role was accepted';
+    exception
+      when invalid_parameter_value then
+        null;
+    end;
+
+    perform tlb.create_invite(
+      'verify-invite@tlb.gh',
+      'Verify Invite',
+      'WAREHOUSE',
+      'verify-token-value-0001',
+      'TLB-VER1-FY01',
+      now() + interval '2 days',
+      null
+    );
+
+    v_accept := tlb.accept_invite('verify-token-value-0001', null);
+    if v_accept ->> 'profile_id' is null then
+      raise exception 'VERIFY FAIL: accept_invite returned no profile';
+    end if;
+    if v_accept ->> 'role_code' <> 'WAREHOUSE' then
+      raise exception 'VERIFY FAIL: accept_invite role was %', v_accept ->> 'role_code';
+    end if;
+    if not exists (
+      select 1
+      from tlb.user_roles ur
+      join tlb.roles r on r.id = ur.role_id
+      where ur.user_id = (v_accept ->> 'profile_id')::uuid
+        and r.code = 'WAREHOUSE'
+    ) then
+      raise exception 'VERIFY FAIL: accept_invite did not assign user_roles';
+    end if;
+
+    begin
+      perform tlb.accept_invite('verify-token-value-0001', null);
+      raise exception 'VERIFY FAIL: invite accepted twice';
+    exception
+      when invalid_parameter_value then
+        if sqlerrm not like '%invite already used%' then
+          raise exception 'VERIFY FAIL: second accept error was %', sqlerrm;
+        end if;
+    end;
+
+    insert into tlb.invites (
+      token_hash, access_code, email, full_name, role_id, expires_at
+    ) values (
+      tlb.sha256_hex('expired-token-value-01'),
+      'TLB-EXPR-9K2M',
+      'expired.invite@tlb.gh',
+      'Expired Invite',
+      v_role_id,
+      now() - interval '1 minute'
+    );
+
+    begin
+      perform tlb.accept_invite(null, 'TLB-EXPR-9K2M');
+      raise exception 'VERIFY FAIL: expired invite accepted';
+    exception
+      when invalid_parameter_value then
+        if sqlerrm not like '%invite expired%' then
+          raise exception 'VERIFY FAIL: expired invite error was %', sqlerrm;
+        end if;
+    end;
+  end;
+
+  select string_agg(c.relname, ', ' order by c.relname)
+    into v_missing
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'tlb'
+    and c.relkind = 'r'
+    and not c.relrowsecurity;
+
+  if v_missing is not null then
+    raise exception 'VERIFY FAIL: RLS disabled on %', v_missing;
+  end if;
 end
 $verify$;
 

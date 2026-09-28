@@ -47,7 +47,11 @@ function envFlag(name: string): string | undefined {
 export function shouldUseSupabaseRepository(): boolean {
   const url = envFlag("VITE_SUPABASE_URL") || envFlag("SUPABASE_URL");
   const key = envFlag("VITE_SUPABASE_PUBLISHABLE_KEY") || envFlag("SUPABASE_PUBLISHABLE_KEY");
-  const flag = (envFlag("VITE_TLB_USE_SUPABASE") || envFlag("TLB_USE_SUPABASE") || "1").toLowerCase();
+  const flag = (
+    envFlag("VITE_TLB_USE_SUPABASE") ||
+    envFlag("TLB_USE_SUPABASE") ||
+    "1"
+  ).toLowerCase();
   if (!url || !key) return false;
   // Default ON when credentials exist; set VITE_TLB_USE_SUPABASE=0 to force local.
   return flag !== "0" && flag !== "false" && flag !== "off";

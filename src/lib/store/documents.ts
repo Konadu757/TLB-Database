@@ -325,7 +325,8 @@ export function createDeliveryFromSupply(
   const next = cloneState(state);
   const order = next.orders.find((o) => o.id === input.orderId);
   if (!order) return { ok: false, error: "Order not found." };
-  if (order.status === "Cancelled") return { ok: false, error: "Cannot deliver a cancelled order." };
+  if (order.status === "Cancelled")
+    return { ok: false, error: "Cannot deliver a cancelled order." };
   const supply = next.supplies.find((s) => s.id === input.supplyId && s.orderId === input.orderId);
   if (!supply) return { ok: false, error: "Supply not found for this order." };
   const customer = next.customers.find((c) => c.id === order.customerId);
@@ -460,7 +461,10 @@ export function updateInvoiceHeader(
       error: `Cannot edit a ${invoice.paymentStatus.toLowerCase()} invoice. Only Unpaid / Partial invoices allow header edits.`,
     };
   }
-  if (input.customerTin !== undefined && (input.customerTin ?? "") !== (invoice.customerTin ?? "")) {
+  if (
+    input.customerTin !== undefined &&
+    (input.customerTin ?? "") !== (invoice.customerTin ?? "")
+  ) {
     const tinBlocked = deny(next, "tin.update");
     if (tinBlocked) return { ok: false, error: tinBlocked };
   }
@@ -518,7 +522,8 @@ export function updateDeliveryDetails(
   if (input.method !== undefined) delivery.method = input.method.trim();
   if (input.vehicle !== undefined) delivery.vehicle = input.vehicle.trim() || undefined;
   if (input.driver !== undefined) delivery.driver = input.driver.trim() || undefined;
-  if (input.receiverName !== undefined) delivery.receiverName = input.receiverName.trim() || undefined;
+  if (input.receiverName !== undefined)
+    delivery.receiverName = input.receiverName.trim() || undefined;
   if (input.receiverContact !== undefined) {
     delivery.receiverContact = input.receiverContact.trim() || undefined;
   }

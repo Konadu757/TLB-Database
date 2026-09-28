@@ -5,7 +5,17 @@
 import assert from "node:assert/strict";
 
 import { buildSoftDeleteOverlay, customerToRow, customerFromRow } from "../src/lib/repo/mappers";
-import { resetTlbRepositoryCache, shouldUseSupabaseRepository } from "../src/lib/repo/tlb-repository";
+import { ledgerProductId, ledgerWarehouseId } from "../src/lib/repo/ledger-catalog";
+import {
+  mergeCanonicalBalances,
+  mergeCanonicalMovements,
+  tryIssueDocumentNumber,
+  tryPostMovement,
+} from "../src/lib/repo/ledger-rpc";
+import {
+  resetTlbRepositoryCache,
+  shouldUseSupabaseRepository,
+} from "../src/lib/repo/tlb-repository";
 
 const row = customerToRow({
   id: "cus-test",
@@ -80,5 +90,90 @@ assert.equal(roundTrip.deletedAt, "2026-09-09T12:00:00.000Z");
 resetTlbRepositoryCache();
 // Without forcing env in node, helper should be a boolean (credentials may or may not be present).
 assert.equal(typeof shouldUseSupabaseRepository(), "boolean");
+
+assert.match(ledgerProductId("prod-hcl"), /^[0-9a-f-]{36}$/i);
+assert.match(ledgerWarehouseId("wh-main"), /^[0-9a-f-]{36}$/i);
+assert.equal(ledgerProductId("prd-custom"), "prd-custom");
+assert.equal(ledgerWarehouseId("wh-custom"), "wh-custom");
+
+assert.equal(tryIssueDocumentNumber("order"), null);
+assert.equal(
+  tryPostMovement({
+    type: "grn",
+    productId: "prod-hcl",
+    warehouseId: "wh-main",
+    quantity: 1,
+    batchId: "batch-local",
+  }),
+  null,
+);
+assert.equal(
+  tryPostMovement({
+    type: "grn",
+    productId: "11111111-1111-4111-8111-111111111111",
+    warehouseId: "22222222-2222-4222-8222-222222222222",
+    quantity: 2,
+  }),
+  null,
+);
+
+const mergedMoves = mergeCanonicalMovements(
+  [
+    {
+      id: "mv-local",
+      number: "TLB-MV-LOCAL",
+      type: "grn",
+      productId: "p1",
+      warehouseId: "w1",
+      qtyBefore: 0,
+      qtyMove: 1,
+      qtyAfter: 1,
+      signedQty: 1,
+      actor: "Owner",
+      at: "2026-09-01T00:00:00.000Z",
+    },
+  ],
+  [
+    {
+      id: "mv-server",
+      movement_number: "TLB-MV-2026-000125",
+      movement_type: "grn",
+      direction: 1,
+      quantity: 4,
+      product_id: "p1",
+      warehouse_id: "w1",
+      qty_before: 0,
+      qty_after: 4,
+      created_at: "2026-09-28T00:00:00.000Z",
+      actor_id: "11111111-1111-4111-8111-111111111111",
+    },
+  ],
+);
+assert.equal(mergedMoves[0]?.number, "TLB-MV-2026-000125");
+assert.equal(mergedMoves[1]?.number, "TLB-MV-LOCAL");
+assert.equal(mergedMoves[0]?.signedQty, 4);
+
+const mergedBalances = mergeCanonicalBalances(
+  [
+    {
+      id: "stk-local",
+      productId: "p1",
+      warehouseId: "w1",
+      physicalQty: 1,
+      reservedQty: 0,
+    },
+  ],
+  [
+    {
+      product_id: "p1",
+      warehouse_id: "w1",
+      quantity_on_hand: 6,
+      quantity_reserved: 1,
+    },
+  ],
+);
+assert.equal(mergedBalances[0]?.id, "stk-local");
+assert.equal(mergedBalances[0]?.physicalQty, 6);
+assert.equal(mergedBalances[0]?.reservedQty, 1);
 
 console.log("repo-verify: ok");

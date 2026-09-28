@@ -43,7 +43,9 @@ function fields(...parts: Array<SearchField | null | undefined>): SearchField[] 
   return parts.filter((p): p is SearchField => Boolean(p));
 }
 
-function nameMap(items: Array<{ id: string; name?: string; code?: string; sku?: string }>): Map<string, string> {
+function nameMap(
+  items: Array<{ id: string; name?: string; code?: string; sku?: string }>,
+): Map<string, string> {
   const map = new Map<string, string>();
   for (const item of items) {
     map.set(item.id, item.name ?? item.code ?? item.sku ?? item.id);
@@ -117,12 +119,7 @@ export function buildSearchIndex(state: TlbState): SearchDocument[] {
       label: `${p.sku} — Product`,
       subtitle: p.name,
       nav: "Products",
-      fields: fields(
-        field(p.sku, 10),
-        field(p.name, 9),
-        field(p.category, 5),
-        field(p.unit, 3),
-      ),
+      fields: fields(field(p.sku, 10), field(p.name, 9), field(p.category, 5), field(p.unit, 3)),
     });
   }
 
@@ -302,7 +299,12 @@ export function buildSearchIndex(state: TlbState): SearchDocument[] {
       subtitle: s.suppliedAt?.slice?.(0, 10) ?? s.suppliedAt,
       nav: "Sales Orders",
       orderId: s.orderId,
-      fields: fields(field(s.number, 10), field(s.suppliedAt, 3), field(s.suppliedBy, 5), field(s.notes, 2)),
+      fields: fields(
+        field(s.number, 10),
+        field(s.suppliedAt, 3),
+        field(s.suppliedBy, 5),
+        field(s.notes, 2),
+      ),
     });
   }
 
@@ -346,7 +348,8 @@ export function buildSearchIndex(state: TlbState): SearchDocument[] {
   }
 
   for (const g of state.goodsReceipts ?? []) {
-    if (isSoftDeleted(g)) continue;    const supplier = supplierNames.get(g.supplierId) ?? "";
+    if (isSoftDeleted(g)) continue;
+    const supplier = supplierNames.get(g.supplierId) ?? "";
     push({
       kind: "GRN",
       id: g.id,

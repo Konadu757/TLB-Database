@@ -3,13 +3,7 @@
  * Regenerate with `supabase gen types typescript` once the CLI is linked.
  */
 
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[];
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 type SoftDeleteCols = {
   deleted_at?: string | null;
@@ -639,8 +633,80 @@ export type Database = {
         };
         Relationships: [];
       };
+      tlb_inventory_movements: {
+        Row: {
+          id: string;
+          movement_number: string;
+          movement_type: string;
+          direction: number;
+          quantity: number;
+          product_id: string;
+          warehouse_id: string;
+          batch_id: string | null;
+          qty_before: number;
+          qty_after: number;
+          reason: string | null;
+          reference_type: string | null;
+          reference_id: string | null;
+          reference_number: string | null;
+          notes: string | null;
+          actor_id: string | null;
+          created_at: string;
+        };
+        Relationships: [];
+      };
+      tlb_inventory_balances: {
+        Row: {
+          product_id: string;
+          warehouse_id: string;
+          quantity_on_hand: number;
+          quantity_reserved: number;
+          quantity_damaged: number;
+          quantity_expired: number;
+          quantity_quarantine: number;
+          quantity_in_transit: number;
+          quantity_allocated: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Relationships: [];
+      };
     };
-    Functions: Record<string, never>;
+    Functions: {
+      ensure_ledger_ref: {
+        Args: {
+          p_product_key: string;
+          p_sku: string;
+          p_product_name: string;
+          p_unit: string;
+          p_issue_strategy?: string | null;
+          p_warehouse_key: string;
+          p_warehouse_code: string;
+          p_warehouse_name: string;
+          p_warehouse_location?: string | null;
+        };
+        Returns: Json;
+      };
+      issue_document_number: {
+        Args: { p_document_type: string };
+        Returns: string;
+      };
+      post_movement: {
+        Args: {
+          p_movement_type: string;
+          p_product_id: string;
+          p_warehouse_id: string;
+          p_quantity: number;
+          p_batch_id?: string | null;
+          p_reason?: string | null;
+          p_reference_type?: string | null;
+          p_reference_id?: string | null;
+          p_reference_number?: string | null;
+          p_notes?: string | null;
+        };
+        Returns: Json;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };
@@ -653,12 +719,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
@@ -678,13 +744,12 @@ export type Tables<
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
@@ -703,13 +768,12 @@ export type TablesInsert<
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
@@ -728,13 +792,12 @@ export type TablesUpdate<
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    keyof DefaultSchema["Enums"] | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
@@ -745,13 +808,12 @@ export type Enums<
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    keyof DefaultSchema["CompositeTypes"] | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }

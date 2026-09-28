@@ -4,7 +4,11 @@
  * Audit events and system Owner role are never trashable.
  */
 import { hasPermission } from "../domain/permissions";
-import { buildCatalogDeletion, isSoftDeleted, listTrashItems as collectTrashItems } from "../domain/trash";
+import {
+  buildCatalogDeletion,
+  isSoftDeleted,
+  listTrashItems as collectTrashItems,
+} from "../domain/trash";
 import type {
   AuditEvent,
   Permission,
@@ -55,7 +59,11 @@ function refreshNotifications(state: TlbState): void {
   void state;
 }
 
-export function applySoftDeleteMeta(target: SoftDeleteFields, actor: string, reason?: string): void {
+export function applySoftDeleteMeta(
+  target: SoftDeleteFields,
+  actor: string,
+  reason?: string,
+): void {
   target.deletedAt = new Date().toISOString();
   target.deletedBy = actor;
   if (reason?.trim()) target.deletedReason = reason.trim();
@@ -200,12 +208,22 @@ export function softDeleteRecord(
     }
     case "product": {
       const row = next.products.find((p) => p.id === input.entityId);
-      err = soft(row, "Product not found.", "Product is already in trash.", (r) => `Moved product ${r.sku} · ${r.name} to trash.`);
+      err = soft(
+        row,
+        "Product not found.",
+        "Product is already in trash.",
+        (r) => `Moved product ${r.sku} · ${r.name} to trash.`,
+      );
       break;
     }
     case "warehouse": {
       const row = next.warehouses.find((w) => w.id === input.entityId);
-      err = soft(row, "Warehouse not found.", "Warehouse is already in trash.", (r) => `Moved warehouse ${r.code} · ${r.name} to trash.`);
+      err = soft(
+        row,
+        "Warehouse not found.",
+        "Warehouse is already in trash.",
+        (r) => `Moved warehouse ${r.code} · ${r.name} to trash.`,
+      );
       break;
     }
     case "order": {
@@ -231,27 +249,52 @@ export function softDeleteRecord(
     }
     case "customer_return": {
       const row = (next.customerReturns ?? []).find((r) => r.id === input.entityId);
-      err = soft(row, "Customer return not found.", "Already in trash.", (r) => `Moved customer return ${r.number} to trash.`);
+      err = soft(
+        row,
+        "Customer return not found.",
+        "Already in trash.",
+        (r) => `Moved customer return ${r.number} to trash.`,
+      );
       break;
     }
     case "supplier_return": {
       const row = (next.supplierReturns ?? []).find((r) => r.id === input.entityId);
-      err = soft(row, "Supplier return not found.", "Already in trash.", (r) => `Moved supplier return ${r.number} to trash.`);
+      err = soft(
+        row,
+        "Supplier return not found.",
+        "Already in trash.",
+        (r) => `Moved supplier return ${r.number} to trash.`,
+      );
       break;
     }
     case "non_po_purchase": {
       const row = (next.nonPoPurchases ?? []).find((r) => r.id === input.entityId);
-      err = soft(row, "Non-PO not found.", "Already in trash.", (r) => `Moved Non-PO ${r.number} to trash.`);
+      err = soft(
+        row,
+        "Non-PO not found.",
+        "Already in trash.",
+        (r) => `Moved Non-PO ${r.number} to trash.`,
+      );
       break;
     }
     case "import_shipment": {
       const row = (next.importShipments ?? []).find((r) => r.id === input.entityId);
-      err = soft(row, "Import not found.", "Already in trash.", (r) => `Moved import ${r.number} to trash.`);
+      err = soft(
+        row,
+        "Import not found.",
+        "Already in trash.",
+        (r) => `Moved import ${r.number} to trash.`,
+      );
       break;
     }
     case "export_shipment": {
       const row = (next.exportShipments ?? []).find((r) => r.id === input.entityId);
-      err = soft(row, "Export not found.", "Already in trash.", (r) => `Moved export ${r.number} to trash.`);
+      err = soft(
+        row,
+        "Export not found.",
+        "Already in trash.",
+        (r) => `Moved export ${r.number} to trash.`,
+      );
       break;
     }
     case "ops_driver": {
@@ -264,68 +307,133 @@ export function softDeleteRecord(
     }
     case "ops_request": {
       const row = (next.opsRequests ?? []).find((r) => r.id === input.entityId);
-      err = soft(row, "Ops request not found.", "Already in trash.", (r) => `Moved ops request ${r.number} to trash.`);
+      err = soft(
+        row,
+        "Ops request not found.",
+        "Already in trash.",
+        (r) => `Moved ops request ${r.number} to trash.`,
+      );
       break;
     }
     case "ops_discrepancy": {
       const row = (next.opsDiscrepancies ?? []).find((d) => d.id === input.entityId);
-      err = soft(row, "Discrepancy not found.", "Already in trash.", (r) => `Moved discrepancy ${r.kind} (${r.quantity}) to trash.`);
+      err = soft(
+        row,
+        "Discrepancy not found.",
+        "Already in trash.",
+        (r) => `Moved discrepancy ${r.kind} (${r.quantity}) to trash.`,
+      );
       break;
     }
     case "ops_message": {
       const row = (next.opsMessages ?? []).find((m) => m.id === input.entityId);
-      err = soft(row, "Message not found.", "Already in trash.", (r) => `Moved ops message to trash.`);
+      err = soft(
+        row,
+        "Message not found.",
+        "Already in trash.",
+        (r) => `Moved ops message to trash.`,
+      );
       void row;
       break;
     }
     case "quotation": {
       const row = (next.quotations ?? []).find((q) => q.id === input.entityId);
-      err = soft(row, "Quotation not found.", "Already in trash.", (r) => `Moved quotation ${r.number} to trash.`);
+      err = soft(
+        row,
+        "Quotation not found.",
+        "Already in trash.",
+        (r) => `Moved quotation ${r.number} to trash.`,
+      );
       break;
     }
     case "invoice": {
       const row = next.invoices.find((i) => i.id === input.entityId);
-      err = soft(row, "Invoice not found.", "Already in trash.", (r) => `Moved invoice ${r.number} to trash.`);
+      err = soft(
+        row,
+        "Invoice not found.",
+        "Already in trash.",
+        (r) => `Moved invoice ${r.number} to trash.`,
+      );
       break;
     }
     case "receipt": {
       const row = next.receipts.find((r) => r.id === input.entityId);
-      err = soft(row, "Receipt not found.", "Already in trash.", (r) => `Moved receipt ${r.number} to trash.`);
+      err = soft(
+        row,
+        "Receipt not found.",
+        "Already in trash.",
+        (r) => `Moved receipt ${r.number} to trash.`,
+      );
       break;
     }
     case "payment": {
       const row = next.payments.find((p) => p.id === input.entityId);
-      err = soft(row, "Payment not found.", "Already in trash.", (r) => `Moved payment ${r.number} to trash.`);
+      err = soft(
+        row,
+        "Payment not found.",
+        "Already in trash.",
+        (r) => `Moved payment ${r.number} to trash.`,
+      );
       break;
     }
     case "delivery": {
       const row = next.deliveries.find((d) => d.id === input.entityId);
-      err = soft(row, "Delivery not found.", "Already in trash.", (r) => `Moved delivery ${r.number} to trash.`);
+      err = soft(
+        row,
+        "Delivery not found.",
+        "Already in trash.",
+        (r) => `Moved delivery ${r.number} to trash.`,
+      );
       break;
     }
     case "goods_receipt": {
       const row = (next.goodsReceipts ?? []).find((g) => g.id === input.entityId);
-      err = soft(row, "GRN not found.", "Already in trash.", (r) => `Moved GRN ${r.number} to trash.`);
+      err = soft(
+        row,
+        "GRN not found.",
+        "Already in trash.",
+        (r) => `Moved GRN ${r.number} to trash.`,
+      );
       break;
     }
     case "stock_issue": {
       const row = (next.stockIssues ?? []).find((g) => g.id === input.entityId);
-      err = soft(row, "Stock issue not found.", "Already in trash.", (r) => `Moved stock issue ${r.number} to trash.`);
+      err = soft(
+        row,
+        "Stock issue not found.",
+        "Already in trash.",
+        (r) => `Moved stock issue ${r.number} to trash.`,
+      );
       break;
     }
     case "transfer": {
       const row = (next.transfers ?? []).find((t) => t.id === input.entityId);
-      err = soft(row, "Transfer not found.", "Already in trash.", (r) => `Moved transfer ${r.number} to trash.`);
+      err = soft(
+        row,
+        "Transfer not found.",
+        "Already in trash.",
+        (r) => `Moved transfer ${r.number} to trash.`,
+      );
       break;
     }
     case "adjustment": {
       const row = (next.adjustments ?? []).find((a) => a.id === input.entityId);
-      err = soft(row, "Adjustment not found.", "Already in trash.", (r) => `Moved adjustment ${r.number} to trash.`);
+      err = soft(
+        row,
+        "Adjustment not found.",
+        "Already in trash.",
+        (r) => `Moved adjustment ${r.number} to trash.`,
+      );
       break;
     }
     case "batch": {
       const row = (next.batches ?? []).find((b) => b.id === input.entityId);
-      err = soft(row, "Batch not found.", "Already in trash.", (r) => `Moved batch ${r.code} to trash.`);
+      err = soft(
+        row,
+        "Batch not found.",
+        "Already in trash.",
+        (r) => `Moved batch ${r.code} to trash.`,
+      );
       break;
     }
     case "stock_movement": {
@@ -340,7 +448,12 @@ export function softDeleteRecord(
     }
     case "supply": {
       const row = next.supplies.find((s) => s.id === input.entityId);
-      err = soft(row, "Supply not found.", "Already in trash.", (r) => `Moved supply ${r.number} to trash.`);
+      err = soft(
+        row,
+        "Supply not found.",
+        "Already in trash.",
+        (r) => `Moved supply ${r.number} to trash.`,
+      );
       break;
     }
     case "supplier_po": {
@@ -353,22 +466,42 @@ export function softDeleteRecord(
     }
     case "supplier_receipt": {
       const row = (next.supplierReceipts ?? []).find((r) => r.id === input.entityId);
-      err = soft(row, "Supplier receipt not found.", "Already in trash.", (r) => `Moved supplier receipt ${r.number} to trash.`);
+      err = soft(
+        row,
+        "Supplier receipt not found.",
+        "Already in trash.",
+        (r) => `Moved supplier receipt ${r.number} to trash.`,
+      );
       break;
     }
     case "supplier_payment": {
       const row = (next.supplierPayments ?? []).find((p) => p.id === input.entityId);
-      err = soft(row, "Supplier payment not found.", "Already in trash.", (r) => `Moved supplier payment ${r.number} to trash.`);
+      err = soft(
+        row,
+        "Supplier payment not found.",
+        "Already in trash.",
+        (r) => `Moved supplier payment ${r.number} to trash.`,
+      );
       break;
     }
     case "approval": {
       const row = (next.approvals ?? []).find((a) => a.id === input.entityId);
-      err = soft(row, "Approval not found.", "Already in trash.", (r) => `Moved approval ${r.title} to trash.`);
+      err = soft(
+        row,
+        "Approval not found.",
+        "Already in trash.",
+        (r) => `Moved approval ${r.title} to trash.`,
+      );
       break;
     }
     case "notification": {
       const row = next.notifications.find((n) => n.id === input.entityId);
-      err = soft(row, "Notification not found.", "Already in trash.", (r) => `Moved notification “${r.title}” to trash.`);
+      err = soft(
+        row,
+        "Notification not found.",
+        "Already in trash.",
+        (r) => `Moved notification “${r.title}” to trash.`,
+      );
       break;
     }
     default:
@@ -438,12 +571,20 @@ export function restoreTrashItem(
     }
     case "product": {
       const row = next.products.find((p) => p.id === input.entityId);
-      err = restore(row, "Trashed product not found.", (r) => `Restored product ${r.sku} · ${r.name} from trash.`);
+      err = restore(
+        row,
+        "Trashed product not found.",
+        (r) => `Restored product ${r.sku} · ${r.name} from trash.`,
+      );
       break;
     }
     case "warehouse": {
       const row = next.warehouses.find((w) => w.id === input.entityId);
-      err = restore(row, "Trashed warehouse not found.", (r) => `Restored warehouse ${r.code} · ${r.name} from trash.`);
+      err = restore(
+        row,
+        "Trashed warehouse not found.",
+        (r) => `Restored warehouse ${r.code} · ${r.name} from trash.`,
+      );
       break;
     }
     case "order": {
@@ -701,7 +842,8 @@ export function purgeTrashItem(
   if (input.entityType === "stock_movement") {
     return {
       ok: false,
-      error: "Stock movements cannot be permanently deleted — ledger integrity. Restore or leave hidden in Trash.",
+      error:
+        "Stock movements cannot be permanently deleted — ledger integrity. Restore or leave hidden in Trash.",
     };
   }
 
@@ -762,64 +904,94 @@ export function purgeTrashItem(
       break;
     }
     case "customer_return": {
-      next.customerReturns = (next.customerReturns ?? []).filter((r) => !(r.id === input.entityId && isSoftDeleted(r)));
+      next.customerReturns = (next.customerReturns ?? []).filter(
+        (r) => !(r.id === input.entityId && isSoftDeleted(r)),
+      );
       summary = `Permanently deleted customer return ${input.entityId}.`;
       break;
     }
     case "supplier_return": {
-      next.supplierReturns = (next.supplierReturns ?? []).filter((r) => !(r.id === input.entityId && isSoftDeleted(r)));
+      next.supplierReturns = (next.supplierReturns ?? []).filter(
+        (r) => !(r.id === input.entityId && isSoftDeleted(r)),
+      );
       summary = `Permanently deleted supplier return ${input.entityId}.`;
       break;
     }
     case "non_po_purchase": {
-      next.nonPoPurchases = (next.nonPoPurchases ?? []).filter((r) => !(r.id === input.entityId && isSoftDeleted(r)));
-      next.nonPoPurchaseLines = (next.nonPoPurchaseLines ?? []).filter((l) => l.nonPoId !== input.entityId);
+      next.nonPoPurchases = (next.nonPoPurchases ?? []).filter(
+        (r) => !(r.id === input.entityId && isSoftDeleted(r)),
+      );
+      next.nonPoPurchaseLines = (next.nonPoPurchaseLines ?? []).filter(
+        (l) => l.nonPoId !== input.entityId,
+      );
       summary = `Permanently deleted Non-PO ${input.entityId}.`;
       break;
     }
     case "import_shipment": {
-      next.importShipments = (next.importShipments ?? []).filter((r) => !(r.id === input.entityId && isSoftDeleted(r)));
-      next.importShipmentLines = (next.importShipmentLines ?? []).filter((l) => l.shipmentId !== input.entityId);
+      next.importShipments = (next.importShipments ?? []).filter(
+        (r) => !(r.id === input.entityId && isSoftDeleted(r)),
+      );
+      next.importShipmentLines = (next.importShipmentLines ?? []).filter(
+        (l) => l.shipmentId !== input.entityId,
+      );
       summary = `Permanently deleted import ${input.entityId}.`;
       break;
     }
     case "export_shipment": {
-      next.exportShipments = (next.exportShipments ?? []).filter((r) => !(r.id === input.entityId && isSoftDeleted(r)));
-      next.exportShipmentLines = (next.exportShipmentLines ?? []).filter((l) => l.shipmentId !== input.entityId);
+      next.exportShipments = (next.exportShipments ?? []).filter(
+        (r) => !(r.id === input.entityId && isSoftDeleted(r)),
+      );
+      next.exportShipmentLines = (next.exportShipmentLines ?? []).filter(
+        (l) => l.shipmentId !== input.entityId,
+      );
       summary = `Permanently deleted export ${input.entityId}.`;
       break;
     }
     case "ops_driver": {
-      const idx = (next.opsDrivers ?? []).findIndex((d) => d.id === input.entityId && isSoftDeleted(d));
+      const idx = (next.opsDrivers ?? []).findIndex(
+        (d) => d.id === input.entityId && isSoftDeleted(d),
+      );
       if (idx < 0) return { ok: false, error: "Trashed driver not found." };
       const [removed] = next.opsDrivers.splice(idx, 1);
       summary = `Permanently deleted driver ${removed?.code ?? input.entityId}.`;
       break;
     }
     case "ops_request": {
-      const idx = (next.opsRequests ?? []).findIndex((r) => r.id === input.entityId && isSoftDeleted(r));
+      const idx = (next.opsRequests ?? []).findIndex(
+        (r) => r.id === input.entityId && isSoftDeleted(r),
+      );
       if (idx < 0) return { ok: false, error: "Trashed ops request not found." };
       const [removed] = next.opsRequests.splice(idx, 1);
-      next.opsRequestLines = (next.opsRequestLines ?? []).filter((l) => l.requestId !== input.entityId);
+      next.opsRequestLines = (next.opsRequestLines ?? []).filter(
+        (l) => l.requestId !== input.entityId,
+      );
       next.opsMessages = (next.opsMessages ?? []).filter((m) => m.requestId !== input.entityId);
       next.opsActivity = (next.opsActivity ?? []).filter((a) => a.requestId !== input.entityId);
       next.opsCustody = (next.opsCustody ?? []).filter((c) => c.requestId !== input.entityId);
-      next.opsDiscrepancies = (next.opsDiscrepancies ?? []).filter((d) => d.requestId !== input.entityId);
+      next.opsDiscrepancies = (next.opsDiscrepancies ?? []).filter(
+        (d) => d.requestId !== input.entityId,
+      );
       summary = `Permanently deleted ops request ${removed?.number ?? input.entityId}.`;
       break;
     }
     case "ops_discrepancy": {
-      next.opsDiscrepancies = (next.opsDiscrepancies ?? []).filter((d) => !(d.id === input.entityId && isSoftDeleted(d)));
+      next.opsDiscrepancies = (next.opsDiscrepancies ?? []).filter(
+        (d) => !(d.id === input.entityId && isSoftDeleted(d)),
+      );
       summary = `Permanently deleted discrepancy ${input.entityId}.`;
       break;
     }
     case "ops_message": {
-      next.opsMessages = (next.opsMessages ?? []).filter((m) => !(m.id === input.entityId && isSoftDeleted(m)));
+      next.opsMessages = (next.opsMessages ?? []).filter(
+        (m) => !(m.id === input.entityId && isSoftDeleted(m)),
+      );
       summary = `Permanently deleted ops message ${input.entityId}.`;
       break;
     }
     case "quotation": {
-      next.quotations = (next.quotations ?? []).filter((q) => !(q.id === input.entityId && isSoftDeleted(q)));
+      next.quotations = (next.quotations ?? []).filter(
+        (q) => !(q.id === input.entityId && isSoftDeleted(q)),
+      );
       summary = `Permanently deleted quotation ${input.entityId}.`;
       break;
     }
@@ -855,31 +1027,49 @@ export function purgeTrashItem(
       break;
     }
     case "goods_receipt": {
-      next.goodsReceipts = (next.goodsReceipts ?? []).filter((g) => !(g.id === input.entityId && isSoftDeleted(g)));
-      next.goodsReceiptLines = (next.goodsReceiptLines ?? []).filter((l) => l.grnId !== input.entityId);
+      next.goodsReceipts = (next.goodsReceipts ?? []).filter(
+        (g) => !(g.id === input.entityId && isSoftDeleted(g)),
+      );
+      next.goodsReceiptLines = (next.goodsReceiptLines ?? []).filter(
+        (l) => l.grnId !== input.entityId,
+      );
       summary = `Permanently deleted GRN ${input.entityId}.`;
       break;
     }
     case "stock_issue": {
-      next.stockIssues = (next.stockIssues ?? []).filter((g) => !(g.id === input.entityId && isSoftDeleted(g)));
-      next.stockIssueLines = (next.stockIssueLines ?? []).filter((l) => l.issueId !== input.entityId);
+      next.stockIssues = (next.stockIssues ?? []).filter(
+        (g) => !(g.id === input.entityId && isSoftDeleted(g)),
+      );
+      next.stockIssueLines = (next.stockIssueLines ?? []).filter(
+        (l) => l.issueId !== input.entityId,
+      );
       summary = `Permanently deleted stock issue ${input.entityId}.`;
       break;
     }
     case "transfer": {
-      next.transfers = (next.transfers ?? []).filter((t) => !(t.id === input.entityId && isSoftDeleted(t)));
-      next.transferLines = (next.transferLines ?? []).filter((l) => l.transferId !== input.entityId);
+      next.transfers = (next.transfers ?? []).filter(
+        (t) => !(t.id === input.entityId && isSoftDeleted(t)),
+      );
+      next.transferLines = (next.transferLines ?? []).filter(
+        (l) => l.transferId !== input.entityId,
+      );
       summary = `Permanently deleted transfer ${input.entityId}.`;
       break;
     }
     case "adjustment": {
-      next.adjustments = (next.adjustments ?? []).filter((a) => !(a.id === input.entityId && isSoftDeleted(a)));
-      next.adjustmentLines = (next.adjustmentLines ?? []).filter((l) => l.adjustmentId !== input.entityId);
+      next.adjustments = (next.adjustments ?? []).filter(
+        (a) => !(a.id === input.entityId && isSoftDeleted(a)),
+      );
+      next.adjustmentLines = (next.adjustmentLines ?? []).filter(
+        (l) => l.adjustmentId !== input.entityId,
+      );
       summary = `Permanently deleted adjustment ${input.entityId}.`;
       break;
     }
     case "batch": {
-      next.batches = (next.batches ?? []).filter((b) => !(b.id === input.entityId && isSoftDeleted(b)));
+      next.batches = (next.batches ?? []).filter(
+        (b) => !(b.id === input.entityId && isSoftDeleted(b)),
+      );
       summary = `Permanently deleted batch ${input.entityId}.`;
       break;
     }
@@ -899,22 +1089,30 @@ export function purgeTrashItem(
       break;
     }
     case "supplier_receipt": {
-      next.supplierReceipts = (next.supplierReceipts ?? []).filter((r) => !(r.id === input.entityId && isSoftDeleted(r)));
+      next.supplierReceipts = (next.supplierReceipts ?? []).filter(
+        (r) => !(r.id === input.entityId && isSoftDeleted(r)),
+      );
       summary = `Permanently deleted supplier receipt ${input.entityId}.`;
       break;
     }
     case "supplier_payment": {
-      next.supplierPayments = (next.supplierPayments ?? []).filter((p) => !(p.id === input.entityId && isSoftDeleted(p)));
+      next.supplierPayments = (next.supplierPayments ?? []).filter(
+        (p) => !(p.id === input.entityId && isSoftDeleted(p)),
+      );
       summary = `Permanently deleted supplier payment ${input.entityId}.`;
       break;
     }
     case "approval": {
-      next.approvals = (next.approvals ?? []).filter((a) => !(a.id === input.entityId && isSoftDeleted(a)));
+      next.approvals = (next.approvals ?? []).filter(
+        (a) => !(a.id === input.entityId && isSoftDeleted(a)),
+      );
       summary = `Permanently deleted approval ${input.entityId}.`;
       break;
     }
     case "notification": {
-      next.notifications = next.notifications.filter((n) => !(n.id === input.entityId && isSoftDeleted(n)));
+      next.notifications = next.notifications.filter(
+        (n) => !(n.id === input.entityId && isSoftDeleted(n)),
+      );
       summary = `Permanently deleted notification ${input.entityId}.`;
       break;
     }

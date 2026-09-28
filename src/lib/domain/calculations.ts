@@ -9,17 +9,26 @@ import type {
 } from "./types";
 
 /** outstanding = ordered - supplied - cancelled (never negative) */
-export function calcOutstanding(line: Pick<CustomerOrderLine, "orderedQty" | "suppliedQty" | "cancelledQty">): number {
+export function calcOutstanding(
+  line: Pick<CustomerOrderLine, "orderedQty" | "suppliedQty" | "cancelledQty">,
+): number {
   return Math.max(0, line.orderedQty - line.suppliedQty - line.cancelledQty);
 }
 
 /** available = physical - reserved - unavailable buckets (never negative unless configured elsewhere) */
-export function calcUnavailable(stock: Pick<StockBalance, "damagedQty" | "expiredQty" | "quarantineQty">): number {
+export function calcUnavailable(
+  stock: Pick<StockBalance, "damagedQty" | "expiredQty" | "quarantineQty">,
+): number {
   return (stock.damagedQty ?? 0) + (stock.expiredQty ?? 0) + (stock.quarantineQty ?? 0);
 }
 
 /** available = physical - reserved - unavailable (never negative) */
-export function calcAvailable(stock: Pick<StockBalance, "physicalQty" | "reservedQty" | "damagedQty" | "expiredQty" | "quarantineQty">): number {
+export function calcAvailable(
+  stock: Pick<
+    StockBalance,
+    "physicalQty" | "reservedQty" | "damagedQty" | "expiredQty" | "quarantineQty"
+  >,
+): number {
   return Math.max(0, stock.physicalQty - stock.reservedQty - calcUnavailable(stock));
 }
 
@@ -29,14 +38,20 @@ export function validateSupplyQty(params: {
   available: number;
 }): string | null {
   const { supplyNow, outstanding, available } = params;
-  if (!Number.isFinite(supplyNow) || supplyNow <= 0) return "Supply quantity must be greater than zero.";
+  if (!Number.isFinite(supplyNow) || supplyNow <= 0)
+    return "Supply quantity must be greater than zero.";
   if (!Number.isInteger(supplyNow)) return "Supply quantity must be a whole number.";
-  if (supplyNow > outstanding) return `Cannot supply ${supplyNow}; only ${outstanding} outstanding.`;
-  if (supplyNow > available) return `Cannot supply ${supplyNow}; only ${available} available in warehouse.`;
+  if (supplyNow > outstanding)
+    return `Cannot supply ${supplyNow}; only ${outstanding} outstanding.`;
+  if (supplyNow > available)
+    return `Cannot supply ${supplyNow}; only ${available} available in warehouse.`;
   return null;
 }
 
-export function deriveLineStatus(line: CustomerOrderLine, availableForOutstanding: number): LineStatus {
+export function deriveLineStatus(
+  line: CustomerOrderLine,
+  availableForOutstanding: number,
+): LineStatus {
   const outstanding = calcOutstanding(line);
   if (line.cancelledQty > 0 && outstanding === 0 && line.suppliedQty === 0) return "Cancelled";
   if (outstanding === 0 && line.suppliedQty > 0) return "Fully Supplied";
@@ -56,7 +71,9 @@ export function deriveOrderStatus(params: {
   if (current === "Cancelled") return "Cancelled";
   if (lines.length === 0) return current;
 
-  const allCancelled = lines.every((l) => calcOutstanding(l) === 0 && l.suppliedQty === 0 && l.cancelledQty > 0);
+  const allCancelled = lines.every(
+    (l) => calcOutstanding(l) === 0 && l.suppliedQty === 0 && l.cancelledQty > 0,
+  );
   if (allCancelled) return "Cancelled";
 
   const anyOpen = lines.some((l) => calcOutstanding(l) > 0);

@@ -1,4 +1,10 @@
-import type { CompanyProfile, Invoice, InvoiceLine, Receipt, ReceiptLine } from "@/lib/domain/types";
+import type {
+  CompanyProfile,
+  Invoice,
+  InvoiceLine,
+  Receipt,
+  ReceiptLine,
+} from "@/lib/domain/types";
 import { formatMoney } from "@/lib/store/tlb-store";
 
 const BRAND_PURPLE = "#803EEA";
@@ -48,8 +54,11 @@ function downloadBlob(filename: string, blob: Blob): void {
 
 /** Save a standalone HTML document the user can open or print later. */
 export function downloadHtmlDocument(filename: string, html: string): void {
-  const safeName = filename.replace(/[^\w.\-]+/g, "_");
-  downloadBlob(safeName.endsWith(".html") ? safeName : `${safeName}.html`, new Blob([html], { type: "text/html;charset=utf-8" }));
+  const safeName = filename.replace(/[^\w.-]+/g, "_");
+  downloadBlob(
+    safeName.endsWith(".html") ? safeName : `${safeName}.html`,
+    new Blob([html], { type: "text/html;charset=utf-8" }),
+  );
 }
 
 function absoluteLetterheadUrl(): string {

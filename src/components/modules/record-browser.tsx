@@ -71,7 +71,10 @@ function EmptyState({ title, detail }: { title: string; detail: string }) {
   );
 }
 
-export function matchesSearch(haystack: Array<string | number | null | undefined>, query: string): boolean {
+export function matchesSearch(
+  haystack: Array<string | number | null | undefined>,
+  query: string,
+): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
   return haystack
@@ -92,13 +95,7 @@ export function filterByPeriodDate(
 }
 
 /** Shared list←detail back control — high-contrast purple chip, keyboard accessible. */
-export function RecordBackLink({
-  label,
-  onBack,
-}: {
-  label: string;
-  onBack: () => void;
-}) {
+export function RecordBackLink({ label, onBack }: { label: string; onBack: () => void }) {
   const text = label.toLowerCase().startsWith("back to ") ? label : `Back to ${label}`;
   return (
     <button type="button" className="tlb-record-back" onClick={onBack} aria-label={text}>
@@ -136,12 +133,16 @@ export function RecordDetailHeader({
     <header className="tlb-record-detail-header tlb-customer-detail-header">
       <div className="tlb-record-detail-header-row tlb-customer-detail-header-row">
         <div className="tlb-record-detail-identity tlb-customer-detail-identity">
-          {code ? <span className="tlb-record-detail-code tlb-customer-detail-code">{code}</span> : null}
+          {code ? (
+            <span className="tlb-record-detail-code tlb-customer-detail-code">{code}</span>
+          ) : null}
           <strong>{title}</strong>
           {subtitle ? <p className="tlb-muted-line">{subtitle}</p> : null}
         </div>
         <div className="tlb-record-detail-actions tlb-customer-detail-actions">
-          {badges ? <div className="tlb-record-detail-badges tlb-customer-detail-badges">{badges}</div> : null}
+          {badges ? (
+            <div className="tlb-record-detail-badges tlb-customer-detail-badges">{badges}</div>
+          ) : null}
           {actions}
         </div>
       </div>
@@ -213,7 +214,9 @@ export function RecordDetailPage({
         {...(badges !== undefined ? { badges } : {})}
         {...(actions !== undefined ? { actions } : {})}
       />
-      <section className="tlb-detail-sections tlb-record-detail tlb-customer-detail">{children}</section>
+      <section className="tlb-detail-sections tlb-record-detail tlb-customer-detail">
+        {children}
+      </section>
     </div>
   );
 }
@@ -296,7 +299,10 @@ export function RecordBrowser<T extends { id: string }>({
     if (!selected) {
       return (
         <div className="tlb-module">
-          <EmptyState title="Record not found" detail="The selected record is no longer available." />
+          <EmptyState
+            title="Record not found"
+            detail="The selected record is no longer available."
+          />
           <DetailBackChrome label={backLabel ?? title} onBack={onBack} />
         </div>
       );

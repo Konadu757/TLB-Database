@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { acceptInviteOnSupabase, createInviteOnSupabase } from "@/lib/access/supabase-invites";
+import { normalizeAccessCode } from "@/lib/domain/invites";
+import { dbRoleCodeForRoleId } from "@/lib/domain/permissions";
 import type { AppRole, AppUser, DeliveryStatus, Permission, TlbState } from "@/lib/domain/types";
 import { createTlbRepository } from "@/lib/repo/tlb-repository";
 import { can as canPerm } from "@/lib/store/tlb-store";
@@ -35,6 +38,7 @@ import {
   softDeleteRecord,
   switchRole,
   acceptInvite,
+  applyHostedInviteAcceptance,
   issueUserInvite,
   switchSessionUser,
   updateAgeingSettings,
@@ -86,9 +90,9 @@ import {
 } from "@/lib/store/ops-hub-store";
 import type { TransferStatus } from "@/lib/domain/types";
 
-type MutFn = (state: TlbState) =>
-  | { ok: true; data: { state: TlbState; data: unknown } }
-  | { ok: false; error: string };
+type MutFn = (
+  state: TlbState,
+) => { ok: true; data: { state: TlbState; data: unknown } } | { ok: false; error: string };
 
 export type LastStaffInvite = {
   userId: string;
@@ -182,15 +186,26 @@ export function useTlbStore() {
     };
   }, [state, hydrated, repo]);
 
-  const apply = useCallback((fn: MutFn, successMessage?: string) => {
+  const apply = useCallback((fn: MutFn, successMessage?: string): boolean | string => {
     setError(null);
     setNotice(null);
     let failed: string | null = null;
+    let entityId: string | null = null;
     setState((prev) => {
       const result = fn(prev);
       if (!result.ok) {
         failed = result.error;
+        entityId = null;
         return prev;
+      }
+      const data = result.data.data;
+      if (data && typeof data === "object") {
+        const rec = data as { id?: unknown; requestId?: unknown };
+        if (typeof rec.id === "string") entityId = rec.id;
+        else if (typeof rec.requestId === "string") entityId = rec.requestId;
+        else entityId = null;
+      } else {
+        entityId = null;
       }
       return result.data.state;
     });
@@ -199,7 +214,7 @@ export function useTlbStore() {
       return false;
     }
     if (successMessage) setNotice(successMessage);
-    return true;
+    return entityId ?? true;
   }, []);
 
   const applyCapture = useCallback((fn: MutFn, successMessage?: string) => {
@@ -223,6 +238,25 @@ export function useTlbStore() {
     if (successMessage) setNotice(successMessage);
     return { ok: true as const, data: captured };
   }, []);
+
+  const publishHostedInvite = (user: AppUser, replacesToken?: string) => {
+    if (repo.backend !== "supabase") return;
+    const roleCode = dbRoleCodeForRoleId(user.roleId);
+    if (!roleCode || !user.inviteToken || !user.inviteCode) {
+      setError("Supabase invite was not stored: predefined system roles only.");
+      return;
+    }
+    void createInviteOnSupabase({
+      email: user.email,
+      fullName: user.name,
+      roleCode,
+      token: user.inviteToken,
+      accessCode: user.inviteCode,
+      replacesToken,
+    }).then((result) => {
+      if (!result.ok) setError(result.error);
+    });
+  };
 
   const outstanding = useMemo(() => getOutstandingRows(state), [state]);
 
@@ -262,14 +296,20 @@ export function useTlbStore() {
       apply((s) => createCustomerOrder(s, input), "Customer order created."),
     createQuotation: (input: Parameters<typeof createQuotation>[1]) =>
       apply((s) => createQuotation(s, input), "Quotation created."),
-    confirmOrder: (orderId: string) =>
-      apply((s) => confirmCustomerOrder(s, orderId), "Order confirmed."),
+    confirmOrder: (orderId: string, creditOverrideReason?: string) =>
+      apply((s) => confirmCustomerOrder(s, orderId, creditOverrideReason), "Order confirmed."),
     cancelLine: (lineId: string, reason: string) =>
-      apply((s) => cancelOrderLine(s, lineId, reason), "Outstanding quantity cancelled with reason."),
+      apply(
+        (s) => cancelOrderLine(s, lineId, reason),
+        "Outstanding quantity cancelled with reason.",
+      ),
     supply: (orderId: string, lines: Parameters<typeof createSupply>[2], notes?: string) =>
       apply((s) => createSupply(s, orderId, lines, notes), "Supply posted."),
     receive: (productId: string, warehouseId: string, qty: number) =>
-      apply((s) => receiveStock(s, productId, warehouseId, qty, true), "Stock received and reserved for outstanding orders."),
+      apply(
+        (s) => receiveStock(s, productId, warehouseId, qty, true),
+        "Stock received and reserved for outstanding orders.",
+      ),
     postGrn: (input: Parameters<typeof createGoodsReceipt>[1]) =>
       apply((s) => createGoodsReceipt(s, input), "Goods receipt posted to ledger."),
     postIssue: (input: Parameters<typeof createStockIssue>[1]) =>
@@ -300,7 +340,11 @@ export function useTlbStore() {
       requestId: string,
       decision: "Approved" | "Rejected" | "Partial",
       input?: Parameters<typeof decideOpsRequestApproval>[3],
-    ) => apply((s) => decideOpsRequestApproval(s, requestId, decision, input), `Ops ${decision.toLowerCase()}.`),
+    ) =>
+      apply(
+        (s) => decideOpsRequestApproval(s, requestId, decision, input),
+        `Ops ${decision.toLowerCase()}.`,
+      ),
     autoReviewOps: (requestId: string) =>
       apply((s) => autoReviewOpsLines(s, requestId), "Warehouse availability reviewed."),
     reviewOpsWarehouse: (requestId: string, input: Parameters<typeof reviewOpsWarehouse>[2]) =>
@@ -313,14 +357,23 @@ export function useTlbStore() {
       apply((s) => releaseOpsGoods(s, requestId, input), "Goods released — ledger posted."),
     assignOpsDriver: (requestId: string, driverId: string, vehicle?: string) =>
       apply((s) => assignOpsDriver(s, requestId, driverId, vehicle), "Driver assigned."),
-    advanceOpsDriver: (requestId: string, toStatus: Parameters<typeof advanceOpsDriverStatus>[2], note?: string) =>
+    advanceOpsDriver: (
+      requestId: string,
+      toStatus: Parameters<typeof advanceOpsDriverStatus>[2],
+      note?: string,
+    ) =>
       apply((s) => advanceOpsDriverStatus(s, requestId, toStatus, note), "Driver status updated."),
     confirmOpsWarehouseCollect: (requestId: string) =>
       apply((s) => confirmOpsWarehouseCollection(s, requestId), "Warehouse collection confirmed."),
-    confirmOpsDelivery: (requestId: string, input: Parameters<typeof confirmOpsDeliveryReceipt>[2]) =>
-      apply((s) => confirmOpsDeliveryReceipt(s, requestId, input), "Delivery receipt recorded."),
-    postOpsMessage: (requestId: string, body: string, chip?: Parameters<typeof postOpsMessage>[3]) =>
-      apply((s) => postOpsMessage(s, requestId, body, chip), "Message posted."),
+    confirmOpsDelivery: (
+      requestId: string,
+      input: Parameters<typeof confirmOpsDeliveryReceipt>[2],
+    ) => apply((s) => confirmOpsDeliveryReceipt(s, requestId, input), "Delivery receipt recorded."),
+    postOpsMessage: (
+      requestId: string,
+      body: string,
+      chip?: Parameters<typeof postOpsMessage>[3],
+    ) => apply((s) => postOpsMessage(s, requestId, body, chip), "Message posted."),
     cancelOpsRequest: (requestId: string, reason: string) =>
       apply((s) => cancelOpsRequest(s, requestId, reason), "Request cancelled."),
     saveOpsDriver: (input: Parameters<typeof upsertOpsDriver>[1]) =>
@@ -332,7 +385,10 @@ export function useTlbStore() {
     createNonPo: (input: Parameters<typeof createNonPoPurchase>[1]) =>
       apply((s) => createNonPoPurchase(s, input), "Non-PO submitted for approval."),
     decideNonPo: (nonPoId: string, decision: "Approved" | "Rejected", note?: string) =>
-      apply((s) => decideNonPoPurchase(s, nonPoId, decision, note), `Non-PO ${decision.toLowerCase()}.`),
+      apply(
+        (s) => decideNonPoPurchase(s, nonPoId, decision, note),
+        `Non-PO ${decision.toLowerCase()}.`,
+      ),
     receiveNonPo: (nonPoId: string) =>
       apply((s) => receiveNonPoPurchase(s, nonPoId), "Non-PO goods received (GRN)."),
     upsertImport: (input: Parameters<typeof upsertImportShipment>[1]) =>
@@ -344,10 +400,14 @@ export function useTlbStore() {
     moveOpsToTrash: (input: Parameters<typeof softDeleteOpsRecord>[1]) =>
       apply((s) => softDeleteOpsRecord(s, input), "Moved to trash."),
     reserve: (productId: string, warehouseId: string) =>
-      apply((s) => reserveForOutstanding(s, productId, warehouseId), "Stock reserved against outstanding orders."),
+      apply(
+        (s) => reserveForOutstanding(s, productId, warehouseId),
+        "Stock reserved against outstanding orders.",
+      ),
     releaseReservation: (id: string, reason?: string) =>
       apply((s) => releaseReservation(s, id, reason), "Reservation released."),
-    deliver: (orderId: string) => apply((s) => markDelivered(s, orderId), "Order marked delivered."),
+    deliver: (orderId: string) =>
+      apply((s) => markDelivered(s, orderId), "Order marked delivered."),
     setAgeing: (
       normalMaxDays: number,
       attentionMaxDays: number,
@@ -355,7 +415,14 @@ export function useTlbStore() {
       expectedApproachingDays?: number,
     ) =>
       apply(
-        (s) => updateAgeingSettings(s, normalMaxDays, attentionMaxDays, extendedUnfulfilledDays, expectedApproachingDays),
+        (s) =>
+          updateAgeingSettings(
+            s,
+            normalMaxDays,
+            attentionMaxDays,
+            extendedUnfulfilledDays,
+            expectedApproachingDays,
+          ),
         "Ageing thresholds updated.",
       ),
     saveCompany: (company: Parameters<typeof updateCompanyProfile>[1]) =>
@@ -363,35 +430,69 @@ export function useTlbStore() {
     saveVatRate: (input: Parameters<typeof upsertVatRate>[1]) =>
       apply((s) => upsertVatRate(s, input), "VAT rate saved."),
     setRole: (role: AppRole) => apply((s) => switchRole(s, role), `Role set to ${role}.`),
-    switchUser: (userId: string) => apply((s) => switchSessionUser(s, userId), "Signed in as selected user."),
+    switchUser: (userId: string) =>
+      apply((s) => switchSessionUser(s, userId), "Signed in as selected user."),
     createRole: (input: Parameters<typeof createRole>[1]) =>
       apply((s) => createRole(s, input), "Role created."),
     updateRole: (roleId: string, input: Parameters<typeof updateRole>[2]) =>
       apply((s) => updateRole(s, roleId, input), "Role updated."),
-    deleteRole: (roleId: string) =>
-      apply((s) => deleteRole(s, roleId), "Role deleted."),
-    deactivateRole: (roleId: string) =>
-      apply((s) => deleteRole(s, roleId), "Role deleted."),
+    deleteRole: (roleId: string) => apply((s) => deleteRole(s, roleId), "Role deleted."),
+    deactivateRole: (roleId: string) => apply((s) => deleteRole(s, roleId), "Role deleted."),
     assignUserRole: (userId: string, roleId: string) =>
       apply((s) => assignUserRole(s, userId, roleId), "User role assigned."),
     saveUser: (input: Parameters<typeof upsertAppUser>[1]) => {
       const result = applyCapture((s) => upsertAppUser(s, input), "User saved.");
       if (result.ok && !input.id && result.data) {
-        const snap = inviteSnapshot(result.data as AppUser);
+        const user = result.data as AppUser;
+        const snap = inviteSnapshot(user);
         if (snap) setLastInvite(snap);
+        publishHostedInvite(user);
       }
       return result.ok;
     },
     issueUserInvite: (userId: string) => {
+      const previousToken = state.users.find((user) => user.id === userId)?.inviteToken;
       const result = applyCapture((s) => issueUserInvite(s, userId), "Invite re-issued.");
       if (result.ok && result.data) {
-        const snap = inviteSnapshot(result.data as AppUser);
+        const user = result.data as AppUser;
+        const snap = inviteSnapshot(user);
         if (snap) setLastInvite(snap);
+        publishHostedInvite(user, previousToken);
       }
       return result.ok;
     },
-    acceptInvite: (input: Parameters<typeof acceptInvite>[1]) =>
-      applyCapture((s) => acceptInvite(s, input), "Signed in."),
+    acceptInvite: async (input: Parameters<typeof acceptInvite>[1]) => {
+      if (repo.backend === "supabase") {
+        const token = input.token?.trim();
+        const code = input.code?.trim();
+        const normalizedCode = code ? normalizeAccessCode(code) : "";
+        const byToken = token ? state.users.find((user) => user.inviteToken === token) : undefined;
+        const byCode = normalizedCode
+          ? state.users.find(
+              (user) => user.inviteCode && normalizeAccessCode(user.inviteCode) === normalizedCode,
+            )
+          : undefined;
+        if (byToken && byCode && byToken.id !== byCode.id) {
+          setError("Invite link and access code do not match.");
+          setNotice(null);
+          return { ok: false as const, data: null };
+        }
+        const localUser = byToken ?? byCode;
+        if (localUser && !localUser.active) {
+          setError("User account is inactive.");
+          setNotice(null);
+          return { ok: false as const, data: null };
+        }
+        const hosted = await acceptInviteOnSupabase({ token, code });
+        if (!hosted.ok) {
+          setError(hosted.error);
+          setNotice(null);
+          return { ok: false as const, data: null };
+        }
+        return applyCapture((s) => applyHostedInviteAcceptance(s, hosted.data), "Signed in.");
+      }
+      return applyCapture((s) => acceptInvite(s, input), "Signed in.");
+    },
     createInvoice: (input: Parameters<typeof createInvoiceFromSupply>[1]) =>
       apply((s) => createInvoiceFromSupply(s, input), "VAT invoice created."),
     createReceipt: (input: Parameters<typeof createOrdinaryReceipt>[1]) =>
@@ -400,7 +501,11 @@ export function useTlbStore() {
       apply((s) => createReceiptFromSupply(s, input), "Receipt created from supply."),
     createDelivery: (input: Parameters<typeof createDeliveryFromSupply>[1]) =>
       apply((s) => createDeliveryFromSupply(s, input), "Delivery created."),
-    setDeliveryStatus: (id: string, status: DeliveryStatus, confirmation?: { receiverName?: string; notes?: string }) =>
+    setDeliveryStatus: (
+      id: string,
+      status: DeliveryStatus,
+      confirmation?: { receiverName?: string; notes?: string },
+    ) =>
       apply((s) => updateDeliveryStatus(s, id, status, confirmation), "Delivery status updated."),
     recordPayment: (input: Parameters<typeof recordPayment>[1]) =>
       apply((s) => recordPayment(s, input), "Payment recorded."),

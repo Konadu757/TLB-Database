@@ -178,7 +178,13 @@ export function upsertOpsDriver(
     notes?: string | undefined;
   },
 ): MutResult<{ driverId: string }> {
-  const blocked = requireAny(state, ["ops.dispatch", "ops.view", "settings.manage", "delivery.manage", "records.edit"]);
+  const blocked = requireAny(state, [
+    "ops.dispatch",
+    "ops.view",
+    "settings.manage",
+    "delivery.manage",
+    "records.edit",
+  ]);
   if (blocked) return { ok: false, error: blocked };
   const code = input.code.trim();
   const name = input.name.trim();
@@ -250,7 +256,12 @@ export function createOpsRequest(
     customerId?: string | undefined;
     orderId?: string | undefined;
     warehouseId: string;
-    lines: Array<{ productId: string; quantity: number; notes?: string | undefined; warehouseId?: string | undefined }>;
+    lines: Array<{
+      productId: string;
+      quantity: number;
+      notes?: string | undefined;
+      warehouseId?: string | undefined;
+    }>;
     submit?: boolean | undefined;
   },
 ): MutResult<{ requestId: string; number: string }> {
@@ -326,7 +337,14 @@ export function createOpsRequest(
     summary: `Ops request ${numbered.number} created.`,
     at: now,
   });
-  pushActivity(next, requestId, "created", `Created ${numbered.number} (${input.type}, ${input.priority}).`, undefined, now);
+  pushActivity(
+    next,
+    requestId,
+    "created",
+    `Created ${numbered.number} (${input.type}, ${input.priority}).`,
+    undefined,
+    now,
+  );
 
   if (input.submit) {
     const submitted = submitOpsRequest(next, requestId);
@@ -412,7 +430,10 @@ export function updateOpsRequestDraft(
   return { ok: true, data: { state: next, data: { requestId } } };
 }
 
-export function submitOpsRequest(state: TlbState, requestId: string): MutResult<{ requestId: string }> {
+export function submitOpsRequest(
+  state: TlbState,
+  requestId: string,
+): MutResult<{ requestId: string }> {
   const blocked = requireAny(state, ["ops.request", "ops.view"]);
   if (blocked) return { ok: false, error: blocked };
   const next = cloneState(state);
@@ -481,7 +502,14 @@ export function submitOpsRequest(state: TlbState, requestId: string): MutResult<
     summary: `Submitted ${req.number} → ${req.status}.`,
     at: now,
   });
-  pushActivity(next, requestId, "submitted", `Submitted → ${req.status}.`, { needsApproval: gate.needs }, now);
+  pushActivity(
+    next,
+    requestId,
+    "submitted",
+    `Submitted → ${req.status}.`,
+    { needsApproval: gate.needs },
+    now,
+  );
   pushOpsNotification(next, {
     type: "ops_request_submitted",
     title: `Request submitted · ${req.number}`,
@@ -498,18 +526,29 @@ export function acknowledgeOpsRequest(
   state: TlbState,
   requestId: string,
 ): MutResult<{ requestId: string; responseMinutes: number }> {
-  const blocked = requireAny(state, ["ops.approve", "ops.warehouse", "approvals.manage", "ops.view"]);
+  const blocked = requireAny(state, [
+    "ops.approve",
+    "ops.warehouse",
+    "approvals.manage",
+    "ops.view",
+  ]);
   if (blocked) return { ok: false, error: blocked };
   const next = cloneState(state);
   ensureOpsCollections(next);
   const req = getRequest(next, requestId);
   if (!req) return { ok: false, error: "Request not found." };
   if (req.acknowledgedAt) {
-    return { ok: true, data: { state: next, data: { requestId, responseMinutes: req.responseMinutes ?? 0 } } };
+    return {
+      ok: true,
+      data: { state: next, data: { requestId, responseMinutes: req.responseMinutes ?? 0 } },
+    };
   }
   if (!req.submittedAt) return { ok: false, error: "Request not submitted yet." };
   const now = new Date().toISOString();
-  const mins = Math.max(0, Math.round((new Date(now).getTime() - new Date(req.submittedAt).getTime()) / 60_000));
+  const mins = Math.max(
+    0,
+    Math.round((new Date(now).getTime() - new Date(req.submittedAt).getTime()) / 60_000),
+  );
   req.acknowledgedAt = now;
   req.acknowledgedBy = next.currentUser;
   req.responseMinutes = mins;
@@ -548,7 +587,9 @@ export function decideOpsRequestApproval(
   ensureOpsCollections(next);
   const req0 = getRequest(next, requestId);
   if (!req0) return { ok: false, error: "Request not found." };
-  if (!["Pending Approval", "Partially Approved", "Acknowledged", "Submitted"].includes(req0.status)) {
+  if (
+    !["Pending Approval", "Partially Approved", "Acknowledged", "Submitted"].includes(req0.status)
+  ) {
     return { ok: false, error: `Cannot approve from status ${req0.status}.` };
   }
   if (!req0.acknowledgedAt) {
@@ -583,7 +624,14 @@ export function decideOpsRequestApproval(
       summary: `Rejected ${live.number}.`,
       at: now,
     });
-    pushActivity(next, requestId, "rejected", `Rejected: ${input?.note ?? "no reason"}`, undefined, now);
+    pushActivity(
+      next,
+      requestId,
+      "rejected",
+      `Rejected: ${input?.note ?? "no reason"}`,
+      undefined,
+      now,
+    );
     return { ok: true, data: { state: next, data: { requestId } } };
   }
 
@@ -699,7 +747,12 @@ export function reviewOpsWarehouse(
     const wh = line.fulfilWarehouseId ?? line.warehouseId;
     const recommended = recommendBatches(next, line.productId, wh, line.approvedQty);
     const defaultBatch = recommended[0]?.batchId;
-    if (row.fefoBatchId && defaultBatch && row.fefoBatchId !== defaultBatch && !row.fefoOverrideReason?.trim()) {
+    if (
+      row.fefoBatchId &&
+      defaultBatch &&
+      row.fefoBatchId !== defaultBatch &&
+      !row.fefoOverrideReason?.trim()
+    ) {
       return { ok: false, error: "Overriding FEFO recommendation requires a reason." };
     }
     line.fefoBatchId = row.fefoBatchId ?? defaultBatch;
@@ -720,14 +773,28 @@ export function reviewOpsWarehouse(
     summary: `Warehouse reviewed ${req.number}.`,
     at: now,
   });
-  pushActivity(next, requestId, "warehouse_review", `Warehouse availability reviewed.`, undefined, now);
+  pushActivity(
+    next,
+    requestId,
+    "warehouse_review",
+    `Warehouse availability reviewed.`,
+    undefined,
+    now,
+  );
   return { ok: true, data: { state: next, data: { requestId } } };
 }
 
 export function prepareOpsRequest(
   state: TlbState,
   requestId: string,
-  input: { lines: Array<{ lineId: string; preparedQty: number; fefoBatchId?: string; fefoOverrideReason?: string }> },
+  input: {
+    lines: Array<{
+      lineId: string;
+      preparedQty: number;
+      fefoBatchId?: string;
+      fefoOverrideReason?: string;
+    }>;
+  },
 ): MutResult<{ requestId: string }> {
   const blocked = requireAny(state, ["ops.warehouse", "stock.issue"]);
   if (blocked) return { ok: false, error: blocked };
@@ -735,7 +802,15 @@ export function prepareOpsRequest(
   ensureOpsCollections(next);
   const req = getRequest(next, requestId);
   if (!req) return { ok: false, error: "Request not found." };
-  if (!["Approved", "Partially Approved", "Warehouse Review", "Preparing", "Ready for Collection"].includes(req.status)) {
+  if (
+    ![
+      "Approved",
+      "Partially Approved",
+      "Warehouse Review",
+      "Preparing",
+      "Ready for Collection",
+    ].includes(req.status)
+  ) {
     return { ok: false, error: `Cannot prepare from ${req.status}.` };
   }
   const now = new Date().toISOString();
@@ -777,7 +852,10 @@ export function prepareOpsRequest(
   return { ok: true, data: { state: next, data: { requestId } } };
 }
 
-export function markOpsReadyForCollection(state: TlbState, requestId: string): MutResult<{ requestId: string }> {
+export function markOpsReadyForCollection(
+  state: TlbState,
+  requestId: string,
+): MutResult<{ requestId: string }> {
   const blocked = requireAny(state, ["ops.warehouse", "stock.issue"]);
   if (blocked) return { ok: false, error: blocked };
   const next = cloneState(state);
@@ -841,7 +919,12 @@ export function releaseOpsGoods(
   next.stockIssues.unshift({
     id: issueId,
     number: issueNumbered.number,
-    reason: req.type === "Sample" ? "Sample" : req.type === "Factory Draw" ? "Production" : "Internal use",
+    reason:
+      req.type === "Sample"
+        ? "Sample"
+        : req.type === "Factory Draw"
+          ? "Production"
+          : "Internal use",
     warehouseId: primaryWh,
     issuedAt: now,
     issuedBy: next.currentUser,
@@ -853,8 +936,14 @@ export function releaseOpsGoods(
     const wh = line.fulfilWarehouseId ?? line.warehouseId;
     const qty = line.preparedQty;
     const bal = getOrCreateBalance(next, line.productId, wh);
-    if (calcAvailable(bal) < qty && !next.products.find((p) => p.id === line.productId)?.allowNegativeStock) {
-      return { ok: false, error: `Insufficient stock to release ${qty} of product ${line.productId}.` };
+    if (
+      calcAvailable(bal) < qty &&
+      !next.products.find((p) => p.id === line.productId)?.allowNegativeStock
+    ) {
+      return {
+        ok: false,
+        error: `Insufficient stock to release ${qty} of product ${line.productId}.`,
+      };
     }
     const picks = line.fefoBatchId
       ? [
@@ -964,9 +1053,19 @@ export function releaseOpsGoods(
     at: now,
     meta: { issueId, issueNumber: issueNumbered.number },
   });
-  pushActivity(next, requestId, "released", `Goods released (${issueNumbered.number}) — ledger posted.`, undefined, now);
+  pushActivity(
+    next,
+    requestId,
+    "released",
+    `Goods released (${issueNumbered.number}) — ledger posted.`,
+    undefined,
+    now,
+  );
 
-  return { ok: true, data: { state: next, data: { requestId, issueId, issueNumber: issueNumbered.number } } };
+  return {
+    ok: true,
+    data: { state: next, data: { requestId, issueId, issueNumber: issueNumbered.number } },
+  };
 }
 
 export function assignOpsDriver(
@@ -1034,7 +1133,12 @@ export function advanceOpsDriverStatus(
   toStatus: OpsDriverJobStatus,
   note?: string,
 ): MutResult<{ requestId: string }> {
-  const blocked = requireAny(state, ["ops.drive", "ops.dispatch", "delivery.manage", "ops.warehouse"]);
+  const blocked = requireAny(state, [
+    "ops.drive",
+    "ops.dispatch",
+    "delivery.manage",
+    "ops.warehouse",
+  ]);
   if (blocked) return { ok: false, error: blocked };
   const next = cloneState(state);
   ensureOpsCollections(next);
@@ -1084,11 +1188,21 @@ export function advanceOpsDriverStatus(
     at: now,
     meta: { note: note ?? null },
   });
-  pushActivity(next, requestId, "driver_status", `Driver: ${from} → ${toStatus}${note ? ` · ${note}` : ""}`, undefined, now);
+  pushActivity(
+    next,
+    requestId,
+    "driver_status",
+    `Driver: ${from} → ${toStatus}${note ? ` · ${note}` : ""}`,
+    undefined,
+    now,
+  );
   return { ok: true, data: { state: next, data: { requestId } } };
 }
 
-export function confirmOpsWarehouseCollection(state: TlbState, requestId: string): MutResult<{ requestId: string }> {
+export function confirmOpsWarehouseCollection(
+  state: TlbState,
+  requestId: string,
+): MutResult<{ requestId: string }> {
   const blocked = requireAny(state, ["ops.warehouse", "stock.issue"]);
   if (blocked) return { ok: false, error: blocked };
   const next = cloneState(state);
@@ -1122,7 +1236,14 @@ export function confirmOpsWarehouseCollection(state: TlbState, requestId: string
     summary: `Warehouse confirmed collection ${req.number}.`,
     at: now,
   });
-  pushActivity(next, requestId, "warehouse_collect", `Warehouse dual-confirm collection.`, undefined, now);
+  pushActivity(
+    next,
+    requestId,
+    "warehouse_collect",
+    `Warehouse dual-confirm collection.`,
+    undefined,
+    now,
+  );
   return { ok: true, data: { state: next, data: { requestId } } };
 }
 
@@ -1168,7 +1289,11 @@ export function confirmOpsDeliveryReceipt(
       row.missingQty ??
       Math.max(
         0,
-        line.issuedQty - row.receivedQty - (row.damagedQty ?? 0) - (row.wrongQty ?? 0) - (row.rejectedQty ?? 0),
+        line.issuedQty -
+          row.receivedQty -
+          (row.damagedQty ?? 0) -
+          (row.wrongQty ?? 0) -
+          (row.rejectedQty ?? 0),
       );
     line.damagedQty = row.damagedQty ?? 0;
     line.wrongQty = row.wrongQty ?? 0;
@@ -1226,8 +1351,12 @@ export function confirmOpsDeliveryReceipt(
   }
 
   const lines = getLines(next, requestId).filter((l) => l.issuedQty > 0);
-  const allFull = lines.every((l) => l.receivedQty >= l.issuedQty && l.missingQty === 0 && l.damagedQty === 0);
-  const anyShort = lines.some((l) => l.receivedQty < l.issuedQty || l.missingQty > 0 || l.damagedQty > 0);
+  const allFull = lines.every(
+    (l) => l.receivedQty >= l.issuedQty && l.missingQty === 0 && l.damagedQty === 0,
+  );
+  const anyShort = lines.some(
+    (l) => l.receivedQty < l.issuedQty || l.missingQty > 0 || l.damagedQty > 0,
+  );
 
   req.receiptOutcome = input.outcome;
   req.receivedBy = input.receivedBy;
@@ -1237,7 +1366,15 @@ export function confirmOpsDeliveryReceipt(
   req.status = allFull && !anyShort ? "Delivered" : "Partially Delivered";
   touch(req, now);
 
-  pushCustody(next, requestId, "driver", "destination", `Delivery confirmed at ${req.destination}.`, input.receivedBy, now);
+  pushCustody(
+    next,
+    requestId,
+    "driver",
+    "destination",
+    `Delivery confirmed at ${req.destination}.`,
+    input.receivedBy,
+    now,
+  );
   pushAudit(next, {
     action: "ops.delivery_confirmed",
     entityType: "ops_request",
@@ -1288,7 +1425,13 @@ export function postOpsMessage(
   body: string,
   chip?: OpsMessageChip,
 ): MutResult<{ messageId: string }> {
-  const blocked = requireAny(state, ["ops.communicate", "ops.request", "ops.view", "ops.warehouse", "ops.drive"]);
+  const blocked = requireAny(state, [
+    "ops.communicate",
+    "ops.request",
+    "ops.view",
+    "ops.warehouse",
+    "ops.drive",
+  ]);
   if (blocked) return { ok: false, error: blocked };
   const text = body.trim() || chip || "";
   if (!text) return { ok: false, error: "Message body or chip required." };
@@ -1314,7 +1457,14 @@ export function postOpsMessage(
     summary: `Message on ${req.number}: ${chip ?? body.slice(0, 80)}`,
     at: now,
   });
-  pushActivity(next, requestId, "message", chip ? `[${chip}] ${body.trim()}`.trim() : body.trim(), undefined, now);
+  pushActivity(
+    next,
+    requestId,
+    "message",
+    chip ? `[${chip}] ${body.trim()}`.trim() : body.trim(),
+    undefined,
+    now,
+  );
   pushOpsNotification(next, {
     type: "ops_message",
     title: `Message · ${req.number}`,
@@ -1327,7 +1477,11 @@ export function postOpsMessage(
   return { ok: true, data: { state: next, data: { messageId } } };
 }
 
-export function cancelOpsRequest(state: TlbState, requestId: string, reason: string): MutResult<{ requestId: string }> {
+export function cancelOpsRequest(
+  state: TlbState,
+  requestId: string,
+  reason: string,
+): MutResult<{ requestId: string }> {
   const blocked = requireAny(state, ["ops.request", "ops.approve", "approvals.manage"]);
   if (blocked) return { ok: false, error: blocked };
   if (!reason.trim()) return { ok: false, error: "Cancellation reason required." };
@@ -1335,7 +1489,11 @@ export function cancelOpsRequest(state: TlbState, requestId: string, reason: str
   ensureOpsCollections(next);
   const req = getRequest(next, requestId);
   if (!req) return { ok: false, error: "Request not found." };
-  if (["Issued", "Collected", "In Transit", "Delivered", "Partially Delivered", "Closed"].includes(req.status)) {
+  if (
+    ["Issued", "Collected", "In Transit", "Delivered", "Partially Delivered", "Closed"].includes(
+      req.status,
+    )
+  ) {
     return { ok: false, error: "Cannot cancel after goods release." };
   }
   const now = new Date().toISOString();
@@ -1353,7 +1511,10 @@ export function cancelOpsRequest(state: TlbState, requestId: string, reason: str
   return { ok: true, data: { state: next, data: { requestId } } };
 }
 
-export function autoReviewOpsLines(state: TlbState, requestId: string): MutResult<{ requestId: string }> {
+export function autoReviewOpsLines(
+  state: TlbState,
+  requestId: string,
+): MutResult<{ requestId: string }> {
   const next = cloneState(state);
   ensureOpsCollections(next);
   const req = getRequest(next, requestId);
@@ -1368,7 +1529,12 @@ export function autoReviewOpsLines(state: TlbState, requestId: string): MutResul
       .slice(0, 3)
       .map((r) => `${r.warehouseName} can fulfil ${r.available}`)
       .join("; ");
-    const recommended = recommendBatches(next, line.productId, best?.warehouseId ?? line.warehouseId, needed);
+    const recommended = recommendBatches(
+      next,
+      line.productId,
+      best?.warehouseId ?? line.warehouseId,
+      needed,
+    );
     return {
       lineId: line.id,
       fulfilWarehouseId: best?.warehouseId ?? line.warehouseId,
@@ -1381,14 +1547,18 @@ export function autoReviewOpsLines(state: TlbState, requestId: string): MutResul
 }
 
 /** Active assignment that blocks moving a driver to trash (in transit / open jobs). */
-export function findDriverBlockingAssignment(state: TlbState, driverId: string): OpsRequest | undefined {
+export function findDriverBlockingAssignment(
+  state: TlbState,
+  driverId: string,
+): OpsRequest | undefined {
   return (state.opsRequests ?? []).find((r) => {
     if (r.deletedAt || r.driverId !== driverId) return false;
     if (["Delivered", "Closed", "Cancelled", "Rejected"].includes(r.status)) return false;
     if (r.driverStatus === "Delivered") return false;
     return (
-      ["Ready for Collection", "Issued", "Collected", "In Transit", "Partially Delivered"].includes(r.status) ||
-      r.driverStatus != null
+      ["Ready for Collection", "Issued", "Collected", "In Transit", "Partially Delivered"].includes(
+        r.status,
+      ) || r.driverStatus != null
     );
   });
 }
@@ -1407,7 +1577,9 @@ export function listDriverTodayJobs(state: TlbState, driverId?: string): OpsRequ
       return false;
     }
     return (
-      ["Ready for Collection", "Issued", "Collected", "In Transit", "Partially Delivered"].includes(r.status) ||
+      ["Ready for Collection", "Issued", "Collected", "In Transit", "Partially Delivered"].includes(
+        r.status,
+      ) ||
       (r.driverStatus != null && r.driverStatus !== "Delivered")
     );
   });

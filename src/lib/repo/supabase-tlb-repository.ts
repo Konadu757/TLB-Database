@@ -54,6 +54,8 @@ import {
   warehouseToRow,
   type SoftDeleteOverlay,
 } from "./mappers";
+import { mergeCanonicalBalances, mergeCanonicalMovements } from "./ledger-rpc";
+import { mergeStaffUsers, staffUsersForRemoteDirectory } from "../domain/invites";
 import type { TlbRepository } from "./tlb-repository";
 
 const LOCAL_ONLY_KEY = "tlb.enterprise.local-only.v1";
@@ -192,6 +194,54 @@ export function isUnreachableRemoteError(err: unknown): boolean {
 
 function rowFingerprint(rows: unknown[]): string {
   return JSON.stringify(rows);
+}
+
+let canonicalLedgerWarned = false;
+
+type LooseLedgerQuery = {
+  from: (table: string) => {
+    select: (columns: string) => Promise<{
+      data: Record<string, unknown>[] | null;
+      error: { message: string } | null;
+    }>;
+  };
+};
+
+/** Read canonical balances and movements. Missing views or RLS denials stay local. */
+async function readCanonicalLedger(sb: Sb): Promise<{
+  movements: Record<string, unknown>[];
+  balances: Record<string, unknown>[];
+} | null> {
+  try {
+    const loose = sb as unknown as LooseLedgerQuery;
+    const [movements, balances] = await Promise.all([
+      loose.from("tlb_inventory_movements").select("*"),
+      loose.from("tlb_inventory_balances").select("*"),
+    ]);
+    if (movements.error || balances.error) {
+      if (!canonicalLedgerWarned) {
+        canonicalLedgerWarned = true;
+        console.warn(
+          "[SupabaseTlbRepository] canonical ledger read skipped:",
+          movements.error?.message ?? balances.error?.message,
+        );
+      }
+      return null;
+    }
+    return {
+      movements: movements.data ?? [],
+      balances: balances.data ?? [],
+    };
+  } catch (err) {
+    if (!canonicalLedgerWarned) {
+      canonicalLedgerWarned = true;
+      console.warn(
+        "[SupabaseTlbRepository] canonical ledger read skipped:",
+        err instanceof Error ? err.message : err,
+      );
+    }
+    return null;
+  }
 }
 
 /** Prefer remote rows; restore ops targeting fields PostgREST schema does not store yet. */
@@ -358,10 +408,7 @@ export class SupabaseTlbRepository implements TlbRepository {
   private pauseRemoteForSession(reason: string): void {
     if (this.remotePausedForSession) return;
     this.remotePausedForSession = true;
-    console.warn(
-      "[SupabaseTlbRepository] remote paused for this session (local-only);",
-      reason,
-    );
+    console.warn("[SupabaseTlbRepository] remote paused for this session (local-only);", reason);
   }
 
   /** Snapshot current mapped rows as "already synced" so the next save only hits dirty tables. */
@@ -398,7 +445,10 @@ export class SupabaseTlbRepository implements TlbRepository {
       },
       {
         key: "auth_directory",
-        value: { users: state.users, roles: state.roles } as unknown as Json,
+        value: {
+          users: staffUsersForRemoteDirectory(state.users),
+          roles: state.roles,
+        } as unknown as Json,
       },
     ];
     this.remoteFingerprints.set("app_settings", rowFingerprint(settingsPayload));
@@ -466,11 +516,17 @@ export class SupabaseTlbRepository implements TlbRepository {
           this.sb,
           "customer_purchase_orders",
         ),
-        fetchAll<Database["public"]["Tables"]["customer_order_lines"]["Row"]>(this.sb, "customer_order_lines"),
+        fetchAll<Database["public"]["Tables"]["customer_order_lines"]["Row"]>(
+          this.sb,
+          "customer_order_lines",
+        ),
         fetchAll<Database["public"]["Tables"]["supplies"]["Row"]>(this.sb, "supplies"),
         fetchAll<Database["public"]["Tables"]["supply_lines"]["Row"]>(this.sb, "supply_lines"),
         fetchAll<Database["public"]["Tables"]["audit_events"]["Row"]>(this.sb, "audit_events"),
-        fetchAll<Database["public"]["Tables"]["document_counters"]["Row"]>(this.sb, "document_counters"),
+        fetchAll<Database["public"]["Tables"]["document_counters"]["Row"]>(
+          this.sb,
+          "document_counters",
+        ),
         fetchAll<Database["public"]["Tables"]["app_settings"]["Row"]>(this.sb, "app_settings"),
         fetchAll<Database["public"]["Tables"]["vat_rates"]["Row"]>(this.sb, "vat_rates"),
         fetchAll<Database["public"]["Tables"]["invoices"]["Row"]>(this.sb, "invoices"),
@@ -481,7 +537,10 @@ export class SupabaseTlbRepository implements TlbRepository {
         fetchAll<Database["public"]["Tables"]["delivery_items"]["Row"]>(this.sb, "delivery_items"),
         fetchAll<Database["public"]["Tables"]["payments"]["Row"]>(this.sb, "payments"),
         fetchAll<Database["public"]["Tables"]["notifications"]["Row"]>(this.sb, "notifications"),
-        fetchAll<Database["public"]["Tables"]["stock_reservations"]["Row"]>(this.sb, "stock_reservations"),
+        fetchAll<Database["public"]["Tables"]["stock_reservations"]["Row"]>(
+          this.sb,
+          "stock_reservations",
+        ),
       ]);
 
       const remoteEmpty =
@@ -499,14 +558,14 @@ export class SupabaseTlbRepository implements TlbRepository {
       const company = companyFromSettings(settingsMap.get("company_profile"), seed.company);
       const softOverlay = (settingsMap.get("soft_delete_overlay") ?? {}) as SoftDeleteOverlay;
       const authDir = authDirectoryFromSettings(settingsMap.get("auth_directory"));
-      const mergedUsers = authDir.users?.length
-        ? mergeById(authDir.users, localOnly.users)
-        : localOnly.users;
+      const mergedUsers = mergeStaffUsers(authDir.users, localOnly.users);
       const mergedRoles = authDir.roles?.length
         ? mergeById(authDir.roles, localOnly.roles)
         : localOnly.roles;
 
       const prior = loadState();
+      const ledger = await readCanonicalLedger(this.sb);
+      const prototypeStock = stock.map((row) => stockFromRow(row, stockExtras[row.id]));
       const merged: TlbState = {
         ...seed,
         ...localOnly,
@@ -514,7 +573,10 @@ export class SupabaseTlbRepository implements TlbRepository {
         roles: mergedRoles,
         warehouses: warehouses.map((row) => warehouseFromRow(row, softOverlay)),
         products: products.map((row) => productFromRow(row, productExtras[row.id], softOverlay)),
-        stock: stock.map((row) => stockFromRow(row, stockExtras[row.id])),
+        stock: ledger ? mergeCanonicalBalances(prototypeStock, ledger.balances) : prototypeStock,
+        stockMovements: ledger
+          ? mergeCanonicalMovements(localOnly.stockMovements, ledger.movements)
+          : localOnly.stockMovements,
         customers: customers.map((row) => customerFromRow(row, softOverlay)),
         orders: orders.map((row) => orderFromRow(row, softOverlay)),
         orderLines: orderLines.map(orderLineFromRow),
@@ -586,15 +648,24 @@ export class SupabaseTlbRepository implements TlbRepository {
           state.orderLines.map(orderLineToRow),
         ),
         supplies: await this.upsertIfChanged("supplies", state.supplies.map(supplyToRow)),
-        supply_lines: await this.upsertIfChanged("supply_lines", state.supplyLines.map(supplyLineToRow)),
+        supply_lines: await this.upsertIfChanged(
+          "supply_lines",
+          state.supplyLines.map(supplyLineToRow),
+        ),
         stock_reservations: await this.upsertIfChanged(
           "stock_reservations",
           state.reservations.map(reservationToRow),
         ),
         invoices: await this.upsertIfChanged("invoices", state.invoices.map(invoiceToRow)),
-        invoice_lines: await this.upsertIfChanged("invoice_lines", state.invoiceLines.map(invoiceLineToRow)),
+        invoice_lines: await this.upsertIfChanged(
+          "invoice_lines",
+          state.invoiceLines.map(invoiceLineToRow),
+        ),
         receipts: await this.upsertIfChanged("receipts", state.receipts.map(receiptToRow)),
-        receipt_lines: await this.upsertIfChanged("receipt_lines", state.receiptLines.map(receiptLineToRow)),
+        receipt_lines: await this.upsertIfChanged(
+          "receipt_lines",
+          state.receiptLines.map(receiptLineToRow),
+        ),
         deliveries: await this.upsertIfChanged("deliveries", state.deliveries.map(deliveryToRow)),
         delivery_items: await this.upsertIfChanged(
           "delivery_items",
@@ -624,7 +695,10 @@ export class SupabaseTlbRepository implements TlbRepository {
         },
         {
           key: "auth_directory",
-          value: { users: state.users, roles: state.roles } as unknown as Json,
+          value: {
+            users: staffUsersForRemoteDirectory(state.users),
+            roles: state.roles,
+          } as unknown as Json,
         },
       ];
       const settingsFp = rowFingerprint(settingsPayload);
@@ -639,58 +713,130 @@ export class SupabaseTlbRepository implements TlbRepository {
       // Remove remote rows purged from domain state — only for tables we just wrote.
       // Child → parent order for FK safety.
       if (changed.delivery_items) {
-        await deleteMissing(this.sb, "delivery_items", state.deliveryItems.map((r) => r.id));
+        await deleteMissing(
+          this.sb,
+          "delivery_items",
+          state.deliveryItems.map((r) => r.id),
+        );
       }
       if (changed.invoice_lines) {
-        await deleteMissing(this.sb, "invoice_lines", state.invoiceLines.map((r) => r.id));
+        await deleteMissing(
+          this.sb,
+          "invoice_lines",
+          state.invoiceLines.map((r) => r.id),
+        );
       }
       if (changed.receipt_lines) {
-        await deleteMissing(this.sb, "receipt_lines", state.receiptLines.map((r) => r.id));
+        await deleteMissing(
+          this.sb,
+          "receipt_lines",
+          state.receiptLines.map((r) => r.id),
+        );
       }
       if (changed.supply_lines) {
-        await deleteMissing(this.sb, "supply_lines", state.supplyLines.map((r) => r.id));
+        await deleteMissing(
+          this.sb,
+          "supply_lines",
+          state.supplyLines.map((r) => r.id),
+        );
       }
       if (changed.customer_order_lines) {
-        await deleteMissing(this.sb, "customer_order_lines", state.orderLines.map((r) => r.id));
+        await deleteMissing(
+          this.sb,
+          "customer_order_lines",
+          state.orderLines.map((r) => r.id),
+        );
       }
       if (changed.stock_reservations) {
-        await deleteMissing(this.sb, "stock_reservations", state.reservations.map((r) => r.id));
+        await deleteMissing(
+          this.sb,
+          "stock_reservations",
+          state.reservations.map((r) => r.id),
+        );
       }
       if (changed.notifications) {
-        await deleteMissing(this.sb, "notifications", state.notifications.map((r) => r.id));
+        await deleteMissing(
+          this.sb,
+          "notifications",
+          state.notifications.map((r) => r.id),
+        );
       }
       if (changed.payments) {
-        await deleteMissing(this.sb, "payments", state.payments.map((r) => r.id));
+        await deleteMissing(
+          this.sb,
+          "payments",
+          state.payments.map((r) => r.id),
+        );
       }
       if (changed.deliveries) {
-        await deleteMissing(this.sb, "deliveries", state.deliveries.map((r) => r.id));
+        await deleteMissing(
+          this.sb,
+          "deliveries",
+          state.deliveries.map((r) => r.id),
+        );
       }
       if (changed.receipts) {
-        await deleteMissing(this.sb, "receipts", state.receipts.map((r) => r.id));
+        await deleteMissing(
+          this.sb,
+          "receipts",
+          state.receipts.map((r) => r.id),
+        );
       }
       if (changed.invoices) {
-        await deleteMissing(this.sb, "invoices", state.invoices.map((r) => r.id));
+        await deleteMissing(
+          this.sb,
+          "invoices",
+          state.invoices.map((r) => r.id),
+        );
       }
       if (changed.supplies) {
-        await deleteMissing(this.sb, "supplies", state.supplies.map((r) => r.id));
+        await deleteMissing(
+          this.sb,
+          "supplies",
+          state.supplies.map((r) => r.id),
+        );
       }
       if (changed.customer_purchase_orders) {
-        await deleteMissing(this.sb, "customer_purchase_orders", state.orders.map((r) => r.id));
+        await deleteMissing(
+          this.sb,
+          "customer_purchase_orders",
+          state.orders.map((r) => r.id),
+        );
       }
       if (changed.stock_balances) {
-        await deleteMissing(this.sb, "stock_balances", state.stock.map((r) => r.id));
+        await deleteMissing(
+          this.sb,
+          "stock_balances",
+          state.stock.map((r) => r.id),
+        );
       }
       if (changed.customers) {
-        await deleteMissing(this.sb, "customers", state.customers.map((r) => r.id));
+        await deleteMissing(
+          this.sb,
+          "customers",
+          state.customers.map((r) => r.id),
+        );
       }
       if (changed.vat_rates) {
-        await deleteMissing(this.sb, "vat_rates", state.vatRates.map((r) => r.id));
+        await deleteMissing(
+          this.sb,
+          "vat_rates",
+          state.vatRates.map((r) => r.id),
+        );
       }
       if (changed.products) {
-        await deleteMissing(this.sb, "products", state.products.map((r) => r.id));
+        await deleteMissing(
+          this.sb,
+          "products",
+          state.products.map((r) => r.id),
+        );
       }
       if (changed.warehouses) {
-        await deleteMissing(this.sb, "warehouses", state.warehouses.map((r) => r.id));
+        await deleteMissing(
+          this.sb,
+          "warehouses",
+          state.warehouses.map((r) => r.id),
+        );
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

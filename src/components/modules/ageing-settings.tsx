@@ -24,21 +24,40 @@ export function AgeingSettingsPanel({ store }: { store: TlbStoreApi }) {
       >
         <label>
           Normal max days
-          <input type="number" min={0} value={normalMaxDays} onChange={(e) => setNormal(Number(e.target.value))} />
+          <input
+            type="number"
+            min={0}
+            value={normalMaxDays}
+            onChange={(e) => setNormal(Number(e.target.value))}
+          />
         </label>
         <label>
           Attention max days
-          <input type="number" min={0} value={attentionMaxDays} onChange={(e) => setAttention(Number(e.target.value))} />
+          <input
+            type="number"
+            min={0}
+            value={attentionMaxDays}
+            onChange={(e) => setAttention(Number(e.target.value))}
+          />
         </label>
         <p className="tlb-muted-line tlb-span-2">
-          Bands: 0–{normalMaxDays} Normal · {normalMaxDays + 1}–{attentionMaxDays} Attention · {attentionMaxDays + 1}+ Overdue
+          Bands: 0–{normalMaxDays} Normal · {normalMaxDays + 1}–{attentionMaxDays} Attention ·{" "}
+          {attentionMaxDays + 1}+ Overdue
         </p>
         <div className="tlb-form-actions tlb-span-2">
           <Button type="submit">Save ageing settings</Button>
         </div>
       </form>
-      {store.error && <p className="tlb-flash tlb-flash-error" style={{ margin: 12 }}>{store.error}</p>}
-      {store.notice && <p className="tlb-flash tlb-flash-ok" style={{ margin: 12 }}>{store.notice}</p>}
+      {store.error && (
+        <p className="tlb-flash tlb-flash-error" style={{ margin: 12 }}>
+          {store.error}
+        </p>
+      )}
+      {store.notice && (
+        <p className="tlb-flash tlb-flash-ok" style={{ margin: 12 }}>
+          {store.notice}
+        </p>
+      )}
     </article>
   );
 }

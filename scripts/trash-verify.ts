@@ -58,12 +58,18 @@ function testInvoiceTrashRestorePurge() {
   const invoice = ensureSeedInvoice(state);
   assert.ok(invoice, "seed invoice");
 
-  const trash = softDeleteRecord(state, { entityType: "invoice", entityId: invoice.id, reason: "test" });
+  const trash = softDeleteRecord(state, {
+    entityType: "invoice",
+    entityId: invoice.id,
+    reason: "test",
+  });
   assert.equal(trash.ok, true, trash.ok ? "" : trash.error);
   if (!trash.ok) return;
   state = trash.data.state;
   assert.ok(isSoftDeleted(state.invoices.find((i) => i.id === invoice.id)!));
-  assert.ok(listTrashItems(state).some((t) => t.entityType === "invoice" && t.entityId === invoice.id));
+  assert.ok(
+    listTrashItems(state).some((t) => t.entityType === "invoice" && t.entityId === invoice.id),
+  );
   assert.ok(state.audit.some((a) => a.action === "record.trashed" && a.entityId === invoice.id));
 
   const restored = restoreTrashItem(state, { entityType: "invoice", entityId: invoice.id });
@@ -97,7 +103,9 @@ function ensureOpsRequestFixtures(state: ReturnType<typeof createSeedState>) {
     requestedByUserId: userId,
     requestedAt: now,
   };
-  let draft = state.opsRequests.find((r) => r.status === "Draft" || r.status === "Cancelled" || r.status === "Closed");
+  let draft = state.opsRequests.find(
+    (r) => r.status === "Draft" || r.status === "Cancelled" || r.status === "Closed",
+  );
   if (!draft) {
     draft = {
       ...base,
@@ -136,7 +144,9 @@ function testOpsRequestTrashAndBlock() {
   assert.equal(ok.ok, true, ok.ok ? "" : ok.error);
   if (!ok.ok) return;
   state = ok.data.state;
-  assert.ok(listTrashItems(state).some((t) => t.entityType === "ops_request" && t.entityId === draft.id));
+  assert.ok(
+    listTrashItems(state).some((t) => t.entityType === "ops_request" && t.entityId === draft.id),
+  );
 }
 
 function testStockMovementHideNoPurge() {
@@ -160,7 +170,9 @@ function testStockMovementHideNoPurge() {
 
 function testGoodsReceiptAndDelivery() {
   let state = ownerState();
-  const grn = (state.goodsReceipts ?? []).find((g) => g.status === "Draft" || g.status === "Approved" || g.status === "Cancelled");
+  const grn = (state.goodsReceipts ?? []).find(
+    (g) => g.status === "Draft" || g.status === "Approved" || g.status === "Cancelled",
+  );
   if (grn) {
     const ok = softDeleteRecord(state, { entityType: "goods_receipt", entityId: grn.id });
     assert.equal(ok.ok, true, ok.ok ? "" : ok.error);

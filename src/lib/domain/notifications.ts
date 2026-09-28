@@ -1,11 +1,13 @@
-import { ageingBand, calcAvailable, calcOutstanding, daysBetween, stockKey, buildStockMap } from "./calculations";
+import {
+  ageingBand,
+  calcAvailable,
+  calcOutstanding,
+  daysBetween,
+  stockKey,
+  buildStockMap,
+} from "./calculations";
 import { isSoftDeleted } from "./trash";
-import type {
-  AppNotification,
-  OutstandingRow,
-  RelatedRecord,
-  TlbState,
-} from "./types";
+import type { AppNotification, OutstandingRow, RelatedRecord, TlbState } from "./types";
 
 /** Session context for notification visibility (header badge + Notifications page). */
 export type NotificationSession = {
@@ -131,7 +133,10 @@ export function buildNotifications(
       });
     }
 
-    if (order.requiredDate && !["Delivered", "Cancelled", "Fully Supplied", "Draft"].includes(order.status)) {
+    if (
+      order.requiredDate &&
+      !["Delivered", "Cancelled", "Fully Supplied", "Draft"].includes(order.status)
+    ) {
       const today = asOf.slice(0, 10);
       const required = order.requiredDate;
       if (today === required) {
@@ -168,7 +173,9 @@ export function buildNotifications(
     const age = daysBetween(order.confirmedAt ?? order.orderDate, asOf);
     if (
       age >= state.ageing.extendedUnfulfilledDays &&
-      ["Awaiting Stock", "Partially Supplied", "Ready for Supply", "Confirmed"].includes(order.status)
+      ["Awaiting Stock", "Partially Supplied", "Ready for Supply", "Confirmed"].includes(
+        order.status,
+      )
     ) {
       ensure({
         type: "extended_unfulfilled",
@@ -235,9 +242,7 @@ export function markNotificationsRead(state: TlbState, ids: string[]): AppNotifi
   if (ids.length === 0) return state.notifications;
   const idSet = new Set(ids);
   const now = new Date().toISOString();
-  return state.notifications.map((n) =>
-    idSet.has(n.id) && !n.readAt ? { ...n, readAt: now } : n,
-  );
+  return state.notifications.map((n) => (idSet.has(n.id) && !n.readAt ? { ...n, readAt: now } : n));
 }
 
 export function deleteNotificationsById(state: TlbState, ids: string[]): AppNotification[] {

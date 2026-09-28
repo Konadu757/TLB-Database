@@ -48,7 +48,15 @@ function EmptyState({ title, detail }: { title: string; detail: string }) {
   );
 }
 
-function Flash({ error, notice, onClear }: { error: string | null; notice: string | null; onClear: () => void }) {
+function Flash({
+  error,
+  notice,
+  onClear,
+}: {
+  error: string | null;
+  notice: string | null;
+  onClear: () => void;
+}) {
   if (!error && !notice) return null;
   return (
     <div className={`tlb-flash ${error ? "tlb-flash-error" : "tlb-flash-ok"}`} role="status">
@@ -98,7 +106,9 @@ export function ReturnsModule({
   const [batchId, setBatchId] = useState("");
   const [qty, setQty] = useState(1);
   const [reason, setReason] = useState("");
-  const [condition, setCondition] = useState<"Sellable" | "Damaged" | "Opened" | "Expired" | "Other">("Damaged");
+  const [condition, setCondition] = useState<
+    "Sellable" | "Damaged" | "Opened" | "Expired" | "Other"
+  >("Damaged");
   const [warehouseId, setWarehouseId] = useState("wh-main");
   const [disposition, setDisposition] = useState<ReturnDisposition>("usable");
 
@@ -146,7 +156,9 @@ export function ReturnsModule({
           <div>
             <span className="tlb-eyebrow">{isCust ? "Customer return" : "Supplier return"}</span>
             <strong>{detail.number}</strong>
-            <p className="tlb-muted-line">{party} · {product?.sku}</p>
+            <p className="tlb-muted-line">
+              {party} · {product?.sku}
+            </p>
           </div>
           <div className="tlb-inline-actions">
             <MoveToTrashButton
@@ -171,7 +183,10 @@ export function ReturnsModule({
             <StatusBadge tone={statusTone(detail.status)}>{detail.status}</StatusBadge>
           </div>
 
-          <div className="tlb-ops-handler-rail tlb-ops-handler-rail--3" aria-label="Return status and handlers">
+          <div
+            className="tlb-ops-handler-rail tlb-ops-handler-rail--3"
+            aria-label="Return status and handlers"
+          >
             <div className="tlb-ops-handler-card tlb-ops-handler-card--status">
               <span className="tlb-ops-handler-kicker">Status</span>
               <StatusBadge tone={statusTone(detail.status)}>{detail.status}</StatusBadge>
@@ -184,7 +199,9 @@ export function ReturnsModule({
               <small>{primaryWhen ?? "—"}</small>
             </div>
 
-            <div className={`tlb-ops-handler-card${detail.approvedBy ? "" : " tlb-ops-handler-card--empty"}`}>
+            <div
+              className={`tlb-ops-handler-card${detail.approvedBy ? "" : " tlb-ops-handler-card--empty"}`}
+            >
               <span className="tlb-ops-handler-kicker">Approved by</span>
               <strong>{detail.approvedBy || "Pending"}</strong>
               <small>{approvedWhen ?? (detail.approvedBy ? "—" : "Not approved yet")}</small>
@@ -252,7 +269,9 @@ export function ReturnsModule({
         <div>
           <span className="tlb-eyebrow">Inventory</span>
           <strong>Returns</strong>
-          <p className="tlb-muted-line">Customer & supplier returns with immutable ledger movements</p>
+          <p className="tlb-muted-line">
+            Customer & supplier returns with immutable ledger movements
+          </p>
         </div>
         <Button type="button" onClick={() => setOpen((v) => !v)}>
           {open ? "Close form" : "New return"}
@@ -260,10 +279,18 @@ export function ReturnsModule({
       </div>
       <section className="tlb-filter-bar tlb-module-filters">
         <div className="tlb-periods">
-          <button type="button" className={tab === "customer" ? "active" : ""} onClick={() => setTab("customer")}>
+          <button
+            type="button"
+            className={tab === "customer" ? "active" : ""}
+            onClick={() => setTab("customer")}
+          >
             Customer returns
           </button>
-          <button type="button" className={tab === "supplier" ? "active" : ""} onClick={() => setTab("supplier")}>
+          <button
+            type="button"
+            className={tab === "supplier" ? "active" : ""}
+            onClick={() => setTab("supplier")}
+          >
             Supplier returns
           </button>
         </div>
@@ -276,9 +303,13 @@ export function ReturnsModule({
                 <label>
                   Customer
                   <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-                    {store.state.customers.filter((c) => !isSoftDeleted(c)).map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
+                    {store.state.customers
+                      .filter((c) => !isSoftDeleted(c))
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
                   </select>
                 </label>
                 <label>
@@ -288,7 +319,9 @@ export function ReturnsModule({
                     {store.state.orders
                       .filter((o) => o.customerId === customerId && !isSoftDeleted(o))
                       .map((o) => (
-                        <option key={o.id} value={o.id}>{o.number}</option>
+                        <option key={o.id} value={o.id}>
+                          {o.number}
+                        </option>
                       ))}
                   </select>
                 </label>
@@ -296,7 +329,9 @@ export function ReturnsModule({
                   Product
                   <select value={productId} onChange={(e) => setProductId(e.target.value)}>
                     {store.state.products.map((p) => (
-                      <option key={p.id} value={p.id}>{p.sku} · {p.name}</option>
+                      <option key={p.id} value={p.id}>
+                        {p.sku} · {p.name}
+                      </option>
                     ))}
                   </select>
                 </label>
@@ -307,25 +342,40 @@ export function ReturnsModule({
                     {store.state.batches
                       .filter((b) => b.productId === productId)
                       .map((b) => (
-                        <option key={b.id} value={b.id}>{b.code}</option>
+                        <option key={b.id} value={b.id}>
+                          {b.code}
+                        </option>
                       ))}
                   </select>
                 </label>
                 <label>
                   Qty
-                  <input type="number" min={1} value={qty} onChange={(e) => setQty(Number(e.target.value))} />
+                  <input
+                    type="number"
+                    min={1}
+                    value={qty}
+                    onChange={(e) => setQty(Number(e.target.value))}
+                  />
                 </label>
                 <label>
                   Condition
-                  <select value={condition} onChange={(e) => setCondition(e.target.value as typeof condition)}>
+                  <select
+                    value={condition}
+                    onChange={(e) => setCondition(e.target.value as typeof condition)}
+                  >
                     {(["Sellable", "Damaged", "Opened", "Expired", "Other"] as const).map((c) => (
-                      <option key={c} value={c}>{c}</option>
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
                     ))}
                   </select>
                 </label>
                 <label>
                   Disposition
-                  <select value={disposition} onChange={(e) => setDisposition(e.target.value as ReturnDisposition)}>
+                  <select
+                    value={disposition}
+                    onChange={(e) => setDisposition(e.target.value as ReturnDisposition)}
+                  >
                     <option value="usable">Usable</option>
                     <option value="quarantine">Quarantine</option>
                     <option value="damage">Damage</option>
@@ -336,7 +386,9 @@ export function ReturnsModule({
                   Warehouse
                   <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
                     {store.state.warehouses.map((w) => (
-                      <option key={w.id} value={w.id}>{w.name}</option>
+                      <option key={w.id} value={w.id}>
+                        {w.name}
+                      </option>
                     ))}
                   </select>
                 </label>
@@ -374,16 +426,22 @@ export function ReturnsModule({
                 <label>
                   Supplier
                   <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
-                    {store.state.suppliers.filter((s) => !isSoftDeleted(s)).map((s) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
+                    {store.state.suppliers
+                      .filter((s) => !isSoftDeleted(s))
+                      .map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
                   </select>
                 </label>
                 <label>
                   Product
                   <select value={productId} onChange={(e) => setProductId(e.target.value)}>
                     {store.state.products.map((p) => (
-                      <option key={p.id} value={p.id}>{p.sku} · {p.name}</option>
+                      <option key={p.id} value={p.id}>
+                        {p.sku} · {p.name}
+                      </option>
                     ))}
                   </select>
                 </label>
@@ -394,7 +452,9 @@ export function ReturnsModule({
                     {store.state.batches
                       .filter((b) => b.productId === productId)
                       .map((b) => (
-                        <option key={b.id} value={b.id}>{b.code}</option>
+                        <option key={b.id} value={b.id}>
+                          {b.code}
+                        </option>
                       ))}
                   </select>
                 </label>
@@ -405,27 +465,40 @@ export function ReturnsModule({
                     {store.state.goodsReceipts
                       .filter((g) => g.supplierId === supplierId)
                       .map((g) => (
-                        <option key={g.id} value={g.id}>{g.number}</option>
+                        <option key={g.id} value={g.id}>
+                          {g.number}
+                        </option>
                       ))}
                   </select>
                 </label>
                 <label>
                   Qty
-                  <input type="number" min={1} value={qty} onChange={(e) => setQty(Number(e.target.value))} />
+                  <input
+                    type="number"
+                    min={1}
+                    value={qty}
+                    onChange={(e) => setQty(Number(e.target.value))}
+                  />
                 </label>
                 <label>
                   Credit note
                   <input value={creditNote} onChange={(e) => setCreditNote(e.target.value)} />
                 </label>
                 <label className="tlb-check-row">
-                  <input type="checkbox" checked={replacement} onChange={(e) => setReplacement(e.target.checked)} />
+                  <input
+                    type="checkbox"
+                    checked={replacement}
+                    onChange={(e) => setReplacement(e.target.checked)}
+                  />
                   Replacement expected
                 </label>
                 <label>
                   Warehouse
                   <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
                     {store.state.warehouses.map((w) => (
-                      <option key={w.id} value={w.id}>{w.name}</option>
+                      <option key={w.id} value={w.id}>
+                        {w.name}
+                      </option>
                     ))}
                   </select>
                 </label>
@@ -480,18 +553,30 @@ export function ReturnsModule({
                 {(tab === "customer" ? customerReturns : supplierReturns).map((r) => {
                   const party =
                     tab === "customer"
-                      ? store.state.customers.find((c) => c.id === (r as (typeof customerReturns)[0]).customerId)?.name
-                      : store.state.suppliers.find((s) => s.id === (r as (typeof supplierReturns)[0]).supplierId)?.name;
+                      ? store.state.customers.find(
+                          (c) => c.id === (r as (typeof customerReturns)[0]).customerId,
+                        )?.name
+                      : store.state.suppliers.find(
+                          (s) => s.id === (r as (typeof supplierReturns)[0]).supplierId,
+                        )?.name;
                   const product = store.state.products.find((p) => p.id === r.productId);
                   return (
                     <tr key={r.id}>
-                      <td><strong>{r.number}</strong></td>
+                      <td>
+                        <strong>{r.number}</strong>
+                      </td>
                       <td>{party}</td>
                       <td>{product?.sku}</td>
                       <td>{r.quantity}</td>
-                      <td><StatusBadge tone={statusTone(r.status)}>{r.status}</StatusBadge></td>
                       <td>
-                        <button type="button" aria-label="Open return" onClick={() => setDetailId(r.id)}>
+                        <StatusBadge tone={statusTone(r.status)}>{r.status}</StatusBadge>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          aria-label="Open return"
+                          onClick={() => setDetailId(r.id)}
+                        >
                           <ChevronRight />
                         </button>
                       </td>
@@ -547,23 +632,51 @@ export function NonPoPurchasesModule({
           <div>
             <span className="tlb-eyebrow">Non-PO purchase</span>
             <strong>{detail.number}</strong>
-            <p className="tlb-muted-line">{supplier?.name} · {detail.status}</p>
+            <p className="tlb-muted-line">
+              {supplier?.name} · {detail.status}
+            </p>
           </div>
-          <Button type="button" variant="outline" onClick={() => setDetailId(null)}>Back</Button>
+          <Button type="button" variant="outline" onClick={() => setDetailId(null)}>
+            Back
+          </Button>
         </div>
         <article className="tlb-panel">
           <div className="tlb-kv-grid" style={{ padding: 16 }}>
-            <div><span>Reason</span><strong>{detail.reason}</strong></div>
-            <div><span>Requested by</span><strong>{detail.requestedBy}</strong></div>
-            <div><span>Approved by</span><strong>{detail.approvedBy ?? "—"}</strong></div>
-            <div><span>Invoice / receipt</span><strong>{[detail.invoiceRef, detail.receiptRef].filter(Boolean).join(" / ") || "—"}</strong></div>
-            <div><span>Warehouse</span><strong>{store.state.warehouses.find((w) => w.id === detail.warehouseId)?.name}</strong></div>
+            <div>
+              <span>Reason</span>
+              <strong>{detail.reason}</strong>
+            </div>
+            <div>
+              <span>Requested by</span>
+              <strong>{detail.requestedBy}</strong>
+            </div>
+            <div>
+              <span>Approved by</span>
+              <strong>{detail.approvedBy ?? "—"}</strong>
+            </div>
+            <div>
+              <span>Invoice / receipt</span>
+              <strong>
+                {[detail.invoiceRef, detail.receiptRef].filter(Boolean).join(" / ") || "—"}
+              </strong>
+            </div>
+            <div>
+              <span>Warehouse</span>
+              <strong>
+                {store.state.warehouses.find((w) => w.id === detail.warehouseId)?.name}
+              </strong>
+            </div>
             <div>
               <span>GRN</span>
               <strong>
                 {detail.grnId ? (
-                  <button type="button" className="tlb-text-link" onClick={() => onOpenGrn?.(detail.grnId!)}>
-                    {store.state.goodsReceipts.find((g) => g.id === detail.grnId)?.number ?? detail.grnId}
+                  <button
+                    type="button"
+                    className="tlb-text-link"
+                    onClick={() => onOpenGrn?.(detail.grnId!)}
+                  >
+                    {store.state.goodsReceipts.find((g) => g.id === detail.grnId)?.number ??
+                      detail.grnId}
                   </button>
                 ) : (
                   "—"
@@ -574,12 +687,22 @@ export function NonPoPurchasesModule({
           <div className="tlb-inline-actions" style={{ padding: 16 }}>
             {detail.status === "Pending Approval" ? (
               <>
-                <Button type="button" onClick={() => store.decideNonPo(detail.id, "Approved")}>Approve</Button>
-                <Button type="button" variant="outline" onClick={() => store.decideNonPo(detail.id, "Rejected")}>Reject</Button>
+                <Button type="button" onClick={() => store.decideNonPo(detail.id, "Approved")}>
+                  Approve
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => store.decideNonPo(detail.id, "Rejected")}
+                >
+                  Reject
+                </Button>
               </>
             ) : null}
             {detail.status === "Approved" ? (
-              <Button type="button" onClick={() => store.receiveNonPo(detail.id)}>Post GRN / goods in</Button>
+              <Button type="button" onClick={() => store.receiveNonPo(detail.id)}>
+                Post GRN / goods in
+              </Button>
             ) : null}
             <MoveToTrashButton
               store={store}
@@ -641,7 +764,9 @@ export function NonPoPurchasesModule({
               Supplier
               <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
                 {store.state.suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
                 ))}
               </select>
             </label>
@@ -649,7 +774,9 @@ export function NonPoPurchasesModule({
               Warehouse
               <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
                 {store.state.warehouses.map((w) => (
-                  <option key={w.id} value={w.id}>{w.name}</option>
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
                 ))}
               </select>
             </label>
@@ -657,17 +784,29 @@ export function NonPoPurchasesModule({
               Product
               <select value={productId} onChange={(e) => setProductId(e.target.value)}>
                 {store.state.products.map((p) => (
-                  <option key={p.id} value={p.id}>{p.sku} · {p.name}</option>
+                  <option key={p.id} value={p.id}>
+                    {p.sku} · {p.name}
+                  </option>
                 ))}
               </select>
             </label>
             <label>
               Qty
-              <input type="number" min={1} value={qty} onChange={(e) => setQty(Number(e.target.value))} />
+              <input
+                type="number"
+                min={1}
+                value={qty}
+                onChange={(e) => setQty(Number(e.target.value))}
+              />
             </label>
             <label>
               Unit price
-              <input type="number" min={0} value={unitPrice} onChange={(e) => setUnitPrice(Number(e.target.value))} />
+              <input
+                type="number"
+                min={0}
+                value={unitPrice}
+                onChange={(e) => setUnitPrice(Number(e.target.value))}
+              />
             </label>
             <label>
               Invoice / receipt ref
@@ -700,7 +839,10 @@ export function NonPoPurchasesModule({
       ) : null}
       <article className="tlb-panel tlb-orders-panel">
         {rows.length === 0 ? (
-          <EmptyState title="No Non-PO purchases" detail="Submit a Non-PO request to start the approval workflow." />
+          <EmptyState
+            title="No Non-PO purchases"
+            detail="Submit a Non-PO request to start the approval workflow."
+          />
         ) : (
           <div className="tlb-table-scroll">
             <table>
@@ -717,13 +859,21 @@ export function NonPoPurchasesModule({
               <tbody>
                 {rows.map((n) => (
                   <tr key={n.id}>
-                    <td><strong>{n.number}</strong></td>
+                    <td>
+                      <strong>{n.number}</strong>
+                    </td>
                     <td>{store.state.suppliers.find((s) => s.id === n.supplierId)?.name}</td>
                     <td>{n.reason}</td>
-                    <td><StatusBadge tone={statusTone(n.status)}>{n.status}</StatusBadge></td>
+                    <td>
+                      <StatusBadge tone={statusTone(n.status)}>{n.status}</StatusBadge>
+                    </td>
                     <td>{n.requestedAt.slice(0, 10)}</td>
                     <td>
-                      <button type="button" aria-label="Open Non-PO" onClick={() => setDetailId(n.id)}>
+                      <button
+                        type="button"
+                        aria-label="Open Non-PO"
+                        onClick={() => setDetailId(n.id)}
+                      >
                         <ChevronRight />
                       </button>
                     </td>
@@ -779,14 +929,19 @@ export function LiveImportExportModule({
   const expDetail = exports.find((s) => s.id === detailId);
 
   if (impDetail) {
-    const lines = (store.state.importShipmentLines ?? []).filter((l) => l.shipmentId === impDetail.id);
+    const lines = (store.state.importShipmentLines ?? []).filter(
+      (l) => l.shipmentId === impDetail.id,
+    );
     return (
       <div className="tlb-module tlb-record-detail">
         <div className="tlb-module-toolbar">
           <div>
             <span className="tlb-eyebrow">Import shipment</span>
             <strong>{impDetail.number}</strong>
-            <p className="tlb-muted-line">{impDetail.originCountry} → {store.state.warehouses.find((w) => w.id === impDetail.warehouseId)?.name}</p>
+            <p className="tlb-muted-line">
+              {impDetail.originCountry} →{" "}
+              {store.state.warehouses.find((w) => w.id === impDetail.warehouseId)?.name}
+            </p>
           </div>
           <div className="tlb-inline-actions">
             <MoveToTrashButton
@@ -796,23 +951,58 @@ export function LiveImportExportModule({
               recordLabel={impDetail.number}
               onTrashed={() => setDetailId(null)}
             />
-            <Button type="button" variant="outline" onClick={() => setDetailId(null)}>Back</Button>
+            <Button type="button" variant="outline" onClick={() => setDetailId(null)}>
+              Back
+            </Button>
           </div>
         </div>
         <article className="tlb-panel">
           <div className="tlb-kv-grid" style={{ padding: 16 }}>
-            <div><span>Supplier</span><strong>{store.state.suppliers.find((s) => s.id === impDetail.supplierId)?.name}</strong></div>
-            <div><span>Status</span><strong><StatusBadge tone={statusTone(impDetail.status)}>{impDetail.status}</StatusBadge></strong></div>
-            <div><span>Container</span><strong>{impDetail.containerRef ?? "—"}</strong></div>
-            <div><span>Shipping line</span><strong>{impDetail.shippingLine ?? "—"}</strong></div>
-            <div><span>ETD / ETA</span><strong>{impDetail.etd ?? "—"} / {impDetail.eta ?? "—"}</strong></div>
-            <div><span>Customs docs</span><strong>{impDetail.customsDocs ?? "—"}</strong></div>
-            <div><span>Freight / duty</span><strong>{formatMoney(impDetail.freightCost ?? 0)} / {formatMoney(impDetail.dutyCost ?? 0)}</strong></div>
+            <div>
+              <span>Supplier</span>
+              <strong>
+                {store.state.suppliers.find((s) => s.id === impDetail.supplierId)?.name}
+              </strong>
+            </div>
+            <div>
+              <span>Status</span>
+              <strong>
+                <StatusBadge tone={statusTone(impDetail.status)}>{impDetail.status}</StatusBadge>
+              </strong>
+            </div>
+            <div>
+              <span>Container</span>
+              <strong>{impDetail.containerRef ?? "—"}</strong>
+            </div>
+            <div>
+              <span>Shipping line</span>
+              <strong>{impDetail.shippingLine ?? "—"}</strong>
+            </div>
+            <div>
+              <span>ETD / ETA</span>
+              <strong>
+                {impDetail.etd ?? "—"} / {impDetail.eta ?? "—"}
+              </strong>
+            </div>
+            <div>
+              <span>Customs docs</span>
+              <strong>{impDetail.customsDocs ?? "—"}</strong>
+            </div>
+            <div>
+              <span>Freight / duty</span>
+              <strong>
+                {formatMoney(impDetail.freightCost ?? 0)} / {formatMoney(impDetail.dutyCost ?? 0)}
+              </strong>
+            </div>
             <div>
               <span>GRN</span>
               <strong>
                 {impDetail.grnId ? (
-                  <button type="button" className="tlb-text-link" onClick={() => onOpenGrn?.(impDetail.grnId!)}>
+                  <button
+                    type="button"
+                    className="tlb-text-link"
+                    onClick={() => onOpenGrn?.(impDetail.grnId!)}
+                  >
                     Open GRN
                   </button>
                 ) : (
@@ -823,7 +1013,9 @@ export function LiveImportExportModule({
           </div>
           <div className="tlb-inline-actions" style={{ padding: 16 }}>
             {impDetail.status !== "Warehouse Received" && impDetail.status !== "Cancelled" ? (
-              <Button type="button" onClick={() => store.receiveImport(impDetail.id)}>Receive to warehouse (GRN)</Button>
+              <Button type="button" onClick={() => store.receiveImport(impDetail.id)}>
+                Receive to warehouse (GRN)
+              </Button>
             ) : null}
             <label className="tlb-select">
               Advance status
@@ -856,7 +1048,9 @@ export function LiveImportExportModule({
                 }}
               >
                 {IMPORT_STATUSES.map((s) => (
-                  <option key={s} value={s}>{s}</option>
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
                 ))}
               </select>
             </label>
@@ -866,7 +1060,11 @@ export function LiveImportExportModule({
           <div className="tlb-table-scroll">
             <table>
               <thead>
-                <tr><th>Product</th><th>Qty</th><th>Unit cost</th></tr>
+                <tr>
+                  <th>Product</th>
+                  <th>Qty</th>
+                  <th>Unit cost</th>
+                </tr>
               </thead>
               <tbody>
                 {lines.map((l) => (
@@ -885,7 +1083,9 @@ export function LiveImportExportModule({
   }
 
   if (expDetail) {
-    const lines = (store.state.exportShipmentLines ?? []).filter((l) => l.shipmentId === expDetail.id);
+    const lines = (store.state.exportShipmentLines ?? []).filter(
+      (l) => l.shipmentId === expDetail.id,
+    );
     return (
       <div className="tlb-module tlb-record-detail">
         <div className="tlb-module-toolbar">
@@ -902,16 +1102,37 @@ export function LiveImportExportModule({
               recordLabel={expDetail.number}
               onTrashed={() => setDetailId(null)}
             />
-            <Button type="button" variant="outline" onClick={() => setDetailId(null)}>Back</Button>
+            <Button type="button" variant="outline" onClick={() => setDetailId(null)}>
+              Back
+            </Button>
           </div>
         </div>
         <article className="tlb-panel">
           <div className="tlb-kv-grid" style={{ padding: 16 }}>
-            <div><span>Customer</span><strong>{store.state.customers.find((c) => c.id === expDetail.customerId)?.name}</strong></div>
-            <div><span>Status</span><strong><StatusBadge tone={statusTone(expDetail.status)}>{expDetail.status}</StatusBadge></strong></div>
-            <div><span>Carrier</span><strong>{expDetail.carrier ?? "—"}</strong></div>
-            <div><span>Docs</span><strong>{expDetail.docsRef ?? "—"}</strong></div>
-            <div><span>Staff</span><strong>{expDetail.staffName}</strong></div>
+            <div>
+              <span>Customer</span>
+              <strong>
+                {store.state.customers.find((c) => c.id === expDetail.customerId)?.name}
+              </strong>
+            </div>
+            <div>
+              <span>Status</span>
+              <strong>
+                <StatusBadge tone={statusTone(expDetail.status)}>{expDetail.status}</StatusBadge>
+              </strong>
+            </div>
+            <div>
+              <span>Carrier</span>
+              <strong>{expDetail.carrier ?? "—"}</strong>
+            </div>
+            <div>
+              <span>Docs</span>
+              <strong>{expDetail.docsRef ?? "—"}</strong>
+            </div>
+            <div>
+              <span>Staff</span>
+              <strong>{expDetail.staffName}</strong>
+            </div>
           </div>
           <div className="tlb-inline-actions" style={{ padding: 16 }}>
             <label className="tlb-select">
@@ -937,7 +1158,9 @@ export function LiveImportExportModule({
                 }}
               >
                 {EXPORT_STATUSES.map((s) => (
-                  <option key={s} value={s}>{s}</option>
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
                 ))}
               </select>
             </label>
@@ -962,8 +1185,20 @@ export function LiveImportExportModule({
       </div>
       <section className="tlb-filter-bar tlb-module-filters">
         <div className="tlb-periods">
-          <button type="button" className={tab === "import" ? "active" : ""} onClick={() => setTab("import")}>Imports</button>
-          <button type="button" className={tab === "export" ? "active" : ""} onClick={() => setTab("export")}>Exports</button>
+          <button
+            type="button"
+            className={tab === "import" ? "active" : ""}
+            onClick={() => setTab("import")}
+          >
+            Imports
+          </button>
+          <button
+            type="button"
+            className={tab === "export" ? "active" : ""}
+            onClick={() => setTab("export")}
+          >
+            Exports
+          </button>
         </div>
       </section>
       {open ? (
@@ -975,7 +1210,9 @@ export function LiveImportExportModule({
                   Supplier
                   <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
                     {store.state.suppliers.map((s) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
                     ))}
                   </select>
                 </label>
@@ -990,7 +1227,9 @@ export function LiveImportExportModule({
                     {store.state.supplierPurchaseOrders
                       .filter((p) => p.supplierId === supplierId)
                       .map((p) => (
-                        <option key={p.id} value={p.id}>{p.number}</option>
+                        <option key={p.id} value={p.id}>
+                          {p.number}
+                        </option>
                       ))}
                   </select>
                 </label>
@@ -1004,9 +1243,14 @@ export function LiveImportExportModule({
                 </label>
                 <label>
                   Status
-                  <select value={status} onChange={(e) => setStatus(e.target.value as ImportShipmentStatus)}>
+                  <select
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value as ImportShipmentStatus)}
+                  >
                     {IMPORT_STATUSES.map((s) => (
-                      <option key={s} value={s}>{s}</option>
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
                     ))}
                   </select>
                 </label>
@@ -1014,7 +1258,9 @@ export function LiveImportExportModule({
                   Warehouse dest
                   <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
                     {store.state.warehouses.map((w) => (
-                      <option key={w.id} value={w.id}>{w.name}</option>
+                      <option key={w.id} value={w.id}>
+                        {w.name}
+                      </option>
                     ))}
                   </select>
                 </label>
@@ -1022,13 +1268,20 @@ export function LiveImportExportModule({
                   Product
                   <select value={productId} onChange={(e) => setProductId(e.target.value)}>
                     {store.state.products.map((p) => (
-                      <option key={p.id} value={p.id}>{p.sku}</option>
+                      <option key={p.id} value={p.id}>
+                        {p.sku}
+                      </option>
                     ))}
                   </select>
                 </label>
                 <label>
                   Qty
-                  <input type="number" min={1} value={qty} onChange={(e) => setQty(Number(e.target.value))} />
+                  <input
+                    type="number"
+                    min={1}
+                    value={qty}
+                    onChange={(e) => setQty(Number(e.target.value))}
+                  />
                 </label>
               </div>
               <Button
@@ -1057,7 +1310,9 @@ export function LiveImportExportModule({
                   Customer
                   <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
                     {store.state.customers.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
                     ))}
                   </select>
                 </label>
@@ -1071,9 +1326,14 @@ export function LiveImportExportModule({
                 </label>
                 <label>
                   Status
-                  <select value={exportStatus} onChange={(e) => setExportStatus(e.target.value as ExportShipmentStatus)}>
+                  <select
+                    value={exportStatus}
+                    onChange={(e) => setExportStatus(e.target.value as ExportShipmentStatus)}
+                  >
                     {EXPORT_STATUSES.map((s) => (
-                      <option key={s} value={s}>{s}</option>
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
                     ))}
                   </select>
                 </label>
@@ -1081,13 +1341,20 @@ export function LiveImportExportModule({
                   Product
                   <select value={productId} onChange={(e) => setProductId(e.target.value)}>
                     {store.state.products.map((p) => (
-                      <option key={p.id} value={p.id}>{p.sku}</option>
+                      <option key={p.id} value={p.id}>
+                        {p.sku}
+                      </option>
                     ))}
                   </select>
                 </label>
                 <label>
                   Qty
-                  <input type="number" min={1} value={qty} onChange={(e) => setQty(Number(e.target.value))} />
+                  <input
+                    type="number"
+                    min={1}
+                    value={qty}
+                    onChange={(e) => setQty(Number(e.target.value))}
+                  />
                 </label>
               </div>
               <Button
@@ -1111,7 +1378,10 @@ export function LiveImportExportModule({
       ) : null}
       <article className="tlb-panel tlb-orders-panel">
         {(tab === "import" ? imports : exports).length === 0 ? (
-          <EmptyState title="No shipments" detail="Create an import or export shipment to track status." />
+          <EmptyState
+            title="No shipments"
+            detail="Create an import or export shipment to track status."
+          />
         ) : (
           <div className="tlb-table-scroll">
             <table>
@@ -1127,16 +1397,24 @@ export function LiveImportExportModule({
               <tbody>
                 {(tab === "import" ? imports : exports).map((s) => (
                   <tr key={s.id}>
-                    <td><strong>{s.number}</strong></td>
+                    <td>
+                      <strong>{s.number}</strong>
+                    </td>
                     <td>{"originCountry" in s ? s.originCountry : s.destinationCountry}</td>
                     <td>
                       {"supplierId" in s
                         ? store.state.suppliers.find((x) => x.id === s.supplierId)?.name
                         : store.state.customers.find((x) => x.id === s.customerId)?.name}
                     </td>
-                    <td><StatusBadge tone={statusTone(s.status)}>{s.status}</StatusBadge></td>
                     <td>
-                      <button type="button" aria-label="Open shipment" onClick={() => setDetailId(s.id)}>
+                      <StatusBadge tone={statusTone(s.status)}>{s.status}</StatusBadge>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        aria-label="Open shipment"
+                        onClick={() => setDetailId(s.id)}
+                      >
                         <ChevronRight />
                       </button>
                     </td>
@@ -1167,7 +1445,8 @@ export function StockAgeingModule({ store }: { store: TlbStoreApi }) {
   const ageing = useMemo(() => stockAgeingReport(store.state), [store.state]);
   const velocities = useMemo(() => stockVelocityReport(store.state), [store.state]);
   const filteredAge = band === "All" ? ageing : ageing.filter((r) => r.band === band);
-  const filteredVel = velocity === "All" ? velocities : velocities.filter((r) => r.velocity === velocity);
+  const filteredVel =
+    velocity === "All" ? velocities : velocities.filter((r) => r.velocity === velocity);
 
   return (
     <div className="tlb-module">
@@ -1175,7 +1454,9 @@ export function StockAgeingModule({ store }: { store: TlbStoreApi }) {
         <div>
           <span className="tlb-eyebrow">Inventory analytics</span>
           <strong>Stock ageing & velocity</strong>
-          <p className="tlb-muted-line">Bands 0–30 / 31–90 / 91–180 / 181–365 / 365+ · Fast / Slow / Dead</p>
+          <p className="tlb-muted-line">
+            Bands 0–30 / 31–90 / 91–180 / 181–365 / 365+ · Fast / Slow / Dead
+          </p>
         </div>
         <Button
           type="button"
@@ -1202,7 +1483,12 @@ export function StockAgeingModule({ store }: { store: TlbStoreApi }) {
       <section className="tlb-filter-bar tlb-module-filters">
         <div className="tlb-periods">
           {(["All", "0-30", "31-90", "91-180", "181-365", "365+"] as const).map((b) => (
-            <button key={b} type="button" className={band === b ? "active" : ""} onClick={() => setBand(b)}>
+            <button
+              key={b}
+              type="button"
+              className={band === b ? "active" : ""}
+              onClick={() => setBand(b)}
+            >
               {b}
             </button>
           ))}
@@ -1224,17 +1510,35 @@ export function StockAgeingModule({ store }: { store: TlbStoreApi }) {
             </thead>
             <tbody>
               {filteredAge.length === 0 ? (
-                <tr><td colSpan={7}><EmptyState title="No batches" detail="No stock in this ageing band." /></td></tr>
+                <tr>
+                  <td colSpan={7}>
+                    <EmptyState title="No batches" detail="No stock in this ageing band." />
+                  </td>
+                </tr>
               ) : (
                 filteredAge.map((r) => (
                   <tr key={r.batchId}>
-                    <td><strong>{r.batchCode}</strong></td>
+                    <td>
+                      <strong>{r.batchCode}</strong>
+                    </td>
                     <td>{r.productSku}</td>
                     <td>{r.warehouseName}</td>
                     <td>{r.remainingQty}</td>
                     <td>{formatMoney(r.value)}</td>
                     <td>{r.ageDays}d</td>
-                    <td><StatusBadge tone={r.band === "365+" || r.band === "181-365" ? "danger" : r.band === "0-30" ? "success" : "warning"}>{r.band}</StatusBadge></td>
+                    <td>
+                      <StatusBadge
+                        tone={
+                          r.band === "365+" || r.band === "181-365"
+                            ? "danger"
+                            : r.band === "0-30"
+                              ? "success"
+                              : "warning"
+                        }
+                      >
+                        {r.band}
+                      </StatusBadge>
+                    </td>
                   </tr>
                 ))
               )}
@@ -1245,7 +1549,12 @@ export function StockAgeingModule({ store }: { store: TlbStoreApi }) {
       <section className="tlb-filter-bar tlb-module-filters">
         <div className="tlb-periods">
           {(["All", "Fast", "Slow", "Dead"] as const).map((v) => (
-            <button key={v} type="button" className={velocity === v ? "active" : ""} onClick={() => setVelocity(v)}>
+            <button
+              key={v}
+              type="button"
+              className={velocity === v ? "active" : ""}
+              onClick={() => setVelocity(v)}
+            >
               {v}
             </button>
           ))}
@@ -1272,11 +1581,25 @@ export function StockAgeingModule({ store }: { store: TlbStoreApi }) {
             <tbody>
               {filteredVel.map((r) => (
                 <tr key={r.productId}>
-                  <td><strong>{r.productSku}</strong> · {r.productName}</td>
+                  <td>
+                    <strong>{r.productSku}</strong> · {r.productName}
+                  </td>
                   <td>{r.onHand}</td>
                   <td>{r.outbound30d}</td>
                   <td>{r.daysOfCover ?? "—"}</td>
-                  <td><StatusBadge tone={r.velocity === "Dead" ? "danger" : r.velocity === "Slow" ? "warning" : "success"}>{r.velocity}</StatusBadge></td>
+                  <td>
+                    <StatusBadge
+                      tone={
+                        r.velocity === "Dead"
+                          ? "danger"
+                          : r.velocity === "Slow"
+                            ? "warning"
+                            : "success"
+                      }
+                    >
+                      {r.velocity}
+                    </StatusBadge>
+                  </td>
                 </tr>
               ))}
             </tbody>

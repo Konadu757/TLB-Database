@@ -31,10 +31,7 @@ import type { DeliveryStatus, PaymentMethod } from "@/lib/domain/types";
 import { formatMoney, trashBlockReason } from "@/lib/store/tlb-store";
 import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
 
-function invoiceDownloadCtx(
-  store: TlbStoreApi,
-  invoiceId: string,
-): InvoiceDownloadContext | null {
+function invoiceDownloadCtx(store: TlbStoreApi, invoiceId: string): InvoiceDownloadContext | null {
   const invoice = store.state.invoices.find((i) => i.id === invoiceId);
   if (!invoice) return null;
   const customer = store.state.customers.find((c) => c.id === invoice.customerId);
@@ -50,17 +47,16 @@ function invoiceDownloadCtx(
   };
 }
 
-function receiptDownloadCtx(
-  store: TlbStoreApi,
-  receiptId: string,
-): ReceiptDownloadContext | null {
+function receiptDownloadCtx(store: TlbStoreApi, receiptId: string): ReceiptDownloadContext | null {
   const receipt = store.state.receipts.find((r) => r.id === receiptId);
   if (!receipt) return null;
   const customer = store.state.customers.find((c) => c.id === receipt.customerId);
   const invoice = receipt.invoiceId
     ? store.state.invoices.find((i) => i.id === receipt.invoiceId)
     : undefined;
-  const order = receipt.orderId ? store.state.orders.find((o) => o.id === receipt.orderId) : undefined;
+  const order = receipt.orderId
+    ? store.state.orders.find((o) => o.id === receipt.orderId)
+    : undefined;
   return {
     receipt,
     lines: store.state.receiptLines.filter((l) => l.receiptId === receipt.id),
@@ -99,7 +95,15 @@ async function handleReceiptPrintPdf(store: TlbStoreApi, receiptId: string) {
   }
 }
 
-function Flash({ error, notice, onClear }: { error: string | null; notice: string | null; onClear: () => void }) {
+function Flash({
+  error,
+  notice,
+  onClear,
+}: {
+  error: string | null;
+  notice: string | null;
+  onClear: () => void;
+}) {
   if (!error && !notice) return null;
   return (
     <div className={`tlb-flash ${error ? "tlb-flash-error" : "tlb-flash-ok"}`} role="status">
@@ -111,8 +115,22 @@ function Flash({ error, notice, onClear }: { error: string | null; notice: strin
   );
 }
 
-const METHODS: PaymentMethod[] = ["Cash", "Bank Transfer", "Mobile Money", "Cheque", "Card", "Other"];
-const DELIVERY_STATUSES: DeliveryStatus[] = ["Preparing", "Ready", "Dispatched", "Delivered", "Failed", "Returned"];
+const METHODS: PaymentMethod[] = [
+  "Cash",
+  "Bank Transfer",
+  "Mobile Money",
+  "Cheque",
+  "Card",
+  "Other",
+];
+const DELIVERY_STATUSES: DeliveryStatus[] = [
+  "Preparing",
+  "Ready",
+  "Dispatched",
+  "Delivered",
+  "Failed",
+  "Returned",
+];
 
 type FinanceTab = "invoices" | "receipts" | "payments";
 
@@ -136,7 +154,14 @@ function resolveFinanceFocus(
   if (focusId.startsWith("create-invoice:")) {
     const supplyId = focusId.slice("create-invoice:".length);
     const supply = state.supplies.find((s) => s.id === supplyId);
-    if (!supply) return { tab: "invoices", invoiceId: null, receiptId: null, paymentId: null, createInvoice: true };
+    if (!supply)
+      return {
+        tab: "invoices",
+        invoiceId: null,
+        receiptId: null,
+        paymentId: null,
+        createInvoice: true,
+      };
     return {
       tab: "invoices",
       invoiceId: null,
@@ -175,7 +200,13 @@ function resolveFinanceFocus(
         ...(latestSupply?.id ? { supplyId: latestSupply.id } : {}),
       };
     }
-    return { tab: "receipts", invoiceId: null, receiptId: null, paymentId: null, createReceipt: true };
+    return {
+      tab: "receipts",
+      invoiceId: null,
+      receiptId: null,
+      paymentId: null,
+      createReceipt: true,
+    };
   }
 
   if (state.invoices.some((i) => i.id === focusId)) {
@@ -214,12 +245,13 @@ function supplyReceiptPreview(
   if (!supply) return null;
   const lines = state.supplyLines.filter((sl) => sl.supplyId === supply.id);
   if (lines.length === 0) return null;
-  const amount = Math.round(
-    lines.reduce((sum, sl) => {
-      const orderLine = state.orderLines.find((l) => l.id === sl.orderLineId);
-      return sum + sl.quantity * (orderLine?.unitPrice ?? 0);
-    }, 0) * 100,
-  ) / 100;
+  const amount =
+    Math.round(
+      lines.reduce((sum, sl) => {
+        const orderLine = state.orderLines.find((l) => l.id === sl.orderLineId);
+        return sum + sl.quantity * (orderLine?.unitPrice ?? 0);
+      }, 0) * 100,
+    ) / 100;
   return { amount, lineCount: lines.length };
 }
 
@@ -244,9 +276,15 @@ export function FinanceModule({
   const { state } = store;
   const initialFocus = resolveFinanceFocus(state, focusId);
   const [tab, setTab] = useState<FinanceTab>(initialFocus?.tab ?? initialTab ?? "invoices");
-  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(initialFocus?.invoiceId ?? null);
-  const [selectedReceiptId, setSelectedReceiptId] = useState<string | null>(initialFocus?.receiptId ?? null);
-  const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(initialFocus?.paymentId ?? null);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(
+    initialFocus?.invoiceId ?? null,
+  );
+  const [selectedReceiptId, setSelectedReceiptId] = useState<string | null>(
+    initialFocus?.receiptId ?? null,
+  );
+  const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(
+    initialFocus?.paymentId ?? null,
+  );
   const [creatingInvoice, setCreatingInvoice] = useState(Boolean(initialFocus?.createInvoice));
   const [creatingReceipt, setCreatingReceipt] = useState(Boolean(initialFocus?.createReceipt));
   const [invoiceSearch, setInvoiceSearch] = useState("");
@@ -273,7 +311,9 @@ export function FinanceModule({
     paymentMethod: "Bank Transfer" as PaymentMethod,
     amountPaid: (() => {
       if (initialFocus?.orderId && initialFocus?.supplyId) {
-        return supplyReceiptPreview(state, initialFocus.orderId, initialFocus.supplyId)?.amount ?? 0;
+        return (
+          supplyReceiptPreview(state, initialFocus.orderId, initialFocus.supplyId)?.amount ?? 0
+        );
       }
       return 0;
     })(),
@@ -311,7 +351,9 @@ export function FinanceModule({
       setCreatingInvoice(false);
       const order = next.orderId ? state.orders.find((o) => o.id === next.orderId) : undefined;
       const preview =
-        next.orderId && next.supplyId ? supplyReceiptPreview(state, next.orderId, next.supplyId) : null;
+        next.orderId && next.supplyId
+          ? supplyReceiptPreview(state, next.orderId, next.supplyId)
+          : null;
       setReceiptForm((f) => ({
         ...f,
         orderId: next.orderId ?? "",
@@ -331,11 +373,17 @@ export function FinanceModule({
     if (!receiptForm.orderId) return;
     const order = state.orders.find((o) => o.id === receiptForm.orderId);
     if (!order) return;
-    setReceiptForm((f) => (f.customerId === order.customerId ? f : { ...f, customerId: order.customerId }));
+    setReceiptForm((f) =>
+      f.customerId === order.customerId ? f : { ...f, customerId: order.customerId },
+    );
   }, [receiptForm.orderId, state.orders]);
 
-  const orderSupplies = notSoftDeleted(state.supplies).filter((s) => s.orderId === invoiceForm.orderId);
-  const receiptOrderSupplies = notSoftDeleted(state.supplies).filter((s) => s.orderId === receiptForm.orderId);
+  const orderSupplies = notSoftDeleted(state.supplies).filter(
+    (s) => s.orderId === invoiceForm.orderId,
+  );
+  const receiptOrderSupplies = notSoftDeleted(state.supplies).filter(
+    (s) => s.orderId === receiptForm.orderId,
+  );
   const invoiceOrder = state.orders.find((o) => o.id === invoiceForm.orderId);
   const invoiceCustomer = invoiceOrder
     ? state.customers.find((c) => c.id === invoiceOrder.customerId)
@@ -376,7 +424,10 @@ export function FinanceModule({
       if (range && !isoInRange(p.paymentDate, range)) return false;
       const customer = state.customers.find((c) => c.id === p.customerId);
       const invoice = state.invoices.find((i) => i.id === p.invoiceId);
-      return matchesSearch([p.number, customer?.name, p.method, invoice?.number, p.recordedBy], paymentSearch);
+      return matchesSearch(
+        [p.number, customer?.name, p.method, invoice?.number, p.recordedBy],
+        paymentSearch,
+      );
     });
   }, [state.payments, state.customers, state.invoices, paymentSearch, range]);
 
@@ -387,9 +438,12 @@ export function FinanceModule({
   const receiptSelection = useListSelection(canBulkTrash && tab === "receipts" ? receiptIds : []);
   const paymentSelection = useListSelection(canBulkTrash && tab === "payments" ? paymentIds : []);
 
-  const selectedInvoice = notSoftDeleted(state.invoices).find((i) => i.id === selectedInvoiceId) ?? null;
-  const selectedReceipt = notSoftDeleted(state.receipts).find((r) => r.id === selectedReceiptId) ?? null;
-  const selectedPayment = notSoftDeleted(state.payments).find((p) => p.id === selectedPaymentId) ?? null;
+  const selectedInvoice =
+    notSoftDeleted(state.invoices).find((i) => i.id === selectedInvoiceId) ?? null;
+  const selectedReceipt =
+    notSoftDeleted(state.receipts).find((r) => r.id === selectedReceiptId) ?? null;
+  const selectedPayment =
+    notSoftDeleted(state.payments).find((p) => p.id === selectedPaymentId) ?? null;
 
   const sectionEyebrow =
     initialTab === "invoices"
@@ -416,16 +470,32 @@ export function FinanceModule({
         code={selectedInvoice.number}
         title={selectedInvoice.number}
         subtitle={customer?.name ?? "Invoice"}
-        badges={<StatusBadge tone={statusTone(selectedInvoice.paymentStatus)}>{selectedInvoice.paymentStatus}</StatusBadge>}
+        badges={
+          <StatusBadge tone={statusTone(selectedInvoice.paymentStatus)}>
+            {selectedInvoice.paymentStatus}
+          </StatusBadge>
+        }
         actions={
           <>
-            <Button type="button" variant="outline" onClick={() => handleInvoiceDownload(store, selectedInvoice.id)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleInvoiceDownload(store, selectedInvoice.id)}
+            >
               <Download /> Download
             </Button>
-            <Button type="button" variant="outline" onClick={() => handleInvoicePrintPdf(store, selectedInvoice.id)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleInvoicePrintPdf(store, selectedInvoice.id)}
+            >
               <Printer /> Save as PDF
             </Button>
-            <Button type="button" variant="outline" onClick={() => onOpenOrder(selectedInvoice.orderId)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenOrder(selectedInvoice.orderId)}
+            >
               Open order <ChevronRight />
             </Button>
             <MoveToTrashButton
@@ -461,7 +531,9 @@ export function FinanceModule({
               }
             >
               <span>Balance</span>
-              <strong>{formatMoney(Math.max(0, selectedInvoice.total - selectedInvoice.amountPaid))}</strong>
+              <strong>
+                {formatMoney(Math.max(0, selectedInvoice.total - selectedInvoice.amountPaid))}
+              </strong>
             </div>
           </div>
         </RecordDetailSection>
@@ -501,7 +573,11 @@ export function FinanceModule({
               <dt>Related order</dt>
               <dd>
                 {order ? (
-                  <button type="button" className="tlb-text-link" onClick={() => onOpenOrder(order.id)}>
+                  <button
+                    type="button"
+                    className="tlb-text-link"
+                    onClick={() => onOpenOrder(order.id)}
+                  >
                     {order.number}
                   </button>
                 ) : (
@@ -511,7 +587,9 @@ export function FinanceModule({
             </div>
             <div>
               <dt>Related supply</dt>
-              <dd>{state.supplies.find((s) => s.id === selectedInvoice.supplyId)?.number ?? "—"}</dd>
+              <dd>
+                {state.supplies.find((s) => s.id === selectedInvoice.supplyId)?.number ?? "—"}
+              </dd>
             </div>
             <div>
               <dt>Prepared by</dt>
@@ -573,14 +651,26 @@ export function FinanceModule({
         badges={<StatusBadge tone="success">Paid</StatusBadge>}
         actions={
           <>
-            <Button type="button" variant="outline" onClick={() => handleReceiptDownload(store, selectedReceipt.id)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleReceiptDownload(store, selectedReceipt.id)}
+            >
               <Download /> Download
             </Button>
-            <Button type="button" variant="outline" onClick={() => handleReceiptPrintPdf(store, selectedReceipt.id)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleReceiptPrintPdf(store, selectedReceipt.id)}
+            >
               <Printer /> Save as PDF
             </Button>
             {selectedReceipt.orderId ? (
-              <Button type="button" variant="outline" onClick={() => onOpenOrder(selectedReceipt.orderId!)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenOrder(selectedReceipt.orderId!)}
+              >
                 Open order <ChevronRight />
               </Button>
             ) : null}
@@ -632,7 +722,11 @@ export function FinanceModule({
               <dt>Related order</dt>
               <dd>
                 {order ? (
-                  <button type="button" className="tlb-text-link" onClick={() => onOpenOrder(order.id)}>
+                  <button
+                    type="button"
+                    className="tlb-text-link"
+                    onClick={() => onOpenOrder(order.id)}
+                  >
                     {order.number}
                   </button>
                 ) : (
@@ -642,7 +736,9 @@ export function FinanceModule({
             </div>
             <div>
               <dt>Related invoice</dt>
-              <dd>{state.invoices.find((i) => i.id === selectedReceipt.invoiceId)?.number ?? "—"}</dd>
+              <dd>
+                {state.invoices.find((i) => i.id === selectedReceipt.invoiceId)?.number ?? "—"}
+              </dd>
             </div>
             <div className="tlb-span-2">
               <dt>Notes</dt>
@@ -738,7 +834,9 @@ export function FinanceModule({
             </div>
             <div>
               <dt>Receipt</dt>
-              <dd>{state.receipts.find((r) => r.id === selectedPayment.receiptId)?.number ?? "—"}</dd>
+              <dd>
+                {state.receipts.find((r) => r.id === selectedPayment.receiptId)?.number ?? "—"}
+              </dd>
             </div>
             <div className="tlb-span-2">
               <dt>Notes</dt>
@@ -757,7 +855,9 @@ export function FinanceModule({
         <div>
           <span className="tlb-eyebrow">Control · Finance</span>
           <strong>Invoices, receipts & payments</strong>
-          {periodLabel ? <p className="tlb-muted-line">Document dates scoped to {periodLabel}</p> : null}
+          {periodLabel ? (
+            <p className="tlb-muted-line">Document dates scoped to {periodLabel}</p>
+          ) : null}
         </div>
         <div className="tlb-periods">
           {(["invoices", "receipts", "payments"] as const).map((t) => (
@@ -820,7 +920,9 @@ export function FinanceModule({
                     supplyId: invoiceForm.supplyId,
                     vatRateId: invoiceForm.vatRateId,
                     ...(invoiceForm.notes.trim() ? { notes: invoiceForm.notes.trim() } : {}),
-                    ...(invoiceForm.updateTin.trim() ? { updateCustomerTin: invoiceForm.updateTin.trim() } : {}),
+                    ...(invoiceForm.updateTin.trim()
+                      ? { updateCustomerTin: invoiceForm.updateTin.trim() }
+                      : {}),
                   });
                   if (ok) {
                     setInvoiceForm((f) => ({ ...f, notes: "", updateTin: "", supplyId: "" }));
@@ -842,7 +944,9 @@ export function FinanceModule({
                   <select
                     required
                     value={invoiceForm.orderId}
-                    onChange={(e) => setInvoiceForm({ ...invoiceForm, orderId: e.target.value, supplyId: "" })}
+                    onChange={(e) =>
+                      setInvoiceForm({ ...invoiceForm, orderId: e.target.value, supplyId: "" })
+                    }
                   >
                     {state.orders.map((o) => (
                       <option key={o.id} value={o.id}>
@@ -915,9 +1019,15 @@ export function FinanceModule({
           <article className="tlb-panel tlb-orders-panel tlb-customers-list-panel">
             <div className="tlb-table-scroll">
               {notSoftDeleted(state.invoices).length === 0 ? (
-                <EmptyState title="No invoices" detail="Create a VAT invoice from a posted supply." />
+                <EmptyState
+                  title="No invoices"
+                  detail="Create a VAT invoice from a posted supply."
+                />
               ) : filteredInvoices.length === 0 ? (
-                <EmptyState title="No invoices match your search." detail="Try another number, order, or customer." />
+                <EmptyState
+                  title="No invoices match your search."
+                  detail="Try another number, order, or customer."
+                />
               ) : (
                 <table className="tlb-customers-table">
                   <thead>
@@ -971,12 +1081,19 @@ export function FinanceModule({
                           <td className="tlb-col-priority">{customer?.name ?? "—"}</td>
                           <td className="tlb-col-priority">{order?.number ?? "—"}</td>
                           <td className="tlb-col-priority">{formatMoney(inv.total)}</td>
-                          <td className="tlb-col-priority">{new Date(inv.invoiceDate).toLocaleDateString()}</td>
                           <td className="tlb-col-priority">
-                            <StatusBadge tone={statusTone(inv.paymentStatus)}>{inv.paymentStatus}</StatusBadge>
+                            {new Date(inv.invoiceDate).toLocaleDateString()}
+                          </td>
+                          <td className="tlb-col-priority">
+                            <StatusBadge tone={statusTone(inv.paymentStatus)}>
+                              {inv.paymentStatus}
+                            </StatusBadge>
                           </td>
                           <td>
-                            <div className="tlb-toolbar-actions" style={{ justifyContent: "flex-end", gap: 4 }}>
+                            <div
+                              className="tlb-toolbar-actions"
+                              style={{ justifyContent: "flex-end", gap: 4 }}
+                            >
                               <button
                                 type="button"
                                 aria-label={`Download ${inv.number}`}
@@ -999,7 +1116,11 @@ export function FinanceModule({
                               >
                                 <Printer />
                               </button>
-                              <button type="button" aria-label={`Open ${inv.number}`} onClick={() => setSelectedInvoiceId(inv.id)}>
+                              <button
+                                type="button"
+                                aria-label={`Open ${inv.number}`}
+                                onClick={() => setSelectedInvoiceId(inv.id)}
+                              >
                                 <ChevronRight />
                               </button>
                             </div>
@@ -1105,9 +1226,13 @@ export function FinanceModule({
                     onChange={(e) => {
                       const orderId = e.target.value;
                       const order = state.orders.find((o) => o.id === orderId);
-                      const firstSupply = notSoftDeleted(state.supplies).find((s) => s.orderId === orderId);
+                      const firstSupply = notSoftDeleted(state.supplies).find(
+                        (s) => s.orderId === orderId,
+                      );
                       const preview =
-                        orderId && firstSupply ? supplyReceiptPreview(state, orderId, firstSupply.id) : null;
+                        orderId && firstSupply
+                          ? supplyReceiptPreview(state, orderId, firstSupply.id)
+                          : null;
                       setReceiptForm({
                         ...receiptForm,
                         orderId,
@@ -1172,7 +1297,10 @@ export function FinanceModule({
                   <select
                     value={receiptForm.paymentMethod}
                     onChange={(e) =>
-                      setReceiptForm({ ...receiptForm, paymentMethod: e.target.value as PaymentMethod })
+                      setReceiptForm({
+                        ...receiptForm,
+                        paymentMethod: e.target.value as PaymentMethod,
+                      })
                     }
                   >
                     {METHODS.map((m) => (
@@ -1187,11 +1315,14 @@ export function FinanceModule({
                     min={0}
                     step="0.01"
                     value={receiptForm.amountPaid}
-                    onChange={(e) => setReceiptForm({ ...receiptForm, amountPaid: Number(e.target.value) })}
+                    onChange={(e) =>
+                      setReceiptForm({ ...receiptForm, amountPaid: Number(e.target.value) })
+                    }
                   />
                   {receiptPreview ? (
                     <span className="tlb-muted-line">
-                      Supply total {formatMoney(receiptPreview.amount)} · {receiptPreview.lineCount} line
+                      Supply total {formatMoney(receiptPreview.amount)} · {receiptPreview.lineCount}{" "}
+                      line
                       {receiptPreview.lineCount === 1 ? "" : "s"}
                     </span>
                   ) : null}
@@ -1213,9 +1344,15 @@ export function FinanceModule({
           <article className="tlb-panel tlb-orders-panel tlb-customers-list-panel">
             <div className="tlb-table-scroll">
               {notSoftDeleted(state.receipts).length === 0 ? (
-                <EmptyState title="No receipts" detail="Create an ordinary receipt after supply or payment." />
+                <EmptyState
+                  title="No receipts"
+                  detail="Create an ordinary receipt after supply or payment."
+                />
               ) : filteredReceipts.length === 0 ? (
-                <EmptyState title="No receipts match your search." detail="Try another receipt number or customer." />
+                <EmptyState
+                  title="No receipts match your search."
+                  detail="Try another receipt number or customer."
+                />
               ) : (
                 <table className="tlb-customers-table">
                   <thead>
@@ -1263,15 +1400,22 @@ export function FinanceModule({
                         <td className="tlb-col-priority">
                           <strong>{r.number}</strong>
                         </td>
-                        <td className="tlb-col-priority">{state.customers.find((c) => c.id === r.customerId)?.name}</td>
+                        <td className="tlb-col-priority">
+                          {state.customers.find((c) => c.id === r.customerId)?.name}
+                        </td>
                         <td className="tlb-col-priority">
                           {state.orders.find((o) => o.id === r.orderId)?.number ?? "—"}
                         </td>
-                        <td className="tlb-col-priority">{new Date(r.receiptDate).toLocaleDateString()}</td>
+                        <td className="tlb-col-priority">
+                          {new Date(r.receiptDate).toLocaleDateString()}
+                        </td>
                         <td className="tlb-col-priority">{r.paymentMethod}</td>
                         <td className="tlb-col-priority">{formatMoney(r.amountPaid)}</td>
                         <td>
-                          <div className="tlb-toolbar-actions" style={{ justifyContent: "flex-end", gap: 4 }}>
+                          <div
+                            className="tlb-toolbar-actions"
+                            style={{ justifyContent: "flex-end", gap: 4 }}
+                          >
                             <button
                               type="button"
                               aria-label={`Download ${r.number}`}
@@ -1294,7 +1438,11 @@ export function FinanceModule({
                             >
                               <Printer />
                             </button>
-                            <button type="button" aria-label={`Open ${r.number}`} onClick={() => setSelectedReceiptId(r.id)}>
+                            <button
+                              type="button"
+                              aria-label={`Open ${r.number}`}
+                              onClick={() => setSelectedReceiptId(r.id)}
+                            >
                               <ChevronRight />
                             </button>
                           </div>
@@ -1337,9 +1485,15 @@ export function FinanceModule({
           <article className="tlb-panel tlb-orders-panel tlb-customers-list-panel">
             <div className="tlb-table-scroll">
               {notSoftDeleted(state.payments).length === 0 ? (
-                <EmptyState title="No payments" detail="Payments are audited when recorded against invoices/receipts." />
+                <EmptyState
+                  title="No payments"
+                  detail="Payments are audited when recorded against invoices/receipts."
+                />
               ) : filteredPayments.length === 0 ? (
-                <EmptyState title="No payments match your search." detail="Try another payment number or customer." />
+                <EmptyState
+                  title="No payments match your search."
+                  detail="Try another payment number or customer."
+                />
               ) : (
                 <table className="tlb-customers-table">
                   <thead>
@@ -1386,14 +1540,20 @@ export function FinanceModule({
                         <td className="tlb-col-priority">
                           <strong>{p.number}</strong>
                         </td>
-                        <td className="tlb-col-priority">{state.customers.find((c) => c.id === p.customerId)?.name}</td>
+                        <td className="tlb-col-priority">
+                          {state.customers.find((c) => c.id === p.customerId)?.name}
+                        </td>
                         <td className="tlb-col-priority">{formatMoney(p.amount)}</td>
                         <td className="tlb-col-priority">{p.method}</td>
                         <td className="tlb-col-priority">
                           {state.invoices.find((i) => i.id === p.invoiceId)?.number ?? "—"}
                         </td>
                         <td>
-                          <button type="button" aria-label={`Open ${p.number}`} onClick={() => setSelectedPaymentId(p.id)}>
+                          <button
+                            type="button"
+                            aria-label={`Open ${p.number}`}
+                            onClick={() => setSelectedPaymentId(p.id)}
+                          >
                             <ChevronRight />
                           </button>
                         </td>
@@ -1426,13 +1586,25 @@ export function DeliveriesModule({
   periodLabel?: string;
 }) {
   const { state } = store;
-  const [selectedId, setSelectedId] = useState<string | null>(focusId ?? null);
-  const [creating, setCreating] = useState(false);
+  const supplyFocus = focusId
+    ? notSoftDeleted(state.supplies).find((s) => s.id === focusId)
+    : undefined;
+  const deliveryFocus = focusId
+    ? notSoftDeleted(state.deliveries).find((d) => d.id === focusId)
+    : undefined;
+  const focusOrder = supplyFocus
+    ? state.orders.find((o) => o.id === supplyFocus.orderId)
+    : undefined;
+  const focusCustomer = focusOrder
+    ? state.customers.find((c) => c.id === focusOrder.customerId)
+    : undefined;
+  const [selectedId, setSelectedId] = useState<string | null>(deliveryFocus?.id ?? null);
+  const [creating, setCreating] = useState(Boolean(supplyFocus));
   const [search, setSearch] = useState("");
   const [form, setForm] = useState({
-    orderId: state.orders[0]?.id ?? "",
-    supplyId: "",
-    address: "",
+    orderId: supplyFocus?.orderId ?? state.orders[0]?.id ?? "",
+    supplyId: supplyFocus?.id ?? "",
+    address: focusCustomer?.address ?? "",
     method: "Own fleet",
     vehicle: "",
     driver: "",
@@ -1443,7 +1615,25 @@ export function DeliveriesModule({
 
   useEffect(() => {
     if (!focusId) return;
-    setSelectedId(focusId);
+    const supply = notSoftDeleted(state.supplies).find((s) => s.id === focusId);
+    if (supply) {
+      const order = state.orders.find((o) => o.id === supply.orderId);
+      const customer = order ? state.customers.find((c) => c.id === order.customerId) : undefined;
+      setSelectedId(null);
+      setCreating(true);
+      setForm((current) => ({
+        ...current,
+        orderId: supply.orderId,
+        supplyId: supply.id,
+        address: customer?.address || current.address,
+      }));
+      onFocusConsumed?.();
+      return;
+    }
+    if (notSoftDeleted(state.deliveries).some((d) => d.id === focusId)) {
+      setCreating(false);
+      setSelectedId(focusId);
+    }
     onFocusConsumed?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-shot on focusId
   }, [focusId]);
@@ -1555,7 +1745,9 @@ export function DeliveriesModule({
             </div>
             <div>
               <dt>Confirmation</dt>
-              <dd>{selected.confirmedAt ? new Date(selected.confirmedAt).toLocaleString() : "Pending"}</dd>
+              <dd>
+                {selected.confirmedAt ? new Date(selected.confirmedAt).toLocaleString() : "Pending"}
+              </dd>
             </div>
             <div className="tlb-span-2">
               <dt>Notes</dt>
@@ -1568,7 +1760,9 @@ export function DeliveriesModule({
               <select
                 value={selected.status}
                 disabled={!store.can("delivery.manage")}
-                onChange={(e) => store.setDeliveryStatus(selected.id, e.target.value as DeliveryStatus)}
+                onChange={(e) =>
+                  store.setDeliveryStatus(selected.id, e.target.value as DeliveryStatus)
+                }
               >
                 {DELIVERY_STATUSES.map((s) => (
                   <option key={s}>{s}</option>
@@ -1711,7 +1905,11 @@ export function DeliveriesModule({
             </label>
             <label>
               Supply
-              <select required value={form.supplyId} onChange={(e) => setForm({ ...form, supplyId: e.target.value })}>
+              <select
+                required
+                value={form.supplyId}
+                onChange={(e) => setForm({ ...form, supplyId: e.target.value })}
+              >
                 <option value="">Select supply</option>
                 {supplies.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -1722,23 +1920,39 @@ export function DeliveriesModule({
             </label>
             <label className="tlb-span-2">
               Address
-              <input required value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+              <input
+                required
+                value={form.address}
+                onChange={(e) => setForm({ ...form, address: e.target.value })}
+              />
             </label>
             <label>
               Method
-              <input value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })} />
+              <input
+                value={form.method}
+                onChange={(e) => setForm({ ...form, method: e.target.value })}
+              />
             </label>
             <label>
               Vehicle
-              <input value={form.vehicle} onChange={(e) => setForm({ ...form, vehicle: e.target.value })} />
+              <input
+                value={form.vehicle}
+                onChange={(e) => setForm({ ...form, vehicle: e.target.value })}
+              />
             </label>
             <label>
               Driver
-              <input value={form.driver} onChange={(e) => setForm({ ...form, driver: e.target.value })} />
+              <input
+                value={form.driver}
+                onChange={(e) => setForm({ ...form, driver: e.target.value })}
+              />
             </label>
             <label>
               Receiver
-              <input value={form.receiverName} onChange={(e) => setForm({ ...form, receiverName: e.target.value })} />
+              <input
+                value={form.receiverName}
+                onChange={(e) => setForm({ ...form, receiverName: e.target.value })}
+              />
             </label>
             <label>
               Receiver contact
@@ -1749,7 +1963,10 @@ export function DeliveriesModule({
             </label>
             <label className="tlb-span-2">
               Notes
-              <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+              <input
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              />
             </label>
             <div className="tlb-form-actions tlb-span-2">
               <Button type="submit">Create delivery</Button>
@@ -1763,7 +1980,10 @@ export function DeliveriesModule({
           {notSoftDeleted(state.deliveries).length === 0 ? (
             <EmptyState title="No deliveries" detail="Create a delivery from a posted supply." />
           ) : filtered.length === 0 ? (
-            <EmptyState title="No deliveries match your search." detail="Try another number, order, or customer." />
+            <EmptyState
+              title="No deliveries match your search."
+              detail="Try another number, order, or customer."
+            />
           ) : (
             <table className="tlb-customers-table">
               <thead>
@@ -1813,13 +2033,21 @@ export function DeliveriesModule({
                     <td className="tlb-col-priority">
                       {state.customers.find((c) => c.id === d.customerId)?.name ?? "—"}
                     </td>
-                    <td className="tlb-col-priority">{state.orders.find((o) => o.id === d.orderId)?.number ?? "—"}</td>
-                    <td className="tlb-col-priority">{new Date(d.deliveryDate).toLocaleDateString()}</td>
+                    <td className="tlb-col-priority">
+                      {state.orders.find((o) => o.id === d.orderId)?.number ?? "—"}
+                    </td>
+                    <td className="tlb-col-priority">
+                      {new Date(d.deliveryDate).toLocaleDateString()}
+                    </td>
                     <td className="tlb-col-priority">
                       <StatusBadge tone={statusTone(d.status)}>{d.status}</StatusBadge>
                     </td>
                     <td>
-                      <button type="button" aria-label={`Open ${d.number}`} onClick={() => setSelectedId(d.id)}>
+                      <button
+                        type="button"
+                        aria-label={`Open ${d.number}`}
+                        onClick={() => setSelectedId(d.id)}
+                      >
                         <ChevronRight />
                       </button>
                     </td>

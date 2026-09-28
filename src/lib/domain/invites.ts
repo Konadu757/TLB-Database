@@ -34,7 +34,9 @@ export function normalizeAccessCode(raw: string): string {
 }
 
 export function isInvitePending(user: AppUser): boolean {
-  return Boolean(user.invitePending && user.inviteToken && user.inviteCode && !user.inviteAcceptedAt);
+  return Boolean(
+    user.invitePending && user.inviteToken && user.inviteCode && !user.inviteAcceptedAt,
+  );
 }
 
 /** Build absolute invite URL for the current origin (or production fallback). */
@@ -76,4 +78,41 @@ export function findUserByInviteCode(users: AppUser[], code: string): AppUser | 
   const c = normalizeAccessCode(code);
   if (!c) return undefined;
   return users.find((u) => u.inviteCode && normalizeAccessCode(u.inviteCode) === c && u.active);
+}
+
+/** Drop URL token and access code before writing users into anon-readable settings. */
+export function staffUsersForRemoteDirectory(users: AppUser[]): AppUser[] {
+  return users.map((user) => {
+    const copy: AppUser = { ...user };
+    delete copy.inviteToken;
+    delete copy.inviteCode;
+    return copy;
+  });
+}
+
+/**
+ * Prefer remote staff rows, but keep invite secrets that exist only on this browser.
+ * Remote auth_directory intentionally omits token and code.
+ */
+export function mergeStaffUsers(remote: AppUser[] | undefined, local: AppUser[]): AppUser[] {
+  if (!remote?.length) return local;
+  const localById = new Map(local.map((user) => [user.id, user]));
+  const seen = new Set<string>();
+  const merged = remote.map((remoteUser) => {
+    seen.add(remoteUser.id);
+    const localUser = localById.get(remoteUser.id);
+    if (!localUser) return remoteUser;
+    return {
+      ...remoteUser,
+      inviteToken: remoteUser.inviteToken ?? localUser.inviteToken,
+      inviteCode: remoteUser.inviteCode ?? localUser.inviteCode,
+      inviteCreatedAt: remoteUser.inviteCreatedAt ?? localUser.inviteCreatedAt,
+      inviteAcceptedAt: remoteUser.inviteAcceptedAt ?? localUser.inviteAcceptedAt,
+      invitePending: remoteUser.invitePending ?? localUser.invitePending,
+    };
+  });
+  for (const localUser of local) {
+    if (!seen.has(localUser.id)) merged.push(localUser);
+  }
+  return merged;
 }

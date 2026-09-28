@@ -48,7 +48,11 @@ function money(n: number): string {
 
 function formatQuoteDate(iso: string): string {
   try {
-    return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+    return new Date(iso).toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
   } catch {
     return iso.slice(0, 10);
   }
@@ -132,7 +136,15 @@ export const QUOTATION_RECORDS: CatalogRecord[] = [
       { label: "Status", value: "Sent" },
       { label: "Age", value: "0d", note: "issued today" },
     ],
-    lines: [{ id: "qtl-1", label: "Hydrochloric Acid 32%", qty: 6, amount: 3840, note: "CHEM-001 · drums" }],
+    lines: [
+      {
+        id: "qtl-1",
+        label: "Hydrochloric Acid 32%",
+        qty: 6,
+        amount: 3840,
+        note: "CHEM-001 · drums",
+      },
+    ],
     history: [
       { id: "qth-1", at: TODAY, label: "Sent", detail: "Emailed to procurement@korlevista.gh" },
       { id: "qth-2", at: TODAY, label: "Created", detail: "Draft raised from customer enquiry" },
@@ -162,7 +174,9 @@ export const QUOTATION_RECORDS: CatalogRecord[] = [
       { label: "Status", value: "Draft" },
       { label: "Age", value: "1d" },
     ],
-    lines: [{ id: "qtl-2", label: "Ethanol 96%", qty: 12, amount: 15000, note: "CHEM-014 · drums" }],
+    lines: [
+      { id: "qtl-2", label: "Ethanol 96%", qty: 12, amount: 15000, note: "CHEM-014 · drums" },
+    ],
     history: [{ id: "qth-3", at: THIS_WEEK, label: "Created", detail: "Draft quotation opened" }],
   },
   {
@@ -222,7 +236,9 @@ export const QUOTATION_RECORDS: CatalogRecord[] = [
       { label: "Status", value: "Converted" },
       { label: "Age", value: "26d" },
     ],
-    lines: [{ id: "qtl-5", label: "Hydrochloric Acid 32%", qty: 40, amount: 25600, note: "CHEM-001" }],
+    lines: [
+      { id: "qtl-5", label: "Hydrochloric Acid 32%", qty: 40, amount: 25600, note: "CHEM-001" },
+    ],
     history: [
       { id: "qth-6", at: THIS_QUARTER, label: "Converted", detail: "Linked to TLB-ORD-2608-00104" },
       { id: "qth-7", at: THIS_QUARTER, label: "Accepted", detail: "Verbal + email confirmation" },
@@ -387,7 +403,9 @@ export const SANDBOX_RECORDS: CatalogRecord[] = [
       { label: "Import", value: "IMP-26017" },
       { label: "When", value: "This week" },
     ],
-    history: [{ id: "mh2", at: THIS_WEEK, label: "Drafted", detail: "Created from import clearing" }],
+    history: [
+      { id: "mh2", at: THIS_WEEK, label: "Drafted", detail: "Created from import clearing" },
+    ],
   },
   {
     id: "mv-issue",
@@ -607,7 +625,9 @@ export const SANDBOX_RECORDS: CatalogRecord[] = [
       { label: "Status", value: "Queued" },
       { label: "When", value: "This week" },
     ],
-    history: [{ id: "fh2", at: THIS_WEEK, label: "Queued", detail: "Scheduled behind peroxide run" }],
+    history: [
+      { id: "fh2", at: THIS_WEEK, label: "Queued", detail: "Scheduled behind peroxide run" },
+    ],
   },
   {
     id: "fac-done",
@@ -708,7 +728,13 @@ export const SANDBOX_RECORDS: CatalogRecord[] = [
 
 export const MODULE_META: Record<
   string,
-  { kicker: string; description: string; searchPlaceholder: string; emptyTitle: string; emptyDetail: string }
+  {
+    kicker: string;
+    description: string;
+    searchPlaceholder: string;
+    emptyTitle: string;
+    emptyDetail: string;
+  }
 > = {
   Quotations: {
     kicker: "Business",
@@ -764,14 +790,14 @@ export const MODULE_META: Record<
 export function recordsForModule(
   module: string,
   range?: DateRange | null,
-  opts?: { hideIds?: ReadonlySet<string>; userQuotations?: ReadonlyArray<Parameters<typeof quotationToCatalogRecord>[0]> },
+  opts?: {
+    hideIds?: ReadonlySet<string>;
+    userQuotations?: ReadonlyArray<Parameters<typeof quotationToCatalogRecord>[0]>;
+  },
 ): CatalogRecord[] {
   const source =
     module === "Quotations"
-      ? [
-          ...(opts?.userQuotations ?? []).map(quotationToCatalogRecord),
-          ...QUOTATION_RECORDS,
-        ]
+      ? [...(opts?.userQuotations ?? []).map(quotationToCatalogRecord), ...QUOTATION_RECORDS]
       : SANDBOX_RECORDS.filter((r) => r.module === module);
   const hide = opts?.hideIds;
   const visible = hide?.size ? source.filter((r) => !hide.has(r.id)) : source;

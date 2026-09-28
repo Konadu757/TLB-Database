@@ -47,10 +47,7 @@ import {
 } from "lucide-react";
 
 import logoUrl from "@/assets/tlb-logo.png";
-import {
-  DetailBackProvider,
-  useDetailBack,
-} from "@/components/modules/detail-back-context";
+import { DetailBackProvider, useDetailBack } from "@/components/modules/detail-back-context";
 import { RecordBackLink } from "@/components/modules/record-browser";
 import {
   CustomersModule,
@@ -117,7 +114,7 @@ import { buildDashboardSnapshot } from "@/lib/domain/dashboard-metrics";
 import { listVisibleNotifications } from "@/lib/domain/notifications";
 import {
   DASHBOARD_PERIODS,
-  DEMO_AS_OF,
+  livePeriodAsOf,
   resolveSelectionRange,
   selectionLabel,
   type DashboardPeriod,
@@ -326,7 +323,8 @@ function TLBDashboardInner() {
   const clearQuoteCreateRequest = useCallback(() => setQuoteCreateRequest(false), []);
 
   const [isNavMobile, setIsNavMobile] = useState(false);
-  const [openNavGroups, setOpenNavGroups] = useState<Record<string, boolean>>(readStoredOpenNavGroups);
+  const [openNavGroups, setOpenNavGroups] =
+    useState<Record<string, boolean>>(readStoredOpenNavGroups);
   const sidebarOpenRef = useRef(sidebarOpen);
   const desktopSidebarOpenRef = useRef(sidebarOpen);
 
@@ -409,10 +407,7 @@ function TLBDashboardInner() {
               }
               if (item.label === "Sales Orders") {
                 const count = store.state.orders.filter(
-                  (o) =>
-                    !o.deletedAt &&
-                    o.status !== "Delivered" &&
-                    o.status !== "Cancelled",
+                  (o) => !o.deletedAt && o.status !== "Delivered" && o.status !== "Cancelled",
                 ).length;
                 return { ...item, badge: count > 0 ? String(count) : undefined };
               }
@@ -460,10 +455,10 @@ function TLBDashboardInner() {
     setDetailBack(null);
     setActiveNav(nav);
     setSelectedOrderId(orderId ?? null);
-    setSelectedCustomerId(nav === "Customers" ? customerId ?? null : null);
-    setSelectedSupplierId(nav === "Suppliers" ? supplierId ?? null : null);
-    setOutstandingProductFilter(nav === "Outstanding Supplies" ? productId ?? null : null);
-    setModuleFocusId(FOCUSABLE_SEARCH_NAVS.has(nav) ? focusEntityId ?? null : null);
+    setSelectedCustomerId(nav === "Customers" ? (customerId ?? null) : null);
+    setSelectedSupplierId(nav === "Suppliers" ? (supplierId ?? null) : null);
+    setOutstandingProductFilter(nav === "Outstanding Supplies" ? (productId ?? null) : null);
+    setModuleFocusId(FOCUSABLE_SEARCH_NAVS.has(nav) ? (focusEntityId ?? null) : null);
     setOrderReturnNav(null);
     setMobileOpen(false);
     setInspector(null);
@@ -486,7 +481,8 @@ function TLBDashboardInner() {
       onOpenOrder: (id) => openOrderDetail(id),
       onOpenNav: (nav, entityId) => {
         if (nav === "Customers") openLiveModule("Customers", null, null, entityId ?? null);
-        else if (nav === "Suppliers") openLiveModule("Suppliers", null, null, null, entityId ?? null);
+        else if (nav === "Suppliers")
+          openLiveModule("Suppliers", null, null, null, entityId ?? null);
         else if (FOCUSABLE_SEARCH_NAVS.has(nav)) {
           openLiveModule(nav, null, null, null, null, entityId ?? null);
         } else openLiveModule(nav);
@@ -553,7 +549,7 @@ function TLBDashboardInner() {
   const showPeriodBar = PERIOD_SCOPED_NAV.has(activeNav);
   const overlayOpen = quickOpen || quoteFormOpen;
   const listRange = useMemo(
-    () => resolveSelectionRange(rangeSelection, DEMO_AS_OF),
+    () => resolveSelectionRange(rangeSelection, livePeriodAsOf()),
     [rangeSelection],
   );
   const listPeriodLabel = selectionLabel(rangeSelection);
@@ -739,7 +735,7 @@ function TLBDashboardInner() {
   }, [notificationsOpen, quickOpen, userOpen, searchOpen]);
 
   const dash = useMemo(
-    () => buildDashboardSnapshot(store.state, rangeSelection, warehouse, DEMO_AS_OF),
+    () => buildDashboardSnapshot(store.state, rangeSelection, warehouse, livePeriodAsOf()),
     [store.state, rangeSelection, warehouse],
   );
   const maxSale = Math.max(dash.chartAxisMax, 1);
@@ -756,7 +752,10 @@ function TLBDashboardInner() {
   };
 
   const sidebar = (
-    <aside className={cn("tlb-sidebar", !sidebarIsOpen && "tlb-sidebar-collapsed")} aria-label="Primary navigation">
+    <aside
+      className={cn("tlb-sidebar", !sidebarIsOpen && "tlb-sidebar-collapsed")}
+      aria-label="Primary navigation"
+    >
       <div className="tlb-brand">
         <span className="tlb-brand-mark">
           <img src={logoUrl} alt="TLB Enterprise" className="tlb-brand-logo" />
@@ -836,8 +835,16 @@ function TLBDashboardInner() {
   return (
     <div className="tlb-app-shell">
       <div className="tlb-desktop-sidebar">{sidebar}</div>
-      {mobileOpen && <div className="tlb-mobile-overlay" onClick={() => setMobileOpen(false)} aria-hidden="true" />}
-      <div className={cn("tlb-mobile-sidebar", mobileOpen && "tlb-mobile-sidebar-open")}>{sidebar}</div>
+      {mobileOpen && (
+        <div
+          className="tlb-mobile-overlay"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+      <div className={cn("tlb-mobile-sidebar", mobileOpen && "tlb-mobile-sidebar-open")}>
+        {sidebar}
+      </div>
 
       <div className={cn("tlb-main", detailOpen && "tlb-main--detail-open")}>
         <header className="tlb-header">
@@ -857,7 +864,10 @@ function TLBDashboardInner() {
           </Button>
           <HeaderDetailBack />
           {showPeriodBar && !detailOpen && (
-            <p className="tlb-header-context" title={`Wednesday, 09 September 2026 · ${periodCaption} · ${warehouse}`}>
+            <p
+              className="tlb-header-context"
+              title={`Wednesday, 09 September 2026 · ${periodCaption} · ${warehouse}`}
+            >
               Wednesday, 09 September 2026 · {periodCaption} · {warehouse}
             </p>
           )}
@@ -956,8 +966,10 @@ function TLBDashboardInner() {
                     }}
                     onOpenOrder={(id) => openOrderDetail(id)}
                     onOpenNav={(nav, entityId) => {
-                      if (nav === "Customers") openLiveModule("Customers", null, null, entityId ?? null);
-                      else if (nav === "Suppliers") openLiveModule("Suppliers", null, null, null, entityId ?? null);
+                      if (nav === "Customers")
+                        openLiveModule("Customers", null, null, entityId ?? null);
+                      else if (nav === "Suppliers")
+                        openLiveModule("Suppliers", null, null, null, entityId ?? null);
                       else if (FOCUSABLE_SEARCH_NAVS.has(nav)) {
                         openLiveModule(nav, null, null, null, null, entityId ?? null);
                       } else openLiveModule(nav);
@@ -1002,8 +1014,21 @@ function TLBDashboardInner() {
                 ) : null}
               </Button>
               {notificationsOpen && (
-                <div className="tlb-popover tlb-notification-panel" role="region" aria-label="Notifications">
-                  <div className="tlb-popover-heading"><strong>Notifications</strong><button type="button" aria-label="Close notifications" onClick={() => setNotificationsOpen(false)}><X /></button></div>
+                <div
+                  className="tlb-popover tlb-notification-panel"
+                  role="region"
+                  aria-label="Notifications"
+                >
+                  <div className="tlb-popover-heading">
+                    <strong>Notifications</strong>
+                    <button
+                      type="button"
+                      aria-label="Close notifications"
+                      onClick={() => setNotificationsOpen(false)}
+                    >
+                      <X />
+                    </button>
+                  </div>
                   {visibleNotifications.slice(0, 6).map((n) => (
                     <button
                       type="button"
@@ -1011,7 +1036,9 @@ function TLBDashboardInner() {
                       key={n.id}
                       onClick={() => openNotificationRelated(n)}
                     >
-                      <span className={`tlb-alert-dot tlb-alert-${n.type.includes("overdue") || n.type.includes("extended") ? "danger" : n.type.includes("approaching") || n.type.includes("partial") ? "warning" : "info"}`} />
+                      <span
+                        className={`tlb-alert-dot tlb-alert-${n.type.includes("overdue") || n.type.includes("extended") ? "danger" : n.type.includes("approaching") || n.type.includes("partial") ? "warning" : "info"}`}
+                      />
                       <div>
                         <strong>{n.title}</strong>
                         <span>{n.body}</span>
@@ -1019,7 +1046,10 @@ function TLBDashboardInner() {
                     </button>
                   ))}
                   {visibleNotifications.length === 0 ? (
-                    <p className="tlb-muted" style={{ margin: "0.5rem 0.75rem", fontSize: "0.8125rem" }}>
+                    <p
+                      className="tlb-muted"
+                      style={{ margin: "0.5rem 0.75rem", fontSize: "0.8125rem" }}
+                    >
                       No notifications yet.
                     </p>
                   ) : null}
@@ -1055,53 +1085,99 @@ function TLBDashboardInner() {
                 }}
               >
                 <div className="tlb-avatar">{userInitials(store.state.currentUser)}</div>
-                <div className="tlb-user-copy"><strong>{store.state.currentUser}</strong><span>{store.state.currentRole}</span></div>
+                <div className="tlb-user-copy">
+                  <strong>{store.state.currentUser}</strong>
+                  <span>{store.state.currentRole}</span>
+                </div>
                 <ChevronDown />
               </button>
               {userOpen && (
-                <div className="tlb-popover tlb-quick-menu tlb-user-menu" role="menu" aria-label="Account">
-                  <button type="button" role="menuitem" onClick={() => openInspector({ title: store.state.currentUser, kicker: "Signed in", lines: [`Role: ${store.state.currentRole}`, "Workspace: TLB Enterprise", "Owner manages users & roles under Settings."] })}>Profile <ChevronRight /></button>
-                  <button type="button" role="menuitem" onClick={() => { setUserOpen(false); setActiveNav("Settings"); }}>Settings <ChevronRight /></button>
+                <div
+                  className="tlb-popover tlb-quick-menu tlb-user-menu"
+                  role="menu"
+                  aria-label="Account"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() =>
+                      openInspector({
+                        title: store.state.currentUser,
+                        kicker: "Signed in",
+                        lines: [
+                          `Role: ${store.state.currentRole}`,
+                          "Workspace: TLB Enterprise",
+                          "Owner manages users & roles under Settings.",
+                        ],
+                      })
+                    }
+                  >
+                    Profile <ChevronRight />
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setUserOpen(false);
+                      setActiveNav("Settings");
+                    }}
+                  >
+                    Settings <ChevronRight />
+                  </button>
                 </div>
               )}
             </div>
           </div>
         </header>
 
-        <main className={cn("tlb-content", detailOpen && "tlb-content--detail-open", overlayOpen && "tlb-content--overlay-open")}>
+        <main
+          className={cn(
+            "tlb-content",
+            detailOpen && "tlb-content--detail-open",
+            overlayOpen && "tlb-content--overlay-open",
+          )}
+        >
           {!detailOpen && (
-          <div className={cn("tlb-page-heading", quickOpen && "tlb-page-heading--overlay-open")}>
-            <div>
-              <h1 className={cn(activeNav === "Dashboard" && "tlb-dashboard-title")}>{activeNav === "Dashboard" ? "Dashboard" : activeNav}</h1>
-            </div>
-            <div className="tlb-heading-actions">
-              <div className="tlb-popover-wrap" ref={quickWrapRef}>
-                <Button
-                  onClick={() => {
-                    setQuickOpen((value) => {
-                      const next = !value;
-                      if (next) {
-                        setNotificationsOpen(false);
-                        setSearchOpen(false);
-                        setUserOpen(false);
-                      }
-                      return next;
-                    });
-                  }}
-                  aria-expanded={quickOpen}
-                  aria-controls="tlb-quick-menu"
-                >
-                  <Plus /> Quick action <ChevronDown />
-                </Button>
-                {quickOpen && (
-                  <div
-                    id="tlb-quick-menu"
-                    className="tlb-popover tlb-quick-menu"
-                    role="menu"
-                    aria-label="Quick actions"
+            <div className={cn("tlb-page-heading", quickOpen && "tlb-page-heading--overlay-open")}>
+              <div>
+                <h1 className={cn(activeNav === "Dashboard" && "tlb-dashboard-title")}>
+                  {activeNav === "Dashboard" ? "Dashboard" : activeNav}
+                </h1>
+              </div>
+              <div className="tlb-heading-actions">
+                <div className="tlb-popover-wrap" ref={quickWrapRef}>
+                  <Button
+                    onClick={() => {
+                      setQuickOpen((value) => {
+                        const next = !value;
+                        if (next) {
+                          setNotificationsOpen(false);
+                          setSearchOpen(false);
+                          setUserOpen(false);
+                        }
+                        return next;
+                      });
+                    }}
+                    aria-expanded={quickOpen}
+                    aria-controls="tlb-quick-menu"
                   >
-                    {["Create quotation", "Create customer order", "Receive goods", "View outstanding supplies", "Create invoice", "Reset Phase 30 demo"].map(
-                      (action) => (
+                    <Plus /> Quick action <ChevronDown />
+                  </Button>
+                  {quickOpen && (
+                    <div
+                      id="tlb-quick-menu"
+                      className="tlb-popover tlb-quick-menu"
+                      role="menu"
+                      aria-label="Quick actions"
+                    >
+                      {[
+                        "Create quotation",
+                        "Create customer order",
+                        "Receive goods",
+                        "View outstanding supplies",
+                        "Create invoice",
+                        "Reset Phase 30 demo",
+                      ].map((action) => (
                         <button
                           type="button"
                           role="menuitem"
@@ -1111,22 +1187,24 @@ function TLBDashboardInner() {
                             if (action === "Create quotation") {
                               setQuoteCreateRequest(true);
                               openLiveModule("Quotations");
-                            } else if (action === "Create customer order") openLiveModule("Sales Orders");
+                            } else if (action === "Create customer order")
+                              openLiveModule("Sales Orders");
                             else if (action === "Receive goods") openLiveModule("Stock");
-                            else if (action === "View outstanding supplies") openLiveModule("Outstanding Supplies");
+                            else if (action === "View outstanding supplies")
+                              openLiveModule("Outstanding Supplies");
                             else if (action === "Create invoice") openLiveModule("Invoices");
                             else store.resetDemo();
                           }}
                         >
-                          {action}<ChevronRight />
+                          {action}
+                          <ChevronRight />
                         </button>
-                      ),
-                    )}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
           )}
 
           {showPeriodBar && !detailOpen && (
@@ -1136,14 +1214,30 @@ function TLBDashboardInner() {
                   <button
                     type="button"
                     key={item}
-                    className={rangeSelection.mode === "preset" && rangeSelection.period === item ? "active" : ""}
+                    className={
+                      rangeSelection.mode === "preset" && rangeSelection.period === item
+                        ? "active"
+                        : ""
+                    }
                     onClick={() => selectPreset(item)}
                   >
                     {item}
                   </button>
                 ))}
               </div>
-              <label className="tlb-select"><Warehouse /><select value={warehouse} onChange={(event) => setWarehouse(event.target.value)} aria-label="Warehouse"><option>All warehouses</option><option>Main Warehouse</option><option>Factory Store</option></select><ChevronDown /></label>
+              <label className="tlb-select">
+                <Warehouse />
+                <select
+                  value={warehouse}
+                  onChange={(event) => setWarehouse(event.target.value)}
+                  aria-label="Warehouse"
+                >
+                  <option>All warehouses</option>
+                  <option>Main Warehouse</option>
+                  <option>Factory Store</option>
+                </select>
+                <ChevronDown />
+              </label>
             </section>
           )}
 
@@ -1209,7 +1303,9 @@ function TLBDashboardInner() {
             ) : activeNav === "Stock" ? (
               <StockModule
                 store={store}
-                onViewOutstanding={(productId) => openLiveModule("Outstanding Supplies", null, productId)}
+                onViewOutstanding={(productId) =>
+                  openLiveModule("Outstanding Supplies", null, productId)
+                }
               />
             ) : activeNav === "Batches" ? (
               <LiveBatchesModule
@@ -1254,7 +1350,11 @@ function TLBDashboardInner() {
                 onFocusConsumed={() => setModuleFocusId(null)}
               />
             ) : activeNav === "Stock Movements" ? (
-              <LiveStockMovementsModule range={listRange} periodLabel={listPeriodLabel} store={store} />
+              <LiveStockMovementsModule
+                range={listRange}
+                periodLabel={listPeriodLabel}
+                store={store}
+              />
             ) : activeNav === "Stock Ageing" ? (
               <StockAgeingModule store={store} />
             ) : activeNav === "Trace Product" ? (
@@ -1298,9 +1398,11 @@ function TLBDashboardInner() {
                 onOpenRequest={(id) => openLiveModule("Requests", null, null, null, null, id)}
                 onNavigateAction={(nav, id) => {
                   if (nav === "Approvals") openLiveModule("Approvals");
-                  else if (nav === "Warehouse Actions") openLiveModule("Warehouse Actions", null, null, null, null, id);
+                  else if (nav === "Warehouse Actions")
+                    openLiveModule("Warehouse Actions", null, null, null, null, id);
                   else if (nav === "Drivers") openLiveModule("Drivers", null, null, null, null, id);
-                  else if (nav === "Exceptions / Discrepancies") openLiveModule("Exceptions / Discrepancies");
+                  else if (nav === "Exceptions / Discrepancies")
+                    openLiveModule("Exceptions / Discrepancies");
                   else openLiveModule("Requests", null, null, null, null, id);
                 }}
               />
@@ -1364,7 +1466,11 @@ function TLBDashboardInner() {
                 range={listRange}
                 periodLabel={listPeriodLabel}
                 initialTab={
-                  activeNav === "Invoices" ? "invoices" : activeNav === "Receipts" ? "receipts" : undefined
+                  activeNav === "Invoices"
+                    ? "invoices"
+                    : activeNav === "Receipts"
+                      ? "receipts"
+                      : undefined
                 }
               />
             ) : activeNav === "Accounts Receivable" ? (
@@ -1403,366 +1509,437 @@ function TLBDashboardInner() {
             ) : null
           ) : (
             <>
-          <section className="tlb-overview-section" aria-labelledby="tlb-business-overview-heading">
-            <h2 id="tlb-business-overview-heading" className="tlb-section-title">Business overview</h2>
-            <div className="tlb-overview-grid">
-              <div className="tlb-overview-primary" role="list">
-                {dash.metrics.slice(0, 2).map((metric, index) => {
-                  const MetricIcon = metricIconForLabel(metric.label);
-                  return (
-                    <button
-                      type="button"
-                      className={cn(
-                        "tlb-metric tlb-metric--primary",
-                        index === 0 && "tlb-metric--hero",
-                      )}
-                      key={metric.label}
-                      role="listitem"
-                      aria-label={`${metric.label}: ${metric.value}`}
-                      onClick={() => {
-                        if (index === 1) {
-                          setActiveNav("Stock");
-                          return;
-                        }
-                        openInspector({
-                          title: metric.label,
-                          kicker: "KPI",
-                          lines: [
-                            `Value: ${metric.value}`,
-                            metric.note,
-                            dash.salesBasisLabel,
-                            `Filter: ${periodCaption} · ${warehouse}`,
-                            `Range: ${dash.periodLabel}`,
-                          ],
-                        });
-                      }}
-                    >
-                      <div className="tlb-metric-label">
-                        <span className="tlb-metric-title">{metric.label}</span>
-                        <span className="tlb-metric-icon" aria-hidden="true">
-                          <MetricIcon />
-                        </span>
-                      </div>
-                      <strong className="tlb-metric-value">{metric.value}</strong>
-                      {index === 1 ? (
-                        <>
-                          <div
-                            className="tlb-metric-progress"
-                            aria-hidden="true"
-                          >
-                            <span
-                              style={{
-                                width: `${Math.max(
-                                  4,
-                                  Math.min(
-                                    100,
-                                    dash.stockItemCount > 0
-                                      ? ((dash.stockItemCount - dash.outOfStock) /
-                                          Math.max(dash.stockItemCount, 1)) *
-                                        100
-                                      : 0,
-                                  ),
-                                )}%`,
-                              }}
-                            />
+              <section
+                className="tlb-overview-section"
+                aria-labelledby="tlb-business-overview-heading"
+              >
+                <h2 id="tlb-business-overview-heading" className="tlb-section-title">
+                  Business overview
+                </h2>
+                <div className="tlb-overview-grid">
+                  <div className="tlb-overview-primary" role="list">
+                    {dash.metrics.slice(0, 2).map((metric, index) => {
+                      const MetricIcon = metricIconForLabel(metric.label);
+                      return (
+                        <button
+                          type="button"
+                          className={cn(
+                            "tlb-metric tlb-metric--primary",
+                            index === 0 && "tlb-metric--hero",
+                          )}
+                          key={metric.label}
+                          role="listitem"
+                          aria-label={`${metric.label}: ${metric.value}`}
+                          onClick={() => {
+                            if (index === 1) {
+                              setActiveNav("Stock");
+                              return;
+                            }
+                            openInspector({
+                              title: metric.label,
+                              kicker: "KPI",
+                              lines: [
+                                `Value: ${metric.value}`,
+                                metric.note,
+                                dash.salesBasisLabel,
+                                `Filter: ${periodCaption} · ${warehouse}`,
+                                `Range: ${dash.periodLabel}`,
+                              ],
+                            });
+                          }}
+                        >
+                          <div className="tlb-metric-label">
+                            <span className="tlb-metric-title">{metric.label}</span>
+                            <span className="tlb-metric-icon" aria-hidden="true">
+                              <MetricIcon />
+                            </span>
                           </div>
-                          <p className="tlb-metric-link">
-                            Stock board <ChevronRight />
-                          </p>
-                        </>
-                      ) : (
-                        <p
-                          className={
-                            metric.trend === "up"
-                              ? "metric-positive"
-                              : metric.trend === "down"
-                                ? "metric-negative"
-                                : ""
+                          <strong className="tlb-metric-value">{metric.value}</strong>
+                          {index === 1 ? (
+                            <>
+                              <div className="tlb-metric-progress" aria-hidden="true">
+                                <span
+                                  style={{
+                                    width: `${Math.max(
+                                      4,
+                                      Math.min(
+                                        100,
+                                        dash.stockItemCount > 0
+                                          ? ((dash.stockItemCount - dash.outOfStock) /
+                                              Math.max(dash.stockItemCount, 1)) *
+                                              100
+                                          : 0,
+                                      ),
+                                    )}%`,
+                                  }}
+                                />
+                              </div>
+                              <p className="tlb-metric-link">
+                                Stock board <ChevronRight />
+                              </p>
+                            </>
+                          ) : (
+                            <p
+                              className={
+                                metric.trend === "up"
+                                  ? "metric-positive"
+                                  : metric.trend === "down"
+                                    ? "metric-negative"
+                                    : ""
+                              }
+                            >
+                              {metric.trend === "up" && <ArrowUpRight />}
+                              {metric.trend === "down" && <ArrowDownRight />}
+                              {metric.note}
+                            </p>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="tlb-overview-kpis" role="list">
+                    {dash.metrics.slice(2, 5).map((metric) => {
+                      const MetricIcon = metricIconForLabel(metric.label);
+                      return (
+                        <button
+                          type="button"
+                          className="tlb-metric tlb-metric--compact"
+                          key={metric.label}
+                          role="listitem"
+                          aria-label={`${metric.label}: ${metric.value}`}
+                          onClick={() =>
+                            openInspector({
+                              title: metric.label,
+                              kicker: "KPI",
+                              lines: [
+                                `Value: ${metric.value}`,
+                                metric.note,
+                                dash.salesBasisLabel,
+                                `Filter: ${periodCaption} · ${warehouse}`,
+                                `Range: ${dash.periodLabel}`,
+                              ],
+                            })
                           }
                         >
-                          {metric.trend === "up" && <ArrowUpRight />}
-                          {metric.trend === "down" && <ArrowDownRight />}
-                          {metric.note}
-                        </p>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="tlb-overview-kpis" role="list">
-                {dash.metrics.slice(2, 5).map((metric) => {
-                  const MetricIcon = metricIconForLabel(metric.label);
-                  return (
-                    <button
-                      type="button"
-                      className="tlb-metric tlb-metric--compact"
-                      key={metric.label}
-                      role="listitem"
-                      aria-label={`${metric.label}: ${metric.value}`}
-                      onClick={() =>
-                        openInspector({
-                          title: metric.label,
-                          kicker: "KPI",
-                          lines: [
-                            `Value: ${metric.value}`,
-                            metric.note,
-                            dash.salesBasisLabel,
-                            `Filter: ${periodCaption} · ${warehouse}`,
-                            `Range: ${dash.periodLabel}`,
-                          ],
-                        })
-                      }
-                    >
-                      <div className="tlb-metric-label">
-                        <span className="tlb-metric-title">{metric.label}</span>
-                        <span className="tlb-metric-icon" aria-hidden="true">
-                          <MetricIcon />
-                        </span>
+                          <div className="tlb-metric-label">
+                            <span className="tlb-metric-title">{metric.label}</span>
+                            <span className="tlb-metric-icon" aria-hidden="true">
+                              <MetricIcon />
+                            </span>
+                          </div>
+                          <strong className="tlb-metric-value">{metric.value}</strong>
+                          <p
+                            className={
+                              metric.trend === "up"
+                                ? "metric-positive"
+                                : metric.trend === "down"
+                                  ? "metric-negative"
+                                  : ""
+                            }
+                          >
+                            {metric.trend === "up" && <ArrowUpRight />}
+                            {metric.trend === "down" && <ArrowDownRight />}
+                            {metric.note}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <aside className="tlb-overview-aside" aria-label="Outstanding supplies">
+                    <OutstandingDashboardWidget
+                      store={store}
+                      dateFilter={dash.range}
+                      onOpen={() => openLiveModule("Outstanding Supplies")}
+                    />
+                  </aside>
+                </div>
+              </section>
+
+              <DueAwarenessPanel
+                state={store.state}
+                outstanding={store.outstanding}
+                onOpenNotifications={() => openLiveModule("Notifications")}
+              />
+
+              <section className="tlb-overview-section" aria-labelledby="tlb-ops-overview-heading">
+                <h2 id="tlb-ops-overview-heading" className="tlb-section-title">
+                  Operations snapshot
+                </h2>
+                <div className="tlb-dashboard-grid">
+                  <article className="tlb-panel tlb-sales-panel">
+                    <div className="tlb-panel-heading">
+                      <div>
+                        <span>Collected sales</span>
+                        <strong>{dash.salesTotalLabel}</strong>
                       </div>
-                      <strong className="tlb-metric-value">{metric.value}</strong>
-                      <p
-                        className={
-                          metric.trend === "up"
-                            ? "metric-positive"
-                            : metric.trend === "down"
-                              ? "metric-negative"
-                              : ""
-                        }
-                      >
-                        {metric.trend === "up" && <ArrowUpRight />}
-                        {metric.trend === "down" && <ArrowDownRight />}
-                        {metric.note}
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
-              <aside className="tlb-overview-aside" aria-label="Outstanding supplies">
-                <OutstandingDashboardWidget
-                  store={store}
-                  dateFilter={dash.range}
-                  onOpen={() => openLiveModule("Outstanding Supplies")}
-                />
-              </aside>
-            </div>
-          </section>
-
-          <DueAwarenessPanel
-            state={store.state}
-            outstanding={store.outstanding}
-            onOpenNotifications={() => openLiveModule("Notifications")}
-          />
-
-          <section className="tlb-overview-section" aria-labelledby="tlb-ops-overview-heading">
-            <h2 id="tlb-ops-overview-heading" className="tlb-section-title">Operations snapshot</h2>
-          <div className="tlb-dashboard-grid">
-            <article className="tlb-panel tlb-sales-panel">
-              <div className="tlb-panel-heading">
-                <div>
-                  <span>Collected sales</span>
-                  <strong>{dash.salesTotalLabel}</strong>
-                </div>
-                <StatusBadge tone={dash.salesDeltaTone}>{dash.salesDeltaLabel}</StatusBadge>
-              </div>
-              <div className="tlb-chart" aria-label={`Collected sales trend for ${periodCaption}`}>
-                <div className="tlb-chart-axis">
-                  <span>{Math.round(maxSale / 1000)}K</span>
-                  <span>{Math.round((maxSale * 0.66) / 1000)}K</span>
-                  <span>{Math.round((maxSale * 0.33) / 1000)}K</span>
-                  <span>0</span>
-                </div>
-                <div className="tlb-bars">
-                  {dash.chart.map((point, index) => (
-                    <div className="tlb-bar-column" key={`${point.label}-${index}`}>
-                      <div
-                        className={cn("tlb-bar", index === dash.chart.length - 1 && "tlb-bar-current")}
-                        style={{ height: `${(point.value / maxSale) * 100}%` }}
-                      />
-                      <span>{point.label}</span>
+                      <StatusBadge tone={dash.salesDeltaTone}>{dash.salesDeltaLabel}</StatusBadge>
                     </div>
-                  ))}
-                </div>
-              </div>
-              <div className="tlb-chart-footer">
-                <span><i className="tlb-legend-primary" />Collections (payments + receipts)</span>
-                <span>{dash.periodLabel}</span>
-              </div>
-            </article>
-
-            <article className="tlb-panel">
-              <div className="tlb-panel-heading">
-                <div>
-                  <span>Inventory overview</span>
-                  <strong>{dash.stockItemCount.toLocaleString()} stock units</strong>
-                </div>
-                <button type="button" onClick={() => setActiveNav("Stock")}>View stock <ChevronRight /></button>
-              </div>
-              <div className="tlb-inventory-value">
-                <div>
-                  <span>Total stock value</span>
-                  <strong>{dash.inventoryValueLabel}</strong>
-                </div>
-                <PackageCheck />
-              </div>
-              <div className="tlb-stock-list">
-                {dash.stockSlices.map((item) => (
-                  <div key={item.label}>
-                    <div>
-                      <span>{item.label}</span>
-                      <strong>{item.value}</strong>
-                    </div>
-                    <div className="tlb-progress">
-                      <span className={item.tone} style={{ width: item.width }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="tlb-stock-summary">
-                <div><span>Low stock</span><strong className="text-danger">{dash.lowStock}</strong></div>
-                <div><span>Warehouses</span><strong className="text-warning-foreground">{store.state.warehouses.length}</strong></div>
-                <div><span>Out of stock</span><strong>{dash.outOfStock}</strong></div>
-              </div>
-            </article>
-
-            <article className="tlb-panel tlb-orders-panel">
-              <div className="tlb-panel-heading">
-                <div>
-                  <span>Recent orders</span>
-                  <strong>{periodCaption} commercial activity</strong>
-                </div>
-                <button type="button" onClick={() => openLiveModule("Sales Orders")}>View all <ChevronRight /></button>
-              </div>
-              <div className="tlb-table-scroll">
-                {dash.recentOrders.length === 0 ? (
-                  <p className="tlb-muted-line" style={{ padding: "1rem" }}>No orders in this period.</p>
-                ) : (
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Order</th>
-                        <th>Customer</th>
-                        <th>Value</th>
-                        <th>Status</th>
-                        <th><span className="sr-only">Open</span></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dash.recentOrders.map((order) => (
-                        <tr key={order.id}>
-                          <td><strong>{order.number}</strong></td>
-                          <td>{order.customer}</td>
-                          <td>{order.value}</td>
-                          <td><StatusBadge tone={order.tone}>{order.status}</StatusBadge></td>
-                          <td>
-                            <button
-                              type="button"
-                              aria-label={`Open ${order.number}`}
-                              onClick={() => openInspector({
-                                title: order.number,
-                                kicker: "Sales order",
-                                lines: [`Customer: ${order.customer}`, `Value: ${order.value}`, `Status: ${order.status}`, `Order date: ${order.orderDate}`, `Filter: ${periodCaption}`],
-                              })}
-                            >
-                              <ChevronRight />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </article>
-
-            <InventoryAlertsWidget store={store} onOpenNav={(nav) => openLiveModule(nav)} />
-
-            <article className="tlb-panel tlb-alerts-panel">
-              <div className="tlb-panel-heading">
-                <div>
-                  <span>Alerts requiring attention</span>
-                  <strong>{dash.alerts.length} alert{dash.alerts.length === 1 ? "" : "s"} in period</strong>
-                </div>
-                <button type="button" onClick={() => setActiveNav("Quality Control")}>View all <ChevronRight /></button>
-              </div>
-              <div className="tlb-alert-list">
-                {dash.alerts.length === 0 ? (
-                  <p className="tlb-muted-line" style={{ padding: "1rem" }}>No alerts dated in this period.</p>
-                ) : (
-                  dash.alerts.map((alert) => (
-                    <button
-                      type="button"
-                      className="tlb-alert-row"
-                      key={alert.title}
-                      onClick={() => openInspector({
-                        title: alert.title,
-                        kicker: "Operational alert",
-                        lines: [alert.detail, `Date: ${alert.date}`, "Sandbox alert. Acknowledgement is not persisted."],
-                      })}
+                    <div
+                      className="tlb-chart"
+                      aria-label={`Collected sales trend for ${periodCaption}`}
                     >
-                      <span className={`tlb-alert-icon tlb-alert-${alert.type}`}><AlertTriangle /></span>
-                      <span><strong>{alert.title}</strong><small>{alert.detail}</small></span>
-                      <ChevronRight />
-                    </button>
-                  ))
-                )}
-              </div>
-            </article>
-
-            <article className="tlb-panel tlb-operations-panel">
-              <div className="tlb-panel-heading">
-                <div>
-                  <span>Operational pulse</span>
-                  <strong>Imports & production · {periodCaption}</strong>
-                </div>
-                <button type="button" onClick={() => setActiveNav("Import & Export")}>Open operations <ChevronRight /></button>
-              </div>
-              {dash.opsRows.length === 0 ? (
-                <p className="tlb-muted-line" style={{ padding: "1rem" }}>No import/production events in this period.</p>
-              ) : (
-                dash.opsRows.map((row) => (
-                  <div className="tlb-operation-row" key={row.title}>
-                    <span className="tlb-operation-icon">{row.kind === "import" ? <Ship /> : <Factory />}</span>
-                    <div>
-                      <strong>{row.title}</strong>
-                      <span>{row.detail}</span>
+                      <div className="tlb-chart-axis">
+                        <span>{Math.round(maxSale / 1000)}K</span>
+                        <span>{Math.round((maxSale * 0.66) / 1000)}K</span>
+                        <span>{Math.round((maxSale * 0.33) / 1000)}K</span>
+                        <span>0</span>
+                      </div>
+                      <div className="tlb-bars">
+                        {dash.chart.map((point, index) => (
+                          <div className="tlb-bar-column" key={`${point.label}-${index}`}>
+                            <div
+                              className={cn(
+                                "tlb-bar",
+                                index === dash.chart.length - 1 && "tlb-bar-current",
+                              )}
+                              style={{ height: `${(point.value / maxSale) * 100}%` }}
+                            />
+                            <span>{point.label}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="tlb-operation-progress">
-                      <span><i style={{ width: `${row.progress}%` }} /></span>
-                      <small>{row.caption}</small>
+                    <div className="tlb-chart-footer">
+                      <span>
+                        <i className="tlb-legend-primary" />
+                        Collections (payments + receipts)
+                      </span>
+                      <span>{dash.periodLabel}</span>
                     </div>
-                  </div>
-                ))
-              )}
-            </article>
+                  </article>
 
-            <article className="tlb-panel tlb-receivables-panel">
-              <div className="tlb-panel-heading">
-                <div>
-                  <span>Receivables</span>
-                  <strong>{dash.receivablesLabel} outstanding</strong>
+                  <article className="tlb-panel">
+                    <div className="tlb-panel-heading">
+                      <div>
+                        <span>Inventory overview</span>
+                        <strong>{dash.stockItemCount.toLocaleString()} stock units</strong>
+                      </div>
+                      <button type="button" onClick={() => setActiveNav("Stock")}>
+                        View stock <ChevronRight />
+                      </button>
+                    </div>
+                    <div className="tlb-inventory-value">
+                      <div>
+                        <span>Total stock value</span>
+                        <strong>{dash.inventoryValueLabel}</strong>
+                      </div>
+                      <PackageCheck />
+                    </div>
+                    <div className="tlb-stock-list">
+                      {dash.stockSlices.map((item) => (
+                        <div key={item.label}>
+                          <div>
+                            <span>{item.label}</span>
+                            <strong>{item.value}</strong>
+                          </div>
+                          <div className="tlb-progress">
+                            <span className={item.tone} style={{ width: item.width }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="tlb-stock-summary">
+                      <div>
+                        <span>Low stock</span>
+                        <strong className="text-danger">{dash.lowStock}</strong>
+                      </div>
+                      <div>
+                        <span>Warehouses</span>
+                        <strong className="text-warning-foreground">
+                          {store.state.warehouses.length}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Out of stock</span>
+                        <strong>{dash.outOfStock}</strong>
+                      </div>
+                    </div>
+                  </article>
+
+                  <article className="tlb-panel tlb-orders-panel">
+                    <div className="tlb-panel-heading">
+                      <div>
+                        <span>Recent orders</span>
+                        <strong>{periodCaption} commercial activity</strong>
+                      </div>
+                      <button type="button" onClick={() => openLiveModule("Sales Orders")}>
+                        View all <ChevronRight />
+                      </button>
+                    </div>
+                    <div className="tlb-table-scroll">
+                      {dash.recentOrders.length === 0 ? (
+                        <p className="tlb-muted-line" style={{ padding: "1rem" }}>
+                          No orders in this period.
+                        </p>
+                      ) : (
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Order</th>
+                              <th>Customer</th>
+                              <th>Value</th>
+                              <th>Status</th>
+                              <th>
+                                <span className="sr-only">Open</span>
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {dash.recentOrders.map((order) => (
+                              <tr key={order.id}>
+                                <td>
+                                  <strong>{order.number}</strong>
+                                </td>
+                                <td>{order.customer}</td>
+                                <td>{order.value}</td>
+                                <td>
+                                  <StatusBadge tone={order.tone}>{order.status}</StatusBadge>
+                                </td>
+                                <td>
+                                  <button
+                                    type="button"
+                                    aria-label={`Open ${order.number}`}
+                                    onClick={() =>
+                                      openInspector({
+                                        title: order.number,
+                                        kicker: "Sales order",
+                                        lines: [
+                                          `Customer: ${order.customer}`,
+                                          `Value: ${order.value}`,
+                                          `Status: ${order.status}`,
+                                          `Order date: ${order.orderDate}`,
+                                          `Filter: ${periodCaption}`,
+                                        ],
+                                      })
+                                    }
+                                  >
+                                    <ChevronRight />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </article>
+
+                  <InventoryAlertsWidget store={store} onOpenNav={(nav) => openLiveModule(nav)} />
+
+                  <article className="tlb-panel tlb-alerts-panel">
+                    <div className="tlb-panel-heading">
+                      <div>
+                        <span>Alerts requiring attention</span>
+                        <strong>
+                          {dash.alerts.length} alert{dash.alerts.length === 1 ? "" : "s"} in period
+                        </strong>
+                      </div>
+                      <button type="button" onClick={() => setActiveNav("Quality Control")}>
+                        View all <ChevronRight />
+                      </button>
+                    </div>
+                    <div className="tlb-alert-list">
+                      {dash.alerts.length === 0 ? (
+                        <p className="tlb-muted-line" style={{ padding: "1rem" }}>
+                          No alerts dated in this period.
+                        </p>
+                      ) : (
+                        dash.alerts.map((alert) => (
+                          <button
+                            type="button"
+                            className="tlb-alert-row"
+                            key={alert.title}
+                            onClick={() =>
+                              openInspector({
+                                title: alert.title,
+                                kicker: "Operational alert",
+                                lines: [
+                                  alert.detail,
+                                  `Date: ${alert.date}`,
+                                  "Sandbox alert. Acknowledgement is not persisted.",
+                                ],
+                              })
+                            }
+                          >
+                            <span className={`tlb-alert-icon tlb-alert-${alert.type}`}>
+                              <AlertTriangle />
+                            </span>
+                            <span>
+                              <strong>{alert.title}</strong>
+                              <small>{alert.detail}</small>
+                            </span>
+                            <ChevronRight />
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </article>
+
+                  <article className="tlb-panel tlb-operations-panel">
+                    <div className="tlb-panel-heading">
+                      <div>
+                        <span>Operational pulse</span>
+                        <strong>Imports & production · {periodCaption}</strong>
+                      </div>
+                      <button type="button" onClick={() => setActiveNav("Import & Export")}>
+                        Open operations <ChevronRight />
+                      </button>
+                    </div>
+                    {dash.opsRows.length === 0 ? (
+                      <p className="tlb-muted-line" style={{ padding: "1rem" }}>
+                        No import/production events in this period.
+                      </p>
+                    ) : (
+                      dash.opsRows.map((row) => (
+                        <div className="tlb-operation-row" key={row.title}>
+                          <span className="tlb-operation-icon">
+                            {row.kind === "import" ? <Ship /> : <Factory />}
+                          </span>
+                          <div>
+                            <strong>{row.title}</strong>
+                            <span>{row.detail}</span>
+                          </div>
+                          <div className="tlb-operation-progress">
+                            <span>
+                              <i style={{ width: `${row.progress}%` }} />
+                            </span>
+                            <small>{row.caption}</small>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </article>
+
+                  <article className="tlb-panel tlb-receivables-panel">
+                    <div className="tlb-panel-heading">
+                      <div>
+                        <span>Receivables</span>
+                        <strong>{dash.receivablesLabel} outstanding</strong>
+                      </div>
+                      <button type="button" onClick={() => setActiveNav("Finance")}>
+                        View ledger <ChevronRight />
+                      </button>
+                    </div>
+                    <div className="tlb-receivable-bars">
+                      {dash.receivableBuckets.map((bucket) => (
+                        <div
+                          key={bucket.className}
+                          style={{ width: `${Math.max(2, (bucket.amount / recvTotal) * 100)}%` }}
+                          className={bucket.className}
+                        />
+                      ))}
+                    </div>
+                    <div className="tlb-receivable-legend">
+                      {dash.receivableBuckets.map((bucket) => (
+                        <span key={bucket.className}>
+                          <i className={bucket.className} />
+                          {bucket.label} <strong>{formatMoney(bucket.amount)}</strong>
+                        </span>
+                      ))}
+                    </div>
+                  </article>
                 </div>
-                <button type="button" onClick={() => setActiveNav("Finance")}>View ledger <ChevronRight /></button>
-              </div>
-              <div className="tlb-receivable-bars">
-                {dash.receivableBuckets.map((bucket) => (
-                  <div
-                    key={bucket.className}
-                    style={{ width: `${Math.max(2, (bucket.amount / recvTotal) * 100)}%` }}
-                    className={bucket.className}
-                  />
-                ))}
-              </div>
-              <div className="tlb-receivable-legend">
-                {dash.receivableBuckets.map((bucket) => (
-                  <span key={bucket.className}>
-                    <i className={bucket.className} />
-                    {bucket.label} <strong>{formatMoney(bucket.amount)}</strong>
-                  </span>
-                ))}
-              </div>
-            </article>
-          </div>
-          </section>
+              </section>
             </>
           )}
         </main>

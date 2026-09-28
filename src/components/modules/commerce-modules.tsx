@@ -15,6 +15,7 @@ import {
 import { MoveToTrashButton } from "@/components/modules/move-to-trash-button";
 import { Button } from "@/components/ui/button";
 import { calcAvailable, calcOutstanding, statusTone } from "@/lib/domain/calculations";
+import { creditPosition } from "@/lib/domain/inventory";
 import { isSoftDeleted, notSoftDeleted } from "@/lib/domain/trash";
 import { trashBlockReason } from "@/lib/store/tlb-store";
 import type {
@@ -43,9 +44,12 @@ import {
 import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
 
 function orderPaymentBadge(state: TlbState, orderId: string): { label: string; tone: string } {
-  const invoices = state.invoices.filter((inv) => inv.orderId === orderId && inv.paymentStatus !== "Void");
+  const invoices = notSoftDeleted(state.invoices).filter(
+    (inv) => inv.orderId === orderId && inv.paymentStatus !== "Void",
+  );
   if (invoices.length === 0) return { label: "No invoice", tone: "info" };
-  if (invoices.every((inv) => inv.paymentStatus === "Paid")) return { label: "Paid", tone: "success" };
+  if (invoices.every((inv) => inv.paymentStatus === "Paid"))
+    return { label: "Paid", tone: "success" };
   if (invoices.some((inv) => inv.paymentStatus === "Partial" || inv.amountPaid > 0)) {
     return { label: "Partial", tone: "partial" };
   }
@@ -110,7 +114,15 @@ function EmptyState({ title, detail }: { title: string; detail: string }) {
   );
 }
 
-function Flash({ error, notice, onClear }: { error: string | null; notice: string | null; onClear: () => void }) {
+function Flash({
+  error,
+  notice,
+  onClear,
+}: {
+  error: string | null;
+  notice: string | null;
+  onClear: () => void;
+}) {
   if (!error && !notice) return null;
   return (
     <div className={`tlb-flash ${error ? "tlb-flash-error" : "tlb-flash-ok"}`} role="status">
@@ -159,11 +171,18 @@ function CustomerFormFields({
     <>
       <label>
         Name
-        <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+        <input
+          required
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+        />
       </label>
       <label>
         Category
-        <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as CustomerCategory })}>
+        <select
+          value={form.category}
+          onChange={(e) => setForm({ ...form, category: e.target.value as CustomerCategory })}
+        >
           {CATEGORIES.map((c) => (
             <option key={c}>{c}</option>
           ))}
@@ -171,7 +190,10 @@ function CustomerFormFields({
       </label>
       <label>
         Contact
-        <input value={form.contactName} onChange={(e) => setForm({ ...form, contactName: e.target.value })} />
+        <input
+          value={form.contactName}
+          onChange={(e) => setForm({ ...form, contactName: e.target.value })}
+        />
       </label>
       <label>
         Phone
@@ -179,7 +201,11 @@ function CustomerFormFields({
       </label>
       <label>
         Email
-        <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+        <input
+          type="email"
+          value={form.email}
+          onChange={(e) => setForm({ ...form, email: e.target.value })}
+        />
       </label>
       <label>
         TIN (optional)
@@ -187,7 +213,10 @@ function CustomerFormFields({
       </label>
       <label className="tlb-span-2">
         Address
-        <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+        <input
+          value={form.address}
+          onChange={(e) => setForm({ ...form, address: e.target.value })}
+        />
       </label>
       <label>
         Credit limit
@@ -200,7 +229,10 @@ function CustomerFormFields({
       </label>
       <label>
         Payment terms
-        <select value={form.paymentTerms} onChange={(e) => setForm({ ...form, paymentTerms: e.target.value as PaymentTerms })}>
+        <select
+          value={form.paymentTerms}
+          onChange={(e) => setForm({ ...form, paymentTerms: e.target.value as PaymentTerms })}
+        >
           {TERMS.map((t) => (
             <option key={t}>{t}</option>
           ))}
@@ -208,10 +240,18 @@ function CustomerFormFields({
       </label>
       <label className="tlb-span-2">
         Notes
-        <textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+        <textarea
+          rows={3}
+          value={form.notes}
+          onChange={(e) => setForm({ ...form, notes: e.target.value })}
+        />
       </label>
       <label className="tlb-check">
-        <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
+        <input
+          type="checkbox"
+          checked={form.active}
+          onChange={(e) => setForm({ ...form, active: e.target.checked })}
+        />
         Active
       </label>
     </>
@@ -237,13 +277,20 @@ export function CustomersModule({
   const activeCustomers = useMemo(() => notSoftDeleted(state.customers), [state.customers]);
 
   const customerStats = useMemo(() => {
-    const map = new Map<string, { outstandingOrders: number; outstandingLines: number; outstandingQty: number }>();
+    const map = new Map<
+      string,
+      { outstandingOrders: number; outstandingLines: number; outstandingQty: number }
+    >();
     for (const c of activeCustomers) {
       map.set(c.id, { outstandingOrders: 0, outstandingLines: 0, outstandingQty: 0 });
     }
     const seenOrders = new Set<string>();
     for (const row of store.outstanding) {
-      const cur = map.get(row.customerId) ?? { outstandingOrders: 0, outstandingLines: 0, outstandingQty: 0 };
+      const cur = map.get(row.customerId) ?? {
+        outstandingOrders: 0,
+        outstandingLines: 0,
+        outstandingQty: 0,
+      };
       cur.outstandingLines += 1;
       cur.outstandingQty += row.outstandingQty;
       const key = `${row.customerId}:${row.orderId}`;
@@ -345,6 +392,7 @@ export function CustomersModule({
               if (ok) {
                 setCreating(false);
                 setForm(emptyCustomerForm());
+                if (typeof ok === "string") onSelectCustomer(ok);
               }
             }}
           >
@@ -370,7 +418,10 @@ export function CustomersModule({
           {activeCustomers.length === 0 ? (
             <EmptyState title="No customers" detail="Create a customer account to begin trading." />
           ) : filteredCustomers.length === 0 ? (
-            <EmptyState title="No customers match your search." detail="Try another name, code, contact, phone, email, TIN, or category." />
+            <EmptyState
+              title="No customers match your search."
+              detail="Try another name, code, contact, phone, email, TIN, or category."
+            />
           ) : (
             <table className="tlb-customers-table">
               <thead>
@@ -448,7 +499,9 @@ export function CustomersModule({
                         )}
                       </td>
                       <td className="tlb-col-priority">
-                        <StatusBadge tone={c.active ? "success" : "warning"}>{c.active ? "Active" : "Inactive"}</StatusBadge>
+                        <StatusBadge tone={c.active ? "success" : "warning"}>
+                          {c.active ? "Active" : "Inactive"}
+                        </StatusBadge>
                       </td>
                       <td>
                         <button
@@ -519,12 +572,19 @@ function CustomerDetailModule({
     });
   };
 
+  const outstandingRows = store.outstanding;
   const customerHistory = useMemo(() => {
     if (!selected) {
       return {
         orders: [] as Array<{ order: CustomerPurchaseOrder; value: number; fulfilment: number }>,
-        supplies: [] as Array<{ id: string; number: string; orderNumber: string; suppliedAt: string; notes?: string }>,
-        outstanding: [] as typeof store.outstanding,
+        supplies: [] as Array<{
+          id: string;
+          number: string;
+          orderNumber: string;
+          suppliedAt: string;
+          notes?: string;
+        }>,
+        outstanding: [] as typeof outstandingRows,
         invoices: [] as typeof state.invoices,
         receipts: [] as typeof state.receipts,
         deliveries: [] as typeof state.deliveries,
@@ -532,7 +592,7 @@ function CustomerDetailModule({
       };
     }
 
-    const orders = state.orders
+    const orders = notSoftDeleted(state.orders)
       .filter((o) => o.customerId === selected.id)
       .map((o) => ({
         order: o,
@@ -550,19 +610,30 @@ function CustomerDetailModule({
         suppliedAt: s.suppliedAt,
         ...(s.notes ? { notes: s.notes } : {}),
       }));
-    const outstanding = store.outstanding.filter((r) => r.customerId === selected.id);
-    const invoices = (state.invoices ?? []).filter((i) => i.customerId === selected.id);
-    const receipts = (state.receipts ?? []).filter((r) => r.customerId === selected.id);
-    const deliveries = (state.deliveries ?? []).filter((d) => d.customerId === selected.id);
-    const payments = (state.payments ?? []).filter((p) => p.customerId === selected.id);
+    const outstanding = outstandingRows.filter((r) => r.customerId === selected.id);
+    const invoices = notSoftDeleted(state.invoices ?? []).filter(
+      (i) => i.customerId === selected.id,
+    );
+    const receipts = notSoftDeleted(state.receipts ?? []).filter(
+      (r) => r.customerId === selected.id,
+    );
+    const deliveries = notSoftDeleted(state.deliveries ?? []).filter(
+      (d) => d.customerId === selected.id,
+    );
+    const payments = notSoftDeleted(state.payments ?? []).filter(
+      (p) => p.customerId === selected.id,
+    );
 
     return { orders, supplies, outstanding, invoices, receipts, deliveries, payments };
-  }, [selected, state, store.outstanding]);
+  }, [selected, state, outstandingRows]);
 
   const credit = selected ? creditEligibility(selected) : null;
 
   const transactionSummary = useMemo(() => {
-    const outstandingQty = customerHistory.outstanding.reduce((sum, row) => sum + row.outstandingQty, 0);
+    const outstandingQty = customerHistory.outstanding.reduce(
+      (sum, row) => sum + row.outstandingQty,
+      0,
+    );
     const outstandingOrders = new Set(customerHistory.outstanding.map((r) => r.orderId)).size;
     const invoiceBalance = customerHistory.invoices.reduce(
       (sum, inv) => sum + Math.max(0, inv.total - inv.amountPaid),
@@ -631,18 +702,27 @@ function CustomerDetailModule({
   if (!selected) {
     return (
       <div className="tlb-module">
-        <EmptyState title="Customer not found" detail="The selected customer account is no longer available." />
+        <EmptyState
+          title="Customer not found"
+          detail="The selected customer account is no longer available."
+        />
         <DetailBackChrome label="Customers" onBack={onBack} />
       </div>
     );
   }
 
   const outstandingTone =
-    transactionSummary.outstandingLines > 0 ? "tlb-customer-summary-tile--warning" : "tlb-customer-summary-tile--muted";
+    transactionSummary.outstandingLines > 0
+      ? "tlb-customer-summary-tile--warning"
+      : "tlb-customer-summary-tile--muted";
   const invoiceTone =
-    transactionSummary.invoiceBalance > 0 ? "tlb-customer-summary-tile--danger" : "tlb-customer-summary-tile--muted";
+    transactionSummary.invoiceBalance > 0
+      ? "tlb-customer-summary-tile--danger"
+      : "tlb-customer-summary-tile--muted";
   const openOrdersTone =
-    transactionSummary.outstandingOrders > 0 ? "tlb-customer-summary-tile--warning" : "tlb-customer-summary-tile--muted";
+    transactionSummary.outstandingOrders > 0
+      ? "tlb-customer-summary-tile--warning"
+      : "tlb-customer-summary-tile--muted";
 
   return (
     <RecordDetailPage
@@ -733,9 +813,7 @@ function CustomerDetailModule({
                 <span>Outstanding</span>
                 <strong>
                   {transactionSummary.outstandingLines}
-                  <small>
-                    lines · {transactionSummary.outstandingQty} qty
-                  </small>
+                  <small>lines · {transactionSummary.outstandingQty} qty</small>
                 </strong>
               </div>
               <div className="tlb-customer-summary-tile--gold">
@@ -809,7 +887,9 @@ function CustomerDetailModule({
               </div>
               <div>
                 <dt>Credit status</dt>
-                <dd>{credit ? <StatusBadge tone={credit.tone}>{credit.label}</StatusBadge> : "—"}</dd>
+                <dd>
+                  {credit ? <StatusBadge tone={credit.tone}>{credit.label}</StatusBadge> : "—"}
+                </dd>
               </div>
               <div>
                 <dt>Credit limit</dt>
@@ -831,7 +911,9 @@ function CustomerDetailModule({
                 <dt>Record dates</dt>
                 <dd>
                   Created {new Date(selected.createdAt).toLocaleDateString()}
-                  <div className="tlb-muted-line">Updated {new Date(selected.updatedAt).toLocaleDateString()}</div>
+                  <div className="tlb-muted-line">
+                    Updated {new Date(selected.updatedAt).toLocaleDateString()}
+                  </div>
                 </dd>
               </div>
               <div className="tlb-span-2">
@@ -857,7 +939,9 @@ function CustomerDetailModule({
               <ul className="tlb-activity-list">
                 {recentActivity.map((item) => (
                   <li key={`${item.kind}-${item.detail}-${item.at}`}>
-                    <span className={`tlb-activity-kind--${item.kind.toLowerCase()}`}>{item.kind}</span>
+                    <span className={`tlb-activity-kind--${item.kind.toLowerCase()}`}>
+                      {item.kind}
+                    </span>
                     <strong>{item.detail}</strong>
                     <small>{new Date(item.at).toLocaleString()}</small>
                   </li>
@@ -874,7 +958,10 @@ function CustomerDetailModule({
               </div>
             </div>
             {customerHistory.orders.length === 0 ? (
-              <EmptyState title="No orders for this customer yet." detail="Customer purchase orders will appear here." />
+              <EmptyState
+                title="No orders for this customer yet."
+                detail="Customer purchase orders will appear here."
+              />
             ) : (
               <div className="tlb-table-scroll">
                 <table>
@@ -901,7 +988,11 @@ function CustomerDetailModule({
                           <StatusBadge tone={statusTone(order.status)}>{order.status}</StatusBadge>
                         </td>
                         <td>
-                          <button type="button" onClick={() => onOpenOrder(order.id)} aria-label={`Open ${order.number}`}>
+                          <button
+                            type="button"
+                            onClick={() => onOpenOrder(order.id)}
+                            aria-label={`Open ${order.number}`}
+                          >
                             <ChevronRight />
                           </button>
                         </td>
@@ -1015,7 +1106,10 @@ function CustomerDetailModule({
               </div>
             </div>
             {customerHistory.invoices.length === 0 ? (
-              <EmptyState title="No invoices for this customer yet." detail="Invoices created from supplies will appear here." />
+              <EmptyState
+                title="No invoices for this customer yet."
+                detail="Invoices created from supplies will appear here."
+              />
             ) : (
               <div className="tlb-table-scroll">
                 <table>
@@ -1036,7 +1130,9 @@ function CustomerDetailModule({
                         <td>{formatMoney(inv.total)}</td>
                         <td>{formatMoney(inv.amountPaid)}</td>
                         <td>
-                          <StatusBadge tone={statusTone(inv.paymentStatus)}>{inv.paymentStatus}</StatusBadge>
+                          <StatusBadge tone={statusTone(inv.paymentStatus)}>
+                            {inv.paymentStatus}
+                          </StatusBadge>
                         </td>
                       </tr>
                     ))}
@@ -1054,7 +1150,10 @@ function CustomerDetailModule({
               </div>
             </div>
             {customerHistory.receipts.length === 0 ? (
-              <EmptyState title="No receipts for this customer yet." detail="Payment receipts will appear here." />
+              <EmptyState
+                title="No receipts for this customer yet."
+                detail="Payment receipts will appear here."
+              />
             ) : (
               <div className="tlb-table-scroll">
                 <table>
@@ -1133,7 +1232,10 @@ function CustomerDetailModule({
               </div>
             </div>
             {customerHistory.payments.length === 0 ? (
-              <EmptyState title="No payments for this customer yet." detail="Recorded payments will appear here." />
+              <EmptyState
+                title="No payments for this customer yet."
+                detail="Recorded payments will appear here."
+              />
             ) : (
               <div className="tlb-table-scroll">
                 <table>
@@ -1167,7 +1269,7 @@ function CustomerDetailModule({
   );
 }
 
-export { SuppliersModule } from '@/components/modules/suppliers-module';
+export { SuppliersModule } from "@/components/modules/suppliers-module";
 
 export function SalesOrdersModule({
   store,
@@ -1188,7 +1290,10 @@ export function SalesOrdersModule({
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState("");
   const [customerId, setCustomerId] = useState(
-    () => notSoftDeleted(state.customers).find((c) => c.active)?.id ?? notSoftDeleted(state.customers)[0]?.id ?? "",
+    () =>
+      notSoftDeleted(state.customers).find((c) => c.active)?.id ??
+      notSoftDeleted(state.customers)[0]?.id ??
+      "",
   );
   const [notes, setNotes] = useState("");
   const [customerPoNumber, setCustomerPoNumber] = useState("");
@@ -1201,19 +1306,29 @@ export function SalesOrdersModule({
     },
   ]);
 
+  const rangeFrom = range?.from;
+  const rangeTo = range?.to;
   const filteredOrders = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const activeRange = rangeFrom && rangeTo ? { from: rangeFrom, to: rangeTo } : null;
     return notSoftDeleted(state.orders).filter((order) => {
-      if (range && !isoInRange(order.orderDate, range)) return false;
+      if (activeRange && !isoInRange(order.orderDate, activeRange)) return false;
       if (!q) return true;
       const customer = state.customers.find((c) => c.id === order.customerId);
-      const hay = [order.number, order.customerPoNumber, order.status, order.notes, customer?.name, customer?.code]
+      const hay = [
+        order.number,
+        order.customerPoNumber,
+        order.status,
+        order.notes,
+        customer?.name,
+        customer?.code,
+      ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [state.orders, state.customers, range?.from, range?.to, search]);
+  }, [state.orders, state.customers, rangeFrom, rangeTo, search]);
 
   const activeOrderCount = useMemo(() => notSoftDeleted(state.orders).length, [state.orders]);
   const canBulkTrash = store.can("records.delete");
@@ -1274,7 +1389,9 @@ export function SalesOrdersModule({
               <span>Customer purchase order</span>
               <strong>Create order</strong>
             </div>
-            <button type="button" onClick={() => setCreating(false)}>Close</button>
+            <button type="button" onClick={() => setCreating(false)}>
+              Close
+            </button>
           </div>
           <form
             className="tlb-form-grid"
@@ -1294,6 +1411,7 @@ export function SalesOrdersModule({
                 setCreating(false);
                 setNotes("");
                 setCustomerPoNumber("");
+                if (typeof ok === "string") onSelectOrder(ok);
               }
             }}
           >
@@ -1303,13 +1421,19 @@ export function SalesOrdersModule({
                 {notSoftDeleted(state.customers)
                   .filter((c) => c.active)
                   .map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
               </select>
             </label>
             <label>
               Customer PO #
-              <input value={customerPoNumber} onChange={(e) => setCustomerPoNumber(e.target.value)} placeholder="Optional" />
+              <input
+                value={customerPoNumber}
+                onChange={(e) => setCustomerPoNumber(e.target.value)}
+                placeholder="Optional"
+              />
             </label>
             <label className="tlb-span-2">
               Notes
@@ -1329,7 +1453,9 @@ export function SalesOrdersModule({
                     }}
                   >
                     {notSoftDeleted(state.products).map((p) => (
-                      <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.sku})
+                      </option>
                     ))}
                   </select>
                 </label>
@@ -1344,7 +1470,9 @@ export function SalesOrdersModule({
                     }}
                   >
                     {notSoftDeleted(state.warehouses).map((w) => (
-                      <option key={w.id} value={w.id}>{w.name}</option>
+                      <option key={w.id} value={w.id}>
+                        {w.name}
+                      </option>
                     ))}
                   </select>
                 </label>
@@ -1409,11 +1537,18 @@ export function SalesOrdersModule({
         </div>
         <div className="tlb-table-scroll">
           {activeOrderCount === 0 ? (
-            <EmptyState title="No customer orders" detail="Create a customer purchase order to start fulfilment." />
+            <EmptyState
+              title="No customer orders"
+              detail="Create a customer purchase order to start fulfilment."
+            />
           ) : filteredOrders.length === 0 ? (
             <EmptyState
               title="No orders match this filter"
-              detail={range ? "Try a wider period or clear search." : "Try another order number, customer, or status."}
+              detail={
+                range
+                  ? "Try a wider period or clear search."
+                  : "Try another order number, customer, or status."
+              }
             />
           ) : (
             <table>
@@ -1461,14 +1596,25 @@ export function SalesOrdersModule({
                           label={`Select ${order.number}`}
                         />
                       ) : null}
-                      <td><strong>{order.number}</strong></td>
+                      <td>
+                        <strong>{order.number}</strong>
+                      </td>
                       <td>{customer?.name ?? "—"}</td>
                       <td>{order.orderDate.slice(0, 10)}</td>
                       <td>{formatMoney(orderValue(state, order.id))}</td>
                       <td className={fulfilmentCellClass(fulfilment)}>{fulfilment}%</td>
-                      <td><StatusBadge tone={statusTone(order.status)}>{order.status}</StatusBadge></td>
                       <td>
-                        <button type="button" aria-label={`Open ${order.number}`} onClick={(e) => { e.stopPropagation(); onSelectOrder(order.id); }}>
+                        <StatusBadge tone={statusTone(order.status)}>{order.status}</StatusBadge>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          aria-label={`Open ${order.number}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectOrder(order.id);
+                          }}
+                        >
                           <ChevronRight />
                         </button>
                       </td>
@@ -1513,12 +1659,16 @@ function OrderDetailModule({
   const [supplyQty, setSupplyQty] = useState<Record<string, number>>({});
   const [cancelReason, setCancelReason] = useState<Record<string, string>>({});
   const [supplyNotes, setSupplyNotes] = useState("");
+  const [creditOverrideReason, setCreditOverrideReason] = useState("");
   const related = useMemo(() => getRelatedRecords(state, orderId), [state, orderId]);
 
   if (!order) {
     return (
       <div className="tlb-module">
-        <EmptyState title="Order not found" detail="The selected customer order is no longer available." />
+        <EmptyState
+          title="Order not found"
+          detail="The selected customer order is no longer available."
+        />
         <DetailBackChrome label="Sales Orders" onBack={onBack} />
       </div>
     );
@@ -1548,6 +1698,18 @@ function OrderDetailModule({
     order.status !== "Delivered" &&
     order.status !== "Fully Supplied";
 
+  const credit = customer ? creditPosition(state, customer.id) : null;
+  const draftValue =
+    order.status === "Draft"
+      ? lines.reduce(
+          (sum, line) => sum + Math.max(0, line.orderedQty - line.cancelledQty) * line.unitPrice,
+          0,
+        )
+      : 0;
+  const projectedCreditUsed = (credit?.used ?? 0) + draftValue;
+  const creditOverLimit = (credit?.limit ?? 0) > 0 && projectedCreditUsed > (credit?.limit ?? 0);
+  const canConfirm = order.status === "Draft" || order.status === "Pending";
+
   const outstandingLines = lines.filter((l) => calcOutstanding(l) > 0).length;
   const linesSectionTone = outstandingQty > 0 ? "outstanding" : "lines";
 
@@ -1566,8 +1728,13 @@ function OrderDetailModule({
       }
       actions={
         <>
-          {(order.status === "Draft" || order.status === "Pending") && (
-            <Button type="button" onClick={() => store.confirmOrder(order.id)}>
+          {canConfirm && (
+            <Button
+              type="button"
+              onClick={() =>
+                store.confirmOrder(order.id, creditOverLimit ? creditOverrideReason : undefined)
+              }
+            >
               Confirm order
             </Button>
           )}
@@ -1589,9 +1756,20 @@ function OrderDetailModule({
       }
       flash={<Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />}
     >
-      <RecordDetailSection tone="summary" kicker="Fulfilment" title={`${fulfilment}% supplied`} span2>
+      <RecordDetailSection
+        tone="summary"
+        kicker="Fulfilment"
+        title={`${fulfilment}% supplied`}
+        span2
+      >
         <div className="tlb-customer-summary" aria-label="Order fulfilment overview">
-          <div className={fulfilment >= 100 ? "tlb-customer-summary-tile--success" : "tlb-customer-summary-tile--info"}>
+          <div
+            className={
+              fulfilment >= 100
+                ? "tlb-customer-summary-tile--success"
+                : "tlb-customer-summary-tile--info"
+            }
+          >
             <span>Fulfilment</span>
             <strong className={fulfilmentCellClass(fulfilment)}>{fulfilment}%</strong>
           </div>
@@ -1599,18 +1777,38 @@ function OrderDetailModule({
             <span>Ordered</span>
             <strong>{orderedQty}</strong>
           </div>
-          <div className={suppliedQty > 0 ? "tlb-customer-summary-tile--success" : "tlb-customer-summary-tile--muted"}>
+          <div
+            className={
+              suppliedQty > 0
+                ? "tlb-customer-summary-tile--success"
+                : "tlb-customer-summary-tile--muted"
+            }
+          >
             <span>Supplied</span>
             <strong>{suppliedQty}</strong>
           </div>
-          <div className={outstandingQty > 0 ? "tlb-customer-summary-tile--warning" : "tlb-customer-summary-tile--muted"}>
+          <div
+            className={
+              outstandingQty > 0
+                ? "tlb-customer-summary-tile--warning"
+                : "tlb-customer-summary-tile--muted"
+            }
+          >
             <span>Outstanding</span>
             <strong>
               {outstandingQty}
-              <small>{outstandingLines} line{outstandingLines === 1 ? "" : "s"}</small>
+              <small>
+                {outstandingLines} line{outstandingLines === 1 ? "" : "s"}
+              </small>
             </strong>
           </div>
-          <div className={cancelledQty > 0 ? "tlb-customer-summary-tile--danger" : "tlb-customer-summary-tile--muted"}>
+          <div
+            className={
+              cancelledQty > 0
+                ? "tlb-customer-summary-tile--danger"
+                : "tlb-customer-summary-tile--muted"
+            }
+          >
             <span>Cancelled</span>
             <strong>{cancelledQty}</strong>
           </div>
@@ -1623,11 +1821,29 @@ function OrderDetailModule({
           <span className="bg-primary" style={{ width: `${fulfilment}%` }} />
         </div>
         <p className="tlb-muted-line" style={{ padding: "0 17px 14px" }}>
-          Outstanding never drops silently — cancelled quantities require a reason and remain in audit history.
+          Outstanding never drops silently — cancelled quantities require a reason and remain in
+          audit history.
         </p>
       </RecordDetailSection>
 
       <RecordDetailSection tone="profile" kicker="Header" title="Order summary" span2>
+        {canConfirm && creditOverLimit ? (
+          <div className="tlb-inline-actions" style={{ padding: "0 17px 12px" }}>
+            <label className="tlb-span-2">
+              Credit override reason
+              <input
+                value={creditOverrideReason}
+                onChange={(e) => setCreditOverrideReason(e.target.value)}
+                placeholder={`Required — projected ${projectedCreditUsed} exceeds limit ${credit?.limit ?? 0}`}
+                aria-label="Credit override reason"
+              />
+            </label>
+            <p className="tlb-muted-line">
+              This order puts the customer over their credit limit. A manager must enter a reason
+              before confirm.
+            </p>
+          </div>
+        ) : null}
         <dl className="tlb-kv">
           <div>
             <dt>Customer</dt>
@@ -1698,7 +1914,9 @@ function OrderDetailModule({
               {lines.map((line) => {
                 const product = state.products.find((p) => p.id === line.productId);
                 const warehouse = state.warehouses.find((w) => w.id === line.warehouseId);
-                const bal = state.stock.find((s) => s.productId === line.productId && s.warehouseId === line.warehouseId);
+                const bal = state.stock.find(
+                  (s) => s.productId === line.productId && s.warehouseId === line.warehouseId,
+                );
                 const outstanding = calcOutstanding(line);
                 const available = bal ? calcAvailable(bal) : 0;
                 const usable = available + Math.min(line.reservedQty, outstanding);
@@ -1718,7 +1936,9 @@ function OrderDetailModule({
                     <td>{line.reservedQty}</td>
                     <td>{available}</td>
                     <td>
-                      <StatusBadge tone={statusTone(line.lineStatus)}>{line.lineStatus}</StatusBadge>
+                      <StatusBadge tone={statusTone(line.lineStatus)}>
+                        {line.lineStatus}
+                      </StatusBadge>
                     </td>
                     <td>
                       {canSupply && outstanding > 0 ? (
@@ -1728,7 +1948,9 @@ function OrderDetailModule({
                           min={0}
                           max={Math.min(outstanding, usable)}
                           value={supplyQty[line.id] ?? Math.min(outstanding, usable)}
-                          onChange={(e) => setSupplyQty({ ...supplyQty, [line.id]: Number(e.target.value) })}
+                          onChange={(e) =>
+                            setSupplyQty({ ...supplyQty, [line.id]: Number(e.target.value) })
+                          }
                         />
                       ) : (
                         "—"
@@ -1755,7 +1977,9 @@ function OrderDetailModule({
                   .map((line) => {
                     const outstanding = calcOutstanding(line);
                     if (outstanding <= 0) return null;
-                    const bal = state.stock.find((s) => s.productId === line.productId && s.warehouseId === line.warehouseId);
+                    const bal = state.stock.find(
+                      (s) => s.productId === line.productId && s.warehouseId === line.warehouseId,
+                    );
                     const available = bal ? calcAvailable(bal) : 0;
                     const usable = available + Math.min(line.reservedQty, outstanding);
                     const qty = supplyQty[line.id] ?? Math.min(outstanding, usable);
@@ -1787,9 +2011,15 @@ function OrderDetailModule({
                   <input
                     placeholder="Reason required"
                     value={cancelReason[line.id] ?? ""}
-                    onChange={(e) => setCancelReason({ ...cancelReason, [line.id]: e.target.value })}
+                    onChange={(e) =>
+                      setCancelReason({ ...cancelReason, [line.id]: e.target.value })
+                    }
                   />
-                  <Button type="button" variant="outline" onClick={() => store.cancelLine(line.id, cancelReason[line.id] ?? "")}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => store.cancelLine(line.id, cancelReason[line.id] ?? "")}
+                  >
                     Cancel outstanding
                   </Button>
                 </div>
@@ -1798,9 +2028,17 @@ function OrderDetailModule({
         </div>
       </RecordDetailSection>
 
-      <RecordDetailSection tone="supplies" kicker="Supply history" title="Immutable fulfilment records" span2>
+      <RecordDetailSection
+        tone="supplies"
+        kicker="Supply history"
+        title="Immutable fulfilment records"
+        span2
+      >
         {supplies.length === 0 ? (
-          <EmptyState title="No supplies yet" detail="Partial and full supplies will remain listed here permanently." />
+          <EmptyState
+            title="No supplies yet"
+            detail="Partial and full supplies will remain listed here permanently."
+          />
         ) : (
           <div className="tlb-table-scroll tlb-orders-panel">
             <table>
@@ -1848,7 +2086,10 @@ function OrderDetailModule({
           Customer → Order → Supplies → Invoice / Receipt → Delivery → Complete
         </p>
         {related.length === 0 ? (
-          <EmptyState title="No related documents yet" detail="Invoices, receipts, and deliveries linked to this order will appear here." />
+          <EmptyState
+            title="No related documents yet"
+            detail="Invoices, receipts, and deliveries linked to this order will appear here."
+          />
         ) : (
           <ul className="tlb-related-doc-list">
             {related.map((r) => {
@@ -1883,7 +2124,9 @@ function OrderDetailModule({
                     {r.number} — {r.label}
                     {r.status ? ` · ${r.status}` : ""}
                   </button>
-                  {r.status ? <StatusBadge tone={statusTone(r.status)}>{r.status}</StatusBadge> : null}
+                  {r.status ? (
+                    <StatusBadge tone={statusTone(r.status)}>{r.status}</StatusBadge>
+                  ) : null}
                 </li>
               );
             })}
@@ -1909,7 +2152,11 @@ function OrderDetailModule({
             </Button>
           )}
           {store.can("delivery.manage") && supplies[0] && (
-            <Button type="button" variant="outline" onClick={() => onNavigateRelated?.("Deliveries", supplies[0]?.id)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onNavigateRelated?.("Deliveries", supplies[0]?.id)}
+            >
               Create delivery
             </Button>
           )}
@@ -1918,7 +2165,10 @@ function OrderDetailModule({
 
       <RecordDetailSection tone="activity" kicker="Audit" title="Major events for this order" span2>
         {audit.length === 0 ? (
-          <EmptyState title="No audit events" detail="Actions on this order will be recorded here." />
+          <EmptyState
+            title="No audit events"
+            detail="Actions on this order will be recorded here."
+          />
         ) : (
           <div className="tlb-table-scroll tlb-orders-panel">
             <table>
@@ -1992,7 +2242,9 @@ export function OutstandingSuppliesModule({
           <span className="tlb-eyebrow">Business</span>
           <strong>Outstanding Supplies</strong>
           <p className="tlb-muted-line">
-            Ageing: 0–{store.state.ageing.normalMaxDays} Normal · {store.state.ageing.normalMaxDays + 1}–{store.state.ageing.attentionMaxDays} Attention · {store.state.ageing.attentionMaxDays + 1}+ Overdue
+            Ageing: 0–{store.state.ageing.normalMaxDays} Normal ·{" "}
+            {store.state.ageing.normalMaxDays + 1}–{store.state.ageing.attentionMaxDays} Attention ·{" "}
+            {store.state.ageing.attentionMaxDays + 1}+ Overdue
             {periodLabel ? ` · Order dates scoped to ${periodLabel}` : ""}
           </p>
         </div>
@@ -2004,7 +2256,9 @@ export function OutstandingSuppliesModule({
               type="number"
               min={0}
               value={store.state.ageing.normalMaxDays}
-              onChange={(e) => store.setAgeing(Number(e.target.value), store.state.ageing.attentionMaxDays)}
+              onChange={(e) =>
+                store.setAgeing(Number(e.target.value), store.state.ageing.attentionMaxDays)
+              }
               aria-label="Normal ageing max days"
             />
           </label>
@@ -2015,7 +2269,9 @@ export function OutstandingSuppliesModule({
               type="number"
               min={0}
               value={store.state.ageing.attentionMaxDays}
-              onChange={(e) => store.setAgeing(store.state.ageing.normalMaxDays, Number(e.target.value))}
+              onChange={(e) =>
+                store.setAgeing(store.state.ageing.normalMaxDays, Number(e.target.value))
+              }
               aria-label="Attention ageing max days"
             />
           </label>
@@ -2025,29 +2281,50 @@ export function OutstandingSuppliesModule({
       <section className="tlb-filter-bar tlb-module-filters" aria-label="Outstanding filters">
         <div className="tlb-periods">
           {(["All", "Normal", "Attention", "Overdue"] as const).map((item) => (
-            <button type="button" key={item} className={band === item ? "active" : ""} onClick={() => setBand(item)}>
+            <button
+              type="button"
+              key={item}
+              className={band === item ? "active" : ""}
+              onClick={() => setBand(item)}
+            >
               {item}
             </button>
           ))}
         </div>
         <label className="tlb-select">
-          <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} aria-label="Warehouse filter">
+          <select
+            value={warehouseId}
+            onChange={(e) => setWarehouseId(e.target.value)}
+            aria-label="Warehouse filter"
+          >
             <option value="all">All warehouses</option>
             {notSoftDeleted(store.state.warehouses).map((w) => (
-              <option key={w.id} value={w.id}>{w.name}</option>
+              <option key={w.id} value={w.id}>
+                {w.name}
+              </option>
             ))}
           </select>
         </label>
         <label className="tlb-select">
-          <select value={productId} onChange={(e) => setProductId(e.target.value)} aria-label="Product filter">
+          <select
+            value={productId}
+            onChange={(e) => setProductId(e.target.value)}
+            aria-label="Product filter"
+          >
             <option value="all">All products</option>
             {notSoftDeleted(store.state.products).map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
             ))}
           </select>
         </label>
         <label className="tlb-select">
-          <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} aria-label="Sort">
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as typeof sort)}
+            aria-label="Sort"
+          >
             <option value="age">Sort by age</option>
             <option value="qty">Sort by outstanding qty</option>
             <option value="customer">Sort by customer</option>
@@ -2058,7 +2335,10 @@ export function OutstandingSuppliesModule({
       <article className="tlb-panel tlb-orders-panel">
         <div className="tlb-table-scroll">
           {sorted.length === 0 ? (
-            <EmptyState title="No outstanding lines" detail="All confirmed order quantities are fully supplied or cancelled." />
+            <EmptyState
+              title="No outstanding lines"
+              detail="All confirmed order quantities are fully supplied or cancelled."
+            />
           ) : (
             <table>
               <thead>
@@ -2089,15 +2369,28 @@ export function OutstandingSuppliesModule({
                       }
                     }}
                   >
-                    <td><strong>{row.orderNumber}</strong></td>
+                    <td>
+                      <strong>{row.orderNumber}</strong>
+                    </td>
                     <td>{row.customerName}</td>
-                    <td>{row.productName}<div className="tlb-muted-line">{row.productSku}</div></td>
+                    <td>
+                      {row.productName}
+                      <div className="tlb-muted-line">{row.productSku}</div>
+                    </td>
                     <td>{row.warehouseName}</td>
-                    <td><strong>{row.outstandingQty}</strong></td>
+                    <td>
+                      <strong>{row.outstandingQty}</strong>
+                    </td>
                     <td>{row.availableQty}</td>
                     <td>{row.ageDays}d</td>
-                    <td><StatusBadge tone={statusTone(row.ageingBand)}>{row.ageingBand}</StatusBadge></td>
-                    <td><StatusBadge tone={statusTone(row.orderStatus)}>{row.orderStatus}</StatusBadge></td>
+                    <td>
+                      <StatusBadge tone={statusTone(row.ageingBand)}>{row.ageingBand}</StatusBadge>
+                    </td>
+                    <td>
+                      <StatusBadge tone={statusTone(row.orderStatus)}>
+                        {row.orderStatus}
+                      </StatusBadge>
+                    </td>
                     <td>
                       <button
                         type="button"
@@ -2138,7 +2431,9 @@ export function StockModule({
         <div>
           <span className="tlb-eyebrow">Inventory</span>
           <strong>Stock</strong>
-          <p className="tlb-muted-line">Available = physical − reserved − damaged − expired − quarantine</p>
+          <p className="tlb-muted-line">
+            Available = physical − reserved − damaged − expired − quarantine
+          </p>
         </div>
       </div>
       <article className="tlb-panel tlb-orders-panel">
@@ -2161,21 +2456,31 @@ export function StockModule({
               {state.stock.map((bal) => {
                 const product = state.products.find((p) => p.id === bal.productId);
                 const warehouse = state.warehouses.find((w) => w.id === bal.warehouseId);
-                if (!product || isSoftDeleted(product) || !warehouse || isSoftDeleted(warehouse)) return null;
+                if (!product || isSoftDeleted(product) || !warehouse || isSoftDeleted(warehouse))
+                  return null;
                 const requiredBy = countOutstandingOrdersForProduct(state, bal.productId);
                 const key = bal.id;
                 return (
                   <tr key={bal.id}>
-                    <td><strong>{product?.name}</strong><div className="tlb-muted-line">{product?.sku}</div></td>
+                    <td>
+                      <strong>{product?.name}</strong>
+                      <div className="tlb-muted-line">{product?.sku}</div>
+                    </td>
                     <td>{warehouse?.name}</td>
                     <td>{bal.physicalQty}</td>
                     <td>{bal.reservedQty}</td>
                     <td>{bal.damagedQty ?? 0}</td>
-                    <td><strong>{calcAvailable(bal)}</strong></td>
+                    <td>
+                      <strong>{calcAvailable(bal)}</strong>
+                    </td>
                     <td>{product?.issueStrategy ?? "FEFO"}</td>
                     <td>
                       {requiredBy > 0 ? (
-                        <button type="button" className="tlb-text-link" onClick={() => onViewOutstanding(bal.productId)}>
+                        <button
+                          type="button"
+                          className="tlb-text-link"
+                          onClick={() => onViewOutstanding(bal.productId)}
+                        >
                           Required by {requiredBy} outstanding order{requiredBy === 1 ? "" : "s"}
                         </button>
                       ) : (
@@ -2189,12 +2494,16 @@ export function StockModule({
                           type="number"
                           min={1}
                           value={receiveQty[key] ?? 2}
-                          onChange={(e) => setReceiveQty({ ...receiveQty, [key]: Number(e.target.value) })}
+                          onChange={(e) =>
+                            setReceiveQty({ ...receiveQty, [key]: Number(e.target.value) })
+                          }
                         />
                         <Button
                           type="button"
                           variant="outline"
-                          onClick={() => store.receive(bal.productId, bal.warehouseId, receiveQty[key] ?? 2)}
+                          onClick={() =>
+                            store.receive(bal.productId, bal.warehouseId, receiveQty[key] ?? 2)
+                          }
                         >
                           Receive
                         </Button>
@@ -2235,7 +2544,9 @@ export function OutstandingDashboardWidget({
       <div className="tlb-panel-heading">
         <div>
           <span>Outstanding customer supplies</span>
-          <strong>{filtered.length} open line{filtered.length === 1 ? "" : "s"}</strong>
+          <strong>
+            {filtered.length} open line{filtered.length === 1 ? "" : "s"}
+          </strong>
         </div>
         <button type="button" onClick={onOpen}>
           View all <ChevronRight />
@@ -2244,7 +2555,11 @@ export function OutstandingDashboardWidget({
       {rows.length === 0 ? (
         <EmptyState
           title="Caught up"
-          detail={dateFilter ? "No outstanding lines in this period." : "No outstanding customer supply lines."}
+          detail={
+            dateFilter
+              ? "No outstanding lines in this period."
+              : "No outstanding customer supply lines."
+          }
         />
       ) : (
         <div className="tlb-table-scroll">
@@ -2261,10 +2576,16 @@ export function OutstandingDashboardWidget({
             <tbody>
               {rows.map((row) => (
                 <tr key={row.lineId}>
-                  <td><strong>{row.orderNumber}</strong></td>
+                  <td>
+                    <strong>{row.orderNumber}</strong>
+                  </td>
                   <td>{row.productSku}</td>
                   <td>{row.outstandingQty}</td>
-                  <td><StatusBadge tone={statusTone(row.ageingBand)}>{row.ageDays}d · {row.ageingBand}</StatusBadge></td>
+                  <td>
+                    <StatusBadge tone={statusTone(row.ageingBand)}>
+                      {row.ageDays}d · {row.ageingBand}
+                    </StatusBadge>
+                  </td>
                   <td>
                     <button type="button" onClick={onOpen} aria-label="Open outstanding supplies">
                       <ChevronRight />
@@ -2374,26 +2695,28 @@ export function LiveSearchResults({
     return (
       <>
         <p>QUICK ACCESS</p>
-        {["Chemical A · CHEM-A", "TLB-ORD Phase 30 order", "Outstanding Supplies", "Invoices"].map((label) => (
-          <button
-            type="button"
-            role="option"
-            key={label}
-            onClick={() => {
-              if (label.includes("Outstanding")) onOpenNav("Outstanding Supplies");
-              else if (label.includes("Invoice")) onOpenNav("Invoices");
-              else if (label.includes("ORD")) {
-                const order = store.state.orders.find((o) => o.id === "ord-phase30");
-                if (order) onOpenOrder(order.id);
-                else onOpenNav("Sales Orders");
-              } else onOpenNav("Stock");
-            }}
-          >
-            <PackageSearch />
-            <span>{label}</span>
-            <ChevronRight />
-          </button>
-        ))}
+        {["Chemical A · CHEM-A", "TLB-ORD Phase 30 order", "Outstanding Supplies", "Invoices"].map(
+          (label) => (
+            <button
+              type="button"
+              role="option"
+              key={label}
+              onClick={() => {
+                if (label.includes("Outstanding")) onOpenNav("Outstanding Supplies");
+                else if (label.includes("Invoice")) onOpenNav("Invoices");
+                else if (label.includes("ORD")) {
+                  const order = store.state.orders.find((o) => o.id === "ord-phase30");
+                  if (order) onOpenOrder(order.id);
+                  else onOpenNav("Sales Orders");
+                } else onOpenNav("Stock");
+              }}
+            >
+              <PackageSearch />
+              <span>{label}</span>
+              <ChevronRight />
+            </button>
+          ),
+        )}
       </>
     );
   }

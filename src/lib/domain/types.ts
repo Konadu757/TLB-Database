@@ -1,30 +1,14 @@
 /** Domain models for TLB customer orders, documents & fulfilment (Supabase-ready). */
 
 export type CustomerCategory =
-  | "Hospital"
-  | "Laboratory"
-  | "Distributor"
-  | "Industrial"
-  | "Educational"
-  | "Other";
+  "Hospital" | "Laboratory" | "Distributor" | "Industrial" | "Educational" | "Other";
 
-export type SupplierCategory =
-  | "Chemical"
-  | "Packaging"
-  | "Equipment"
-  | "Logistics"
-  | "Other";
+export type SupplierCategory = "Chemical" | "Packaging" | "Equipment" | "Logistics" | "Other";
 
 export type PaymentTerms = "COD" | "Net 7" | "Net 15" | "Net 30" | "Net 45" | "Net 60";
 
 export type SupplierPoStatus =
-  | "Draft"
-  | "Open"
-  | "Ordered"
-  | "In transit"
-  | "Partially received"
-  | "Received"
-  | "Cancelled";
+  "Draft" | "Open" | "Ordered" | "In transit" | "Partially received" | "Received" | "Cancelled";
 
 export type CustomerOrderStatus =
   | "Draft"
@@ -38,24 +22,14 @@ export type CustomerOrderStatus =
   | "Cancelled";
 
 export type LineStatus =
-  | "Open"
-  | "Awaiting Stock"
-  | "Ready"
-  | "Partially Supplied"
-  | "Fully Supplied"
-  | "Cancelled";
+  "Open" | "Awaiting Stock" | "Ready" | "Partially Supplied" | "Fully Supplied" | "Cancelled";
 
 export type AgeingBand = "Normal" | "Attention" | "Overdue";
 
 export type InvoicePaymentStatus = "Unpaid" | "Partial" | "Paid" | "Void";
 
 export type DeliveryStatus =
-  | "Preparing"
-  | "Ready"
-  | "Dispatched"
-  | "Delivered"
-  | "Failed"
-  | "Returned";
+  "Preparing" | "Ready" | "Dispatched" | "Delivered" | "Failed" | "Returned";
 
 export type PaymentMethod = "Cash" | "Bank Transfer" | "Mobile Money" | "Cheque" | "Card" | "Other";
 
@@ -154,12 +128,7 @@ export type StockMovementType =
 export type IssueStrategy = "FIFO" | "LIFO" | "FEFO";
 
 export type TransferStatus =
-  | "Requested"
-  | "Approved"
-  | "Released"
-  | "In Transit"
-  | "Received"
-  | "Cancelled";
+  "Requested" | "Approved" | "Released" | "In Transit" | "Received" | "Cancelled";
 
 export type AdjustmentStatus = "Draft" | "Posted" | "Pending Approval" | "Rejected" | "Cancelled";
 
@@ -180,13 +149,7 @@ export type ApprovalStatus = "Pending" | "Approved" | "Rejected" | "Cancelled";
 export type GrnStatus = "Draft" | "Received" | "Checked" | "Approved" | "Rejected" | "Cancelled";
 
 export type StockIssueReason =
-  | "Customer supply"
-  | "Production"
-  | "Sample"
-  | "Damage"
-  | "Expiry"
-  | "Internal use"
-  | "Other";
+  "Customer supply" | "Production" | "Sample" | "Damage" | "Expiry" | "Internal use" | "Other";
 
 export type FinanceAgeingBucket = "0-30" | "31-60" | "61-90" | "90+";
 
@@ -952,7 +915,8 @@ export interface CustomerReturn extends SoftDeleteFields {
   createdAt: string;
 }
 
-export type SupplierReturnStatus = "Draft" | "Approved" | "Shipped" | "Credited" | "Replaced" | "Cancelled";
+export type SupplierReturnStatus =
+  "Draft" | "Approved" | "Shipped" | "Credited" | "Replaced" | "Cancelled";
 
 export interface SupplierReturn extends SoftDeleteFields {
   id: string;
@@ -976,12 +940,7 @@ export interface SupplierReturn extends SoftDeleteFields {
 }
 
 export type NonPoPurchaseStatus =
-  | "Draft"
-  | "Pending Approval"
-  | "Approved"
-  | "Rejected"
-  | "Goods Received"
-  | "Cancelled";
+  "Draft" | "Pending Approval" | "Approved" | "Rejected" | "Goods Received" | "Cancelled";
 
 export interface NonPoPurchaseLine {
   id: string;
@@ -1055,12 +1014,7 @@ export interface ImportShipment extends SoftDeleteFields {
 }
 
 export type ExportShipmentStatus =
-  | "Preparing"
-  | "Docs Ready"
-  | "Dispatched"
-  | "In Transit"
-  | "Delivered"
-  | "Cancelled";
+  "Preparing" | "Docs Ready" | "Dispatched" | "In Transit" | "Delivered" | "Cancelled";
 
 export interface ExportShipmentLine {
   id: string;
@@ -1136,13 +1090,7 @@ export type OpsDriverJobStatus =
   | "Delivered"
   | "Problem";
 
-export type OpsReceiptOutcome =
-  | "Full"
-  | "Partial"
-  | "Damaged"
-  | "Wrong"
-  | "Missing"
-  | "Rejected";
+export type OpsReceiptOutcome = "Full" | "Partial" | "Damaged" | "Wrong" | "Missing" | "Rejected";
 
 export type OpsDiscrepancyKind = "missing" | "damaged" | "wrong" | "rejected" | "short_delivery";
 
@@ -1507,6 +1455,4 @@ export interface SearchHit {
   orderId?: string;
 }
 
-export type StoreResult<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: string };
+export type StoreResult<T> = { ok: true; data: T } | { ok: false; error: string };

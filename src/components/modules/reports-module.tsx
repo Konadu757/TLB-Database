@@ -55,7 +55,10 @@ export function ReportsModule({
   if (!store.can("reports.view")) {
     return (
       <div className="tlb-module">
-        <EmptyState title="Reports restricted" detail={`Role ${store.state.currentRole} cannot view reports.`} />
+        <EmptyState
+          title="Reports restricted"
+          detail={`Role ${store.state.currentRole} cannot view reports.`}
+        />
       </div>
     );
   }
@@ -97,7 +100,9 @@ export function ReportsModule({
           {periodLabel && !from && !to ? (
             <p className="tlb-muted-line">Using timeline · {periodLabel} (override with From/To)</p>
           ) : (
-            <p className="tlb-muted-line">Filters + CSV export across inventory, commerce, finance, and ops</p>
+            <p className="tlb-muted-line">
+              Filters + CSV export across inventory, commerce, finance, and ops
+            </p>
           )}
         </div>
         <div className="tlb-inline-actions">
@@ -122,7 +127,12 @@ export function ReportsModule({
       {tab === "performance" ? (
         <div
           className="tlb-kpi-strip"
-          style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 12 }}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: 10,
+            marginBottom: 12,
+          }}
         >
           <article className="tlb-panel" style={{ padding: 12 }}>
             <span className="tlb-eyebrow">Fully supplied</span>
@@ -141,7 +151,12 @@ export function ReportsModule({
       <section className="tlb-filter-bar tlb-module-filters">
         <div className="tlb-periods" style={{ flexWrap: "wrap" }}>
           {tabs.map(([key, label]) => (
-            <button type="button" key={key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>
+            <button
+              type="button"
+              key={key}
+              className={tab === key ? "active" : ""}
+              onClick={() => setTab(key)}
+            >
               {label}
             </button>
           ))}
@@ -149,7 +164,10 @@ export function ReportsModule({
       </section>
       <article className="tlb-panel tlb-orders-panel">
         {rows.length === 0 ? (
-          <EmptyState title="No matching records were found." detail="Adjust filters or pick another report pack." />
+          <EmptyState
+            title="No matching records were found."
+            detail="Adjust filters or pick another report pack."
+          />
         ) : (
           <div className="tlb-table-scroll">
             <table>

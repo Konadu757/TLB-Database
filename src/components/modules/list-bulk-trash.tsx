@@ -16,8 +16,7 @@ export function useListSelection(visibleIds: string[]) {
     [visibleIds, selected],
   );
 
-  const allVisibleSelected =
-    visibleIds.length > 0 && selectedVisible.length === visibleIds.length;
+  const allVisibleSelected = visibleIds.length > 0 && selectedVisible.length === visibleIds.length;
 
   const someVisibleSelected = selectedVisible.length > 0 && !allVisibleSelected;
 
@@ -234,11 +233,7 @@ export function SelectRowCell({
 }): ReactNode {
   return (
     <td className="tlb-col-select" onClick={stopRowCheckboxClick}>
-      <SelectionCheckbox
-        checked={checked}
-        onChange={() => onToggle(id)}
-        ariaLabel={label}
-      />
+      <SelectionCheckbox checked={checked} onChange={() => onToggle(id)} ariaLabel={label} />
     </td>
   );
 }

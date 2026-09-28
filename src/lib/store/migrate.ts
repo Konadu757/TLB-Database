@@ -73,58 +73,88 @@ const DEFAULT_COUNTERS: DocumentCounters = {
 };
 
 function defaultUsers(roles: RoleDefinition[]): AppUser[] {
-  const byKey = (key: string) => roles.find((r) => r.systemKey === key)?.id ?? SYSTEM_ROLE_IDS.Owner;
+  const ownerId = roles.find((r) => r.systemKey === "Owner")?.id ?? SYSTEM_ROLE_IDS.Owner;
   return [
     {
       id: OWNER_USER_ID,
       name: "TLB Owner",
       email: "owner@tlb.gh",
-      roleId: byKey("Owner"),
+      roleId: ownerId,
       active: true,
     },
     {
       id: "user-sales",
       name: "Ama Mensah",
       email: "sales@tlb.gh",
-      roleId: byKey("Sales"),
+      roleId: ownerId,
       active: true,
     },
     {
       id: "user-warehouse",
       name: "Kofi Boateng",
       email: "warehouse@tlb.gh",
-      roleId: byKey("Warehouse"),
+      roleId: ownerId,
       active: true,
     },
     {
       id: "user-finance",
       name: "Efua Addo",
       email: "finance@tlb.gh",
-      roleId: byKey("Finance"),
+      roleId: ownerId,
       active: true,
     },
     {
       id: "user-manager",
       name: "Yaw Mensah",
       email: "manager@tlb.gh",
-      roleId: byKey("Manager"),
+      roleId: ownerId,
       active: true,
     },
     {
       id: "user-driver",
       name: "Kwesi Owusu",
       email: "driver@tlb.gh",
-      roleId: byKey("Driver"),
+      roleId: ownerId,
       active: true,
     },
     {
       id: "user-requester",
       name: "Abena Factory",
       email: "factory@tlb.gh",
-      roleId: byKey("Requester"),
+      roleId: ownerId,
       active: true,
     },
   ];
+}
+
+/**
+ * App sessions only sign in as Owner. Other system roles stay in the permission
+ * catalog and tlb.roles SQL; they are not listed or assignable in the workspace.
+ * Users who were on a removed role are reassigned to Owner.
+ */
+export function lockWorkspaceToOwner(state: TlbState): void {
+  const catalogOwner = createSystemRoles().find((r) => r.systemKey === "Owner");
+  const existing = state.roles.find((r) => r.systemKey === "Owner" || r.id === SYSTEM_ROLE_IDS.Owner);
+  const owner: RoleDefinition = {
+    ...(catalogOwner ?? existing)!,
+    id: SYSTEM_ROLE_IDS.Owner,
+    name: "Owner",
+    systemKey: "Owner",
+    active: true,
+    permissions: [...SYSTEM_ROLE_PERMISSIONS.Owner],
+  };
+  state.roles = [owner];
+  for (const user of state.users) {
+    user.roleId = owner.id;
+  }
+  const ownerUser = state.users.find((u) => u.id === OWNER_USER_ID);
+  if (ownerUser) {
+    ownerUser.active = true;
+    ownerUser.roleId = owner.id;
+    state.currentUserId = ownerUser.id;
+  }
+  state.version = Math.max(state.version, 14);
+  syncSessionIdentity(state);
 }
 
 /** Keep denormalized session fields aligned with users/roles. */
@@ -186,35 +216,33 @@ export function migrateState(raw: unknown): TlbState {
   const ageing: AgeingSettings = {
     ...DEFAULT_AGEING,
     ...(parsed.ageing ?? {}),
-    extendedUnfulfilledDays: parsed.ageing?.extendedUnfulfilledDays ?? DEFAULT_AGEING.extendedUnfulfilledDays,
-    expectedApproachingDays: parsed.ageing?.expectedApproachingDays ?? DEFAULT_AGEING.expectedApproachingDays,
+    extendedUnfulfilledDays:
+      parsed.ageing?.extendedUnfulfilledDays ?? DEFAULT_AGEING.extendedUnfulfilledDays,
+    expectedApproachingDays:
+      parsed.ageing?.expectedApproachingDays ?? DEFAULT_AGEING.expectedApproachingDays,
   };
 
   // v3: seed dated collections when upgrading from empty finance ledgers.
   const needsCollectionSeed =
-    priorVersion < 3 && !(parsed.payments?.length) && !(parsed.receipts?.length);
+    priorVersion < 3 && !parsed.payments?.length && !parsed.receipts?.length;
 
   // v4: seed supplier master + period-dated procurement activity.
-  const needsSupplierSeed = priorVersion < 4 || !(parsed.suppliers?.length);
+  const needsSupplierSeed = priorVersion < 4 || !parsed.suppliers?.length;
 
   // v6: merge period-spanning commercial demo rows so Today ≠ Month ≠ Year is visible
   // without wiping user-created documents (merge-by-id only).
   const needsPeriodSpanSeed = priorVersion < 6;
 
-  // v5: owner-managed roles/users + correct owner identity (replace demo Kwame/Manager session).
-  const systemRoles = createSystemRoles();
-  const roles: RoleDefinition[] =
-    parsed.roles?.length
-      ? [
-          ...systemRoles.filter((sys) => !parsed.roles!.some((r) => r.id === sys.id || r.systemKey === sys.systemKey)),
-          ...parsed.roles,
-        ]
-      : systemRoles;
+  // v5/v14: keep saved users, then lock the workspace to the Owner role only.
+  const ownerCatalog = createSystemRoles().filter((r) => r.systemKey === "Owner");
+  const roles: RoleDefinition[] = parsed.roles?.length ? parsed.roles : ownerCatalog;
   const users: AppUser[] = parsed.users?.length
     ? mergeById(parsed.users, defaultUsers(roles))
     : defaultUsers(roles);
 
-  const baseOrders = parsed.orders?.length ? parsed.orders.map((o) => ({ ...o })) : seed.orders.map((o) => ({ ...o }));
+  const baseOrders = parsed.orders?.length
+    ? parsed.orders.map((o) => ({ ...o }))
+    : seed.orders.map((o) => ({ ...o }));
   const baseOrderLines = parsed.orderLines?.length ? parsed.orderLines : seed.orderLines;
   const baseReceipts = needsCollectionSeed ? seed.receipts : (parsed.receipts ?? []);
   const baseReceiptLines = needsCollectionSeed ? seed.receiptLines : (parsed.receiptLines ?? []);
@@ -230,32 +258,36 @@ export function migrateState(raw: unknown): TlbState {
   const inventorySettings: InventorySettings = {
     ...DEFAULT_INVENTORY_SETTINGS,
     ...(parsed.inventorySettings ?? {}),
-    expiryAlertDays:
-      parsed.inventorySettings?.expiryAlertDays?.length
-        ? parsed.inventorySettings.expiryAlertDays
-        : DEFAULT_INVENTORY_SETTINGS.expiryAlertDays,
+    expiryAlertDays: parsed.inventorySettings?.expiryAlertDays?.length
+      ? parsed.inventorySettings.expiryAlertDays
+      : DEFAULT_INVENTORY_SETTINGS.expiryAlertDays,
   };
 
   const next: TlbState = {
-    version: 13,
+    version: 14,
     warehouses: needsOpsHubSeed
       ? mergeById(parsed.warehouses?.length ? parsed.warehouses : seed.warehouses, seed.warehouses)
       : parsed.warehouses?.length
         ? parsed.warehouses
         : seed.warehouses,
-    products: needsInventorySeed || needsOpsHubSeed
-      ? mergeById(parsed.products?.length ? parsed.products : seed.products, seed.products)
-      : parsed.products?.length
-        ? parsed.products
-        : seed.products,
+    products:
+      needsInventorySeed || needsOpsHubSeed
+        ? mergeById(parsed.products?.length ? parsed.products : seed.products, seed.products)
+        : parsed.products?.length
+          ? parsed.products
+          : seed.products,
     stock: needsOpsHubSeed
-      ? mergeById(parsed.stock?.length ? parsed.stock.map((s) => ({ ...s })) : seed.stock, seed.stock)
+      ? mergeById(
+          parsed.stock?.length ? parsed.stock.map((s) => ({ ...s })) : seed.stock,
+          seed.stock,
+        )
       : parsed.stock?.length
         ? parsed.stock.map((s) => ({ ...s }))
         : seed.stock,
-    batches: needsInventorySeed || needsOpsHubSeed
-      ? mergeById(parsed.batches ?? [], seed.batches)
-      : (parsed.batches ?? []),
+    batches:
+      needsInventorySeed || needsOpsHubSeed
+        ? mergeById(parsed.batches ?? [], seed.batches)
+        : (parsed.batches ?? []),
     stockMovements: needsInventorySeed
       ? mergeById(parsed.stockMovements ?? [], seed.stockMovements)
       : (parsed.stockMovements ?? []),
@@ -293,7 +325,9 @@ export function migrateState(raw: unknown): TlbState {
     invoices: parsed.invoices ?? [],
     invoiceLines: parsed.invoiceLines ?? [],
     receipts: needsPeriodSpanSeed ? mergeById(baseReceipts, seed.receipts) : baseReceipts,
-    receiptLines: needsPeriodSpanSeed ? mergeById(baseReceiptLines, seed.receiptLines) : baseReceiptLines,
+    receiptLines: needsPeriodSpanSeed
+      ? mergeById(baseReceiptLines, seed.receiptLines)
+      : baseReceiptLines,
     deliveries: parsed.deliveries ?? [],
     deliveryItems: parsed.deliveryItems ?? [],
     payments: needsPeriodSpanSeed ? mergeById(basePayments, seed.payments) : basePayments,
@@ -331,7 +365,9 @@ export function migrateState(raw: unknown): TlbState {
     opsActivity: parsed.opsActivity ?? [],
     opsCustody: parsed.opsCustody ?? [],
     opsDiscrepancies: parsed.opsDiscrepancies ?? [],
-    opsApprovalRules: parsed.opsApprovalRules?.length ? parsed.opsApprovalRules : seed.opsApprovalRules,
+    opsApprovalRules: parsed.opsApprovalRules?.length
+      ? parsed.opsApprovalRules
+      : seed.opsApprovalRules,
     notifications: parsed.notifications ?? [],
     reservations: parsed.reservations ?? [],
     audit: parsed.audit ?? [],
@@ -357,20 +393,39 @@ export function migrateState(raw: unknown): TlbState {
             stockMovement: Math.max(counters.stockMovement ?? 0, seed.counters.stockMovement ?? 0),
             transfer: Math.max(counters.transfer ?? 0, seed.counters.transfer ?? 0),
             batch: Math.max(counters.batch ?? 0, seed.counters.batch ?? 0),
-            supplierReceipt: Math.max(counters.supplierReceipt ?? 0, seed.counters.supplierReceipt ?? 0),
+            supplierReceipt: Math.max(
+              counters.supplierReceipt ?? 0,
+              seed.counters.supplierReceipt ?? 0,
+            ),
           }
         : {}),
       ...(needsOpsPackSeed
         ? {
-            customerReturn: Math.max(counters.customerReturn ?? 0, seed.counters.customerReturn ?? 0),
-            supplierReturn: Math.max(counters.supplierReturn ?? 0, seed.counters.supplierReturn ?? 0),
+            customerReturn: Math.max(
+              counters.customerReturn ?? 0,
+              seed.counters.customerReturn ?? 0,
+            ),
+            supplierReturn: Math.max(
+              counters.supplierReturn ?? 0,
+              seed.counters.supplierReturn ?? 0,
+            ),
             nonPoPurchase: Math.max(counters.nonPoPurchase ?? 0, seed.counters.nonPoPurchase ?? 0),
-            importShipment: Math.max(counters.importShipment ?? 0, seed.counters.importShipment ?? 0),
-            exportShipment: Math.max(counters.exportShipment ?? 0, seed.counters.exportShipment ?? 0),
+            importShipment: Math.max(
+              counters.importShipment ?? 0,
+              seed.counters.importShipment ?? 0,
+            ),
+            exportShipment: Math.max(
+              counters.exportShipment ?? 0,
+              seed.counters.exportShipment ?? 0,
+            ),
           }
         : {}),
       opsRequest: Math.max(counters.opsRequest ?? 0, seed.counters.opsRequest ?? 0),
-      quotation: Math.max(counters.quotation ?? 0, seed.counters.quotation ?? 0, parsed.quotations?.length ?? 0),
+      quotation: Math.max(
+        counters.quotation ?? 0,
+        seed.counters.quotation ?? 0,
+        parsed.quotations?.length ?? 0,
+      ),
     }),
     ageing,
     company: parsed.company ?? DEFAULT_COMPANY,
@@ -391,7 +446,7 @@ export function migrateState(raw: unknown): TlbState {
     priorVersion < 5 ||
     legacyDemoNames.has(next.currentUser) ||
     !next.users.some((u) => u.id === next.currentUserId) ||
-    next.currentRole === "Manager" && !parsed.currentUserId
+    (next.currentRole === "Manager" && !parsed.currentUserId)
   ) {
     next.currentUserId = OWNER_USER_ID;
     const owner = next.users.find((u) => u.id === OWNER_USER_ID);
@@ -430,6 +485,7 @@ export function migrateState(raw: unknown): TlbState {
   }
 
   syncSessionIdentity(next);
+  lockWorkspaceToOwner(next);
   return next;
 }
 

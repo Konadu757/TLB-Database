@@ -3,11 +3,7 @@
  */
 import { daysBetween } from "./calculations";
 import { isSoftDeleted } from "./trash";
-import type {
-  StockAgeBand,
-  StockVelocityClass,
-  TlbState,
-} from "./types";
+import type { StockAgeBand, StockVelocityClass, TlbState } from "./types";
 
 export function stockAgeBand(ageDays: number): StockAgeBand {
   if (ageDays <= 30) return "0-30";
@@ -33,7 +29,10 @@ export interface StockAgeingRow {
   band: StockAgeBand;
 }
 
-export function stockAgeingReport(state: TlbState, asOf = new Date().toISOString()): StockAgeingRow[] {
+export function stockAgeingReport(
+  state: TlbState,
+  asOf = new Date().toISOString(),
+): StockAgeingRow[] {
   return state.batches
     .filter((b) => b.remainingQty > 0 && b.status !== "Closed")
     .map((b) => {
@@ -71,7 +70,10 @@ export interface StockVelocityRow {
 }
 
 /** Fast = outbound ≥ on-hand/15 in 30d; Dead = zero outbound & on-hand; Slow = else with stock. */
-export function stockVelocityReport(state: TlbState, asOf = new Date().toISOString()): StockVelocityRow[] {
+export function stockVelocityReport(
+  state: TlbState,
+  asOf = new Date().toISOString(),
+): StockVelocityRow[] {
   const cutoff = new Date(asOf);
   cutoff.setUTCDate(cutoff.getUTCDate() - 30);
   const since = cutoff.toISOString();
@@ -287,13 +289,21 @@ export interface CustomerPerformanceRow {
   creditUtilisationPct: number;
 }
 
-export function customerPerformanceReport(state: TlbState, asOf = new Date().toISOString()): CustomerPerformanceRow[] {
+export function customerPerformanceReport(
+  state: TlbState,
+  asOf = new Date().toISOString(),
+): CustomerPerformanceRow[] {
   return state.customers
     .filter((c) => !isSoftDeleted(c))
     .map((c) => {
-      const invoices = state.invoices.filter((i) => i.customerId === c.id && i.paymentStatus !== "Void");
+      const invoices = state.invoices.filter(
+        (i) => i.customerId === c.id && i.paymentStatus !== "Void",
+      );
       const revenue = invoices.reduce((s, i) => s + i.total, 0);
-      const outstandingBalance = invoices.reduce((s, i) => s + Math.max(0, i.total - i.amountPaid), 0);
+      const outstandingBalance = invoices.reduce(
+        (s, i) => s + Math.max(0, i.total - i.amountPaid),
+        0,
+      );
       const payments = state.payments.filter((p) => p.customerId === c.id);
       const payLags: number[] = [];
       for (const p of payments) {
@@ -301,7 +311,9 @@ export function customerPerformanceReport(state: TlbState, asOf = new Date().toI
         if (inv) payLags.push(daysBetween(inv.invoiceDate, p.paymentDate));
       }
       const avgDaysToPay =
-        payLags.length === 0 ? null : Math.round((payLags.reduce((a, b) => a + b, 0) / payLags.length) * 10) / 10;
+        payLags.length === 0
+          ? null
+          : Math.round((payLags.reduce((a, b) => a + b, 0) / payLags.length) * 10) / 10;
       const creditUtilisationPct =
         c.creditLimit <= 0 ? 0 : Math.round((outstandingBalance / c.creditLimit) * 1000) / 10;
       void asOf;

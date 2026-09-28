@@ -8,11 +8,7 @@ import {
   type BrowserColumn,
 } from "@/components/modules/record-browser";
 import { Button } from "@/components/ui/button";
-import {
-  MODULE_META,
-  recordsForModule,
-  type CatalogRecord,
-} from "@/lib/domain/list-catalog";
+import { MODULE_META, recordsForModule, type CatalogRecord } from "@/lib/domain/list-catalog";
 import type { DateRange } from "@/lib/domain/period-range";
 import { calcAvailable } from "@/lib/domain/calculations";
 import { catalogDeletionSet, catalogPurgedSet, notSoftDeleted } from "@/lib/domain/trash";
@@ -40,16 +36,25 @@ function money(n: number): string {
   return `GHS ${n.toLocaleString("en-GH", { minimumFractionDigits: 2 })}`;
 }
 
-function Flash({ error, notice, onClear }: { error: string | null; notice: string | null; onClear: () => void }) {
+function Flash({
+  error,
+  notice,
+  onClear,
+}: {
+  error: string | null;
+  notice: string | null;
+  onClear: () => void;
+}) {
   if (!error && !notice) return null;
   return (
     <div className={`tlb-flash ${error ? "tlb-flash--error" : "tlb-flash--notice"}`} role="status">
       <span>{error ?? notice}</span>
-      <button type="button" onClick={onClear}>Dismiss</button>
+      <button type="button" onClick={onClear}>
+        Dismiss
+      </button>
     </div>
   );
 }
-
 
 function CatalogModule({
   module,
@@ -89,18 +94,14 @@ function CatalogModule({
   const hideIds = useMemo(() => {
     if (!store) return undefined;
     return new Set([...catalogDeletionSet(store.state), ...catalogPurgedSet(store.state)]);
-  }, [store, store?.state.catalogDeletions, store?.state.catalogPurgedIds]);
+  }, [store]);
 
   const rows = useMemo(
     () =>
-      recordsForModule(
-        module,
-        range,
-        {
-          ...(hideIds ? { hideIds } : {}),
-          ...(userQuotations ? { userQuotations } : {}),
-        },
-      ),
+      recordsForModule(module, range, {
+        ...(hideIds ? { hideIds } : {}),
+        ...(userQuotations ? { userQuotations } : {}),
+      }),
     // Depend on range bounds so period chip changes always refilter lists.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- range object identity is unstable
     [module, range?.from, range?.to, hideIds, userQuotations],
@@ -272,7 +273,8 @@ export function QuotationsModule(props: CatalogModuleProps) {
   const [status, setStatus] = useState<"Draft" | "Sent">("Draft");
   const [previewNumber, setPreviewNumber] = useState<string | null>(null);
   const canEdit = Boolean(store && (store.can("quotations.view") || store.can("records.edit")));
-  const editingQuote = editing && selectedId && store ? store.state.quotations.find((q) => q.id === selectedId) : null;
+  const editingQuote =
+    editing && selectedId && store ? store.state.quotations.find((q) => q.id === selectedId) : null;
 
   const openCreate = useCallback(() => {
     setCreating(true);
@@ -348,7 +350,9 @@ export function QuotationsModule(props: CatalogModuleProps) {
                 <span>{editingQuote.number}</span>
                 <strong>Edit quotation</strong>
               </div>
-              <button type="button" onClick={() => setEditing(false)}>Cancel</button>
+              <button type="button" onClick={() => setEditing(false)}>
+                Cancel
+              </button>
             </div>
             <label>
               Customer
@@ -375,7 +379,11 @@ export function QuotationsModule(props: CatalogModuleProps) {
             </label>
             <label>
               Customer name
-              <input required value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+              <input
+                required
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+              />
             </label>
             <label>
               Contact
@@ -387,7 +395,10 @@ export function QuotationsModule(props: CatalogModuleProps) {
             </label>
             <label>
               Status
-              <select value={status} onChange={(e) => setStatus(e.target.value as "Draft" | "Sent")}>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as "Draft" | "Sent")}
+              >
                 <option value="Draft">Draft</option>
                 <option value="Sent">Sent</option>
               </select>
@@ -398,11 +409,25 @@ export function QuotationsModule(props: CatalogModuleProps) {
             </label>
             <label>
               Qty
-              <input required type="number" min={0.01} step="any" value={qty} onChange={(e) => setQty(e.target.value)} />
+              <input
+                required
+                type="number"
+                min={0.01}
+                step="any"
+                value={qty}
+                onChange={(e) => setQty(e.target.value)}
+              />
             </label>
             <label>
               Unit price (GHS)
-              <input required type="number" min={0} step="0.01" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} />
+              <input
+                required
+                type="number"
+                min={0}
+                step="0.01"
+                value={unitPrice}
+                onChange={(e) => setUnitPrice(e.target.value)}
+              />
             </label>
             <label className="tlb-span-2">
               Notes
@@ -550,7 +575,11 @@ export function QuotationsModule(props: CatalogModuleProps) {
               </label>
               <label>
                 Contact
-                <input value={contact} onChange={(e) => setContact(e.target.value)} placeholder="Name · email" />
+                <input
+                  value={contact}
+                  onChange={(e) => setContact(e.target.value)}
+                  placeholder="Name · email"
+                />
               </label>
               <label>
                 Payment terms
@@ -589,7 +618,11 @@ export function QuotationsModule(props: CatalogModuleProps) {
               </label>
               <label className="tlb-span-2">
                 Notes
-                <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" />
+                <input
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Optional"
+                />
               </label>
               <div className="tlb-form-actions tlb-span-2">
                 <Button type="submit">Save quotation</Button>
@@ -905,23 +938,41 @@ export function ProductsModule({
                 <span>{selectedProduct.sku}</span>
                 <strong>Edit product</strong>
               </div>
-              <button type="button" onClick={() => setEditing(false)}>Cancel</button>
+              <button type="button" onClick={() => setEditing(false)}>
+                Cancel
+              </button>
             </div>
             <label>
               SKU
-              <input required value={form.sku} onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))} />
+              <input
+                required
+                value={form.sku}
+                onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))}
+              />
             </label>
             <label>
               Name
-              <input required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+              <input
+                required
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              />
             </label>
             <label>
               Unit
-              <input required value={form.unit} onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))} />
+              <input
+                required
+                value={form.unit}
+                onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))}
+              />
             </label>
             <label>
               Category
-              <input required value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} />
+              <input
+                required
+                value={form.category}
+                onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+              />
             </label>
             <label>
               Active
@@ -943,7 +994,12 @@ export function ProductsModule({
   }
 
   const columns: BrowserColumn<ProductRow>[] = [
-    { key: "sku", header: "SKU", className: "tlb-col-priority", render: (r) => <strong>{r.sku}</strong> },
+    {
+      key: "sku",
+      header: "SKU",
+      className: "tlb-col-priority",
+      render: (r) => <strong>{r.sku}</strong>,
+    },
     {
       key: "name",
       header: "Product",
@@ -956,7 +1012,12 @@ export function ProductsModule({
       ),
     },
     { key: "onHand", header: "On hand", className: "tlb-col-priority", render: (r) => r.onHand },
-    { key: "available", header: "Available", className: "tlb-col-priority", render: (r) => r.available },
+    {
+      key: "available",
+      header: "Available",
+      className: "tlb-col-priority",
+      render: (r) => r.available,
+    },
   ];
 
   return (
@@ -1025,7 +1086,10 @@ export function ProductsModule({
         {
           label: "Available",
           value: r.available,
-          tileClass: r.available <= 0 ? "tlb-customer-summary-tile--danger" : "tlb-customer-summary-tile--success",
+          tileClass:
+            r.available <= 0
+              ? "tlb-customer-summary-tile--danger"
+              : "tlb-customer-summary-tile--success",
         },
         { label: "Category", value: r.category },
       ]}
@@ -1146,19 +1210,33 @@ export function WarehousesModule({
                 <span>{selectedWh.code}</span>
                 <strong>Edit warehouse</strong>
               </div>
-              <button type="button" onClick={() => setEditing(false)}>Cancel</button>
+              <button type="button" onClick={() => setEditing(false)}>
+                Cancel
+              </button>
             </div>
             <label>
               Code
-              <input required value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} />
+              <input
+                required
+                value={form.code}
+                onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
+              />
             </label>
             <label>
               Name
-              <input required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+              <input
+                required
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              />
             </label>
             <label className="tlb-span-2">
               Location
-              <input required value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} />
+              <input
+                required
+                value={form.location}
+                onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
+              />
             </label>
             <label>
               Active
@@ -1190,7 +1268,12 @@ export function WarehousesModule({
       noMatchDetail="Try another code, name, or location."
       rows={rows}
       columns={[
-        { key: "code", header: "Code", className: "tlb-col-priority", render: (r) => <strong>{r.code}</strong> },
+        {
+          key: "code",
+          header: "Code",
+          className: "tlb-col-priority",
+          render: (r) => <strong>{r.code}</strong>,
+        },
         {
           key: "name",
           header: "Warehouse",
@@ -1210,7 +1293,10 @@ export function WarehousesModule({
       onSelect={onSelect}
       onBack={onBack}
       backLabel="Warehouses"
-      statusOf={(r) => ({ label: r.active ? "Open" : "Closed", tone: r.active ? "success" : "warning" })}
+      statusOf={(r) => ({
+        label: r.active ? "Open" : "Closed",
+        tone: r.active ? "success" : "warning",
+      })}
       detailTitle={(r) => r.name}
       detailSubtitle={(r) => r.location}
       detailCode={(r) => r.code}
@@ -1264,7 +1350,13 @@ export function WarehousesModule({
               const p = state.products.find((x) => x.id === b.productId);
               return {
                 id: b.id,
-                cells: [p?.name ?? "—", p?.sku ?? "—", b.physicalQty, b.reservedQty, calcAvailable(b)],
+                cells: [
+                  p?.name ?? "—",
+                  p?.sku ?? "—",
+                  b.physicalQty,
+                  b.reservedQty,
+                  calcAvailable(b),
+                ],
               };
             }),
           },

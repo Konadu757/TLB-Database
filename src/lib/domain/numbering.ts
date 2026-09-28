@@ -1,3 +1,4 @@
+import { tryIssueDocumentNumber } from "../repo/ledger-rpc";
 import type { DocumentCounters } from "./types";
 
 const pad = (n: number, width = 5) => String(n).padStart(width, "0");
@@ -50,8 +51,25 @@ export type DocumentKind =
   | "exportShipment"
   | "opsRequest";
 
-/** Document numbering — TLB-ORD / TLB-QTE / TLB-SUP / TLB-CUS / TLB-VEN / TLB-PO / TLB-GRN / TLB-SPAY / … */
+/**
+ * Document numbering — TLB-ORD / TLB-QTE / TLB-SUP / TLB-CUS / TLB-VEN / TLB-PO / TLB-GRN / TLB-SPAY / …
+ * When Supabase is configured and issue_document_number succeeds, the server
+ * number is the one returned. Otherwise the local counter format is kept.
+ */
 export function nextDocumentNumber(
+  kind: DocumentKind,
+  counters: DocumentCounters,
+  now = new Date(),
+): { number: string; counters: DocumentCounters } {
+  const local = nextLocalDocumentNumber(kind, counters, now);
+  // Movement numbers are allocated inside post_movement, not here.
+  if (kind === "stockMovement") return local;
+  const issued = tryIssueDocumentNumber(kind);
+  if (issued) return { number: issued, counters: local.counters };
+  return local;
+}
+
+function nextLocalDocumentNumber(
   kind: DocumentKind,
   counters: DocumentCounters,
   now = new Date(),

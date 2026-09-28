@@ -47,7 +47,15 @@ const OUTSTANDING_PO_STATUSES = new Set([
   "Partially received",
 ]);
 
-function Flash({ error, notice, onClear }: { error: string | null; notice: string | null; onClear: () => void }) {
+function Flash({
+  error,
+  notice,
+  onClear,
+}: {
+  error: string | null;
+  notice: string | null;
+  onClear: () => void;
+}) {
   if (!error && !notice) return null;
   return (
     <div className={`tlb-flash ${error ? "tlb-flash-error" : "tlb-flash-ok"}`} role="status">
@@ -84,7 +92,11 @@ function SupplierFormFields({
     <>
       <label>
         Name
-        <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+        <input
+          required
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+        />
       </label>
       <label>
         Category / type
@@ -99,7 +111,10 @@ function SupplierFormFields({
       </label>
       <label>
         Contact
-        <input value={form.contactName} onChange={(e) => setForm({ ...form, contactName: e.target.value })} />
+        <input
+          value={form.contactName}
+          onChange={(e) => setForm({ ...form, contactName: e.target.value })}
+        />
       </label>
       <label>
         Phone
@@ -107,7 +122,11 @@ function SupplierFormFields({
       </label>
       <label>
         Email
-        <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+        <input
+          type="email"
+          value={form.email}
+          onChange={(e) => setForm({ ...form, email: e.target.value })}
+        />
       </label>
       <label>
         TIN (optional)
@@ -115,7 +134,10 @@ function SupplierFormFields({
       </label>
       <label className="tlb-span-2">
         Address
-        <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+        <input
+          value={form.address}
+          onChange={(e) => setForm({ ...form, address: e.target.value })}
+        />
       </label>
       <label>
         Payment terms
@@ -130,10 +152,18 @@ function SupplierFormFields({
       </label>
       <label className="tlb-span-2">
         Notes
-        <textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+        <textarea
+          rows={3}
+          value={form.notes}
+          onChange={(e) => setForm({ ...form, notes: e.target.value })}
+        />
       </label>
       <label className="tlb-check">
-        <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
+        <input
+          type="checkbox"
+          checked={form.active}
+          onChange={(e) => setForm({ ...form, active: e.target.checked })}
+        />
         Active
       </label>
       <label className="tlb-check">
@@ -164,16 +194,20 @@ export function SuppliersModule({
   const [search, setSearch] = useState("");
   const [form, setForm] = useState(emptySupplierForm);
 
-  const range = useMemo(
-    () => resolveSelectionRange(rangeSelection, DEMO_AS_OF),
-    [rangeSelection],
-  );
+  const range = useMemo(() => resolveSelectionRange(rangeSelection, DEMO_AS_OF), [rangeSelection]);
   const periodLabel = selectionLabel(rangeSelection);
 
   const periodStatsBySupplier = useMemo(() => {
     const map = new Map<
       string,
-      { pos: number; poValue: number; receipts: number; payments: number; spend: number; outstanding: number }
+      {
+        pos: number;
+        poValue: number;
+        receipts: number;
+        payments: number;
+        spend: number;
+        outstanding: number;
+      }
     >();
     for (const s of state.suppliers) {
       map.set(s.id, { pos: 0, poValue: 0, receipts: 0, payments: 0, spend: 0, outstanding: 0 });
@@ -201,7 +235,13 @@ export function SuppliersModule({
       }
     }
     return map;
-  }, [state.suppliers, state.supplierPurchaseOrders, state.supplierReceipts, state.supplierPayments, range]);
+  }, [
+    state.suppliers,
+    state.supplierPurchaseOrders,
+    state.supplierReceipts,
+    state.supplierPayments,
+    range,
+  ]);
 
   const modulePeriodSummary = useMemo(() => {
     let pos = 0;
@@ -362,7 +402,10 @@ export function SuppliersModule({
       <article className="tlb-panel tlb-orders-panel tlb-customers-panel tlb-customers-list-panel">
         <div className="tlb-table-scroll">
           {activeSuppliers.length === 0 ? (
-            <EmptyState title="No suppliers" detail="Create a supplier account to track procurement." />
+            <EmptyState
+              title="No suppliers"
+              detail="Create a supplier account to track procurement."
+            />
           ) : filteredSuppliers.length === 0 ? (
             <EmptyState
               title="No suppliers match your search."
@@ -494,10 +537,7 @@ function SupplierDetailModule({
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(emptySupplierForm);
 
-  const range = useMemo(
-    () => resolveSelectionRange(rangeSelection, DEMO_AS_OF),
-    [rangeSelection],
-  );
+  const range = useMemo(() => resolveSelectionRange(rangeSelection, DEMO_AS_OF), [rangeSelection]);
   const periodLabel = selectionLabel(rangeSelection);
 
   useEffect(() => {
@@ -543,7 +583,7 @@ function SupplierDetailModule({
       (p) => p.supplierId === selected.id && isoInRange(p.paymentDate, range),
     );
     return { purchaseOrders, outstandingPos, receipts, payments };
-  }, [selected, state.supplierPurchaseOrders, state.supplierReceipts, state.supplierPayments, range]);
+  }, [selected, state, range]);
 
   const transactionSummary = useMemo(() => {
     const poValue = supplierHistory.purchaseOrders.reduce((sum, po) => sum + po.total, 0);
@@ -587,14 +627,17 @@ function SupplierDetailModule({
   }, [supplierHistory, state.supplierPurchaseOrders]);
 
   const productName = (id?: string) =>
-    id ? state.products.find((p) => p.id === id)?.name ?? id : "—";
+    id ? (state.products.find((p) => p.id === id)?.name ?? id) : "—";
   const warehouseName = (id?: string) =>
-    id ? state.warehouses.find((w) => w.id === id)?.name ?? id : "—";
+    id ? (state.warehouses.find((w) => w.id === id)?.name ?? id) : "—";
 
   if (!selected) {
     return (
       <div className="tlb-module">
-        <EmptyState title="Supplier not found" detail="The selected supplier account is no longer available." />
+        <EmptyState
+          title="Supplier not found"
+          detail="The selected supplier account is no longer available."
+        />
         <DetailBackChrome label="Suppliers" onBack={onBack} />
       </div>
     );
@@ -683,7 +726,12 @@ function SupplierDetailModule({
       }
       flash={<Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />}
     >
-      <RecordDetailSection tone="summary" kicker={`Period · ${periodLabel}`} title="Transaction summary" span2>
+      <RecordDetailSection
+        tone="summary"
+        kicker={`Period · ${periodLabel}`}
+        title="Transaction summary"
+        span2
+      >
         <div className="tlb-customer-summary" aria-label="Supplier period summary">
           <div className="tlb-customer-summary-tile--info">
             <span>Purchase orders</span>
@@ -758,7 +806,9 @@ function SupplierDetailModule({
             <dt>Record dates</dt>
             <dd>
               Created {new Date(selected.createdAt).toLocaleDateString()}
-              <div className="tlb-muted-line">Updated {new Date(selected.updatedAt).toLocaleDateString()}</div>
+              <div className="tlb-muted-line">
+                Updated {new Date(selected.updatedAt).toLocaleDateString()}
+              </div>
             </dd>
           </div>
           <div className="tlb-span-2">
@@ -768,7 +818,11 @@ function SupplierDetailModule({
         </dl>
       </RecordDetailSection>
 
-      <RecordDetailSection tone="activity" kicker={`Activity · ${periodLabel}`} title="Recent activity">
+      <RecordDetailSection
+        tone="activity"
+        kicker={`Activity · ${periodLabel}`}
+        title="Recent activity"
+      >
         {recentActivity.length === 0 ? (
           <EmptyState
             title="No activity in this period."
@@ -787,7 +841,12 @@ function SupplierDetailModule({
         )}
       </RecordDetailSection>
 
-      <RecordDetailSection tone="orders" kicker={`POs · ${periodLabel}`} title="Purchase orders" span2>
+      <RecordDetailSection
+        tone="orders"
+        kicker={`POs · ${periodLabel}`}
+        title="Purchase orders"
+        span2
+      >
         {supplierHistory.purchaseOrders.length === 0 ? (
           <EmptyState
             title="No purchase orders in this period."
@@ -809,28 +868,32 @@ function SupplierDetailModule({
                 {supplierHistory.purchaseOrders.map((po) => {
                   const poTrashBlock = trashBlockReason(state, "supplier_po", po.id);
                   return (
-                  <tr key={po.id}>
-                    <td>
-                      <strong>{po.number}</strong>
-                      <div className="tlb-muted-line">{new Date(po.orderDate).toLocaleDateString()}</div>
-                    </td>
-                    <td>{formatMoney(po.total)}</td>
-                    <td>{po.expectedDate ? new Date(po.expectedDate).toLocaleDateString() : "—"}</td>
-                    <td>
-                      <StatusBadge tone={statusTone(po.status)}>{po.status}</StatusBadge>
-                    </td>
-                    <td>
-                      <MoveToTrashButton
-                        store={store}
-                        entityType="supplier_po"
-                        entityId={po.id}
-                        recordLabel={po.number}
-                        variant="outline"
-                        disabled={Boolean(poTrashBlock)}
-                        disabledReason={poTrashBlock ?? undefined}
-                      />
-                    </td>
-                  </tr>
+                    <tr key={po.id}>
+                      <td>
+                        <strong>{po.number}</strong>
+                        <div className="tlb-muted-line">
+                          {new Date(po.orderDate).toLocaleDateString()}
+                        </div>
+                      </td>
+                      <td>{formatMoney(po.total)}</td>
+                      <td>
+                        {po.expectedDate ? new Date(po.expectedDate).toLocaleDateString() : "—"}
+                      </td>
+                      <td>
+                        <StatusBadge tone={statusTone(po.status)}>{po.status}</StatusBadge>
+                      </td>
+                      <td>
+                        <MoveToTrashButton
+                          store={store}
+                          entityType="supplier_po"
+                          entityId={po.id}
+                          recordLabel={po.number}
+                          variant="outline"
+                          disabled={Boolean(poTrashBlock)}
+                          disabledReason={poTrashBlock ?? undefined}
+                        />
+                      </td>
+                    </tr>
                   );
                 })}
               </tbody>
@@ -839,7 +902,12 @@ function SupplierDetailModule({
         )}
       </RecordDetailSection>
 
-      <RecordDetailSection tone="outstanding" kicker="Open" title="Outstanding purchase orders" span2>
+      <RecordDetailSection
+        tone="outstanding"
+        kicker="Open"
+        title="Outstanding purchase orders"
+        span2
+      >
         {supplierHistory.outstandingPos.length === 0 ? (
           <EmptyState
             title="No outstanding POs."
@@ -873,7 +941,12 @@ function SupplierDetailModule({
         )}
       </RecordDetailSection>
 
-      <RecordDetailSection tone="stock" kicker={`Receipts · ${periodLabel}`} title="Stock receipts" span2>
+      <RecordDetailSection
+        tone="stock"
+        kicker={`Receipts · ${periodLabel}`}
+        title="Stock receipts"
+        span2
+      >
         {supplierHistory.receipts.length === 0 ? (
           <EmptyState
             title="No stock receipts in this period."
@@ -919,7 +992,12 @@ function SupplierDetailModule({
         )}
       </RecordDetailSection>
 
-      <RecordDetailSection tone="payments" kicker={`Payments · ${periodLabel}`} title="Payments" span2>
+      <RecordDetailSection
+        tone="payments"
+        kicker={`Payments · ${periodLabel}`}
+        title="Payments"
+        span2
+      >
         {supplierHistory.payments.length === 0 ? (
           <EmptyState
             title="No payments in this period."

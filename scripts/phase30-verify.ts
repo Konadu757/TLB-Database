@@ -24,8 +24,10 @@ import {
 } from "../src/lib/domain/inventory";
 import { stockAgeBand, stockAgeingReport } from "../src/lib/domain/analytics-pack";
 import { deepReportRows, toCsv } from "../src/lib/domain/reports";
-import { canAccessNav, hasPermission } from "../src/lib/domain/permissions";
+import { mergeStaffUsers, staffUsersForRemoteDirectory } from "../src/lib/domain/invites";
+import { canAccessNav, dbRoleCodeForRoleId, hasPermission } from "../src/lib/domain/permissions";
 import { nextDocumentNumber } from "../src/lib/domain/numbering";
+import { getPeriodRange, isoInRange, livePeriodAsOf } from "../src/lib/domain/period-range";
 import { globalSearch } from "../src/lib/domain/search";
 import { createSeedState } from "../src/lib/store/seed";
 import {
@@ -57,11 +59,17 @@ import {
   releaseOpsGoods,
   submitOpsRequest,
 } from "../src/lib/store/ops-hub-store";
-import { opsDiscrepancyMissing, opsOutstandingShortage, listOutstandingOpsRows } from "../src/lib/domain/ops-hub";
+import {
+  opsDiscrepancyMissing,
+  opsOutstandingShortage,
+  listOutstandingOpsRows,
+} from "../src/lib/domain/ops-hub";
 import {
   acceptInvite,
+  applyHostedInviteAcceptance,
   assignUserRole,
   confirmCustomerOrder,
+  createCustomerOrder,
   createDeliveryFromSupply,
   createInvoiceFromSupply,
   createOrdinaryReceipt,
@@ -98,13 +106,24 @@ function testOutstandingNeverNegative() {
 }
 
 function testSupplyValidation() {
-  assert.equal(validateSupplyQty({ supplyNow: 3, outstanding: 2, available: 10 }), "Cannot supply 3; only 2 outstanding.");
-  assert.equal(validateSupplyQty({ supplyNow: 2, outstanding: 2, available: 1 }), "Cannot supply 2; only 1 available in warehouse.");
+  assert.equal(
+    validateSupplyQty({ supplyNow: 3, outstanding: 2, available: 10 }),
+    "Cannot supply 3; only 2 outstanding.",
+  );
+  assert.equal(
+    validateSupplyQty({ supplyNow: 2, outstanding: 2, available: 1 }),
+    "Cannot supply 2; only 1 available in warehouse.",
+  );
   assert.equal(validateSupplyQty({ supplyNow: 2, outstanding: 2, available: 2 }), null);
 }
 
 function testAgeing() {
-  const settings = { normalMaxDays: 2, attentionMaxDays: 7, extendedUnfulfilledDays: 14, expectedApproachingDays: 2 };
+  const settings = {
+    normalMaxDays: 2,
+    attentionMaxDays: 7,
+    extendedUnfulfilledDays: 14,
+    expectedApproachingDays: 2,
+  };
   assert.equal(ageingBand(1, settings), "Normal");
   assert.equal(ageingBand(5, settings), "Attention");
   assert.equal(ageingBand(8, settings), "Overdue");
@@ -207,7 +226,9 @@ function testPermissions() {
   if (!edited.ok) return;
   assert.equal(edited.data.data.name, "Ama Mensah Updated");
   assert.equal(edited.data.data.email, "ama.updated@tlb.gh");
-  assert.ok(edited.data.state.audit.some((a) => a.action === "user.updated" && a.entityId === "user-sales"));
+  assert.ok(
+    edited.data.state.audit.some((a) => a.action === "user.updated" && a.entityId === "user-sales"),
+  );
 }
 
 function testInvites() {
@@ -238,6 +259,48 @@ function testInvites() {
   if (!reissued.ok) return;
   assert.notEqual(reissued.data.data.inviteCode, user.inviteCode);
   assert.equal(reissued.data.data.invitePending, true);
+
+  assert.equal(dbRoleCodeForRoleId(SYSTEM_ROLE_IDS.Warehouse), "WAREHOUSE");
+  assert.equal(dbRoleCodeForRoleId("role-custom"), null);
+
+  const mirrored = applyHostedInviteAcceptance(created.data.state, {
+    profileId: "11111111-1111-1111-1111-111111111111",
+    email: user.email,
+    fullName: "Invite Test User",
+    roleCode: "WAREHOUSE",
+  });
+  assert.equal(mirrored.ok, true);
+  if (!mirrored.ok) return;
+  assert.equal(mirrored.data.state.currentUserId, user.id);
+  assert.equal(mirrored.data.data.invitePending, false);
+  assert.equal(mirrored.data.state.currentRole, "Warehouse");
+
+  const createdRemote = applyHostedInviteAcceptance(state, {
+    profileId: "22222222-2222-2222-2222-222222222222",
+    email: "new.person@tlb.gh",
+    fullName: "New Person",
+    roleCode: "SALES",
+  });
+  assert.equal(createdRemote.ok, true);
+  if (!createdRemote.ok) return;
+  assert.equal(createdRemote.data.state.currentUserId, "22222222-2222-2222-2222-222222222222");
+  assert.equal(createdRemote.data.state.currentRole, "Sales");
+
+  const badRole = applyHostedInviteAcceptance(state, {
+    profileId: "33333333-3333-3333-3333-333333333333",
+    email: "x@tlb.gh",
+    fullName: "X",
+    roleCode: "CUSTOM",
+  });
+  assert.equal(badRole.ok, false);
+
+  const stripped = staffUsersForRemoteDirectory([user]);
+  assert.equal(stripped[0]?.inviteToken, undefined);
+  assert.equal(stripped[0]?.inviteCode, undefined);
+  assert.equal(stripped[0]?.email, user.email);
+  const merged = mergeStaffUsers(stripped, [user]);
+  assert.equal(merged[0]?.inviteToken, user.inviteToken);
+  assert.equal(merged[0]?.inviteCode, user.inviteCode);
 }
 
 function testPhase30Scenario() {
@@ -355,9 +418,18 @@ function testPhase30Scenario() {
   assert.ok(poHits.some((h) => h.kind === "Order"));
 
   assert.equal(state.supplies[0]?.number.startsWith("TLB-SUP-"), true);
-  assert.equal(state.audit.some((a) => a.action === "supply.created"), true);
-  assert.equal(state.audit.some((a) => a.action === "delivery.created"), true);
-  assert.equal(state.audit.some((a) => a.action === "receipt.created"), true);
+  assert.equal(
+    state.audit.some((a) => a.action === "supply.created"),
+    true,
+  );
+  assert.equal(
+    state.audit.some((a) => a.action === "delivery.created"),
+    true,
+  );
+  assert.equal(
+    state.audit.some((a) => a.action === "receipt.created"),
+    true,
+  );
 
   if (prevWindow !== undefined) g.window = prevWindow;
   void resetToSeed;
@@ -416,7 +488,9 @@ function testInventoryEngine() {
   assert.equal(grn.ok, true);
   if (!grn.ok) return;
   next = grn.data.state;
-  assert.ok(next.stockMovements.some((m) => m.type === "grn" && m.refNumber === grn.data.data.number));
+  assert.ok(
+    next.stockMovements.some((m) => m.type === "grn" && m.refNumber === grn.data.data.number),
+  );
 
   const issue = createStockIssue(next, {
     warehouseId: "wh-main",
@@ -468,7 +542,7 @@ function testInventoryEngine() {
 
 function testDeferredOpsPack() {
   const state = createSeedState();
-  assert.equal(state.version, 12);
+  assert.equal(state.version, 13);
   assert.ok((state.customerReturns ?? []).length >= 1, "seed customer returns");
   assert.ok((state.nonPoPurchases ?? []).length >= 1, "seed non-po");
   assert.ok((state.importShipments ?? []).length >= 1, "seed imports");
@@ -496,7 +570,11 @@ function testDeferredOpsPack() {
   assert.equal(crt.ok, true);
   if (!crt.ok) return;
   next = crt.data.state;
-  assert.ok(next.stockMovements.some((m) => m.type === "return_customer" && m.refId === crt.data.data.returnId));
+  assert.ok(
+    next.stockMovements.some(
+      (m) => m.type === "return_customer" && m.refId === crt.data.data.returnId,
+    ),
+  );
 
   const npo = createNonPoPurchase(next, {
     supplierId: "sup-ningbo",
@@ -515,7 +593,10 @@ function testDeferredOpsPack() {
   assert.equal(received.ok, true);
   if (!received.ok) return;
   next = received.data.state;
-  assert.equal(next.nonPoPurchases.find((n) => n.id === npo.data.data.nonPoId)?.status, "Goods Received");
+  assert.equal(
+    next.nonPoPurchases.find((n) => n.id === npo.data.data.nonPoId)?.status,
+    "Goods Received",
+  );
 
   const imp = upsertImportShipment(next, {
     supplierId: "sup-ningbo",
@@ -550,7 +631,10 @@ function testDeferredOpsPack() {
 function testSection49OpsHubWorkflow() {
   let state = createSeedState();
   assert.ok(state.opsDrivers.length >= 1, "seed drivers");
-  assert.ok(state.products.some((p) => p.id === "prod-mat-b"), "Material B product");
+  assert.ok(
+    state.products.some((p) => p.id === "prod-mat-b"),
+    "Material B product",
+  );
   assert.match(nextDocumentNumber("opsRequest", { ...state.counters }).number, /^TLB-REQ-/);
 
   // Set stock: Chemical A = 50, Material B = 15 at main (and FEFO batches).
@@ -561,7 +645,9 @@ function testSection49OpsHubWorkflow() {
   balB.physicalQty = 15;
   balB.reservedQty = 0;
   // Ensure FEFO batches cover release qty.
-  const batA = state.batches.find((b) => b.productId === "prod-chem-a" && b.warehouseId === "wh-main");
+  const batA = state.batches.find(
+    (b) => b.productId === "prod-chem-a" && b.warehouseId === "wh-main",
+  );
   if (batA) {
     batA.remainingQty = 50;
     batA.receivedQty = 50;
@@ -579,7 +665,9 @@ function testSection49OpsHubWorkflow() {
       status: "Open",
     });
   }
-  const batB = state.batches.find((b) => b.productId === "prod-mat-b" && b.warehouseId === "wh-main");
+  const batB = state.batches.find(
+    (b) => b.productId === "prod-mat-b" && b.warehouseId === "wh-main",
+  );
   if (batB) {
     batB.remainingQty = 15;
     batB.receivedQty = 15;
@@ -713,13 +801,21 @@ function testSection49OpsHubWorkflow() {
   assert.equal(finalB.receivedQty, 14);
   assert.equal(opsDiscrepancyMissing(finalB), 1, "delivery missing discrepancy = 1");
   assert.equal(opsOutstandingShortage(finalB), 5, "warehouse outstanding shortage remains 5");
-  assert.notEqual(opsOutstandingShortage(finalB), opsDiscrepancyMissing(finalB), "must not merge 5 and 1");
+  assert.notEqual(
+    opsOutstandingShortage(finalB),
+    opsDiscrepancyMissing(finalB),
+    "must not merge 5 and 1",
+  );
 
   const outstandingRows = listOutstandingOpsRows(state).filter((r) => r.requestId === requestId);
   assert.ok(outstandingRows.some((r) => r.productId === "prod-mat-b" && r.outstandingQty === 5));
-  assert.ok(outstandingRows.some((r) => r.productId === "prod-mat-b" && r.missingDiscrepancyQty === 1));
+  assert.ok(
+    outstandingRows.some((r) => r.productId === "prod-mat-b" && r.missingDiscrepancyQty === 1),
+  );
 
-  const disc = state.opsDiscrepancies.filter((d) => d.requestId === requestId && d.kind === "missing");
+  const disc = state.opsDiscrepancies.filter(
+    (d) => d.requestId === requestId && d.kind === "missing",
+  );
   assert.ok(disc.some((d) => d.productId === "prod-mat-b" && d.quantity === 1));
 
   const searchHits = globalSearch(state, created.data.data.number);
@@ -790,4 +886,89 @@ testInventoryEngine();
 testDeferredOpsPack();
 testSection49OpsHubWorkflow();
 testAskTlbOpenRouting();
-console.log("phase30-verify: all assertions passed (P0 inventory + P1 + Ask TLB + deferred ops + §49 Ops Hub)");
+testHandoverWorkflowGaps();
+console.log(
+  "phase30-verify: all assertions passed (P0 inventory + P1 + Ask TLB + deferred ops + §49 Ops Hub)",
+);
+
+function testHandoverWorkflowGaps() {
+  const asOf = livePeriodAsOf(new Date("2026-09-28T12:00:00.000Z"));
+  assert.match(asOf, /^2026-09-2[89]/);
+  const month = getPeriodRange("This Month", asOf);
+  assert.equal(isoInRange("2026-09-28T12:00:00.000Z", month), true);
+  const demoToday = getPeriodRange("Today", "2026-09-09T12:00:00.000Z");
+  assert.equal(isoInRange("2026-09-28T12:00:00.000Z", demoToday), false);
+
+  let state = createSeedState();
+  const over = createCustomerOrder(state, {
+    customerId: "cus-demo",
+    lines: [{ productId: "prod-hcl", warehouseId: "wh-main", orderedQty: 400, unitPrice: 1000 }],
+  });
+  assert.equal(over.ok, true);
+  if (!over.ok) return;
+  state = over.data.state;
+  const blocked = confirmCustomerOrder(state, over.data.data.id);
+  assert.equal(blocked.ok, false);
+  if (blocked.ok) return;
+  assert.match(blocked.error, /override reason/);
+
+  const asSales = switchSessionUser(state, "user-sales");
+  assert.equal(asSales.ok, true);
+  if (!asSales.ok) return;
+  const salesOverride = confirmCustomerOrder(asSales.data.state, over.data.data.id, "Sales tried");
+  assert.equal(salesOverride.ok, false);
+  if (salesOverride.ok) return;
+  assert.match(salesOverride.error, /manager approval/);
+
+  const asManager = switchSessionUser(state, "user-manager");
+  assert.equal(asManager.ok, true);
+  if (!asManager.ok) return;
+  const managerOverride = confirmCustomerOrder(
+    asManager.data.state,
+    over.data.data.id,
+    "Approved for campaign",
+  );
+  assert.equal(managerOverride.ok, true, managerOverride.ok ? "" : managerOverride.error);
+
+  const hclOrder = createCustomerOrder(createSeedState(), {
+    customerId: "cus-demo",
+    lines: [{ productId: "prod-hcl", warehouseId: "wh-main", orderedQty: 186, unitPrice: 100 }],
+  });
+  assert.equal(hclOrder.ok, true);
+  if (!hclOrder.ok) return;
+  let stockState = hclOrder.data.state;
+  const confirmed = confirmCustomerOrder(stockState, hclOrder.data.data.id);
+  assert.equal(confirmed.ok, true, confirmed.ok ? "" : confirmed.error);
+  if (!confirmed.ok) return;
+  stockState = confirmed.data.state;
+  const line = stockState.orderLines.find((l) => l.orderId === hclOrder.data.data.id);
+  assert.ok(line);
+  if (!line) return;
+  const supplied = createSupply(stockState, hclOrder.data.data.id, [
+    { orderLineId: line.id, quantity: 186 },
+  ]);
+  assert.equal(supplied.ok, true, supplied.ok ? "" : supplied.error);
+  if (!supplied.ok) return;
+  stockState = supplied.data.state;
+  const moved = stockState.stockMovements
+    .filter((m) => m.refId === supplied.data.data.supplyId)
+    .reduce((sum, m) => sum + m.qtyMove, 0);
+  assert.equal(moved, 186);
+  assert.equal(calcOutstanding(stockState.orderLines.find((l) => l.id === line.id)!), 0);
+  assert.equal(verifyLedgerTip(stockState, "prod-hcl", "wh-main"), true);
+
+  const issue = createStockIssue(createSeedState(), {
+    warehouseId: "wh-main",
+    reason: "Internal use",
+    lines: [{ productId: "prod-hcl", quantity: 186 }],
+  });
+  assert.equal(issue.ok, true, issue.ok ? "" : issue.error);
+  if (!issue.ok) return;
+  const issued = issue.data.state.stockMovements
+    .filter((m) => m.refId === issue.data.data.issueId)
+    .reduce((sum, m) => sum + m.qtyMove, 0);
+  assert.equal(issued, 186);
+  assert.equal(verifyLedgerTip(issue.data.state, "prod-hcl", "wh-main"), true);
+
+  console.log("handover-workflow-gaps: assertions passed");
+}

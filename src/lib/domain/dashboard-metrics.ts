@@ -222,7 +222,11 @@ function warehouseIdForName(state: TlbState, warehouse: string): string | null {
   return state.warehouses.find((w) => w.name === warehouse)?.id ?? null;
 }
 
-function orderMatchesWarehouse(state: TlbState, orderId: string | undefined, warehouseId: string | null): boolean {
+function orderMatchesWarehouse(
+  state: TlbState,
+  orderId: string | undefined,
+  warehouseId: string | null,
+): boolean {
   if (!warehouseId) return true;
   if (!orderId) return true;
   return state.orderLines.some((l) => l.orderId === orderId && l.warehouseId === warehouseId);
@@ -290,7 +294,11 @@ export function collectionsTotal(
   return listCollections(state, range, warehouseId).reduce((sum, e) => sum + e.amount, 0);
 }
 
-function previousRangeForSelection(selection: DashboardRangeSelection, range: DateRange, asOf: string): DateRange {
+function previousRangeForSelection(
+  selection: DashboardRangeSelection,
+  range: DateRange,
+  asOf: string,
+): DateRange {
   if (selection.mode === "preset") {
     const d = new Date(asOf);
     switch (selection.period) {
@@ -359,7 +367,20 @@ function buildCollectionsChart(
     valueByKey.set(key, (valueByKey.get(key) ?? 0) + amount);
   };
   const granularity = chartGranularity(selection, range);
-  const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const monthLabels = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
 
   for (const e of events) {
     const d = parseDateKey(e.date);
@@ -375,7 +396,8 @@ function buildCollectionsChart(
     }
   }
 
-  if (granularity === "day") return [{ label: "Collected", value: valueByKey.get("Collected") ?? 0 }];
+  if (granularity === "day")
+    return [{ label: "Collected", value: valueByKey.get("Collected") ?? 0 }];
   if (granularity === "weekdays") {
     return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((label) => ({
       label,
@@ -391,13 +413,17 @@ function buildCollectionsChart(
 
   if (selection.mode === "preset" && selection.period === "This Quarter") {
     const start = parseDateKey(range.from);
-    const months = [start.getMonth(), start.getMonth() + 1, start.getMonth() + 2].map((m) => monthLabels[m]!);
+    const months = [start.getMonth(), start.getMonth() + 1, start.getMonth() + 2].map(
+      (m) => monthLabels[m]!,
+    );
     return months.map((label) => ({ label, value: valueByKey.get(label) ?? 0 }));
   }
 
   if (selection.mode === "preset" && selection.period === "This Year") {
     const asOfMonth = new Date(asOf).getMonth();
-    return monthLabels.slice(0, asOfMonth + 1).map((label) => ({ label, value: valueByKey.get(label) ?? 0 }));
+    return monthLabels
+      .slice(0, asOfMonth + 1)
+      .map((label) => ({ label, value: valueByKey.get(label) ?? 0 }));
   }
 
   const startM = parseDateKey(range.from).getMonth();
@@ -405,7 +431,9 @@ function buildCollectionsChart(
   const startY = parseDateKey(range.from).getFullYear();
   const endY = parseDateKey(range.to).getFullYear();
   if (startY === endY) {
-    return monthLabels.slice(startM, endM + 1).map((label) => ({ label, value: valueByKey.get(label) ?? 0 }));
+    return monthLabels
+      .slice(startM, endM + 1)
+      .map((label) => ({ label, value: valueByKey.get(label) ?? 0 }));
   }
   return monthLabels.map((label) => ({ label, value: valueByKey.get(label) ?? 0 }));
 }
@@ -444,17 +472,27 @@ export function buildDashboardSnapshot(
   const warehouseId = warehouseIdForName(state, warehouse);
   const collectionEvents = listCollections(state, range, warehouseId);
   const salesTotal = collectionEvents.reduce((s, e) => s + e.amount, 0);
-  const prevSales = collectionsTotal(state, previousRangeForSelection(selection, range, asOf), warehouseId);
-  const deltaPct = prevSales > 0 ? ((salesTotal - prevSales) / prevSales) * 100 : salesTotal > 0 ? 100 : 0;
+  const prevSales = collectionsTotal(
+    state,
+    previousRangeForSelection(selection, range, asOf),
+    warehouseId,
+  );
+  const deltaPct =
+    prevSales > 0 ? ((salesTotal - prevSales) / prevSales) * 100 : salesTotal > 0 ? 100 : 0;
   const deltaLabel =
     prevSales === 0 && salesTotal === 0
       ? "No prior-period collections"
       : `${deltaPct >= 0 ? "+" : ""}${deltaPct.toFixed(1)}% vs prior`;
 
   const ordersInRange = filterOrders(state, range, warehouseId);
-  const activeOrders = ordersInRange.filter((o) => o.status !== "Delivered" && o.status !== "Cancelled");
+  const activeOrders = ordersInRange.filter(
+    (o) => o.status !== "Delivered" && o.status !== "Cancelled",
+  );
   const awaiting = activeOrders.filter(
-    (o) => o.status === "Awaiting Stock" || o.status === "Ready for Supply" || o.status === "Partially Supplied",
+    (o) =>
+      o.status === "Awaiting Stock" ||
+      o.status === "Ready for Supply" ||
+      o.status === "Partially Supplied",
   ).length;
 
   const stockRows = state.stock.filter((s) => !warehouseId || s.warehouseId === warehouseId);
@@ -501,15 +539,24 @@ export function buildDashboardSnapshot(
   const openInvoices = state.invoices.filter(
     (inv) => isoInRange(inv.invoiceDate, range) && inv.paymentStatus !== "Paid",
   );
-  const invoiceOpen = openInvoices.reduce((s, inv) => s + Math.max(0, inv.total - inv.amountPaid), 0);
+  const invoiceOpen = openInvoices.reduce(
+    (s, inv) => s + Math.max(0, inv.total - inv.amountPaid),
+    0,
+  );
   const receivablesCombined = receivablesTotal + invoiceOpen;
 
-  const current = outstandingAll.filter((r) => r.ageDays <= 2).reduce((s, r) => s + r.outstandingQty * r.unitPrice, 0);
-  const due = outstandingAll.filter((r) => r.ageDays > 2 && r.ageDays <= 7).reduce((s, r) => s + r.outstandingQty * r.unitPrice, 0);
+  const current = outstandingAll
+    .filter((r) => r.ageDays <= 2)
+    .reduce((s, r) => s + r.outstandingQty * r.unitPrice, 0);
+  const due = outstandingAll
+    .filter((r) => r.ageDays > 2 && r.ageDays <= 7)
+    .reduce((s, r) => s + r.outstandingQty * r.unitPrice, 0);
   const overdueBand = outstandingAll
     .filter((r) => r.ageDays > 7 && r.ageDays <= 30)
     .reduce((s, r) => s + r.outstandingQty * r.unitPrice, 0);
-  const critical = outstandingAll.filter((r) => r.ageDays > 30).reduce((s, r) => s + r.outstandingQty * r.unitPrice, 0);
+  const critical = outstandingAll
+    .filter((r) => r.ageDays > 30)
+    .reduce((s, r) => s + r.outstandingQty * r.unitPrice, 0);
 
   const opsInRange = OPS_EVENTS.filter((e) => isoInRange(e.date, range));
   const imports = opsInRange.filter((e) => e.kind === "import");
@@ -562,13 +609,17 @@ export function buildDashboardSnapshot(
     {
       label: "Active imports",
       value: String(imports.length),
-      note: imports.length ? `${imports.filter((i) => i.progress < 100).length} in transit` : "None in period",
+      note: imports.length
+        ? `${imports.filter((i) => i.progress < 100).length} in transit`
+        : "None in period",
       trend: "neutral",
     },
     {
       label: "Production",
       value: String(production.length),
-      note: production.length ? `${production.filter((p) => p.progress >= 40).length} on schedule` : "None in period",
+      note: production.length
+        ? `${production.filter((p) => p.progress >= 40).length} on schedule`
+        : "None in period",
       trend: "neutral",
     },
   ];

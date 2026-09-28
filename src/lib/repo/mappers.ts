@@ -119,7 +119,10 @@ export function productToRow(p: Product): Tables["products"]["Insert"] {
   };
 }
 
-export function stockFromRow(row: Tables["stock_balances"]["Row"], extra?: Partial<StockBalance>): StockBalance {
+export function stockFromRow(
+  row: Tables["stock_balances"]["Row"],
+  extra?: Partial<StockBalance>,
+): StockBalance {
   return {
     id: row.id,
     productId: row.product_id,
@@ -140,7 +143,10 @@ export function stockToRow(s: StockBalance): Tables["stock_balances"]["Insert"] 
   };
 }
 
-export function customerFromRow(row: Tables["customers"]["Row"], overlay?: SoftDeleteOverlay): Customer {
+export function customerFromRow(
+  row: Tables["customers"]["Row"],
+  overlay?: SoftDeleteOverlay,
+): Customer {
   return {
     id: row.id,
     code: row.code,
@@ -298,7 +304,10 @@ export function orderLineToRow(l: CustomerOrderLine): Tables["customer_order_lin
   };
 }
 
-export function supplyFromRow(row: Tables["supplies"]["Row"], overlay?: SoftDeleteOverlay): SupplyHeader {
+export function supplyFromRow(
+  row: Tables["supplies"]["Row"],
+  overlay?: SoftDeleteOverlay,
+): SupplyHeader {
   return {
     id: row.id,
     number: row.number,
@@ -389,7 +398,10 @@ export function vatToRow(v: VatRate): Tables["vat_rates"]["Insert"] {
   };
 }
 
-export function invoiceFromRow(row: Tables["invoices"]["Row"], overlay?: SoftDeleteOverlay): Invoice {
+export function invoiceFromRow(
+  row: Tables["invoices"]["Row"],
+  overlay?: SoftDeleteOverlay,
+): Invoice {
   return {
     id: row.id,
     number: row.number,
@@ -472,7 +484,10 @@ export function invoiceLineToRow(l: InvoiceLine): Tables["invoice_lines"]["Inser
   };
 }
 
-export function receiptFromRow(row: Tables["receipts"]["Row"], overlay?: SoftDeleteOverlay): Receipt {
+export function receiptFromRow(
+  row: Tables["receipts"]["Row"],
+  overlay?: SoftDeleteOverlay,
+): Receipt {
   return {
     id: row.id,
     number: row.number,
@@ -533,7 +548,10 @@ export function receiptLineToRow(l: ReceiptLine): Tables["receipt_lines"]["Inser
   };
 }
 
-export function deliveryFromRow(row: Tables["deliveries"]["Row"], overlay?: SoftDeleteOverlay): Delivery {
+export function deliveryFromRow(
+  row: Tables["deliveries"]["Row"],
+  overlay?: SoftDeleteOverlay,
+): Delivery {
   return {
     id: row.id,
     number: row.number,
@@ -604,7 +622,10 @@ export function deliveryItemToRow(i: DeliveryItem): Tables["delivery_items"]["In
   };
 }
 
-export function paymentFromRow(row: Tables["payments"]["Row"], overlay?: SoftDeleteOverlay): Payment {
+export function paymentFromRow(
+  row: Tables["payments"]["Row"],
+  overlay?: SoftDeleteOverlay,
+): Payment {
   return {
     id: row.id,
     number: row.number,

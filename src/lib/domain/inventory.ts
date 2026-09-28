@@ -101,9 +101,14 @@ export function recommendBatches(
 
 export type ExpiryAlertBand = "expired" | "30" | "60" | "90" | "ok";
 
-export function batchExpiryBand(batch: BatchLot, asOf = new Date().toISOString(), alertDays = [30, 60, 90]): ExpiryAlertBand {
+export function batchExpiryBand(
+  batch: BatchLot,
+  asOf = new Date().toISOString(),
+  alertDays = [30, 60, 90],
+): ExpiryAlertBand {
   if (!batch.expiresAt) return "ok";
-  if (batch.expiresAt.slice(0, 10) < asOf.slice(0, 10) || batch.status === "Expired") return "expired";
+  if (batch.expiresAt.slice(0, 10) < asOf.slice(0, 10) || batch.status === "Expired")
+    return "expired";
   const days = daysBetween(asOf, batch.expiresAt);
   const sorted = [...alertDays].sort((a, b) => a - b);
   for (const d of sorted) {
@@ -113,7 +118,8 @@ export function batchExpiryBand(batch: BatchLot, asOf = new Date().toISOString()
 }
 
 export function listExpiryAlerts(state: TlbState, asOf = new Date().toISOString()) {
-  const days = state.inventorySettings?.expiryAlertDays ?? DEFAULT_INVENTORY_SETTINGS.expiryAlertDays;
+  const days =
+    state.inventorySettings?.expiryAlertDays ?? DEFAULT_INVENTORY_SETTINGS.expiryAlertDays;
   return state.batches
     .filter((b) => b.remainingQty > 0)
     .map((b) => {
@@ -253,7 +259,9 @@ export function creditPosition(state: TlbState, customerId: string) {
   const used = ar.reduce((s, r) => s + r.balance, 0);
   // Also count open order value not yet invoiced
   const openOrderValue = state.orders
-    .filter((o) => o.customerId === customerId && !["Cancelled", "Draft", "Delivered"].includes(o.status))
+    .filter(
+      (o) => o.customerId === customerId && !["Cancelled", "Draft", "Delivered"].includes(o.status),
+    )
     .reduce((sum, o) => {
       const lines = state.orderLines.filter((l) => l.orderId === o.id);
       return sum + lines.reduce((s, l) => s + (l.orderedQty - l.cancelledQty) * l.unitPrice, 0);
@@ -335,7 +343,9 @@ export function buildProductTrace(state: TlbState, productId: string): TraceNode
   }
 
   for (const tr of state.transfers) {
-    const lines = state.transferLines.filter((l) => l.transferId === tr.id && l.productId === productId);
+    const lines = state.transferLines.filter(
+      (l) => l.transferId === tr.id && l.productId === productId,
+    );
     if (!lines.length) continue;
     nodes.push({
       id: tr.id,
@@ -397,9 +407,13 @@ export function buildProductTrace(state: TlbState, productId: string): TraceNode
       ? state.invoices.find((i) => i.id === pay.invoiceId)
       : state.invoices.find((i) => i.orderId === pay.orderId);
     if (!linkedInv) continue;
-    const has = state.invoiceLines.some((l) => l.invoiceId === linkedInv.id && l.productId === productId);
+    const has = state.invoiceLines.some(
+      (l) => l.invoiceId === linkedInv.id && l.productId === productId,
+    );
     if (!has && pay.orderId) {
-      const hasLine = state.orderLines.some((l) => l.orderId === pay.orderId && l.productId === productId);
+      const hasLine = state.orderLines.some(
+        (l) => l.orderId === pay.orderId && l.productId === productId,
+      );
       if (!hasLine) continue;
     } else if (!has) continue;
     nodes.push({
@@ -427,14 +441,17 @@ export function buildBatchTrace(state: TlbState, batchId: string): TraceNode[] {
       n.id === batch.id ||
       n.kind === "grn" ||
       n.kind === "supplier" ||
-      (n.kind === "movement" && state.stockMovements.find((m) => m.id === n.id)?.batchId === batchId) ||
+      (n.kind === "movement" &&
+        state.stockMovements.find((m) => m.id === n.id)?.batchId === batchId) ||
       (n.kind === "supply" && state.supplyLines.find((l) => l.id === n.id)?.batchId === batchId) ||
       n.kind === "order" ||
       n.kind === "invoice" ||
       n.kind === "payment" ||
       n.kind === "transfer",
   );
-  const supplier = batch.supplierId ? state.suppliers.find((s) => s.id === batch.supplierId) : undefined;
+  const supplier = batch.supplierId
+    ? state.suppliers.find((s) => s.id === batch.supplierId)
+    : undefined;
   if (supplier) {
     nodes.unshift({
       id: supplier.id,
@@ -495,29 +512,81 @@ export interface AskTlbPreset {
 
 export const ASK_TLB_PRESETS: AskTlbPreset[] = [
   { id: "goods_in_today", label: "Today's Goods In", description: "GRNs received today" },
-  { id: "goods_out_today", label: "Today's Goods Out", description: "Issues and supplies posted today" },
+  {
+    id: "goods_out_today",
+    label: "Today's Goods Out",
+    description: "Issues and supplies posted today",
+  },
   { id: "outstanding", label: "Outstanding Supplies", description: "Open customer supply lines" },
   { id: "low_stock", label: "Low Stock", description: "Below reorder point" },
-  { id: "expiring_stock", label: "Expiring / Expired Stock", description: "Batches in alert windows" },
-  { id: "customers_owing", label: "Customers Owing", description: "Accounts receivable open balances" },
+  {
+    id: "expiring_stock",
+    label: "Expiring / Expired Stock",
+    description: "Batches in alert windows",
+  },
+  {
+    id: "customers_owing",
+    label: "Customers Owing",
+    description: "Accounts receivable open balances",
+  },
   { id: "suppliers_owed", label: "Suppliers Owed", description: "Accounts payable open balances" },
-  { id: "pending_approvals", label: "Pending Approvals", description: "Approvals awaiting decision" },
+  {
+    id: "pending_approvals",
+    label: "Pending Approvals",
+    description: "Approvals awaiting decision",
+  },
   { id: "incomplete_deliveries", label: "Incomplete Deliveries", description: "Not yet delivered" },
   { id: "non_po", label: "Non-PO Purchases", description: "Non-PO requests and GRNs without PO" },
   { id: "adjustments", label: "Stock Adjustments", description: "Posted and pending adjustments" },
   { id: "transfers", label: "Warehouse Transfers", description: "Open and recent transfers" },
-  { id: "incoming_shipments", label: "Incoming Shipments", description: "Import shipments and open supplier POs" },
-  { id: "slow_dead_stock", label: "Slow / Dead Stock", description: "Low or zero 30-day outbound velocity" },
+  {
+    id: "incoming_shipments",
+    label: "Incoming Shipments",
+    description: "Import shipments and open supplier POs",
+  },
+  {
+    id: "slow_dead_stock",
+    label: "Slow / Dead Stock",
+    description: "Low or zero 30-day outbound velocity",
+  },
   { id: "returns", label: "Returns", description: "Customer and supplier returns" },
-  { id: "customer_performance", label: "Customer Performance", description: "Revenue, outstanding, credit utilisation" },
-  { id: "supplier_performance", label: "Supplier Performance", description: "Purchase value, on-time, rejections" },
+  {
+    id: "customer_performance",
+    label: "Customer Performance",
+    description: "Revenue, outstanding, credit utilisation",
+  },
+  {
+    id: "supplier_performance",
+    label: "Supplier Performance",
+    description: "Purchase value, on-time, rejections",
+  },
   { id: "stock_ageing_old", label: "Aged Stock 91+", description: "Batches older than 90 days" },
-  { id: "profitability", label: "Product Profitability", description: "Gross profit where cost + sales exist" },
-  { id: "ops_pending_approvals", label: "Ops Pending Approvals", description: "Communication Hub requests awaiting approval" },
-  { id: "ops_outstanding", label: "Ops Outstanding Shortage", description: "Warehouse shortage outstanding (not delivery missing)" },
+  {
+    id: "profitability",
+    label: "Product Profitability",
+    description: "Gross profit where cost + sales exist",
+  },
+  {
+    id: "ops_pending_approvals",
+    label: "Ops Pending Approvals",
+    description: "Communication Hub requests awaiting approval",
+  },
+  {
+    id: "ops_outstanding",
+    label: "Ops Outstanding Shortage",
+    description: "Warehouse shortage outstanding (not delivery missing)",
+  },
   { id: "ops_in_transit", label: "Ops In Transit", description: "Requests collected / in transit" },
-  { id: "ops_discrepancies", label: "Ops Discrepancies", description: "Delivery missing / damaged / wrong / rejected" },
-  { id: "ops_ready_collection", label: "Ops Ready for Collection", description: "Prepared and ready for driver pickup" },
+  {
+    id: "ops_discrepancies",
+    label: "Ops Discrepancies",
+    description: "Delivery missing / damaged / wrong / rejected",
+  },
+  {
+    id: "ops_ready_collection",
+    label: "Ops Ready for Collection",
+    description: "Prepared and ready for driver pickup",
+  },
 ];
 
 export interface AskTlbHit {
@@ -559,7 +628,11 @@ export function resolveAskTlbHitOpen(hit: Pick<AskTlbHit, "nav" | "entityId">): 
   }
 }
 
-export function runAskTlbPreset(state: TlbState, presetId: AskTlbPresetId, asOf = new Date().toISOString()): AskTlbHit[] {
+export function runAskTlbPreset(
+  state: TlbState,
+  presetId: AskTlbPresetId,
+  asOf = new Date().toISOString(),
+): AskTlbHit[] {
   const today = asOf.slice(0, 10);
   switch (presetId) {
     case "goods_in_today":
@@ -575,10 +648,22 @@ export function runAskTlbPreset(state: TlbState, presetId: AskTlbPresetId, asOf 
     case "goods_out_today": {
       const issues = state.stockIssues
         .filter((i) => i.issuedAt.slice(0, 10) === today)
-        .map((i) => ({ id: i.id, label: i.number, subtitle: i.reason, nav: "Goods Out", entityId: i.id }));
+        .map((i) => ({
+          id: i.id,
+          label: i.number,
+          subtitle: i.reason,
+          nav: "Goods Out",
+          entityId: i.id,
+        }));
       const supplies = state.supplies
         .filter((s) => s.suppliedAt.slice(0, 10) === today)
-        .map((s) => ({ id: s.id, label: s.number, subtitle: "Customer supply", nav: "Sales Orders", entityId: s.orderId }));
+        .map((s) => ({
+          id: s.id,
+          label: s.number,
+          subtitle: "Customer supply",
+          nav: "Sales Orders",
+          entityId: s.orderId,
+        }));
       return [...issues, ...supplies];
     }
     case "outstanding":
@@ -689,7 +774,9 @@ export function runAskTlbPreset(state: TlbState, presetId: AskTlbPresetId, asOf 
       }));
     case "incoming_shipments": {
       const imports = (state.importShipments ?? [])
-        .filter((s) => !s.deletedAt && s.status !== "Warehouse Received" && s.status !== "Cancelled")
+        .filter(
+          (s) => !s.deletedAt && s.status !== "Warehouse Received" && s.status !== "Cancelled",
+        )
         .map((s) => ({
           id: s.id,
           label: s.number,
@@ -775,7 +862,10 @@ export function runAskTlbPreset(state: TlbState, presetId: AskTlbPresetId, asOf 
       }));
     case "ops_pending_approvals":
       return (state.opsRequests ?? [])
-        .filter((r) => !r.deletedAt && (r.status === "Pending Approval" || r.status === "Partially Approved"))
+        .filter(
+          (r) =>
+            !r.deletedAt && (r.status === "Pending Approval" || r.status === "Partially Approved"),
+        )
         .map((r) => ({
           id: r.id,
           label: r.number,
@@ -860,6 +950,8 @@ export function summarizeMovements(movements: StockMovement[]) {
   return {
     count: movements.length,
     inbound: movements.filter((m) => m.signedQty > 0).reduce((s, m) => s + m.signedQty, 0),
-    outbound: movements.filter((m) => m.signedQty < 0).reduce((s, m) => s + Math.abs(m.signedQty), 0),
+    outbound: movements
+      .filter((m) => m.signedQty < 0)
+      .reduce((s, m) => s + Math.abs(m.signedQty), 0),
   };
 }

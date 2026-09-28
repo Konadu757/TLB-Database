@@ -18,11 +18,7 @@ import type {
   SupplierReturn,
   TlbState,
 } from "../domain/types";
-import {
-  createGoodsReceipt,
-  getOrCreateBalance,
-  postStockMovement,
-} from "./inventory-store";
+import { createGoodsReceipt, getOrCreateBalance, postStockMovement } from "./inventory-store";
 
 type MutResult<T> = StoreResult<{ state: TlbState; data: T }>;
 
@@ -122,7 +118,8 @@ export function createCustomerReturn(
 ): MutResult<{ returnId: string; number: string }> {
   const blocked = requirePerm(state, "stock.receive");
   if (blocked) return { ok: false, error: blocked };
-  if (!input.quantity || input.quantity <= 0) return { ok: false, error: "Return quantity must be positive." };
+  if (!input.quantity || input.quantity <= 0)
+    return { ok: false, error: "Return quantity must be positive." };
   if (!input.reason.trim()) return { ok: false, error: "Return reason is required." };
 
   const next = cloneState(state);
@@ -233,7 +230,10 @@ export function createCustomerReturn(
       bal.quarantineQty = (bal.quarantineQty ?? 0) + input.quantity;
     }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Customer return stock post failed." };
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Customer return stock post failed.",
+    };
   }
 
   pushAudit(next, {
@@ -241,7 +241,11 @@ export function createCustomerReturn(
     entityType: "customer_return",
     entityId: returnId,
     summary: `Customer return ${row.number} · ${input.disposition} · qty ${input.quantity}`,
-    meta: { customerId: input.customerId, productId: input.productId, disposition: input.disposition },
+    meta: {
+      customerId: input.customerId,
+      productId: input.productId,
+      disposition: input.disposition,
+    },
     at: now,
   });
 
@@ -266,7 +270,8 @@ export function createSupplierReturn(
 ): MutResult<{ returnId: string; number: string }> {
   const blocked = requirePerm(state, "stock.issue");
   if (blocked) return { ok: false, error: blocked };
-  if (!input.quantity || input.quantity <= 0) return { ok: false, error: "Return quantity must be positive." };
+  if (!input.quantity || input.quantity <= 0)
+    return { ok: false, error: "Return quantity must be positive." };
   if (!input.reason.trim()) return { ok: false, error: "Return reason is required." };
 
   const next = cloneState(state);
@@ -320,14 +325,20 @@ export function createSupplierReturn(
       const batch = next.batches.find((b) => b.id === input.batchId);
       if (batch) {
         if (batch.remainingQty < input.quantity) {
-          return { ok: false, error: `Batch ${batch.code} only has ${batch.remainingQty} remaining.` };
+          return {
+            ok: false,
+            error: `Batch ${batch.code} only has ${batch.remainingQty} remaining.`,
+          };
         }
         batch.remainingQty -= input.quantity;
         if (batch.remainingQty === 0) batch.status = "Closed";
       }
     }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Supplier return stock post failed." };
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Supplier return stock post failed.",
+    };
   }
 
   pushAudit(next, {
@@ -352,7 +363,11 @@ export function updateNonPoPurchase(
     notes?: string;
   },
 ): MutResult<{ nonPoId: string }> {
-  if (!hasPermission(state, "stock.receive") && !hasPermission(state, "approvals.manage") && !hasPermission(state, "records.edit")) {
+  if (
+    !hasPermission(state, "stock.receive") &&
+    !hasPermission(state, "approvals.manage") &&
+    !hasPermission(state, "records.edit")
+  ) {
     return { ok: false, error: `Role ${state.currentRole} cannot edit Non-PO purchases.` };
   }
   const next = cloneState(state);
@@ -473,7 +488,8 @@ export function decideNonPoPurchase(
   next.nonPoPurchases = next.nonPoPurchases ?? [];
   const row = next.nonPoPurchases.find((n) => n.id === nonPoId);
   if (!row || isSoftDeleted(row)) return { ok: false, error: "Non-PO purchase not found." };
-  if (row.status !== "Pending Approval") return { ok: false, error: "Non-PO is not awaiting approval." };
+  if (row.status !== "Pending Approval")
+    return { ok: false, error: "Non-PO is not awaiting approval." };
 
   const now = new Date().toISOString();
   row.status = decision === "Approved" ? "Approved" : "Rejected";
@@ -503,12 +519,16 @@ export function decideNonPoPurchase(
 }
 
 /** Post GRN from an approved Non-PO and link the documents. */
-export function receiveNonPoPurchase(state: TlbState, nonPoId: string): MutResult<{ grnId: string; number: string }> {
+export function receiveNonPoPurchase(
+  state: TlbState,
+  nonPoId: string,
+): MutResult<{ grnId: string; number: string }> {
   const blocked = requirePerm(state, "stock.receive");
   if (blocked) return { ok: false, error: blocked };
   const row = (state.nonPoPurchases ?? []).find((n) => n.id === nonPoId);
   if (!row || isSoftDeleted(row)) return { ok: false, error: "Non-PO purchase not found." };
-  if (row.status !== "Approved") return { ok: false, error: "Only approved Non-PO purchases can be received." };
+  if (row.status !== "Approved")
+    return { ok: false, error: "Only approved Non-PO purchases can be received." };
   if (row.grnId) return { ok: false, error: "Non-PO already linked to a GRN." };
 
   const lines = (state.nonPoPurchaseLines ?? []).filter((l) => l.nonPoId === nonPoId);
@@ -576,7 +596,11 @@ export function upsertImportShipment(
   let row: ImportShipment;
   if (input.id) {
     const existing = next.importShipments.find((s) => s.id === input.id);
-    if (!existing || isSoftDeleted(existing)) return { ok: false, error: "Import shipment not found. Restore from trash first if deleted." };
+    if (!existing || isSoftDeleted(existing))
+      return {
+        ok: false,
+        error: "Import shipment not found. Restore from trash first if deleted.",
+      };
     if (existing.status === "Warehouse Received" || existing.status === "Cancelled") {
       return {
         ok: false,
@@ -599,8 +623,12 @@ export function upsertImportShipment(
       dutyCost: input.dutyCost,
       notes: input.notes,
       updatedAt: now,
-      clearedAt: input.status === "Customs Cleared" || input.status === "Warehouse Received" ? existing.clearedAt ?? now : existing.clearedAt,
-      receivedAt: input.status === "Warehouse Received" ? existing.receivedAt ?? now : existing.receivedAt,
+      clearedAt:
+        input.status === "Customs Cleared" || input.status === "Warehouse Received"
+          ? (existing.clearedAt ?? now)
+          : existing.clearedAt,
+      receivedAt:
+        input.status === "Warehouse Received" ? (existing.receivedAt ?? now) : existing.receivedAt,
     });
     row = existing;
     next.importShipmentLines = next.importShipmentLines.filter((l) => l.shipmentId !== row.id);
@@ -653,16 +681,23 @@ export function upsertImportShipment(
   return { ok: true, data: { state: next, data: { shipmentId: row.id, number: row.number } } };
 }
 
-export function receiveImportShipment(state: TlbState, shipmentId: string): MutResult<{ grnId: string; number: string }> {
+export function receiveImportShipment(
+  state: TlbState,
+  shipmentId: string,
+): MutResult<{ grnId: string; number: string }> {
   const blocked = requirePerm(state, "stock.receive");
   if (blocked) return { ok: false, error: blocked };
   const ship = (state.importShipments ?? []).find((s) => s.id === shipmentId);
   if (!ship || isSoftDeleted(ship)) return { ok: false, error: "Import shipment not found." };
   if (ship.grnId) return { ok: false, error: "Import already linked to a GRN." };
-  if (!["Customs Cleared", "Clearance", "Arrived Port", "In Transit"].includes(ship.status) && ship.status !== "Warehouse Received") {
+  if (
+    !["Customs Cleared", "Clearance", "Arrived Port", "In Transit"].includes(ship.status) &&
+    ship.status !== "Warehouse Received"
+  ) {
     // allow receive from late statuses except Cancelled/Ordered only if cleared-ish
   }
-  if (ship.status === "Cancelled") return { ok: false, error: "Cancelled shipment cannot be received." };
+  if (ship.status === "Cancelled")
+    return { ok: false, error: "Cancelled shipment cannot be received." };
 
   const lines = (state.importShipmentLines ?? []).filter((l) => l.shipmentId === shipmentId);
   if (!lines.length) return { ok: false, error: "Import has no lines." };
@@ -718,7 +753,10 @@ export function upsertExportShipment(
   if (input.id) {
     const existing = next.exportShipments.find((s) => s.id === input.id);
     if (!existing || isSoftDeleted(existing)) {
-      return { ok: false, error: "Export shipment not found. Restore from trash first if deleted." };
+      return {
+        ok: false,
+        error: "Export shipment not found. Restore from trash first if deleted.",
+      };
     }
     if (existing.status === "Delivered" || existing.status === "Cancelled") {
       return { ok: false, error: `Cannot edit an export that is ${existing.status}.` };
@@ -732,10 +770,14 @@ export function upsertExportShipment(
       notes: input.notes,
       staffName: input.staffName ?? existing.staffName,
       updatedAt: now,
-      dispatchedAt: input.status === "Dispatched" || input.status === "In Transit" || input.status === "Delivered"
-        ? existing.dispatchedAt ?? now
-        : existing.dispatchedAt,
-      deliveredAt: input.status === "Delivered" ? existing.deliveredAt ?? now : existing.deliveredAt,
+      dispatchedAt:
+        input.status === "Dispatched" ||
+        input.status === "In Transit" ||
+        input.status === "Delivered"
+          ? (existing.dispatchedAt ?? now)
+          : existing.dispatchedAt,
+      deliveredAt:
+        input.status === "Delivered" ? (existing.deliveredAt ?? now) : existing.deliveredAt,
     });
     row = existing;
     next.exportShipmentLines = next.exportShipmentLines.filter((l) => l.shipmentId !== row.id);
@@ -754,7 +796,9 @@ export function upsertExportShipment(
       notes: input.notes,
       createdAt: now,
       updatedAt: now,
-      dispatchedAt: ["Dispatched", "In Transit", "Delivered"].includes(input.status) ? now : undefined,
+      dispatchedAt: ["Dispatched", "In Transit", "Delivered"].includes(input.status)
+        ? now
+        : undefined,
       deliveredAt: input.status === "Delivered" ? now : undefined,
     };
     next.exportShipments.unshift(row);
@@ -784,7 +828,12 @@ export function upsertExportShipment(
 export function softDeleteOpsRecord(
   state: TlbState,
   input: {
-    entityType: "customer_return" | "supplier_return" | "non_po_purchase" | "import_shipment" | "export_shipment";
+    entityType:
+      | "customer_return"
+      | "supplier_return"
+      | "non_po_purchase"
+      | "import_shipment"
+      | "export_shipment";
     entityId: string;
     reason?: string;
   },

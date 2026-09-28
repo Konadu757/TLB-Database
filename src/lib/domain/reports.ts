@@ -64,13 +64,23 @@ export function partialSupplyReport(state: TlbState, filter: DateFilter = {}) {
     });
 }
 
-export function fulfilmentPerformanceReport(state: TlbState, filter: DateFilter = {}, asOf = new Date().toISOString()) {
+export function fulfilmentPerformanceReport(
+  state: TlbState,
+  filter: DateFilter = {},
+  asOf = new Date().toISOString(),
+) {
   const orders = state.orders.filter((o) => o.status !== "Draft" && inRange(o.orderDate, filter));
   const received = orders.length;
-  const fully = orders.filter((o) => o.status === "Fully Supplied" || o.status === "Delivered").length;
+  const fully = orders.filter(
+    (o) => o.status === "Fully Supplied" || o.status === "Delivered",
+  ).length;
   const partial = orders.filter((o) => o.status === "Partially Supplied").length;
-  const awaiting = orders.filter((o) => o.status === "Awaiting Stock" || o.status === "Ready for Supply").length;
-  const overdue = getOutstandingRows(state, asOf).filter((r) => r.ageingBand === "Overdue" && inRange(r.orderDate, filter)).length;
+  const awaiting = orders.filter(
+    (o) => o.status === "Awaiting Stock" || o.status === "Ready for Supply",
+  ).length;
+  const overdue = getOutstandingRows(state, asOf).filter(
+    (r) => r.ageingBand === "Overdue" && inRange(r.orderDate, filter),
+  ).length;
 
   const durations: number[] = [];
   for (const o of orders) {
@@ -83,7 +93,9 @@ export function fulfilmentPerformanceReport(state: TlbState, filter: DateFilter 
     durations.push(daysBetween(start, end));
   }
   const avgTimeDays =
-    durations.length === 0 ? 0 : Math.round((durations.reduce((a, b) => a + b, 0) / durations.length) * 10) / 10;
+    durations.length === 0
+      ? 0
+      : Math.round((durations.reduce((a, b) => a + b, 0) / durations.length) * 10) / 10;
 
   return {
     summary: {
@@ -137,7 +149,11 @@ export function inventoryBalanceReport(state: TlbState) {
     const cost = product?.standardCost ?? 0;
     const available = Math.max(
       0,
-      s.physicalQty - s.reservedQty - (s.damagedQty ?? 0) - (s.expiredQty ?? 0) - (s.quarantineQty ?? 0),
+      s.physicalQty -
+        s.reservedQty -
+        (s.damagedQty ?? 0) -
+        (s.expiredQty ?? 0) -
+        (s.quarantineQty ?? 0),
     );
     return {
       sku: product?.sku ?? "",
@@ -165,7 +181,9 @@ export function grnIssueReport(state: TlbState, filter: DateFilter = {}) {
         party: supplier?.name ?? "",
         source: g.nonPo ? "Non-PO" : "PO",
         warehouse: state.warehouses.find((w) => w.id === g.warehouseId)?.name ?? "",
-        qty: state.goodsReceiptLines.filter((l) => l.grnId === g.id).reduce((s, l) => s + l.acceptedQty, 0),
+        qty: state.goodsReceiptLines
+          .filter((l) => l.grnId === g.id)
+          .reduce((s, l) => s + l.acceptedQty, 0),
         date: g.receivedAt.slice(0, 10),
         status: g.status,
       };
@@ -178,7 +196,9 @@ export function grnIssueReport(state: TlbState, filter: DateFilter = {}) {
       party: i.reason,
       source: i.orderId ? "Order" : "Internal",
       warehouse: state.warehouses.find((w) => w.id === i.warehouseId)?.name ?? "",
-      qty: state.stockIssueLines.filter((l) => l.issueId === i.id).reduce((s, l) => s + l.quantity, 0),
+      qty: state.stockIssueLines
+        .filter((l) => l.issueId === i.id)
+        .reduce((s, l) => s + l.quantity, 0),
       date: i.issuedAt.slice(0, 10),
       status: "Posted",
     }));
@@ -275,7 +295,7 @@ export function nonPoReport(state: TlbState, filter: DateFilter = {}) {
         lineCount: lines.length,
         value: lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0),
         requestedAt: n.requestedAt.slice(0, 10),
-        grn: n.grnId ? state.goodsReceipts.find((g) => g.id === n.grnId)?.number ?? n.grnId : "",
+        grn: n.grnId ? (state.goodsReceipts.find((g) => g.id === n.grnId)?.number ?? n.grnId) : "",
       };
     });
 }
@@ -453,7 +473,9 @@ export function toCsv(rows: Array<Record<string, string | number>>): string {
     if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
     return s;
   };
-  return [keys.join(","), ...rows.map((r) => keys.map((k) => escape(r[k] ?? "")).join(","))].join("\n");
+  return [keys.join(","), ...rows.map((r) => keys.map((k) => escape(r[k] ?? "")).join(","))].join(
+    "\n",
+  );
 }
 
 export type DeepReportTab =

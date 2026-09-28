@@ -1,9 +1,6 @@
 import { useMemo } from "react";
 
-import {
-  buildDueAwarenessItems,
-  type DueAwarenessItem,
-} from "@/lib/domain/due-awareness";
+import { buildDueAwarenessItems, type DueAwarenessItem } from "@/lib/domain/due-awareness";
 import type { OutstandingRow, TlbState } from "@/lib/domain/types";
 import { cn } from "@/lib/utils";
 
@@ -19,9 +16,7 @@ type SummaryPart = { key: string; label: string; count: number; tone?: "danger" 
 function buildSummaryParts(items: DueAwarenessItem[]): SummaryPart[] {
   const overdue = items.filter((i) => i.severity === "overdue").length;
   const dueToday = items.filter((i) => i.severity === "due_today").length;
-  const approvals = items.filter(
-    (i) => i.nav === "Approvals" || i.nav === "Requests",
-  ).length;
+  const approvals = items.filter((i) => i.nav === "Approvals" || i.nav === "Requests").length;
   const stock = items.filter((i) => i.nav === "Batches").length;
   const supplies = items.filter(
     (i) => i.nav === "Outstanding Supplies" || i.nav === "Outstanding Requests",
@@ -34,7 +29,8 @@ function buildSummaryParts(items: DueAwarenessItem[]): SummaryPart[] {
 
   const parts: SummaryPart[] = [];
   if (overdue > 0) parts.push({ key: "overdue", label: "overdue", count: overdue, tone: "danger" });
-  if (dueToday > 0) parts.push({ key: "today", label: "due today", count: dueToday, tone: "warning" });
+  if (dueToday > 0)
+    parts.push({ key: "today", label: "due today", count: dueToday, tone: "warning" });
   if (approvals > 0) parts.push({ key: "approvals", label: "approvals", count: approvals });
   if (supplies > 0) parts.push({ key: "supplies", label: "supplies", count: supplies });
   if (finance > 0) parts.push({ key: "finance", label: "AR / AP", count: finance });
@@ -47,10 +43,7 @@ function buildSummaryParts(items: DueAwarenessItem[]): SummaryPart[] {
 }
 
 export function DueAwarenessPanel({ state, outstanding, onOpenNotifications }: Props) {
-  const items = useMemo(
-    () => buildDueAwarenessItems(state, outstanding),
-    [state, outstanding],
-  );
+  const items = useMemo(() => buildDueAwarenessItems(state, outstanding), [state, outstanding]);
 
   const parts = useMemo(() => buildSummaryParts(items), [items]);
   const total = items.length;
@@ -79,9 +72,7 @@ export function DueAwarenessPanel({ state, outstanding, onOpenNotifications }: P
       <span className="tlb-due-panel-title">Needs attention</span>
       <span className="tlb-due-panel-body">
         <strong className="tlb-due-panel-total">
-          {hasAttention
-            ? `${total} item${total === 1 ? "" : "s"}`
-            : "All clear"}
+          {hasAttention ? `${total} item${total === 1 ? "" : "s"}` : "All clear"}
         </strong>
         <span className="tlb-due-panel-summary">{summaryLine}</span>
       </span>

@@ -46,7 +46,15 @@ function EmptyState({ title, detail }: { title: string; detail: string }) {
   );
 }
 
-function Flash({ error, notice, onClear }: { error: string | null; notice: string | null; onClear: () => void }) {
+function Flash({
+  error,
+  notice,
+  onClear,
+}: {
+  error: string | null;
+  notice: string | null;
+  onClear: () => void;
+}) {
   if (!error && !notice) return null;
   return (
     <div className={`tlb-flash ${error ? "tlb-flash-error" : "tlb-flash-ok"}`} role="status">
@@ -58,8 +66,8 @@ function Flash({ error, notice, onClear }: { error: string | null; notice: strin
   );
 }
 
-export { FinanceModule, DeliveriesModule } from '@/components/modules/finance-deliveries-modules';
-export { ReportsModule } from '@/components/modules/reports-module';
+export { FinanceModule, DeliveriesModule } from "@/components/modules/finance-deliveries-modules";
+export { ReportsModule } from "@/components/modules/reports-module";
 
 export function AuditModule({ store }: { store: TlbStoreApi }) {
   if (!store.can("audit.view")) {
@@ -114,7 +122,11 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
     active: true,
   });
   const [ageing, setAgeing] = useState(store.state.ageing);
-  const [newUser, setNewUser] = useState({ name: "", email: "", roleId: store.state.roles[0]?.id ?? "" });
+  const [newUser, setNewUser] = useState({
+    name: "",
+    email: "",
+    roleId: store.state.roles[0]?.id ?? "",
+  });
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editUser, setEditUser] = useState({
     name: "",
@@ -156,7 +168,10 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
 
       <article className="tlb-panel" style={{ marginBottom: 14 }}>
         <div className="tlb-panel-heading">
-          <div><span>Session</span><strong>Signed-in identity (mock auth)</strong></div>
+          <div>
+            <span>Session</span>
+            <strong>Signed-in identity (mock auth)</strong>
+          </div>
         </div>
         <div className="tlb-inline-actions" style={{ padding: 12 }}>
           <label className="tlb-select">
@@ -165,14 +180,16 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
               value={store.state.currentUserId}
               onChange={(e) => store.switchUser(e.target.value)}
             >
-              {store.state.users.filter((u) => u.active).map((u) => {
-                const role = store.state.roles.find((r) => r.id === u.roleId);
-                return (
-                  <option key={u.id} value={u.id}>
-                    {u.name} · {role?.name ?? "—"}
-                  </option>
-                );
-              })}
+              {store.state.users
+                .filter((u) => u.active)
+                .map((u) => {
+                  const role = store.state.roles.find((r) => r.id === u.roleId);
+                  return (
+                    <option key={u.id} value={u.id}>
+                      {u.name} · {role?.name ?? "—"}
+                    </option>
+                  );
+                })}
             </select>
           </label>
           <span className="tlb-muted-line">
@@ -185,7 +202,10 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
         <>
           <article className="tlb-panel" style={{ marginBottom: 14 }}>
             <div className="tlb-panel-heading">
-              <div><span>Access</span><strong>Users &amp; role assignment</strong></div>
+              <div>
+                <span>Access</span>
+                <strong>Users &amp; role assignment</strong>
+              </div>
             </div>
             {store.lastInvite ? (
               <div
@@ -199,7 +219,10 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                 <p className="tlb-muted-line" style={{ margin: "6px 0 0" }}>
                   Send manually — email is not sent. Treat the link and access code as credentials.
                 </p>
-                <p className="tlb-mono" style={{ margin: "8px 0 0", fontSize: "0.9375rem", fontWeight: 600 }}>
+                <p
+                  className="tlb-mono"
+                  style={{ margin: "8px 0 0", fontSize: "0.9375rem", fontWeight: 600 }}
+                >
                   {store.lastInvite.inviteCode}
                 </p>
                 <div className="tlb-inline-actions" style={{ marginTop: 10, flexWrap: "wrap" }}>
@@ -244,7 +267,10 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                   </thead>
                   <tbody>
                     {store.state.users.map((user) => (
-                      <tr key={user.id} className={editingUserId === user.id ? "tlb-row-selected" : undefined}>
+                      <tr
+                        key={user.id}
+                        className={editingUserId === user.id ? "tlb-row-selected" : undefined}
+                      >
                         <td>{user.name}</td>
                         <td>{user.email}</td>
                         <td>
@@ -255,7 +281,9 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                             onChange={(e) => store.assignUserRole(user.id, e.target.value)}
                           >
                             {activeRoles.map((r) => (
-                              <option key={r.id} value={r.id}>{r.name}</option>
+                              <option key={r.id} value={r.id}>
+                                {r.name}
+                              </option>
                             ))}
                           </select>
                         </td>
@@ -272,7 +300,11 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                           {store.state.currentUserId === user.id ? (
                             <StatusBadge tone="success">Signed in</StatusBadge>
                           ) : (
-                            <button type="button" className="tlb-link-btn" onClick={() => store.switchUser(user.id)}>
+                            <button
+                              type="button"
+                              className="tlb-link-btn"
+                              onClick={() => store.switchUser(user.id)}
+                            >
                               Switch
                             </button>
                           )}
@@ -332,7 +364,10 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                   }
                 }}
               >
-                <div className="tlb-panel-heading tlb-span-2" style={{ padding: 0, marginBottom: 4 }}>
+                <div
+                  className="tlb-panel-heading tlb-span-2"
+                  style={{ padding: 0, marginBottom: 4 }}
+                >
                   <div>
                     <span>Staff</span>
                     <strong>Edit {editingUser.name}</strong>
@@ -434,10 +469,14 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
 
           <article className="tlb-panel" style={{ marginBottom: 14 }}>
             <div className="tlb-panel-heading">
-              <div><span>Access</span><strong>Roles</strong></div>
+              <div>
+                <span>Access</span>
+                <strong>Roles</strong>
+              </div>
             </div>
             <p className="tlb-muted-line" style={{ padding: "0 17px 8px" }}>
-              Permissions are predefined per role and cannot be customized. The Owner role is protected.
+              Permissions are predefined per role and cannot be customized. The Owner role is
+              protected.
               {isOwnerSession
                 ? " Deleting a role reassigns its users to Owner automatically."
                 : " Only the Owner can delete roles."}
@@ -462,7 +501,9 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                       return a.name.localeCompare(b.name);
                     })
                     .map((role) => {
-                      const assigned = store.state.users.filter((u) => u.roleId === role.id && u.active).length;
+                      const assigned = store.state.users.filter(
+                        (u) => u.roleId === role.id && u.active,
+                      ).length;
                       const isOwnerRole = role.systemKey === "Owner";
                       return (
                         <tr key={role.id}>
@@ -517,17 +558,26 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
         </>
       ) : (
         <article className="tlb-panel" style={{ marginBottom: 14 }}>
-          <EmptyState title="Users & roles restricted" detail="Owner or Admin required to assign users to roles." />
+          <EmptyState
+            title="Users & roles restricted"
+            detail="Owner or Admin required to assign users to roles."
+          />
         </article>
       )}
 
       {!canManageSettings ? (
-        <EmptyState title="Settings restricted" detail="Manager, Owner, or Admin required to edit company, VAT, and ageing." />
+        <EmptyState
+          title="Settings restricted"
+          detail="Manager, Owner, or Admin required to edit company, VAT, and ageing."
+        />
       ) : (
         <>
           <article className="tlb-panel" style={{ marginBottom: 14 }}>
             <div className="tlb-panel-heading">
-              <div><span>Company</span><strong>Invoice letterhead</strong></div>
+              <div>
+                <span>Company</span>
+                <strong>Invoice letterhead</strong>
+              </div>
             </div>
             <form
               className="tlb-form-grid"
@@ -536,27 +586,68 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                 store.saveCompany(company);
               }}
             >
-              <label>Legal name<input value={company.legalName} onChange={(e) => setCompany({ ...company, legalName: e.target.value })} /></label>
-              <label>Trading name<input value={company.tradingName} onChange={(e) => setCompany({ ...company, tradingName: e.target.value })} /></label>
-              <label className="tlb-span-2">Address<input value={company.address} onChange={(e) => setCompany({ ...company, address: e.target.value })} /></label>
-              <label>Phone<input value={company.phone} onChange={(e) => setCompany({ ...company, phone: e.target.value })} /></label>
-              <label>Email<input value={company.email} onChange={(e) => setCompany({ ...company, email: e.target.value })} /></label>
-              <label>Company TIN (optional)<input value={company.tin ?? ""} onChange={(e) => {
-                const tin = e.target.value;
-                setCompany((prev) => {
-                  const next = { ...prev };
-                  if (tin) next.tin = tin;
-                  else delete next.tin;
-                  return next;
-                });
-              }} /></label>
-              <div className="tlb-form-actions tlb-span-2"><Button type="submit">Save company</Button></div>
+              <label>
+                Legal name
+                <input
+                  value={company.legalName}
+                  onChange={(e) => setCompany({ ...company, legalName: e.target.value })}
+                />
+              </label>
+              <label>
+                Trading name
+                <input
+                  value={company.tradingName}
+                  onChange={(e) => setCompany({ ...company, tradingName: e.target.value })}
+                />
+              </label>
+              <label className="tlb-span-2">
+                Address
+                <input
+                  value={company.address}
+                  onChange={(e) => setCompany({ ...company, address: e.target.value })}
+                />
+              </label>
+              <label>
+                Phone
+                <input
+                  value={company.phone}
+                  onChange={(e) => setCompany({ ...company, phone: e.target.value })}
+                />
+              </label>
+              <label>
+                Email
+                <input
+                  value={company.email}
+                  onChange={(e) => setCompany({ ...company, email: e.target.value })}
+                />
+              </label>
+              <label>
+                Company TIN (optional)
+                <input
+                  value={company.tin ?? ""}
+                  onChange={(e) => {
+                    const tin = e.target.value;
+                    setCompany((prev) => {
+                      const next = { ...prev };
+                      if (tin) next.tin = tin;
+                      else delete next.tin;
+                      return next;
+                    });
+                  }}
+                />
+              </label>
+              <div className="tlb-form-actions tlb-span-2">
+                <Button type="submit">Save company</Button>
+              </div>
             </form>
           </article>
 
           <article className="tlb-panel" style={{ marginBottom: 14 }}>
             <div className="tlb-panel-heading">
-              <div><span>VAT rates</span><strong>Configurable — do not hard-code jurisdiction %</strong></div>
+              <div>
+                <span>VAT rates</span>
+                <strong>Configurable — do not hard-code jurisdiction %</strong>
+              </div>
             </div>
             <form
               className="tlb-form-grid"
@@ -571,16 +662,42 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                 });
               }}
             >
-              <label>Code<input value={vat.code} onChange={(e) => setVat({ ...vat, code: e.target.value })} /></label>
-              <label>Label<input value={vat.label} onChange={(e) => setVat({ ...vat, label: e.target.value })} /></label>
-              <label>Rate %<input type="number" min={0} step="0.01" value={vat.ratePercent} onChange={(e) => setVat({ ...vat, ratePercent: Number(e.target.value) })} /></label>
-              <div className="tlb-form-actions tlb-span-2"><Button type="submit">Save VAT rate</Button></div>
+              <label>
+                Code
+                <input
+                  value={vat.code}
+                  onChange={(e) => setVat({ ...vat, code: e.target.value })}
+                />
+              </label>
+              <label>
+                Label
+                <input
+                  value={vat.label}
+                  onChange={(e) => setVat({ ...vat, label: e.target.value })}
+                />
+              </label>
+              <label>
+                Rate %
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={vat.ratePercent}
+                  onChange={(e) => setVat({ ...vat, ratePercent: Number(e.target.value) })}
+                />
+              </label>
+              <div className="tlb-form-actions tlb-span-2">
+                <Button type="submit">Save VAT rate</Button>
+              </div>
             </form>
           </article>
 
           <article className="tlb-panel">
             <div className="tlb-panel-heading">
-              <div><span>Outstanding ageing & reminders</span><strong>Thresholds</strong></div>
+              <div>
+                <span>Outstanding ageing & reminders</span>
+                <strong>Thresholds</strong>
+              </div>
             </div>
             <form
               className="tlb-form-grid"
@@ -594,11 +711,51 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                 );
               }}
             >
-              <label>Normal max days<input type="number" min={0} value={ageing.normalMaxDays} onChange={(e) => setAgeing({ ...ageing, normalMaxDays: Number(e.target.value) })} /></label>
-              <label>Attention max days<input type="number" min={0} value={ageing.attentionMaxDays} onChange={(e) => setAgeing({ ...ageing, attentionMaxDays: Number(e.target.value) })} /></label>
-              <label>Extended unfulfilled days<input type="number" min={1} value={ageing.extendedUnfulfilledDays} onChange={(e) => setAgeing({ ...ageing, extendedUnfulfilledDays: Number(e.target.value) })} /></label>
-              <label>Expected approaching days<input type="number" min={0} value={ageing.expectedApproachingDays} onChange={(e) => setAgeing({ ...ageing, expectedApproachingDays: Number(e.target.value) })} /></label>
-              <div className="tlb-form-actions tlb-span-2"><Button type="submit">Save reminder settings</Button></div>
+              <label>
+                Normal max days
+                <input
+                  type="number"
+                  min={0}
+                  value={ageing.normalMaxDays}
+                  onChange={(e) => setAgeing({ ...ageing, normalMaxDays: Number(e.target.value) })}
+                />
+              </label>
+              <label>
+                Attention max days
+                <input
+                  type="number"
+                  min={0}
+                  value={ageing.attentionMaxDays}
+                  onChange={(e) =>
+                    setAgeing({ ...ageing, attentionMaxDays: Number(e.target.value) })
+                  }
+                />
+              </label>
+              <label>
+                Extended unfulfilled days
+                <input
+                  type="number"
+                  min={1}
+                  value={ageing.extendedUnfulfilledDays}
+                  onChange={(e) =>
+                    setAgeing({ ...ageing, extendedUnfulfilledDays: Number(e.target.value) })
+                  }
+                />
+              </label>
+              <label>
+                Expected approaching days
+                <input
+                  type="number"
+                  min={0}
+                  value={ageing.expectedApproachingDays}
+                  onChange={(e) =>
+                    setAgeing({ ...ageing, expectedApproachingDays: Number(e.target.value) })
+                  }
+                />
+              </label>
+              <div className="tlb-form-actions tlb-span-2">
+                <Button type="submit">Save reminder settings</Button>
+              </div>
             </form>
           </article>
         </>

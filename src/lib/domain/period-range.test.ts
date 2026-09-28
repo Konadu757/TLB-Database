@@ -42,24 +42,41 @@ test("Today sales ≠ This Year sales on seed data", () => {
   const state = createSeedState();
   const today = buildDashboardSnapshot(state, "Today");
   const year = buildDashboardSnapshot(state, "This Year");
-  assert(today.salesTotal !== year.salesTotal, `sales today ${today.salesTotal} vs year ${year.salesTotal}`);
+  assert(
+    today.salesTotal !== year.salesTotal,
+    `sales today ${today.salesTotal} vs year ${year.salesTotal}`,
+  );
   assert(today.recentOrders.length < year.recentOrders.length, "fewer orders today than year");
   assert(snapshotFingerprint(today) !== snapshotFingerprint(year), "fingerprints differ");
 });
 
 test("each preset produces a distinct fingerprint", () => {
   const state = createSeedState();
-  const prints = DASHBOARD_PERIODS.map((p) => snapshotFingerprint(buildDashboardSnapshot(state, p)));
+  const prints = DASHBOARD_PERIODS.map((p) =>
+    snapshotFingerprint(buildDashboardSnapshot(state, p)),
+  );
   const unique = new Set(prints);
-  assert(unique.size === DASHBOARD_PERIODS.length, `expected ${DASHBOARD_PERIODS.length} unique, got ${unique.size}: ${prints.join(" | ")}`);
+  assert(
+    unique.size === DASHBOARD_PERIODS.length,
+    `expected ${DASHBOARD_PERIODS.length} unique, got ${unique.size}: ${prints.join(" | ")}`,
+  );
 });
 
 test("Today active orders only include same-day seed order", () => {
   const state = createSeedState();
   const today = buildDashboardSnapshot(state, "Today");
-  assert(today.recentOrders.every((o) => o.orderDate === "2026-09-09"), "only today dates");
-  assert(today.recentOrders.some((o) => o.number === "TLB-ORD-2609-00102"), "includes today order");
-  assert(!today.recentOrders.some((o) => o.number === "TLB-ORD-2603-00105"), "excludes March order");
+  assert(
+    today.recentOrders.every((o) => o.orderDate === "2026-09-09"),
+    "only today dates",
+  );
+  assert(
+    today.recentOrders.some((o) => o.number === "TLB-ORD-2609-00102"),
+    "includes today order",
+  );
+  assert(
+    !today.recentOrders.some((o) => o.number === "TLB-ORD-2603-00105"),
+    "excludes March order",
+  );
 });
 
 test("catalog modules filter by range (Today ≠ Year)", () => {
@@ -70,7 +87,10 @@ test("catalog modules filter by range (Today ≠ Year)", () => {
   assert(qToday.length < qYear.length, `quotations today ${qToday.length} vs year ${qYear.length}`);
   const mToday = recordsForModule("Procurement", today);
   const mYear = recordsForModule("Procurement", year);
-  assert(mToday.length < mYear.length, `procurement today ${mToday.length} vs year ${mYear.length}`);
+  assert(
+    mToday.length < mYear.length,
+    `procurement today ${mToday.length} vs year ${mYear.length}`,
+  );
 });
 
 test("v6 migrate merges missing period-spanning orders into stale v5 state", () => {
@@ -84,11 +104,20 @@ test("v6 migrate merges missing period-spanning orders into stale v5 state", () 
   const migrated = migrateState(stale);
   assert(migrated.version === 10, "bumped to v10");
   assert(migrated.orders.length >= 5, `expected ≥5 orders, got ${migrated.orders.length}`);
-  assert(migrated.orders.some((o) => o.id === "ord-today"), "has today order");
-  assert(migrated.orders.some((o) => o.id === "ord-year"), "has year order");
+  assert(
+    migrated.orders.some((o) => o.id === "ord-today"),
+    "has today order",
+  );
+  assert(
+    migrated.orders.some((o) => o.id === "ord-year"),
+    "has year order",
+  );
   const todaySnap = buildDashboardSnapshot(migrated, "Today");
   const yearSnap = buildDashboardSnapshot(migrated, "This Year");
-  assert(todaySnap.recentOrders.length < yearSnap.recentOrders.length, "migrated Today ≠ Year order counts");
+  assert(
+    todaySnap.recentOrders.length < yearSnap.recentOrders.length,
+    "migrated Today ≠ Year order counts",
+  );
 });
 
 console.log(`\n${passed} period tests passed`);

@@ -40,7 +40,12 @@ export function recomputeOpsLineDerived(line: OpsRequestLine): OpsRequestLine {
 }
 
 export function deriveOpsRequestStatus(req: OpsRequest, lines: OpsRequestLine[]): OpsRequestStatus {
-  if (req.status === "Cancelled" || req.status === "Rejected" || req.status === "Closed" || req.status === "Draft") {
+  if (
+    req.status === "Cancelled" ||
+    req.status === "Rejected" ||
+    req.status === "Closed" ||
+    req.status === "Draft"
+  ) {
     return req.status;
   }
   const active = lines.filter((l) => l.cancelledQty < l.requestedQty);
@@ -53,7 +58,9 @@ export function deriveOpsRequestStatus(req: OpsRequest, lines: OpsRequestLine[])
     if (active.some((l) => l.receivedQty > 0)) return "Partially Delivered";
   }
 
-  if (["In Transit", "Collected", "Issued", "Ready for Collection", "Preparing"].includes(req.status)) {
+  if (
+    ["In Transit", "Collected", "Issued", "Ready for Collection", "Preparing"].includes(req.status)
+  ) {
     return req.status;
   }
 
@@ -61,7 +68,11 @@ export function deriveOpsRequestStatus(req: OpsRequest, lines: OpsRequestLine[])
   const anyApproved = active.some((l) => l.approvedQty > 0);
   const noneApproved = active.every((l) => l.approvedQty === 0);
 
-  if (req.status === "Pending Approval" || req.status === "Partially Approved" || req.status === "Approved") {
+  if (
+    req.status === "Pending Approval" ||
+    req.status === "Partially Approved" ||
+    req.status === "Approved"
+  ) {
     if (allApproved) return "Approved";
     if (anyApproved) return "Partially Approved";
     if (noneApproved && req.status === "Pending Approval") return "Pending Approval";
@@ -105,7 +116,10 @@ export function defaultOpsApprovalRules(): OpsApprovalRule[] {
   ];
 }
 
-export function estimateOpsRequestValue(state: TlbState, lines: Array<{ productId: string; quantity: number }>): number {
+export function estimateOpsRequestValue(
+  state: TlbState,
+  lines: Array<{ productId: string; quantity: number }>,
+): number {
   return lines.reduce((sum, line) => {
     const cost = state.products.find((p) => p.id === line.productId)?.standardCost ?? 0;
     return sum + cost * line.quantity;
@@ -140,8 +154,18 @@ export function warehouseAvailabilityForProduct(
   state: TlbState,
   productId: string,
   needed: number,
-): Array<{ warehouseId: string; warehouseName: string; available: number; status: OpsWarehouseAvailability }> {
-  const rows: Array<{ warehouseId: string; warehouseName: string; available: number; status: OpsWarehouseAvailability }> = [];
+): Array<{
+  warehouseId: string;
+  warehouseName: string;
+  available: number;
+  status: OpsWarehouseAvailability;
+}> {
+  const rows: Array<{
+    warehouseId: string;
+    warehouseName: string;
+    available: number;
+    status: OpsWarehouseAvailability;
+  }> = [];
   for (const wh of state.warehouses.filter((w) => w.active && !w.deletedAt)) {
     const bal = state.stock.find((s) => s.productId === productId && s.warehouseId === wh.id);
     const available = bal ? calcAvailable(bal) : 0;
@@ -159,14 +183,24 @@ export function bestFulfilWarehouse(
   productId: string,
   needed: number,
   preferredWarehouseId?: string,
-): { warehouseId: string; warehouseName: string; available: number; status: OpsWarehouseAvailability } | null {
+): {
+  warehouseId: string;
+  warehouseName: string;
+  available: number;
+  status: OpsWarehouseAvailability;
+} | null {
   const rows = warehouseAvailabilityForProduct(state, productId, needed);
   if (!rows.length) return null;
   if (preferredWarehouseId) {
     const pref = rows.find((r) => r.warehouseId === preferredWarehouseId);
     if (pref && pref.available > 0) return pref;
   }
-  return rows.find((r) => r.status === "Available") ?? rows.find((r) => r.status === "Partial") ?? rows[0] ?? null;
+  return (
+    rows.find((r) => r.status === "Available") ??
+    rows.find((r) => r.status === "Partial") ??
+    rows[0] ??
+    null
+  );
 }
 
 export function opsStatusTone(status: OpsRequestStatus | OpsDriverJobStatus | string): string {
@@ -240,7 +274,10 @@ export function listOutstandingOpsRows(state: TlbState) {
       const shortage = opsOutstandingShortage(line);
       if (shortage <= 0) continue;
       const product = state.products.find((p) => p.id === line.productId);
-      const ageDays = Math.max(0, Math.floor((now - new Date(req.requestedAt).getTime()) / 86_400_000));
+      const ageDays = Math.max(
+        0,
+        Math.floor((now - new Date(req.requestedAt).getTime()) / 86_400_000),
+      );
       rows.push({
         requestId: req.id,
         requestNumber: req.number,
@@ -259,16 +296,26 @@ export function listOutstandingOpsRows(state: TlbState) {
       });
     }
   }
-  return rows.sort((a, b) => b.ageDays - a.ageDays || a.requestNumber.localeCompare(b.requestNumber));
+  return rows.sort(
+    (a, b) => b.ageDays - a.ageDays || a.requestNumber.localeCompare(b.requestNumber),
+  );
 }
 
 export function buildMyOpsActions(state: TlbState): OpsActionItem[] {
   const items: OpsActionItem[] = [];
   const role = state.currentRole;
-  const canApprove = role === "Owner" || role === "Admin" || role === "Manager" || role === "Finance";
-  const canWarehouse = role === "Owner" || role === "Admin" || role === "Manager" || role === "Warehouse";
-  const canDrive = role === "Owner" || role === "Admin" || role === "Driver" || role === "Warehouse";
-  const canReceive = role === "Owner" || role === "Admin" || role === "Manager" || role === "Receiver" || role === "Requester";
+  const canApprove =
+    role === "Owner" || role === "Admin" || role === "Manager" || role === "Finance";
+  const canWarehouse =
+    role === "Owner" || role === "Admin" || role === "Manager" || role === "Warehouse";
+  const canDrive =
+    role === "Owner" || role === "Admin" || role === "Driver" || role === "Warehouse";
+  const canReceive =
+    role === "Owner" ||
+    role === "Admin" ||
+    role === "Manager" ||
+    role === "Receiver" ||
+    role === "Requester";
 
   for (const req of state.opsRequests ?? []) {
     if (req.deletedAt) continue;
@@ -279,7 +326,11 @@ export function buildMyOpsActions(state: TlbState): OpsActionItem[] {
       status: req.status,
       nav: "Requests",
     };
-    if ((req.status === "Submitted" || req.status === "Pending Approval") && !req.acknowledgedAt && canApprove) {
+    if (
+      (req.status === "Submitted" || req.status === "Pending Approval") &&
+      !req.acknowledgedAt &&
+      canApprove
+    ) {
       items.push({
         id: `ack-${req.id}`,
         kind: "acknowledge",
@@ -299,7 +350,9 @@ export function buildMyOpsActions(state: TlbState): OpsActionItem[] {
       });
     }
     if (
-      (req.status === "Approved" || req.status === "Partially Approved" || req.status === "Warehouse Review") &&
+      (req.status === "Approved" ||
+        req.status === "Partially Approved" ||
+        req.status === "Warehouse Review") &&
       canWarehouse
     ) {
       items.push({
@@ -348,7 +401,9 @@ export function buildMyOpsActions(state: TlbState): OpsActionItem[] {
       });
     }
     if (
-      (req.status === "In Transit" || req.status === "Collected" || req.driverStatus === "Arrived Destination") &&
+      (req.status === "In Transit" ||
+        req.status === "Collected" ||
+        req.driverStatus === "Arrived Destination") &&
       canReceive
     ) {
       items.push({
@@ -360,7 +415,9 @@ export function buildMyOpsActions(state: TlbState): OpsActionItem[] {
         nav: "Deliveries",
       });
     }
-    for (const d of (state.opsDiscrepancies ?? []).filter((x) => x.requestId === req.id && !x.resolvedAt)) {
+    for (const d of (state.opsDiscrepancies ?? []).filter(
+      (x) => x.requestId === req.id && !x.resolvedAt,
+    )) {
       items.push({
         id: `disc-${d.id}`,
         kind: "resolve_discrepancy",
@@ -374,15 +431,28 @@ export function buildMyOpsActions(state: TlbState): OpsActionItem[] {
   return items;
 }
 
-export function opsKanbanColumns(state: TlbState): Array<{ id: string; title: string; statuses: OpsRequestStatus[]; requests: OpsRequest[] }> {
+export function opsKanbanColumns(
+  state: TlbState,
+): Array<{ id: string; title: string; statuses: OpsRequestStatus[]; requests: OpsRequest[] }> {
   const cols: Array<{ id: string; title: string; statuses: OpsRequestStatus[] }> = [
-    { id: "submitted", title: "Submitted", statuses: ["Submitted", "Acknowledged", "Pending Approval"] },
-    { id: "approved", title: "Approved", statuses: ["Approved", "Partially Approved", "Warehouse Review"] },
+    {
+      id: "submitted",
+      title: "Submitted",
+      statuses: ["Submitted", "Acknowledged", "Pending Approval"],
+    },
+    {
+      id: "approved",
+      title: "Approved",
+      statuses: ["Approved", "Partially Approved", "Warehouse Review"],
+    },
     { id: "prep", title: "Preparing", statuses: ["Preparing", "Ready for Collection"] },
     { id: "transit", title: "In Transit", statuses: ["Issued", "Collected", "In Transit"] },
     { id: "done", title: "Delivered", statuses: ["Delivered", "Partially Delivered", "Closed"] },
   ];
-  const live = (state.opsRequests ?? []).filter((r) => !r.deletedAt && r.status !== "Cancelled" && r.status !== "Rejected" && r.status !== "Draft");
+  const live = (state.opsRequests ?? []).filter(
+    (r) =>
+      !r.deletedAt && r.status !== "Cancelled" && r.status !== "Rejected" && r.status !== "Draft",
+  );
   return cols.map((c) => ({
     ...c,
     requests: live.filter((r) => c.statuses.includes(r.status)),

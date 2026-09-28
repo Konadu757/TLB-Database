@@ -1,11 +1,12 @@
 import { daysBetween } from "@/lib/domain/calculations";
-import {
-  accountsPayable,
-  accountsReceivable,
-  listExpiryAlerts,
-} from "@/lib/domain/inventory";
+import { accountsPayable, accountsReceivable, listExpiryAlerts } from "@/lib/domain/inventory";
 import { listOutstandingOpsRows } from "@/lib/domain/ops-hub";
-import type { AppNotification, NotificationType, OutstandingRow, TlbState } from "@/lib/domain/types";
+import type {
+  AppNotification,
+  NotificationType,
+  OutstandingRow,
+  TlbState,
+} from "@/lib/domain/types";
 
 function formatMoney(amount: number): string {
   return `GH₵ ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -130,11 +131,7 @@ export function buildDueAwarenessItems(
     if (row.demandFlag !== "overdue" && row.demandFlag !== "due_today") continue;
     const overdue = row.demandFlag === "overdue";
     const agePart =
-      overdue && row.ageDays > 0
-        ? dayLabel(row.ageDays)
-        : overdue
-          ? "past due"
-          : "due today";
+      overdue && row.ageDays > 0 ? dayLabel(row.ageDays) : overdue ? "past due" : "due today";
     items.push({
       id: `supply:${row.lineId}`,
       severity: overdue ? "overdue" : "due_today",

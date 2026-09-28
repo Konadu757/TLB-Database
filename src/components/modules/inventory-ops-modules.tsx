@@ -48,7 +48,15 @@ function EmptyState({ title, detail }: { title: string; detail: string }) {
   );
 }
 
-function Flash({ error, notice, onClear }: { error: string | null; notice: string | null; onClear: () => void }) {
+function Flash({
+  error,
+  notice,
+  onClear,
+}: {
+  error: string | null;
+  notice: string | null;
+  onClear: () => void;
+}) {
   if (!error && !notice) return null;
   return (
     <div className={`tlb-flash ${error ? "tlb-flash-error" : "tlb-flash-ok"}`} role="status">
@@ -117,12 +125,18 @@ export function LiveStockMovementsModule({
                   return (
                     <tr key={m.id}>
                       <td>{m.at.slice(0, 16).replace("T", " ")}</td>
-                      <td><strong>{m.number}</strong></td>
-                      <td><StatusBadge tone={statusTone(m.type)}>{m.type}</StatusBadge></td>
+                      <td>
+                        <strong>{m.number}</strong>
+                      </td>
+                      <td>
+                        <StatusBadge tone={statusTone(m.type)}>{m.type}</StatusBadge>
+                      </td>
                       <td>{product?.sku}</td>
                       <td>{wh?.code}</td>
                       <td>{m.qtyBefore}</td>
-                      <td><strong>{m.signedQty >= 0 ? `+${m.signedQty}` : m.signedQty}</strong></td>
+                      <td>
+                        <strong>{m.signedQty >= 0 ? `+${m.signedQty}` : m.signedQty}</strong>
+                      </td>
                       <td>{m.qtyAfter}</td>
                       <td>{m.refNumber ?? m.reason ?? "—"}</td>
                       <td>{m.actor}</td>
@@ -198,7 +212,9 @@ export function LiveBatchesModule({
             <div>
               <span>Status</span>
               <strong>
-                <StatusBadge tone={band === "expired" || band === "30" ? "danger" : statusTone(batch.status)}>
+                <StatusBadge
+                  tone={band === "expired" || band === "30" ? "danger" : statusTone(batch.status)}
+                >
                   {batch.status}
                   {band !== "ok" ? ` · ${band}` : ""}
                 </StatusBadge>
@@ -206,10 +222,24 @@ export function LiveBatchesModule({
             </div>
           </div>
           <div className="tlb-kv-grid" style={{ padding: 16 }}>
-            <div><span>MFD</span><strong>{batch.manufacturedAt ?? "—"}</strong></div>
-            <div><span>EXP</span><strong>{batch.expiresAt ?? "—"}</strong></div>
-            <div><span>Received</span><strong>{batch.receivedAt.slice(0, 10)}</strong></div>
-            <div><span>Supplier</span><strong>{store.state.suppliers.find((s) => s.id === batch.supplierId)?.name ?? "—"}</strong></div>
+            <div>
+              <span>MFD</span>
+              <strong>{batch.manufacturedAt ?? "—"}</strong>
+            </div>
+            <div>
+              <span>EXP</span>
+              <strong>{batch.expiresAt ?? "—"}</strong>
+            </div>
+            <div>
+              <span>Received</span>
+              <strong>{batch.receivedAt.slice(0, 10)}</strong>
+            </div>
+            <div>
+              <span>Supplier</span>
+              <strong>
+                {store.state.suppliers.find((s) => s.id === batch.supplierId)?.name ?? "—"}
+              </strong>
+            </div>
           </div>
         </article>
         <article className="tlb-panel tlb-orders-panel">
@@ -233,8 +263,12 @@ export function LiveBatchesModule({
                 {nodes.map((n) => (
                   <tr key={`${n.id}-${n.kind}`}>
                     <td>{n.at ? n.at.slice(0, 10) : "—"}</td>
-                    <td><StatusBadge tone="info">{n.kind}</StatusBadge></td>
-                    <td><strong>{n.title}</strong></td>
+                    <td>
+                      <StatusBadge tone="info">{n.kind}</StatusBadge>
+                    </td>
+                    <td>
+                      <strong>{n.title}</strong>
+                    </td>
                     <td>{n.detail}</td>
                   </tr>
                 ))}
@@ -277,14 +311,18 @@ export function LiveBatchesModule({
                 const band = batchExpiryBand(b);
                 return (
                   <tr key={b.id}>
-                    <td><strong>{b.code}</strong></td>
+                    <td>
+                      <strong>{b.code}</strong>
+                    </td>
                     <td>{product?.sku}</td>
                     <td>{wh?.code}</td>
                     <td>{b.remainingQty}</td>
                     <td>{formatMoney(b.unitCost)}</td>
                     <td>{b.expiresAt?.slice(0, 10) ?? "—"}</td>
                     <td>
-                      <StatusBadge tone={band === "ok" ? "success" : band === "expired" ? "danger" : "warning"}>
+                      <StatusBadge
+                        tone={band === "ok" ? "success" : band === "expired" ? "danger" : "warning"}
+                      >
                         {band === "ok" ? "OK" : band}
                       </StatusBadge>
                     </td>
@@ -359,7 +397,9 @@ export function GoodsInModule({
           <div>
             <span className="tlb-eyebrow">Goods In</span>
             <strong>{detail.number}</strong>
-            <p className="tlb-muted-line">{supplier?.name} · {detail.nonPo ? "Non-PO" : "PO-linked"}</p>
+            <p className="tlb-muted-line">
+              {supplier?.name} · {detail.nonPo ? "Non-PO" : "PO-linked"}
+            </p>
           </div>
           <div className="tlb-inline-actions">
             <MoveToTrashButton
@@ -371,7 +411,9 @@ export function GoodsInModule({
               disabledReason={grnTrashBlock ?? undefined}
               onTrashed={() => setDetailId(null)}
             />
-            <Button type="button" variant="outline" onClick={() => setDetailId(null)}>Back</Button>
+            <Button type="button" variant="outline" onClick={() => setDetailId(null)}>
+              Back
+            </Button>
           </div>
         </div>
 
@@ -388,7 +430,9 @@ export function GoodsInModule({
             <div className="tlb-ops-handler-card tlb-ops-handler-card--status">
               <span className="tlb-ops-handler-kicker">Status</span>
               <StatusBadge tone={statusTone(detail.status)}>{detail.status}</StatusBadge>
-              <small>{receivedWhen ? `Received ${receivedWhen}` : "Awaiting receipt timestamp"}</small>
+              <small>
+                {receivedWhen ? `Received ${receivedWhen}` : "Awaiting receipt timestamp"}
+              </small>
             </div>
 
             <div className="tlb-ops-handler-card tlb-ops-handler-card--actor">
@@ -397,13 +441,17 @@ export function GoodsInModule({
               <small>{receivedWhen ?? "—"}</small>
             </div>
 
-            <div className={`tlb-ops-handler-card${detail.checkedBy ? "" : " tlb-ops-handler-card--empty"}`}>
+            <div
+              className={`tlb-ops-handler-card${detail.checkedBy ? "" : " tlb-ops-handler-card--empty"}`}
+            >
               <span className="tlb-ops-handler-kicker">Checked by</span>
               <strong>{detail.checkedBy || "Pending"}</strong>
               <small>{checkedWhen ?? (detail.checkedBy ? "—" : "Not checked yet")}</small>
             </div>
 
-            <div className={`tlb-ops-handler-card${detail.approvedBy ? "" : " tlb-ops-handler-card--empty"}`}>
+            <div
+              className={`tlb-ops-handler-card${detail.approvedBy ? "" : " tlb-ops-handler-card--empty"}`}
+            >
               <span className="tlb-ops-handler-kicker">Approved by</span>
               <strong>{detail.approvedBy || "Pending"}</strong>
               <small>{approvedWhen ?? (detail.approvedBy ? "—" : "Not approved yet")}</small>
@@ -480,7 +528,9 @@ export function GoodsInModule({
         <div>
           <span className="tlb-eyebrow">Inventory</span>
           <strong>Goods In (GRN)</strong>
-          <p className="tlb-muted-line">PO and Non-PO receipts with accepted / rejected / damaged</p>
+          <p className="tlb-muted-line">
+            PO and Non-PO receipts with accepted / rejected / damaged
+          </p>
         </div>
         <Button type="button" onClick={() => setOpen((v) => !v)}>
           {open ? "Close form" : "Post GRN"}
@@ -493,7 +543,9 @@ export function GoodsInModule({
               Supplier
               <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
                 {store.state.suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
                 ))}
               </select>
             </label>
@@ -501,56 +553,89 @@ export function GoodsInModule({
               Warehouse
               <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
                 {store.state.warehouses.map((w) => (
-                  <option key={w.id} value={w.id}>{w.name}</option>
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
                 ))}
               </select>
             </label>
             <label>
               Supplier PO
-              <select
-                value={poId}
-                onChange={(e) => setPoId(e.target.value)}
-                disabled={nonPo}
-              >
+              <select value={poId} onChange={(e) => setPoId(e.target.value)} disabled={nonPo}>
                 <option value="">— None —</option>
                 {store.state.supplierPurchaseOrders
                   .filter((p) => p.supplierId === supplierId && p.status !== "Cancelled")
                   .map((p) => (
-                    <option key={p.id} value={p.id}>{p.number}</option>
+                    <option key={p.id} value={p.id}>
+                      {p.number}
+                    </option>
                   ))}
               </select>
             </label>
             <label className="tlb-check-row">
-              <input type="checkbox" checked={nonPo} onChange={(e) => { setNonPo(e.target.checked); if (e.target.checked) setPoId(""); }} />
+              <input
+                type="checkbox"
+                checked={nonPo}
+                onChange={(e) => {
+                  setNonPo(e.target.checked);
+                  if (e.target.checked) setPoId("");
+                }}
+              />
               Non-PO purchase
             </label>
             <label>
               Product
               <select value={productId} onChange={(e) => setProductId(e.target.value)}>
                 {store.state.products.map((p) => (
-                  <option key={p.id} value={p.id}>{p.sku} · {p.name}</option>
+                  <option key={p.id} value={p.id}>
+                    {p.sku} · {p.name}
+                  </option>
                 ))}
               </select>
             </label>
             <label>
               Batch code
-              <input value={batchCode} onChange={(e) => setBatchCode(e.target.value)} placeholder="HCL-26xxx" />
+              <input
+                value={batchCode}
+                onChange={(e) => setBatchCode(e.target.value)}
+                placeholder="HCL-26xxx"
+              />
             </label>
             <label>
               Accepted
-              <input type="number" min={0} value={accepted} onChange={(e) => setAccepted(Number(e.target.value))} />
+              <input
+                type="number"
+                min={0}
+                value={accepted}
+                onChange={(e) => setAccepted(Number(e.target.value))}
+              />
             </label>
             <label>
               Rejected
-              <input type="number" min={0} value={rejected} onChange={(e) => setRejected(Number(e.target.value))} />
+              <input
+                type="number"
+                min={0}
+                value={rejected}
+                onChange={(e) => setRejected(Number(e.target.value))}
+              />
             </label>
             <label>
               Damaged
-              <input type="number" min={0} value={damaged} onChange={(e) => setDamaged(Number(e.target.value))} />
+              <input
+                type="number"
+                min={0}
+                value={damaged}
+                onChange={(e) => setDamaged(Number(e.target.value))}
+              />
             </label>
             <label>
               Unit cost
-              <input type="number" min={0} value={unitCost} onChange={(e) => setUnitCost(Number(e.target.value))} />
+              <input
+                type="number"
+                min={0}
+                value={unitCost}
+                onChange={(e) => setUnitCost(Number(e.target.value))}
+              />
             </label>
             <label>
               Expiry
@@ -614,10 +699,14 @@ export function GoodsInModule({
               <tbody>
                 {notSoftDeleted(store.state.goodsReceipts).map((g) => (
                   <tr key={g.id}>
-                    <td><strong>{g.number}</strong></td>
+                    <td>
+                      <strong>{g.number}</strong>
+                    </td>
                     <td>{store.state.suppliers.find((s) => s.id === g.supplierId)?.name}</td>
                     <td>{g.nonPo ? "Non-PO" : "PO"}</td>
-                    <td><StatusBadge tone={statusTone(g.status)}>{g.status}</StatusBadge></td>
+                    <td>
+                      <StatusBadge tone={statusTone(g.status)}>{g.status}</StatusBadge>
+                    </td>
                     <td>{g.receivedAt.slice(0, 10)}</td>
                     <td>{g.receivedBy}</td>
                     <td>
@@ -668,7 +757,9 @@ export function GoodsOutModule({
           <div>
             <span className="tlb-eyebrow">Goods Out</span>
             <strong>{detail.number}</strong>
-            <p className="tlb-muted-line">{detail.reason} · {wh?.name ?? detail.warehouseId}</p>
+            <p className="tlb-muted-line">
+              {detail.reason} · {wh?.name ?? detail.warehouseId}
+            </p>
           </div>
           <div className="tlb-inline-actions">
             <MoveToTrashButton
@@ -685,10 +776,22 @@ export function GoodsOutModule({
         </div>
         <article className="tlb-panel">
           <div className="tlb-kv-grid" style={{ padding: 16 }}>
-            <div><span>Reason</span><strong>{detail.reason}</strong></div>
-            <div><span>Issued</span><strong>{detail.issuedAt.slice(0, 16).replace("T", " ")}</strong></div>
-            <div><span>By</span><strong>{detail.issuedBy}</strong></div>
-            <div><span>Notes</span><strong>{detail.notes ?? "—"}</strong></div>
+            <div>
+              <span>Reason</span>
+              <strong>{detail.reason}</strong>
+            </div>
+            <div>
+              <span>Issued</span>
+              <strong>{detail.issuedAt.slice(0, 16).replace("T", " ")}</strong>
+            </div>
+            <div>
+              <span>By</span>
+              <strong>{detail.issuedBy}</strong>
+            </div>
+            <div>
+              <span>Notes</span>
+              <strong>{detail.notes ?? "—"}</strong>
+            </div>
           </div>
         </article>
         <article className="tlb-panel tlb-orders-panel">
@@ -704,12 +807,18 @@ export function GoodsOutModule({
               </thead>
               <tbody>
                 {lines.length === 0 ? (
-                  <tr><td colSpan={4}><EmptyState title="No lines" detail="This issue has no stock lines." /></td></tr>
+                  <tr>
+                    <td colSpan={4}>
+                      <EmptyState title="No lines" detail="This issue has no stock lines." />
+                    </td>
+                  </tr>
                 ) : (
                   lines.map((l) => {
                     const p = store.state.products.find((x) => x.id === l.productId);
                     const lineWh = store.state.warehouses.find((w) => w.id === l.warehouseId);
-                    const batch = l.batchId ? store.state.batches.find((b) => b.id === l.batchId) : null;
+                    const batch = l.batchId
+                      ? store.state.batches.find((b) => b.id === l.batchId)
+                      : null;
                     return (
                       <tr key={l.id}>
                         <td>{p?.name ?? l.productId}</td>
@@ -744,7 +853,9 @@ export function GoodsOutModule({
             Warehouse
             <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
               {store.state.warehouses.map((w) => (
-                <option key={w.id} value={w.id}>{w.name}</option>
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
               ))}
             </select>
           </label>
@@ -752,19 +863,38 @@ export function GoodsOutModule({
             Product
             <select value={productId} onChange={(e) => setProductId(e.target.value)}>
               {store.state.products.map((p) => (
-                <option key={p.id} value={p.id}>{p.sku}</option>
+                <option key={p.id} value={p.id}>
+                  {p.sku}
+                </option>
               ))}
             </select>
           </label>
           <label>
             Qty
-            <input type="number" min={1} value={qty} onChange={(e) => setQty(Number(e.target.value))} />
+            <input
+              type="number"
+              min={1}
+              value={qty}
+              onChange={(e) => setQty(Number(e.target.value))}
+            />
           </label>
           <label>
             Reason
             <select value={reason} onChange={(e) => setReason(e.target.value as StockIssueReason)}>
-              {(["Customer supply", "Production", "Sample", "Damage", "Expiry", "Internal use", "Other"] as StockIssueReason[]).map((r) => (
-                <option key={r} value={r}>{r}</option>
+              {(
+                [
+                  "Customer supply",
+                  "Production",
+                  "Sample",
+                  "Damage",
+                  "Expiry",
+                  "Internal use",
+                  "Other",
+                ] as StockIssueReason[]
+              ).map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
               ))}
             </select>
           </label>
@@ -801,17 +931,30 @@ export function GoodsOutModule({
             </thead>
             <tbody>
               {notSoftDeleted(store.state.stockIssues).length === 0 ? (
-                <tr><td colSpan={5}><EmptyState title="No issues yet" detail="Post a goods-out to create ledger rows." /></td></tr>
+                <tr>
+                  <td colSpan={5}>
+                    <EmptyState
+                      title="No issues yet"
+                      detail="Post a goods-out to create ledger rows."
+                    />
+                  </td>
+                </tr>
               ) : (
                 notSoftDeleted(store.state.stockIssues).map((i) => (
                   <tr key={i.id}>
-                    <td><strong>{i.number}</strong></td>
+                    <td>
+                      <strong>{i.number}</strong>
+                    </td>
                     <td>{i.reason}</td>
                     <td>{i.issuedAt.slice(0, 16).replace("T", " ")}</td>
                     <td>{i.issuedBy}</td>
                     <td>
                       <div className="tlb-inline-actions compact">
-                        <button type="button" aria-label={`Open ${i.number}`} onClick={() => setDetailId(i.id)}>
+                        <button
+                          type="button"
+                          aria-label={`Open ${i.number}`}
+                          onClick={() => setDetailId(i.id)}
+                        >
                           <ChevronRight />
                         </button>
                         <MoveToTrashButton
@@ -867,21 +1010,35 @@ export function TransfersModule({
           <div>
             <span className="tlb-eyebrow">Transfer</span>
             <strong>{detail.number}</strong>
-            <p className="tlb-muted-line">{from?.code} → {to?.code} · {detail.status}</p>
+            <p className="tlb-muted-line">
+              {from?.code} → {to?.code} · {detail.status}
+            </p>
           </div>
           <div className="tlb-inline-actions">
             {detail.status === "Requested" ? (
-              <Button type="button" variant="outline" onClick={() => store.advanceTransfer(detail.id, "Approved")}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => store.advanceTransfer(detail.id, "Approved")}
+              >
                 Approve
               </Button>
             ) : null}
             {detail.status === "Approved" ? (
-              <Button type="button" variant="outline" onClick={() => store.advanceTransfer(detail.id, "In Transit")}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => store.advanceTransfer(detail.id, "In Transit")}
+              >
                 Release
               </Button>
             ) : null}
             {detail.status === "In Transit" ? (
-              <Button type="button" variant="outline" onClick={() => store.advanceTransfer(detail.id, "Received" as TransferStatus)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => store.advanceTransfer(detail.id, "Received" as TransferStatus)}
+              >
                 Receive
               </Button>
             ) : null}
@@ -912,7 +1069,9 @@ export function TransfersModule({
             <div className="tlb-ops-handler-card tlb-ops-handler-card--status">
               <span className="tlb-ops-handler-kicker">Status</span>
               <StatusBadge tone={statusTone(detail.status)}>{detail.status}</StatusBadge>
-              <small>{from?.code ?? "—"} → {to?.code ?? "—"}</small>
+              <small>
+                {from?.code ?? "—"} → {to?.code ?? "—"}
+              </small>
             </div>
 
             <div className="tlb-ops-handler-card tlb-ops-handler-card--actor">
@@ -921,16 +1080,26 @@ export function TransfersModule({
               <small>{formatHandlerWhen(detail.requestedAt) ?? "—"}</small>
             </div>
 
-            <div className={`tlb-ops-handler-card${detail.approvedBy ? "" : " tlb-ops-handler-card--empty"}`}>
+            <div
+              className={`tlb-ops-handler-card${detail.approvedBy ? "" : " tlb-ops-handler-card--empty"}`}
+            >
               <span className="tlb-ops-handler-kicker">Approved by</span>
               <strong>{detail.approvedBy || "Pending"}</strong>
-              <small>{formatHandlerWhen(detail.approvedAt) ?? (detail.approvedBy ? "—" : "Not approved yet")}</small>
+              <small>
+                {formatHandlerWhen(detail.approvedAt) ??
+                  (detail.approvedBy ? "—" : "Not approved yet")}
+              </small>
             </div>
 
-            <div className={`tlb-ops-handler-card${detail.receivedBy ? "" : " tlb-ops-handler-card--empty"}`}>
+            <div
+              className={`tlb-ops-handler-card${detail.receivedBy ? "" : " tlb-ops-handler-card--empty"}`}
+            >
               <span className="tlb-ops-handler-kicker">Received by</span>
               <strong>{detail.receivedBy || "Pending"}</strong>
-              <small>{formatHandlerWhen(detail.receivedAt) ?? (detail.receivedBy ? "—" : "Not received yet")}</small>
+              <small>
+                {formatHandlerWhen(detail.receivedAt) ??
+                  (detail.receivedBy ? "—" : "Not received yet")}
+              </small>
             </div>
           </div>
 
@@ -967,11 +1136,17 @@ export function TransfersModule({
               </thead>
               <tbody>
                 {lines.length === 0 ? (
-                  <tr><td colSpan={3}><EmptyState title="No lines" detail="This transfer has no product lines." /></td></tr>
+                  <tr>
+                    <td colSpan={3}>
+                      <EmptyState title="No lines" detail="This transfer has no product lines." />
+                    </td>
+                  </tr>
                 ) : (
                   lines.map((l) => {
                     const p = store.state.products.find((x) => x.id === l.productId);
-                    const batch = l.batchId ? store.state.batches.find((b) => b.id === l.batchId) : null;
+                    const batch = l.batchId
+                      ? store.state.batches.find((b) => b.id === l.batchId)
+                      : null;
                     return (
                       <tr key={l.id}>
                         <td>{p?.name ?? l.productId}</td>
@@ -996,7 +1171,9 @@ export function TransfersModule({
         <div>
           <span className="tlb-eyebrow">Inventory</span>
           <strong>Warehouse Transfers</strong>
-          <p className="tlb-muted-line">Requested → Approved → In Transit → Received (stock at destination only on confirm)</p>
+          <p className="tlb-muted-line">
+            Requested → Approved → In Transit → Received (stock at destination only on confirm)
+          </p>
         </div>
       </div>
       <article className="tlb-panel" style={{ padding: 16, display: "grid", gap: 12 }}>
@@ -1005,7 +1182,9 @@ export function TransfersModule({
             From
             <select value={fromWarehouseId} onChange={(e) => setFrom(e.target.value)}>
               {store.state.warehouses.map((w) => (
-                <option key={w.id} value={w.id}>{w.name}</option>
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
               ))}
             </select>
           </label>
@@ -1013,7 +1192,9 @@ export function TransfersModule({
             To
             <select value={toWarehouseId} onChange={(e) => setTo(e.target.value)}>
               {store.state.warehouses.map((w) => (
-                <option key={w.id} value={w.id}>{w.name}</option>
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
               ))}
             </select>
           </label>
@@ -1021,13 +1202,20 @@ export function TransfersModule({
             Product
             <select value={productId} onChange={(e) => setProductId(e.target.value)}>
               {store.state.products.map((p) => (
-                <option key={p.id} value={p.id}>{p.sku}</option>
+                <option key={p.id} value={p.id}>
+                  {p.sku}
+                </option>
               ))}
             </select>
           </label>
           <label>
             Qty
-            <input type="number" min={1} value={qty} onChange={(e) => setQty(Number(e.target.value))} />
+            <input
+              type="number"
+              min={1}
+              value={qty}
+              onChange={(e) => setQty(Number(e.target.value))}
+            />
           </label>
         </div>
         <Button
@@ -1061,26 +1249,50 @@ export function TransfersModule({
                 const transferTrashBlock = trashBlockReason(store.state, "transfer", t.id);
                 return (
                   <tr key={t.id}>
-                    <td><strong>{t.number}</strong></td>
-                    <td>{from} → {to}</td>
-                    <td><StatusBadge tone={statusTone(t.status)}>{t.status}</StatusBadge></td>
+                    <td>
+                      <strong>{t.number}</strong>
+                    </td>
+                    <td>
+                      {from} → {to}
+                    </td>
+                    <td>
+                      <StatusBadge tone={statusTone(t.status)}>{t.status}</StatusBadge>
+                    </td>
                     <td>
                       <div className="tlb-inline-actions compact">
-                        <button type="button" aria-label={`Open ${t.number}`} onClick={() => setDetailId(t.id)}>
+                        <button
+                          type="button"
+                          aria-label={`Open ${t.number}`}
+                          onClick={() => setDetailId(t.id)}
+                        >
                           <ChevronRight />
                         </button>
                         {t.status === "Requested" ? (
-                          <Button type="button" variant="outline" onClick={() => store.advanceTransfer(t.id, "Approved")}>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => store.advanceTransfer(t.id, "Approved")}
+                          >
                             Approve
                           </Button>
                         ) : null}
                         {t.status === "Approved" ? (
-                          <Button type="button" variant="outline" onClick={() => store.advanceTransfer(t.id, "In Transit")}>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => store.advanceTransfer(t.id, "In Transit")}
+                          >
                             Release
                           </Button>
                         ) : null}
                         {t.status === "In Transit" ? (
-                          <Button type="button" variant="outline" onClick={() => store.advanceTransfer(t.id, "Received" as TransferStatus)}>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() =>
+                              store.advanceTransfer(t.id, "Received" as TransferStatus)
+                            }
+                          >
                             Receive
                           </Button>
                         ) : null}
@@ -1136,7 +1348,9 @@ export function AdjustmentsModule({
           <div>
             <span className="tlb-eyebrow">Adjustment</span>
             <strong>{detail.number}</strong>
-            <p className="tlb-muted-line">{detail.kind} · {detail.status}</p>
+            <p className="tlb-muted-line">
+              {detail.kind} · {detail.status}
+            </p>
           </div>
           <div className="tlb-inline-actions">
             <MoveToTrashButton
@@ -1153,12 +1367,44 @@ export function AdjustmentsModule({
         </div>
         <article className="tlb-panel">
           <div className="tlb-kv-grid" style={{ padding: 16 }}>
-            <div><span>Status</span><strong><StatusBadge tone={statusTone(detail.status)}>{detail.status}</StatusBadge></strong></div>
-            <div><span>Kind</span><strong>{detail.kind}</strong></div>
-            <div><span>Created</span><strong>{detail.createdAt.slice(0, 16).replace("T", " ")} · {detail.createdBy}</strong></div>
-            <div><span>Posted</span><strong>{detail.postedAt ? `${detail.postedAt.slice(0, 16).replace("T", " ")} · ${detail.postedBy ?? "—"}` : "—"}</strong></div>
-            <div><span>Approval</span><strong>{detail.requiresApproval ? (detail.approvedBy ? `Approved by ${detail.approvedBy}` : "Required") : "Not required"}</strong></div>
-            <div><span>Notes</span><strong>{detail.notes ?? "—"}</strong></div>
+            <div>
+              <span>Status</span>
+              <strong>
+                <StatusBadge tone={statusTone(detail.status)}>{detail.status}</StatusBadge>
+              </strong>
+            </div>
+            <div>
+              <span>Kind</span>
+              <strong>{detail.kind}</strong>
+            </div>
+            <div>
+              <span>Created</span>
+              <strong>
+                {detail.createdAt.slice(0, 16).replace("T", " ")} · {detail.createdBy}
+              </strong>
+            </div>
+            <div>
+              <span>Posted</span>
+              <strong>
+                {detail.postedAt
+                  ? `${detail.postedAt.slice(0, 16).replace("T", " ")} · ${detail.postedBy ?? "—"}`
+                  : "—"}
+              </strong>
+            </div>
+            <div>
+              <span>Approval</span>
+              <strong>
+                {detail.requiresApproval
+                  ? detail.approvedBy
+                    ? `Approved by ${detail.approvedBy}`
+                    : "Required"
+                  : "Not required"}
+              </strong>
+            </div>
+            <div>
+              <span>Notes</span>
+              <strong>{detail.notes ?? "—"}</strong>
+            </div>
           </div>
         </article>
         <article className="tlb-panel tlb-orders-panel">
@@ -1176,7 +1422,11 @@ export function AdjustmentsModule({
               </thead>
               <tbody>
                 {lines.length === 0 ? (
-                  <tr><td colSpan={6}><EmptyState title="No lines" detail="This adjustment has no count lines." /></td></tr>
+                  <tr>
+                    <td colSpan={6}>
+                      <EmptyState title="No lines" detail="This adjustment has no count lines." />
+                    </td>
+                  </tr>
                 ) : (
                   lines.map((l) => {
                     const p = store.state.products.find((x) => x.id === l.productId);
@@ -1209,7 +1459,8 @@ export function AdjustmentsModule({
           <span className="tlb-eyebrow">Inventory</span>
           <strong>Adjustments & Counts</strong>
           <p className="tlb-muted-line">
-            Variances ≥ {store.state.inventorySettings?.adjustmentApprovalThreshold ?? 10} require approval
+            Variances ≥ {store.state.inventorySettings?.adjustmentApprovalThreshold ?? 10} require
+            approval
           </p>
         </div>
       </div>
@@ -1219,7 +1470,9 @@ export function AdjustmentsModule({
             Product
             <select value={productId} onChange={(e) => setProductId(e.target.value)}>
               {store.state.products.map((p) => (
-                <option key={p.id} value={p.id}>{p.sku}</option>
+                <option key={p.id} value={p.id}>
+                  {p.sku}
+                </option>
               ))}
             </select>
           </label>
@@ -1227,13 +1480,19 @@ export function AdjustmentsModule({
             Warehouse
             <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
               {store.state.warehouses.map((w) => (
-                <option key={w.id} value={w.id}>{w.name}</option>
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
               ))}
             </select>
           </label>
           <label>
             Counted qty (after)
-            <input type="number" value={qtyAfter} onChange={(e) => setQtyAfter(Number(e.target.value))} />
+            <input
+              type="number"
+              value={qtyAfter}
+              onChange={(e) => setQtyAfter(Number(e.target.value))}
+            />
           </label>
           <label>
             Reason
@@ -1266,17 +1525,29 @@ export function AdjustmentsModule({
             </thead>
             <tbody>
               {notSoftDeleted(store.state.adjustments).length === 0 ? (
-                <tr><td colSpan={5}><EmptyState title="No adjustments" detail="Post a count or variance." /></td></tr>
+                <tr>
+                  <td colSpan={5}>
+                    <EmptyState title="No adjustments" detail="Post a count or variance." />
+                  </td>
+                </tr>
               ) : (
                 notSoftDeleted(store.state.adjustments).map((a) => (
                   <tr key={a.id}>
-                    <td><strong>{a.number}</strong></td>
+                    <td>
+                      <strong>{a.number}</strong>
+                    </td>
                     <td>{a.kind}</td>
-                    <td><StatusBadge tone={statusTone(a.status)}>{a.status}</StatusBadge></td>
+                    <td>
+                      <StatusBadge tone={statusTone(a.status)}>{a.status}</StatusBadge>
+                    </td>
                     <td>{a.createdBy}</td>
                     <td>
                       <div className="tlb-inline-actions compact">
-                        <button type="button" aria-label={`Open ${a.number}`} onClick={() => setDetailId(a.id)}>
+                        <button
+                          type="button"
+                          aria-label={`Open ${a.number}`}
+                          onClick={() => setDetailId(a.id)}
+                        >
                           <ChevronRight />
                         </button>
                         <MoveToTrashButton
@@ -1342,10 +1613,7 @@ export function TraceProductModule({
     );
   }, [stockRows]);
 
-  const timeline = useMemo(
-    () => nodes.filter((n) => n.kind !== "product"),
-    [nodes],
-  );
+  const timeline = useMemo(() => nodes.filter((n) => n.kind !== "product"), [nodes]);
 
   return (
     <div className="tlb-module tlb-trace-layout">
@@ -1359,7 +1627,9 @@ export function TraceProductModule({
           Product
           <select value={productId} onChange={(e) => setProductId(e.target.value)}>
             {store.state.products.map((p) => (
-              <option key={p.id} value={p.id}>{p.sku} · {p.name}</option>
+              <option key={p.id} value={p.id}>
+                {p.sku} · {p.name}
+              </option>
             ))}
           </select>
         </label>
@@ -1427,7 +1697,10 @@ export function TraceProductModule({
                 {stockRows.length === 0 ? (
                   <tr>
                     <td colSpan={4}>
-                      <EmptyState title="No stock rows" detail="This product has no warehouse balances yet." />
+                      <EmptyState
+                        title="No stock rows"
+                        detail="This product has no warehouse balances yet."
+                      />
                     </td>
                   </tr>
                 ) : (
@@ -1477,10 +1750,14 @@ export function TraceProductModule({
                     <tr key={b.id}>
                       <td>
                         <strong>{b.code}</strong>
-                        <div className="tlb-muted-line">{formatHandlerWhen(b.receivedAt) ?? "—"}</div>
+                        <div className="tlb-muted-line">
+                          {formatHandlerWhen(b.receivedAt) ?? "—"}
+                        </div>
                       </td>
                       <td>{b.remainingQty}</td>
-                      <td><StatusBadge tone={statusTone(b.status)}>{b.status}</StatusBadge></td>
+                      <td>
+                        <StatusBadge tone={statusTone(b.status)}>{b.status}</StatusBadge>
+                      </td>
                       <td>{b.expiresAt ? b.expiresAt.slice(0, 10) : "—"}</td>
                     </tr>
                   ))
@@ -1497,7 +1774,9 @@ export function TraceProductModule({
             <span>Timeline</span>
             <strong>WHAT · WHERE · WHEN · WHO · HOW MUCH</strong>
           </div>
-          <span className="tlb-muted-line">{timeline.length} event{timeline.length === 1 ? "" : "s"}</span>
+          <span className="tlb-muted-line">
+            {timeline.length} event{timeline.length === 1 ? "" : "s"}
+          </span>
         </div>
         <div className="tlb-table-scroll">
           <table>
@@ -1514,19 +1793,30 @@ export function TraceProductModule({
               {timeline.length === 0 ? (
                 <tr>
                   <td colSpan={5}>
-                    <EmptyState title="No trace nodes" detail="No matching records for this product." />
+                    <EmptyState
+                      title="No trace nodes"
+                      detail="No matching records for this product."
+                    />
                   </td>
                 </tr>
               ) : (
                 timeline.map((n) => (
                   <tr key={`${n.kind}-${n.id}-${n.at}`} className="tlb-trace-timeline-row">
-                    <td>{n.at ? formatHandlerWhen(n.at) ?? n.at.slice(0, 10) : "—"}</td>
-                    <td><StatusBadge tone="info">{n.kind}</StatusBadge></td>
-                    <td><strong>{n.title}</strong></td>
+                    <td>{n.at ? (formatHandlerWhen(n.at) ?? n.at.slice(0, 10)) : "—"}</td>
+                    <td>
+                      <StatusBadge tone="info">{n.kind}</StatusBadge>
+                    </td>
+                    <td>
+                      <strong>{n.title}</strong>
+                    </td>
                     <td>{n.detail}</td>
                     <td>
                       {n.refNav ? (
-                        <button type="button" className="tlb-text-link" onClick={() => onNavigate?.(n.refNav!, n.refId)}>
+                        <button
+                          type="button"
+                          className="tlb-text-link"
+                          onClick={() => onNavigate?.(n.refNav!, n.refId)}
+                        >
                           Open
                         </button>
                       ) : null}
@@ -1558,7 +1848,9 @@ export function AskTlbModule({
         <div>
           <span className="tlb-eyebrow">Business Intelligence</span>
           <strong>Ask TLB</strong>
-          <p className="tlb-muted-line">Structured presets over live store data — never invents records</p>
+          <p className="tlb-muted-line">
+            Structured presets over live store data — never invents records
+          </p>
         </div>
       </div>
       <article className="tlb-panel" style={{ padding: 16 }}>
@@ -1592,7 +1884,10 @@ export function AskTlbModule({
           </div>
         </div>
         {hits.length === 0 ? (
-          <EmptyState title="No matching records were found." detail="This preset returned an empty result from the live store." />
+          <EmptyState
+            title="No matching records were found."
+            detail="This preset returned an empty result from the live store."
+          />
         ) : (
           <div className="tlb-table-scroll">
             <table>
@@ -1606,10 +1901,16 @@ export function AskTlbModule({
               <tbody>
                 {hits.map((h) => (
                   <tr key={h.id}>
-                    <td><strong>{h.label}</strong></td>
+                    <td>
+                      <strong>{h.label}</strong>
+                    </td>
                     <td>{h.subtitle}</td>
                     <td>
-                      <button type="button" onClick={() => onNavigate(h.nav, h.entityId)} aria-label="Open record">
+                      <button
+                        type="button"
+                        onClick={() => onNavigate(h.nav, h.entityId)}
+                        aria-label="Open record"
+                      >
                         <ChevronRight />
                       </button>
                     </td>
@@ -1649,15 +1950,25 @@ export function ApprovalsModule({
           <div>
             <span className="tlb-eyebrow">Approval</span>
             <strong>{detail.title}</strong>
-            <p className="tlb-muted-line">{detail.kind} · {detail.status}</p>
+            <p className="tlb-muted-line">
+              {detail.kind} · {detail.status}
+            </p>
           </div>
           <div className="tlb-inline-actions">
             {detail.status === "Pending" ? (
               <>
-                <Button type="button" variant="outline" onClick={() => store.decideApproval(detail.id, "Approved")}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => store.decideApproval(detail.id, "Approved")}
+                >
                   Approve
                 </Button>
-                <Button type="button" variant="outline" onClick={() => store.decideApproval(detail.id, "Rejected")}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => store.decideApproval(detail.id, "Rejected")}
+                >
                   Reject
                 </Button>
               </>
@@ -1676,13 +1987,44 @@ export function ApprovalsModule({
         </div>
         <article className="tlb-panel">
           <div className="tlb-kv-grid" style={{ padding: 16 }}>
-            <div><span>Status</span><strong><StatusBadge tone={statusTone(detail.status)}>{detail.status}</StatusBadge></strong></div>
-            <div><span>Kind</span><strong>{detail.kind}</strong></div>
-            <div><span>Summary</span><strong>{detail.summary}</strong></div>
-            <div><span>Reference</span><strong>{detail.refType} · {detail.refId}</strong></div>
-            <div><span>Amount</span><strong>{detail.amount != null ? formatMoney(detail.amount) : "—"}</strong></div>
-            <div><span>Requested</span><strong>{detail.requestedAt.slice(0, 16).replace("T", " ")} · {detail.requestedBy}</strong></div>
-            <div><span>Decided</span><strong>{detail.decidedAt ? `${detail.decidedAt.slice(0, 16).replace("T", " ")} · ${detail.decidedBy ?? "—"}` : "—"}</strong></div>
+            <div>
+              <span>Status</span>
+              <strong>
+                <StatusBadge tone={statusTone(detail.status)}>{detail.status}</StatusBadge>
+              </strong>
+            </div>
+            <div>
+              <span>Kind</span>
+              <strong>{detail.kind}</strong>
+            </div>
+            <div>
+              <span>Summary</span>
+              <strong>{detail.summary}</strong>
+            </div>
+            <div>
+              <span>Reference</span>
+              <strong>
+                {detail.refType} · {detail.refId}
+              </strong>
+            </div>
+            <div>
+              <span>Amount</span>
+              <strong>{detail.amount != null ? formatMoney(detail.amount) : "—"}</strong>
+            </div>
+            <div>
+              <span>Requested</span>
+              <strong>
+                {detail.requestedAt.slice(0, 16).replace("T", " ")} · {detail.requestedBy}
+              </strong>
+            </div>
+            <div>
+              <span>Decided</span>
+              <strong>
+                {detail.decidedAt
+                  ? `${detail.decidedAt.slice(0, 16).replace("T", " ")} · ${detail.decidedBy ?? "—"}`
+                  : "—"}
+              </strong>
+            </div>
           </div>
         </article>
       </div>
@@ -1722,19 +2064,35 @@ export function ApprovalsModule({
                       <div className="tlb-muted-line">{a.summary}</div>
                     </td>
                     <td>{a.kind}</td>
-                    <td><StatusBadge tone={statusTone(a.status)}>{a.status}</StatusBadge></td>
-                    <td>{a.requestedAt.slice(0, 10)} · {a.requestedBy}</td>
+                    <td>
+                      <StatusBadge tone={statusTone(a.status)}>{a.status}</StatusBadge>
+                    </td>
+                    <td>
+                      {a.requestedAt.slice(0, 10)} · {a.requestedBy}
+                    </td>
                     <td>
                       <div className="tlb-inline-actions compact">
-                        <button type="button" aria-label={`Open ${a.title}`} onClick={() => setDetailId(a.id)}>
+                        <button
+                          type="button"
+                          aria-label={`Open ${a.title}`}
+                          onClick={() => setDetailId(a.id)}
+                        >
                           <ChevronRight />
                         </button>
                         {a.status === "Pending" ? (
                           <>
-                            <Button type="button" variant="outline" onClick={() => store.decideApproval(a.id, "Approved")}>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => store.decideApproval(a.id, "Approved")}
+                            >
                               Approve
                             </Button>
-                            <Button type="button" variant="outline" onClick={() => store.decideApproval(a.id, "Rejected")}>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => store.decideApproval(a.id, "Rejected")}
+                            >
                               Reject
                             </Button>
                           </>
@@ -1778,7 +2136,10 @@ export function AccountsReceivableModule({ store }: { store: TlbStoreApi }) {
           <p className="tlb-muted-line">Customer → Invoice → Payment ageing</p>
         </div>
       </div>
-      <div className="tlb-kpi-strip" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+      <div
+        className="tlb-kpi-strip"
+        style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}
+      >
         {(["0-30", "31-60", "61-90", "90+"] as const).map((b) => (
           <article key={b} className="tlb-panel" style={{ padding: 12 }}>
             <span className="tlb-eyebrow">{b} days</span>
@@ -1805,12 +2166,26 @@ export function AccountsReceivableModule({ store }: { store: TlbStoreApi }) {
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.docId}>
-                    <td><strong>{r.docNumber}</strong></td>
+                    <td>
+                      <strong>{r.docNumber}</strong>
+                    </td>
                     <td>{r.partyName}</td>
                     <td>{r.dueDate.slice(0, 10)}</td>
                     <td>{formatMoney(r.balance)}</td>
                     <td>{r.ageDays}d</td>
-                    <td><StatusBadge tone={r.bucket === "90+" ? "danger" : r.bucket === "0-30" ? "success" : "warning"}>{r.bucket}</StatusBadge></td>
+                    <td>
+                      <StatusBadge
+                        tone={
+                          r.bucket === "90+"
+                            ? "danger"
+                            : r.bucket === "0-30"
+                              ? "success"
+                              : "warning"
+                        }
+                      >
+                        {r.bucket}
+                      </StatusBadge>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1851,11 +2226,17 @@ export function AccountsPayableModule({ store }: { store: TlbStoreApi }) {
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.docId}>
-                    <td><strong>{r.docNumber}</strong></td>
+                    <td>
+                      <strong>{r.docNumber}</strong>
+                    </td>
                     <td>{r.partyName}</td>
                     <td>{r.dueDate.slice(0, 10)}</td>
                     <td>{formatMoney(r.balance)}</td>
-                    <td><StatusBadge tone={r.bucket === "90+" ? "danger" : "warning"}>{r.bucket}</StatusBadge></td>
+                    <td>
+                      <StatusBadge tone={r.bucket === "90+" ? "danger" : "warning"}>
+                        {r.bucket}
+                      </StatusBadge>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1902,16 +2283,26 @@ export function InventoryAlertsWidget({
             <tbody>
               {low.map((r) => (
                 <tr key={`low-${r.productId}-${r.warehouseId}`}>
-                  <td><StatusBadge tone="warning">Low</StatusBadge></td>
+                  <td>
+                    <StatusBadge tone="warning">Low</StatusBadge>
+                  </td>
                   <td>{r.sku}</td>
-                  <td>Avail {r.available} / reorder {r.reorderPoint}</td>
+                  <td>
+                    Avail {r.available} / reorder {r.reorderPoint}
+                  </td>
                 </tr>
               ))}
               {exp.map((r) => (
                 <tr key={`exp-${r.batch.id}`}>
-                  <td><StatusBadge tone={r.band === "expired" ? "danger" : "warning"}>{r.band}</StatusBadge></td>
+                  <td>
+                    <StatusBadge tone={r.band === "expired" ? "danger" : "warning"}>
+                      {r.band}
+                    </StatusBadge>
+                  </td>
                   <td>{r.batch.code}</td>
-                  <td>{r.productSku} · remain {r.batch.remainingQty}</td>
+                  <td>
+                    {r.productSku} · remain {r.batch.remainingQty}
+                  </td>
                 </tr>
               ))}
             </tbody>

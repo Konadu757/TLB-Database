@@ -1,9 +1,4 @@
-import type {
-  Permission,
-  RoleDefinition,
-  SystemRoleKey,
-  TlbState,
-} from "./types";
+import type { Permission, RoleDefinition, SystemRoleKey, TlbState } from "./types";
 
 /** All capabilities available in the permission matrix. */
 export const ALL_PERMISSIONS: Permission[] = [
@@ -184,13 +179,7 @@ export const SYSTEM_ROLE_PERMISSIONS: Record<SystemRoleKey, Permission[]> = {
     "ops.approve",
     "ops.view",
   ],
-  Driver: [
-    "dashboard.view",
-    "ops.drive",
-    "ops.communicate",
-    "ops.view",
-    "delivery.manage",
-  ],
+  Driver: ["dashboard.view", "ops.drive", "ops.communicate", "ops.view", "delivery.manage"],
   Requester: [
     "dashboard.view",
     "ops.request",
@@ -199,13 +188,7 @@ export const SYSTEM_ROLE_PERMISSIONS: Record<SystemRoleKey, Permission[]> = {
     "ops.receive",
     "bi.view",
   ],
-  Receiver: [
-    "dashboard.view",
-    "ops.receive",
-    "ops.communicate",
-    "ops.view",
-    "delivery.manage",
-  ],
+  Receiver: ["dashboard.view", "ops.receive", "ops.communicate", "ops.view", "delivery.manage"],
 };
 
 /** @deprecated Use SYSTEM_ROLE_PERMISSIONS — kept for callers expecting ROLE_PERMISSIONS. */
@@ -222,6 +205,34 @@ export const SYSTEM_ROLE_IDS: Record<SystemRoleKey, string> = {
   Requester: "role-requester",
   Receiver: "role-receiver",
 };
+
+/** tlb.roles.code for each seeded system role. */
+export const SYSTEM_ROLE_DB_CODE: Record<SystemRoleKey, string> = {
+  Owner: "OWNER",
+  Admin: "ADMIN",
+  Manager: "MANAGER",
+  Sales: "SALES",
+  Warehouse: "WAREHOUSE",
+  Finance: "FINANCE",
+  Driver: "DRIVER",
+  Requester: "REQUESTER",
+  Receiver: "RECEIVER",
+};
+
+export function systemRoleKeyForDbCode(code: string): SystemRoleKey | undefined {
+  const normalized = code.trim().toUpperCase();
+  return (Object.keys(SYSTEM_ROLE_DB_CODE) as SystemRoleKey[]).find(
+    (key) => SYSTEM_ROLE_DB_CODE[key] === normalized,
+  );
+}
+
+/** Map a local system role id to tlb.roles.code. Custom roles return null. */
+export function dbRoleCodeForRoleId(roleId: string): string | null {
+  const key = (Object.keys(SYSTEM_ROLE_IDS) as SystemRoleKey[]).find(
+    (k) => SYSTEM_ROLE_IDS[k] === roleId,
+  );
+  return key ? SYSTEM_ROLE_DB_CODE[key] : null;
+}
 
 export const OWNER_USER_ID = "user-owner";
 
@@ -283,7 +294,14 @@ export const NAV_PERMISSIONS: Record<string, Permission[]> = {
   Drivers: ["ops.drive", "ops.dispatch", "delivery.manage"],
   "Outstanding Requests": ["ops.view", "ops.request", "ops.warehouse"],
   "Exceptions / Discrepancies": ["ops.view", "ops.receive", "ops.warehouse", "ops.approve"],
-  "My Actions": ["ops.view", "ops.request", "ops.approve", "ops.warehouse", "ops.drive", "ops.receive"],
+  "My Actions": [
+    "ops.view",
+    "ops.request",
+    "ops.approve",
+    "ops.warehouse",
+    "ops.drive",
+    "ops.receive",
+  ],
   "Live Operations Board": ["ops.view", "ops.dispatch", "ops.warehouse"],
   Notifications: ["dashboard.view", "ops.view", "ops.communicate"],
   Finance: ["finance.view", "invoice.create", "receipt.create", "payment.record"],
@@ -295,7 +313,9 @@ export const NAV_PERMISSIONS: Record<string, Permission[]> = {
   Settings: ["settings.manage", "users.manage"],
 };
 
-export function resolveRole(state: Pick<TlbState, "roles" | "currentRoleId" | "currentRole">): RoleDefinition | undefined {
+export function resolveRole(
+  state: Pick<TlbState, "roles" | "currentRoleId" | "currentRole">,
+): RoleDefinition | undefined {
   return (
     state.roles.find((r) => r.id === state.currentRoleId) ??
     state.roles.find((r) => r.name === state.currentRole || r.systemKey === state.currentRole)
@@ -314,7 +334,10 @@ export function effectivePermissions(role: RoleDefinition | undefined): Permissi
   return [...role.permissions];
 }
 
-export function roleHasPermission(role: RoleDefinition | undefined, permission: Permission): boolean {
+export function roleHasPermission(
+  role: RoleDefinition | undefined,
+  permission: Permission,
+): boolean {
   if (!role || !role.active) return false;
   return effectivePermissions(role).includes(permission);
 }

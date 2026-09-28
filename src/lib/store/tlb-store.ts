@@ -20,7 +20,12 @@ import {
   markInviteAccepted,
   normalizeAccessCode,
 } from "../domain/invites";
-import { hasPermission, resolveRole } from "../domain/permissions";
+import {
+  hasPermission,
+  resolveRole,
+  SYSTEM_ROLE_IDS,
+  systemRoleKeyForDbCode,
+} from "../domain/permissions";
 
 export { buildInviteLink, isInvitePending } from "../domain/invites";
 import { isSoftDeleted } from "../domain/trash";
@@ -174,7 +179,10 @@ export function resetToSeed(): TlbState {
   return seed;
 }
 
-export function getOutstandingRows(state: TlbState, asOf = new Date().toISOString()): OutstandingRow[] {
+export function getOutstandingRows(
+  state: TlbState,
+  asOf = new Date().toISOString(),
+): OutstandingRow[] {
   const stockMap = buildStockMap(state.stock);
   const rows: OutstandingRow[] = [];
 
@@ -182,7 +190,8 @@ export function getOutstandingRows(state: TlbState, asOf = new Date().toISOStrin
     const outstanding = calcOutstanding(line);
     if (outstanding <= 0) continue;
     const order = state.orders.find((o) => o.id === line.orderId);
-    if (!order || isSoftDeleted(order) || order.status === "Draft" || order.status === "Cancelled") continue;
+    if (!order || isSoftDeleted(order) || order.status === "Draft" || order.status === "Cancelled")
+      continue;
     const customer = state.customers.find((c) => c.id === order.customerId);
     if (customer && isSoftDeleted(customer)) continue;
     const product = state.products.find((p) => p.id === line.productId);
@@ -198,7 +207,9 @@ export function getOutstandingRows(state: TlbState, asOf = new Date().toISOStrin
       const today = asOf.slice(0, 10);
       if (due < today) demandFlag = "overdue";
       else if (due === today) demandFlag = "due_today";
-      else if (daysBetween(asOf, order.requiredDate) <= (state.ageing.expectedApproachingDays ?? 2)) {
+      else if (
+        daysBetween(asOf, order.requiredDate) <= (state.ageing.expectedApproachingDays ?? 2)
+      ) {
         demandFlag = "due_soon";
       }
     } else if (band === "Overdue") {
@@ -241,7 +252,8 @@ export function countOutstandingOrdersForProduct(state: TlbState, productId: str
     if (line.productId !== productId) continue;
     if (calcOutstanding(line) <= 0) continue;
     const order = state.orders.find((o) => o.id === line.orderId);
-    if (!order || isSoftDeleted(order) || order.status === "Draft" || order.status === "Cancelled") continue;
+    if (!order || isSoftDeleted(order) || order.status === "Draft" || order.status === "Cancelled")
+      continue;
     orderIds.add(order.id);
   }
   return orderIds.size;
@@ -443,9 +455,7 @@ export function createQuotation(
   next.counters = numbered.counters;
 
   // Hard uniqueness guard — never reuse an existing quote number.
-  const used = new Set([
-    ...next.quotations.map((q) => q.number),
-  ]);
+  const used = new Set([...next.quotations.map((q) => q.number)]);
   if (used.has(numbered.number)) {
     return { ok: false, error: `Quote number ${numbered.number} already exists.` };
   }
@@ -464,7 +474,7 @@ export function createQuotation(
     qty: input.qty,
     unitPrice: input.unitPrice,
     amount,
-    paymentTerms: (input.paymentTerms?.trim() || "Net 30"),
+    paymentTerms: input.paymentTerms?.trim() || "Net 30",
     status: input.status ?? "Draft",
     quoteDate,
     validUntil,
@@ -590,7 +600,9 @@ export function upsertProduct(
     if (isSoftDeleted(existing)) {
       return { ok: false, error: "Restore this product from trash before editing." };
     }
-    const skuClash = next.products.find((p) => p.id !== existing.id && p.sku.toLowerCase() === sku.toLowerCase() && !isSoftDeleted(p));
+    const skuClash = next.products.find(
+      (p) => p.id !== existing.id && p.sku.toLowerCase() === sku.toLowerCase() && !isSoftDeleted(p),
+    );
     if (skuClash) return { ok: false, error: `SKU ${sku} is already used by another product.` };
     const updated: Product = {
       ...existing,
@@ -605,7 +617,9 @@ export function upsertProduct(
       ...(input.maxQty != null ? { maxQty: input.maxQty } : {}),
       ...(input.reorderPoint != null ? { reorderPoint: input.reorderPoint } : {}),
       ...(input.reorderQty != null ? { reorderQty: input.reorderQty } : {}),
-      ...(input.preferredSupplierId != null ? { preferredSupplierId: input.preferredSupplierId } : {}),
+      ...(input.preferredSupplierId != null
+        ? { preferredSupplierId: input.preferredSupplierId }
+        : {}),
       ...(input.leadTimeDays != null ? { leadTimeDays: input.leadTimeDays } : {}),
       ...(input.standardCost != null ? { standardCost: input.standardCost } : {}),
     };
@@ -625,7 +639,9 @@ export function upsertProduct(
     return { ok: true, data: { state: next, data: updated } };
   }
 
-  const skuClash = next.products.find((p) => p.sku.toLowerCase() === sku.toLowerCase() && !isSoftDeleted(p));
+  const skuClash = next.products.find(
+    (p) => p.sku.toLowerCase() === sku.toLowerCase() && !isSoftDeleted(p),
+  );
   if (skuClash) return { ok: false, error: `SKU ${sku} already exists.` };
   const product: Product = {
     id: uid("prd"),
@@ -640,7 +656,9 @@ export function upsertProduct(
     ...(input.maxQty != null ? { maxQty: input.maxQty } : {}),
     ...(input.reorderPoint != null ? { reorderPoint: input.reorderPoint } : {}),
     ...(input.reorderQty != null ? { reorderQty: input.reorderQty } : {}),
-    ...(input.preferredSupplierId != null ? { preferredSupplierId: input.preferredSupplierId } : {}),
+    ...(input.preferredSupplierId != null
+      ? { preferredSupplierId: input.preferredSupplierId }
+      : {}),
     ...(input.leadTimeDays != null ? { leadTimeDays: input.leadTimeDays } : {}),
     ...(input.standardCost != null ? { standardCost: input.standardCost } : {}),
   };
@@ -685,9 +703,11 @@ export function upsertWarehouse(
       return { ok: false, error: "Restore this warehouse from trash before editing." };
     }
     const codeClash = next.warehouses.find(
-      (w) => w.id !== existing.id && w.code.toLowerCase() === code.toLowerCase() && !isSoftDeleted(w),
+      (w) =>
+        w.id !== existing.id && w.code.toLowerCase() === code.toLowerCase() && !isSoftDeleted(w),
     );
-    if (codeClash) return { ok: false, error: `Code ${code} is already used by another warehouse.` };
+    if (codeClash)
+      return { ok: false, error: `Code ${code} is already used by another warehouse.` };
     const updated: Warehouse = {
       ...existing,
       code,
@@ -711,7 +731,9 @@ export function upsertWarehouse(
     return { ok: true, data: { state: next, data: updated } };
   }
 
-  const codeClash = next.warehouses.find((w) => w.code.toLowerCase() === code.toLowerCase() && !isSoftDeleted(w));
+  const codeClash = next.warehouses.find(
+    (w) => w.code.toLowerCase() === code.toLowerCase() && !isSoftDeleted(w),
+  );
   if (codeClash) return { ok: false, error: `Code ${code} already exists.` };
   const warehouse: Warehouse = {
     id: uid("wh"),
@@ -860,14 +882,23 @@ export function confirmCustomerOrder(
   }
 
   const credit = creditPosition(next, order.customerId);
-  if (credit.overLimit) {
+  // Draft value is excluded from creditPosition until status leaves Draft.
+  const thisOrderValue =
+    order.status === "Draft"
+      ? next.orderLines
+          .filter((l) => l.orderId === order.id)
+          .reduce((sum, l) => sum + Math.max(0, l.orderedQty - l.cancelledQty) * l.unitPrice, 0)
+      : 0;
+  const projectedUsed = credit.used + thisOrderValue;
+  const overLimit = credit.limit > 0 && projectedUsed > credit.limit;
+  if (overLimit) {
     if (!creditOverrideReason?.trim()) {
       return {
         ok: false,
-        error: `Customer over credit limit (used ${credit.used} / limit ${credit.limit}). Provide an override reason to confirm.`,
+        error: `Customer over credit limit (used ${projectedUsed} / limit ${credit.limit}). Provide an override reason to confirm.`,
       };
     }
-    if (!hasPermission(next, "approvals.manage") && !hasPermission(next, "orders.confirm")) {
+    if (!hasPermission(next, "approvals.manage")) {
       return { ok: false, error: "Credit override requires manager approval permission." };
     }
     order.creditOverrideBy = next.currentUser;
@@ -878,7 +909,7 @@ export function confirmCustomerOrder(
       entityType: "customer_purchase_order",
       entityId: order.id,
       summary: `Credit override on ${order.number}: ${creditOverrideReason.trim()}`,
-      meta: { used: credit.used, limit: credit.limit },
+      meta: { used: projectedUsed, limit: credit.limit },
     });
   }
 
@@ -913,7 +944,9 @@ export function cancelOrderLine(
   const release = Math.min(line.reservedQty, outstanding);
   if (release > 0) {
     line.reservedQty -= release;
-    const bal = next.stock.find((s) => s.productId === line.productId && s.warehouseId === line.warehouseId);
+    const bal = next.stock.find(
+      (s) => s.productId === line.productId && s.warehouseId === line.warehouseId,
+    );
     if (bal) bal.reservedQty = Math.max(0, bal.reservedQty - release);
     for (const res of next.reservations.filter((r) => r.orderLineId === line.id && !r.releasedAt)) {
       res.releasedAt = new Date().toISOString();
@@ -1016,7 +1049,9 @@ export function releaseReservation(
   if (res.releasedAt) return { ok: false, error: "Reservation already released." };
 
   const line = next.orderLines.find((l) => l.id === res.orderLineId);
-  const bal = next.stock.find((s) => s.productId === res.productId && s.warehouseId === res.warehouseId);
+  const bal = next.stock.find(
+    (s) => s.productId === res.productId && s.warehouseId === res.warehouseId,
+  );
   const qty = res.quantity;
   if (line) line.reservedQty = Math.max(0, line.reservedQty - qty);
   if (bal) bal.reservedQty = Math.max(0, bal.reservedQty - qty);
@@ -1078,7 +1113,9 @@ export function receiveStock(
   }
   refreshNotifications(next);
 
-  const updated = next.stock.find((s) => s.productId === productId && s.warehouseId === warehouseId)!;
+  const updated = next.stock.find(
+    (s) => s.productId === productId && s.warehouseId === warehouseId,
+  )!;
   return { ok: true, data: { state: next, data: updated } };
 }
 
@@ -1113,7 +1150,9 @@ export function createSupply(
     const line = next.orderLines.find((l) => l.id === req.orderLineId && l.orderId === orderId);
     if (!line) return { ok: false, error: "Order line not found on this order." };
     const outstanding = calcOutstanding(line);
-    const bal = next.stock.find((s) => s.productId === line.productId && s.warehouseId === line.warehouseId);
+    const bal = next.stock.find(
+      (s) => s.productId === line.productId && s.warehouseId === line.warehouseId,
+    );
     if (!bal) return { ok: false, error: "Stock balance missing for a supply line." };
     const available = calcAvailable(bal);
     const usable = available + Math.min(line.reservedQty, outstanding);
@@ -1159,7 +1198,9 @@ export function createSupply(
 
     // Consume active reservations for this line
     let left = fromReserved;
-    for (const res of next.reservations.filter((r) => r.orderLineId === m.line.id && !r.releasedAt)) {
+    for (const res of next.reservations.filter(
+      (r) => r.orderLineId === m.line.id && !r.releasedAt,
+    )) {
       if (left <= 0) break;
       const take = Math.min(res.quantity, left);
       if (take >= res.quantity) {
@@ -1204,7 +1245,11 @@ export function markDelivered(state: TlbState, orderId: string): MutResult<Custo
   const order = next.orders.find((o) => o.id === orderId);
   if (!order) return { ok: false, error: "Order not found." };
   if (order.status !== "Fully Supplied") {
-    return { ok: false, error: "Only fully supplied orders can be marked delivered (outstanding must be cleared or cancelled formally)." };
+    return {
+      ok: false,
+      error:
+        "Only fully supplied orders can be marked delivered (outstanding must be cleared or cancelled formally).",
+    };
   }
   const anyOutstanding = next.orderLines
     .filter((l) => l.orderId === orderId)
@@ -1256,7 +1301,10 @@ export function updateAgeingSettings(
   return { ok: true, data: { state: next, data: next.ageing } };
 }
 
-export function updateCompanyProfile(state: TlbState, company: CompanyProfile): MutResult<CompanyProfile> {
+export function updateCompanyProfile(
+  state: TlbState,
+  company: CompanyProfile,
+): MutResult<CompanyProfile> {
   const blocked = requirePerm(state, "settings.manage");
   if (blocked) return { ok: false, error: blocked };
   const next = cloneState(state);
@@ -1278,7 +1326,10 @@ export function upsertVatRate(
   if (blocked) return { ok: false, error: blocked };
   if (!input.label.trim()) return { ok: false, error: "VAT rate label is required." };
   if (!Number.isFinite(input.ratePercent) || input.ratePercent < 0) {
-    return { ok: false, error: "VAT rate percent must be a non-negative number (configure in settings)." };
+    return {
+      ok: false,
+      error: "VAT rate percent must be a non-negative number (configure in settings).",
+    };
   }
   const next = cloneState(state);
   if (input.id) {
@@ -1364,7 +1415,8 @@ export function createRole(
   // Custom role matrices were removed — only predefined system roles are supported.
   return {
     ok: false,
-    error: "Roles are predefined. Assign users to an existing system role instead of creating custom ones.",
+    error:
+      "Roles are predefined. Assign users to an existing system role instead of creating custom ones.",
   };
 }
 
@@ -1489,7 +1541,11 @@ function guardLastActiveOwner(
   return null;
 }
 
-export function assignUserRole(state: TlbState, userId: string, roleId: string): MutResult<AppUser> {
+export function assignUserRole(
+  state: TlbState,
+  userId: string,
+  roleId: string,
+): MutResult<AppUser> {
   const blocked = requirePerm(state, "users.manage");
   if (blocked) return { ok: false, error: blocked };
   const lastOwner = guardLastActiveOwner(state, userId, { roleId });
@@ -1673,6 +1729,73 @@ export function acceptInvite(
     summary: `Signed in as ${updated.name} (${next.currentRole}) via invite.`,
   });
   return { ok: true, data: { state: next, data: updated } };
+}
+
+export type HostedInviteAcceptance = {
+  profileId: string;
+  email: string;
+  fullName: string;
+  roleCode: string;
+};
+
+/**
+ * Mirror a profile that tlb.accept_invite already accepted.
+ * Does not validate the raw token — the database call is the gate.
+ */
+export function applyHostedInviteAcceptance(
+  state: TlbState,
+  input: HostedInviteAcceptance,
+): MutResult<AppUser> {
+  const roleKey = systemRoleKeyForDbCode(input.roleCode);
+  if (!roleKey) return { ok: false, error: "Invite role is not a system role." };
+  const roleId = SYSTEM_ROLE_IDS[roleKey];
+  if (!state.roles.some((role) => role.id === roleId && role.active)) {
+    return { ok: false, error: "Invite role is not available." };
+  }
+  const email = input.email.trim().toLowerCase();
+  const name = input.fullName.trim();
+  if (!email || !name) return { ok: false, error: "Invite profile is incomplete." };
+  const profileId = input.profileId.trim();
+  if (!profileId) return { ok: false, error: "Invite profile is incomplete." };
+
+  const next = cloneState(state);
+  const at = new Date().toISOString();
+  let user = next.users.find((candidate) => candidate.email.toLowerCase() === email);
+  if (!user) {
+    user = {
+      id: profileId,
+      name,
+      email,
+      roleId,
+      active: true,
+      invitePending: false,
+      inviteAcceptedAt: at,
+    };
+    next.users.push(user);
+  } else if (!user.active) {
+    return { ok: false, error: "User account is inactive." };
+  } else {
+    user.name = name;
+    user.roleId = roleId;
+    user.invitePending = false;
+    user.inviteAcceptedAt = user.inviteAcceptedAt ?? at;
+  }
+
+  next.currentUserId = user.id;
+  syncSessionIdentity(next);
+  pushAudit(next, {
+    action: "user.invite_accepted",
+    entityType: "user",
+    entityId: user.id,
+    summary: `${user.name} activated invite and signed in.`,
+  });
+  pushAudit(next, {
+    action: "session.user_switched",
+    entityType: "session",
+    entityId: user.id,
+    summary: `Signed in as ${user.name} (${next.currentRole}) via invite.`,
+  });
+  return { ok: true, data: { state: next, data: user } };
 }
 
 export function markNotificationRead(state: TlbState, id: string): MutResult<null> {

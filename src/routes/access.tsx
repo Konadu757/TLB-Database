@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useTlbStore } from "@/lib/store/use-tlb-store";
@@ -22,11 +22,18 @@ function AccessPage() {
   const navigate = useNavigate();
   const store = useTlbStore();
   const [code, setCode] = useState("");
+  const [pending, setPending] = useState(false);
+  const triedToken = useRef<string | null>(null);
 
   useEffect(() => {
     if (!store.hydrated || !inviteToken) return;
-    const result = store.acceptInvite({ token: inviteToken });
-    if (result.ok) void navigate({ to: "/" });
+    if (triedToken.current === inviteToken) return;
+    triedToken.current = inviteToken;
+    setPending(true);
+    void store.acceptInvite({ token: inviteToken }).then((result) => {
+      setPending(false);
+      if (result.ok) void navigate({ to: "/" });
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when hydrated + invite link present
   }, [store.hydrated, inviteToken]);
 
@@ -44,13 +51,16 @@ function AccessPage() {
           style={{ padding: 16 }}
           onSubmit={(e) => {
             e.preventDefault();
-            const result = store.acceptInvite({
-              token: inviteToken,
-              code: code.trim() || undefined,
-            });
-            if (result.ok) {
-              void navigate({ to: "/" });
-            }
+            setPending(true);
+            void store
+              .acceptInvite({
+                token: inviteToken,
+                code: code.trim() || undefined,
+              })
+              .then((result) => {
+                setPending(false);
+                if (result.ok) void navigate({ to: "/" });
+              });
           }}
         >
           <p className="tlb-muted-line tlb-span-2" style={{ margin: 0 }}>
@@ -74,12 +84,15 @@ function AccessPage() {
             />
           </label>
           {store.error ? (
-            <p className="tlb-span-2" style={{ color: "var(--destructive)", margin: 0, fontSize: "0.8125rem" }}>
+            <p
+              className="tlb-span-2"
+              style={{ color: "var(--destructive)", margin: 0, fontSize: "0.8125rem" }}
+            >
               {store.error}
             </p>
           ) : null}
           <div className="tlb-form-actions tlb-span-2">
-            <Button type="submit" disabled={!store.hydrated || store.saving}>
+            <Button type="submit" disabled={!store.hydrated || store.saving || pending}>
               {store.hydrated ? "Sign in" : "Loading…"}
             </Button>
           </div>

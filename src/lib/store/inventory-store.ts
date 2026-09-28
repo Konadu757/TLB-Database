@@ -1,7 +1,12 @@
 /**
  * Inventory mutations: immutable ledger, GRN, issue, transfer, adjustment, FEFO supply picks.
  */
-import { calcAvailable, buildStockMap, refreshLineStatuses, stockKey } from "../domain/calculations";
+import {
+  calcAvailable,
+  buildStockMap,
+  refreshLineStatuses,
+  stockKey,
+} from "../domain/calculations";
 import {
   DEFAULT_INVENTORY_SETTINGS,
   ensureStockBuckets,
@@ -9,6 +14,7 @@ import {
   recommendBatches,
 } from "../domain/inventory";
 import { nextDocumentNumber } from "../domain/numbering";
+import { tryPostMovement } from "../repo/ledger-rpc";
 import { hasPermission } from "../domain/permissions";
 import type {
   ApprovalKind,
@@ -32,6 +38,16 @@ type MutResult<T> = StoreResult<{ state: TlbState; data: T }>;
 
 function uid(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
+}
+
+/** Later posts in one action must sort after earlier posts when timestamps would otherwise tie. */
+function movementClock(start: string): () => string {
+  let ms = new Date(start).getTime();
+  return () => {
+    const iso = new Date(ms).toISOString();
+    ms += 1;
+    return iso;
+  };
 }
 
 function cloneState<T>(value: T): T {
@@ -70,7 +86,11 @@ function pushAudit(
   if (state.audit.length > 500) state.audit.length = 500;
 }
 
-export function getOrCreateBalance(state: TlbState, productId: string, warehouseId: string): StockBalance {
+export function getOrCreateBalance(
+  state: TlbState,
+  productId: string,
+  warehouseId: string,
+): StockBalance {
   let bal = state.stock.find((s) => s.productId === productId && s.warehouseId === warehouseId);
   if (!bal) {
     bal = ensureStockBuckets({
@@ -106,39 +126,78 @@ export function postStockMovement(
     at?: string;
   },
 ): StockMovement {
+  const product = state.products.find((p) => p.id === input.productId);
+  const warehouse = state.warehouses.find((w) => w.id === input.warehouseId);
+  const remote =
+    input.applyPhysical === false || input.type === "reservation" || input.type === "release"
+      ? null
+      : tryPostMovement({
+          type: input.type,
+          productId: input.productId,
+          warehouseId: input.warehouseId,
+          quantity: input.quantity,
+          batchId: input.batchId,
+          reason: input.reason,
+          refType: input.refType,
+          refId: input.refId,
+          refNumber: input.refNumber,
+          notes: input.notes,
+          applyPhysical: input.applyPhysical,
+          productSku: product?.sku,
+          productName: product?.name,
+          productUnit: product?.unit,
+          issueStrategy: product?.issueStrategy,
+          warehouseCode: warehouse?.code,
+          warehouseName: warehouse?.name,
+          warehouseLocation: warehouse?.location,
+        });
   const bal = getOrCreateBalance(state, input.productId, input.warehouseId);
   const qtyBefore = bal.physicalQty;
   const signed = movementSignedQty(input.type, input.quantity);
-  const apply = input.applyPhysical !== false && input.type !== "reservation" && input.type !== "release";
-  if (apply) {
+  const apply =
+    input.applyPhysical !== false && input.type !== "reservation" && input.type !== "release";
+  if (remote) {
+    bal.physicalQty = remote.qtyAfter;
+  } else if (apply) {
     bal.physicalQty = qtyBefore + signed;
     const product = state.products.find((p) => p.id === input.productId);
-    const allowNeg = product?.allowNegativeStock ?? state.inventorySettings?.allowNegativeStockDefault ?? false;
+    const allowNeg =
+      product?.allowNegativeStock ?? state.inventorySettings?.allowNegativeStockDefault ?? false;
     if (!allowNeg && bal.physicalQty < 0) {
       bal.physicalQty = qtyBefore;
       throw new Error("Insufficient physical stock for this movement.");
     }
   }
-  const numbered = nextDocumentNumber("stockMovement", state.counters);
-  state.counters = numbered.counters;
+  let number: string;
+  if (remote) {
+    state.counters = {
+      ...state.counters,
+      stockMovement: (state.counters.stockMovement ?? 0) + 1,
+    };
+    number = remote.movementNumber;
+  } else {
+    const numbered = nextDocumentNumber("stockMovement", state.counters);
+    state.counters = numbered.counters;
+    number = numbered.number;
+  }
   const move: StockMovement = {
-    id: uid("mv"),
-    number: numbered.number,
+    id: remote?.id ?? uid("mv"),
+    number,
     type: input.type,
     productId: input.productId,
     warehouseId: input.warehouseId,
     batchId: input.batchId,
-    qtyBefore,
-    qtyMove: Math.abs(input.quantity),
-    qtyAfter: bal.physicalQty,
-    signedQty: apply ? signed : 0,
+    qtyBefore: remote?.qtyBefore ?? qtyBefore,
+    qtyMove: remote?.quantity ?? Math.abs(input.quantity),
+    qtyAfter: remote?.qtyAfter ?? bal.physicalQty,
+    signedQty: remote ? remote.signedQty : apply ? signed : 0,
     reason: input.reason,
     refType: input.refType,
     refId: input.refId,
     refNumber: input.refNumber,
     notes: input.notes,
     actor: state.currentUser,
-    at: input.at ?? new Date().toISOString(),
+    at: remote?.createdAt ?? input.at ?? new Date().toISOString(),
   };
   state.stockMovements.unshift(move);
   pushAudit(state, {
@@ -160,7 +219,8 @@ export function postStockMovement(
 export function consumeBatch(state: TlbState, batchId: string, qty: number): void {
   const batch = state.batches.find((b) => b.id === batchId);
   if (!batch) throw new Error("Batch not found.");
-  if (batch.remainingQty < qty) throw new Error(`Batch ${batch.code} only has ${batch.remainingQty} remaining.`);
+  if (batch.remainingQty < qty)
+    throw new Error(`Batch ${batch.code} only has ${batch.remainingQty} remaining.`);
   batch.remainingQty -= qty;
   if (batch.remainingQty === 0) batch.status = "Closed";
 }
@@ -355,6 +415,7 @@ export function createStockIssue(
   const numbered = nextDocumentNumber("stockIssue", next.counters);
   next.counters = numbered.counters;
   const now = new Date().toISOString();
+  const at = movementClock(now);
   const issueId = uid("iss");
   next.stockIssues.unshift({
     id: issueId,
@@ -382,59 +443,71 @@ export function createStockIssue(
 
   for (const line of input.lines) {
     const bal = getOrCreateBalance(next, line.productId, input.warehouseId);
-    if (calcAvailable(bal) < line.quantity && !(next.products.find((p) => p.id === line.productId)?.allowNegativeStock)) {
+    if (
+      calcAvailable(bal) < line.quantity &&
+      !next.products.find((p) => p.id === line.productId)?.allowNegativeStock
+    ) {
       return { ok: false, error: `Insufficient available stock for issue of ${line.quantity}.` };
     }
     const picks = line.batchId
-      ? [{ batchId: line.batchId, code: next.batches.find((b) => b.id === line.batchId)?.code ?? "", quantity: line.quantity }]
+      ? [
+          {
+            batchId: line.batchId,
+            code: next.batches.find((b) => b.id === line.batchId)?.code ?? "",
+            quantity: line.quantity,
+          },
+        ]
       : recommendBatches(next, line.productId, input.warehouseId, line.quantity);
-    const picked = picks.reduce((s, p) => s + p.quantity, 0);
-    if (picked < line.quantity && next.batches.some((b) => b.productId === line.productId && b.warehouseId === input.warehouseId)) {
-      return { ok: false, error: "Not enough batch quantity for FEFO/FIFO pick." };
-    }
     try {
-      if (picks.length) {
-        for (const pick of picks) {
-          consumeBatch(next, pick.batchId, pick.quantity);
-          postStockMovement(next, {
-            type: moveType,
-            productId: line.productId,
-            warehouseId: input.warehouseId,
-            quantity: pick.quantity,
-            batchId: pick.batchId,
-            reason: input.reason,
-            refType: "stock_issue",
-            refId: issueId,
-            refNumber: numbered.number,
-            at: now,
-          });
-          next.stockIssueLines.push({
-            id: uid("issl"),
-            issueId,
-            productId: line.productId,
-            warehouseId: input.warehouseId,
-            batchId: pick.batchId,
-            quantity: pick.quantity,
-          });
-        }
-      } else {
+      let posted = 0;
+      for (const pick of picks) {
+        const take = Math.min(pick.quantity, line.quantity - posted);
+        if (take <= 0) continue;
+        consumeBatch(next, pick.batchId, take);
         postStockMovement(next, {
           type: moveType,
           productId: line.productId,
           warehouseId: input.warehouseId,
-          quantity: line.quantity,
+          quantity: take,
+          batchId: pick.batchId,
           reason: input.reason,
           refType: "stock_issue",
           refId: issueId,
           refNumber: numbered.number,
-          at: now,
+          at: at(),
         });
         next.stockIssueLines.push({
           id: uid("issl"),
           issueId,
           productId: line.productId,
           warehouseId: input.warehouseId,
-          quantity: line.quantity,
+          batchId: pick.batchId,
+          quantity: take,
+        });
+        posted += take;
+      }
+      if (posted < line.quantity) {
+        if (line.batchId) {
+          return { ok: false, error: "Not enough batch quantity for the selected batch." };
+        }
+        const rest = line.quantity - posted;
+        postStockMovement(next, {
+          type: moveType,
+          productId: line.productId,
+          warehouseId: input.warehouseId,
+          quantity: rest,
+          reason: input.reason,
+          refType: "stock_issue",
+          refId: issueId,
+          refNumber: numbered.number,
+          at: at(),
+        });
+        next.stockIssueLines.push({
+          id: uid("issl"),
+          issueId,
+          productId: line.productId,
+          warehouseId: input.warehouseId,
+          quantity: rest,
         });
       }
     } catch (e) {
@@ -530,7 +603,11 @@ export function advanceTransfer(
   if (toStatus === "Approved") {
     const blocked = requirePerm(state, "stock.approve") ?? requirePerm(state, "approvals.manage");
     // allow either
-    if (!hasPermission(state, "stock.approve") && !hasPermission(state, "approvals.manage") && !hasPermission(state, "stock.transfer")) {
+    if (
+      !hasPermission(state, "stock.approve") &&
+      !hasPermission(state, "approvals.manage") &&
+      !hasPermission(state, "stock.transfer")
+    ) {
       return { ok: false, error: blocked ?? "Cannot approve transfer." };
     }
     tr.status = "Approved";
@@ -642,14 +719,20 @@ export function postStockAdjustment(
   if (!input.lines.length) return { ok: false, error: "Add adjustment lines." };
 
   const next = cloneState(state);
-  const threshold = next.inventorySettings?.adjustmentApprovalThreshold ?? DEFAULT_INVENTORY_SETTINGS.adjustmentApprovalThreshold;
+  const threshold =
+    next.inventorySettings?.adjustmentApprovalThreshold ??
+    DEFAULT_INVENTORY_SETTINGS.adjustmentApprovalThreshold;
   let maxAbs = 0;
   for (const line of input.lines) {
     const bal = getOrCreateBalance(next, line.productId, line.warehouseId);
     maxAbs = Math.max(maxAbs, Math.abs(line.qtyAfter - bal.physicalQty));
   }
   const needsApproval = maxAbs >= threshold;
-  if (needsApproval && !hasPermission(next, "stock.approve") && !hasPermission(next, "approvals.manage")) {
+  if (
+    needsApproval &&
+    !hasPermission(next, "stock.approve") &&
+    !hasPermission(next, "approvals.manage")
+  ) {
     // create pending adjustment
   }
 
@@ -856,7 +939,7 @@ export function applySupplyBatchPicks(
   forcedBatchId?: string,
   at?: string,
 ): { batchId?: string; batchCode?: string } {
-  const now = at ?? new Date().toISOString();
+  const clock = movementClock(at ?? new Date().toISOString());
   const picks = forcedBatchId
     ? [
         {
@@ -867,35 +950,39 @@ export function applySupplyBatchPicks(
       ]
     : recommendBatches(state, productId, warehouseId, quantity);
 
-  if (!picks.length) {
-    postStockMovement(state, {
-      type: "supply",
-      productId,
-      warehouseId,
-      quantity,
-      refType: "supply",
-      refId: supplyId,
-      refNumber: supplyNumber,
-      at: now,
-    });
-    return {};
-  }
-
   let primary: { batchId?: string; batchCode?: string } = {};
+  let posted = 0;
   for (const pick of picks) {
-    consumeBatch(state, pick.batchId, pick.quantity);
+    const take = Math.min(pick.quantity, quantity - posted);
+    if (take <= 0) continue;
+    consumeBatch(state, pick.batchId, take);
     postStockMovement(state, {
       type: "supply",
       productId,
       warehouseId,
-      quantity: pick.quantity,
+      quantity: take,
       batchId: pick.batchId,
       refType: "supply",
       refId: supplyId,
       refNumber: supplyNumber,
-      at: now,
+      at: clock(),
     });
     if (!primary.batchId) primary = { batchId: pick.batchId, batchCode: pick.code };
+    posted += take;
+  }
+  // Physical stock can exceed open batch remaining (quick receive, adjustment).
+  // The unbatched remainder must still hit the ledger for the full supply qty.
+  if (posted < quantity) {
+    postStockMovement(state, {
+      type: "supply",
+      productId,
+      warehouseId,
+      quantity: quantity - posted,
+      refType: "supply",
+      refId: supplyId,
+      refNumber: supplyNumber,
+      at: clock(),
+    });
   }
   return primary;
 }

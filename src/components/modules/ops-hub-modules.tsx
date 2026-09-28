@@ -39,6 +39,7 @@ import type {
   OpsReceiptOutcome,
   OpsRequest,
   OpsRequestPriority,
+  TlbState,
   OpsRequestType,
   OpsWarehouseAvailability,
 } from "@/lib/domain/types";
@@ -46,7 +47,15 @@ import { findDriverBlockingAssignment, listDriverTodayJobs } from "@/lib/store/o
 import { trashBlockReason } from "@/lib/store/tlb-store";
 import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
 
-function Flash({ error, notice, onClear }: { error: string | null; notice: string | null; onClear: () => void }) {
+function Flash({
+  error,
+  notice,
+  onClear,
+}: {
+  error: string | null;
+  notice: string | null;
+  onClear: () => void;
+}) {
   if (!error && !notice) return null;
   return (
     <div className={`tlb-flash ${error ? "tlb-flash-error" : "tlb-flash-ok"}`} role="status">
@@ -77,8 +86,20 @@ const MESSAGE_CHIPS: OpsMessageChip[] = [
   "Partial OK",
   "Problem reported",
 ];
-const AVAIL_STATUSES: OpsWarehouseAvailability[] = ["Available", "Partial", "Out of Stock", "Clarification"];
-const RECEIPT_OUTCOMES: OpsReceiptOutcome[] = ["Full", "Partial", "Damaged", "Wrong", "Missing", "Rejected"];
+const AVAIL_STATUSES: OpsWarehouseAvailability[] = [
+  "Available",
+  "Partial",
+  "Out of Stock",
+  "Clarification",
+];
+const RECEIPT_OUTCOMES: OpsReceiptOutcome[] = [
+  "Full",
+  "Partial",
+  "Damaged",
+  "Wrong",
+  "Missing",
+  "Rejected",
+];
 
 type ModuleProps = {
   store: TlbStoreApi;
@@ -165,21 +186,32 @@ export function OpsRequestDetail({
 }) {
   const { state } = store;
   const lines = linesFor(store, request.id);
-  const messages = (state.opsMessages ?? []).filter((m) => m.requestId === request.id && !m.deletedAt);
+  const messages = (state.opsMessages ?? []).filter(
+    (m) => m.requestId === request.id && !m.deletedAt,
+  );
   const activity = (state.opsActivity ?? []).filter((a) => a.requestId === request.id);
   const custody = (state.opsCustody ?? []).filter((c) => c.requestId === request.id);
-  const discrepancies = (state.opsDiscrepancies ?? []).filter((d) => d.requestId === request.id && !d.deletedAt);
+  const discrepancies = (state.opsDiscrepancies ?? []).filter(
+    (d) => d.requestId === request.id && !d.deletedAt,
+  );
   const requestTrashBlock = trashBlockReason(state, "ops_request", request.id);
 
   const [approvalNote, setApprovalNote] = useState("");
   const [lineApprovals, setLineApprovals] = useState<Record<string, number>>(() =>
     Object.fromEntries(lines.map((l) => [l.id, l.approvedQty || l.requestedQty - l.cancelledQty])),
   );
-  const [prepQtys, setPrepQtys] = useState<Record<string, number>>(() =>
-    Object.fromEntries(lines.map((l) => [l.id, l.preparedQty || l.approvedQty])),
-  );
+  const [prepQtys, setPrepQtys] = useState<Record<string, number>>({});
   const [receiptLines, setReceiptLines] = useState<
-    Record<string, { receivedQty: number; missingQty: number; damagedQty: number; wrongQty: number; rejectedQty: number }>
+    Record<
+      string,
+      {
+        receivedQty: number;
+        missingQty: number;
+        damagedQty: number;
+        wrongQty: number;
+        rejectedQty: number;
+      }
+    >
   >(() =>
     Object.fromEntries(
       lines.map((l) => [
@@ -194,10 +226,14 @@ export function OpsRequestDetail({
       ]),
     ),
   );
-  const [receiptOutcome, setReceiptOutcome] = useState<OpsReceiptOutcome>(request.receiptOutcome ?? "Full");
+  const [receiptOutcome, setReceiptOutcome] = useState<OpsReceiptOutcome>(
+    request.receiptOutcome ?? "Full",
+  );
   const [receivedBy, setReceivedBy] = useState(request.receivedBy ?? state.currentUser);
   const [receiptNotes, setReceiptNotes] = useState(request.receiptNotes ?? "");
-  const [driverId, setDriverId] = useState(request.driverId ?? state.opsDrivers.find((d) => d.active && !d.deletedAt)?.id ?? "");
+  const [driverId, setDriverId] = useState(
+    request.driverId ?? state.opsDrivers.find((d) => d.active && !d.deletedAt)?.id ?? "",
+  );
   const [vehicle, setVehicle] = useState(request.vehicle ?? "");
   const [chatBody, setChatBody] = useState("");
   const [cancelReason, setCancelReason] = useState("");
@@ -210,22 +246,27 @@ export function OpsRequestDetail({
     notes: request.notes ?? "",
     neededBy: request.neededBy ?? "",
   });
-  const [reviewNotes, setReviewNotes] = useState<Record<string, { availability: OpsWarehouseAvailability; note: string; wh: string }>>(
-    () =>
-      Object.fromEntries(
-        lines.map((l) => [
-          l.id,
-          {
-            availability: l.availability ?? "Available",
-            note: l.availabilityNote ?? "",
-            wh: l.fulfilWarehouseId ?? l.warehouseId,
-          },
-        ]),
-      ),
+  const [reviewNotes, setReviewNotes] = useState<
+    Record<string, { availability: OpsWarehouseAvailability; note: string; wh: string }>
+  >(() =>
+    Object.fromEntries(
+      lines.map((l) => [
+        l.id,
+        {
+          availability: l.availability ?? "Available",
+          note: l.availabilityNote ?? "",
+          wh: l.fulfilWarehouseId ?? l.warehouseId,
+        },
+      ]),
+    ),
   );
 
   useEffect(() => {
-    setLineApprovals(Object.fromEntries(lines.map((l) => [l.id, l.approvedQty || l.requestedQty - l.cancelledQty])));
+    setLineApprovals(
+      Object.fromEntries(
+        lines.map((l) => [l.id, l.approvedQty || l.requestedQty - l.cancelledQty]),
+      ),
+    );
     setPrepQtys(Object.fromEntries(lines.map((l) => [l.id, l.preparedQty || l.approvedQty])));
     setReceiptLines(
       Object.fromEntries(
@@ -251,10 +292,19 @@ export function OpsRequestDetail({
   const canChat = store.can("ops.communicate") || store.can("ops.view");
 
   const showApproval =
-    canApprove && ["Pending Approval", "Partially Approved", "Acknowledged", "Submitted"].includes(request.status);
+    canApprove &&
+    ["Pending Approval", "Partially Approved", "Acknowledged", "Submitted"].includes(
+      request.status,
+    );
   const showWarehouse =
     canWarehouse &&
-    ["Approved", "Partially Approved", "Warehouse Review", "Preparing", "Ready for Collection"].includes(request.status);
+    [
+      "Approved",
+      "Partially Approved",
+      "Warehouse Review",
+      "Preparing",
+      "Ready for Collection",
+    ].includes(request.status);
   const showReceipt =
     canReceive &&
     (["In Transit", "Collected", "Issued", "Partially Delivered"].includes(request.status) ||
@@ -272,7 +322,9 @@ export function OpsRequestDetail({
           <StatusBadge tone={opsStatusTone(request.status)}>{request.status}</StatusBadge>
           <StatusBadge tone={opsStatusTone(request.priority)}>{request.priority}</StatusBadge>
           {request.driverStatus ? (
-            <StatusBadge tone={opsStatusTone(request.driverStatus)}>{request.driverStatus}</StatusBadge>
+            <StatusBadge tone={opsStatusTone(request.driverStatus)}>
+              {request.driverStatus}
+            </StatusBadge>
           ) : null}
         </>
       }
@@ -303,8 +355,14 @@ export function OpsRequestDetail({
               Submit
             </Button>
           ) : null}
-          {(request.status === "Submitted" || request.status === "Pending Approval") && !request.acknowledgedAt && canApprove ? (
-            <Button type="button" variant="outline" onClick={() => store.acknowledgeOpsRequest(request.id)}>
+          {(request.status === "Submitted" || request.status === "Pending Approval") &&
+          !request.acknowledgedAt &&
+          canApprove ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => store.acknowledgeOpsRequest(request.id)}
+            >
               Acknowledge
             </Button>
           ) : null}
@@ -409,7 +467,10 @@ export function OpsRequestDetail({
             </label>
             <label className="tlb-span-2">
               Notes
-              <input value={draftForm.notes} onChange={(e) => setDraftForm((f) => ({ ...f, notes: e.target.value }))} />
+              <input
+                value={draftForm.notes}
+                onChange={(e) => setDraftForm((f) => ({ ...f, notes: e.target.value }))}
+              />
             </label>
             <div className="tlb-form-actions tlb-span-2">
               <Button type="submit">Save draft</Button>
@@ -433,7 +494,9 @@ export function OpsRequestDetail({
           </div>
           <div className="tlb-customer-summary-tile--success">
             <span>Response</span>
-            <strong>{request.responseMinutes != null ? `${request.responseMinutes} min` : "—"}</strong>
+            <strong>
+              {request.responseMinutes != null ? `${request.responseMinutes} min` : "—"}
+            </strong>
           </div>
         </div>
         <dl className="tlb-kv" style={{ marginTop: 12 }}>
@@ -499,22 +562,14 @@ export function OpsRequestDetail({
                     <td>{line.issuedQty}</td>
                     <td>{line.receivedQty}</td>
                     <td>
-                      {shortage > 0 ? (
-                        <StatusBadge tone="warning">{shortage}</StatusBadge>
-                      ) : (
-                        0
-                      )}
+                      {shortage > 0 ? <StatusBadge tone="warning">{shortage}</StatusBadge> : 0}
                     </td>
-                    <td>
-                      {missing > 0 ? (
-                        <StatusBadge tone="danger">{missing}</StatusBadge>
-                      ) : (
-                        0
-                      )}
-                    </td>
+                    <td>{missing > 0 ? <StatusBadge tone="danger">{missing}</StatusBadge> : 0}</td>
                     <td>
                       {line.availability ? (
-                        <StatusBadge tone={statusTone(line.availability)}>{line.availability}</StatusBadge>
+                        <StatusBadge tone={statusTone(line.availability)}>
+                          {line.availability}
+                        </StatusBadge>
                       ) : (
                         "—"
                       )}
@@ -527,7 +582,12 @@ export function OpsRequestDetail({
         </div>
       </RecordDetailSection>
 
-      <RecordDetailSection tone="stock" kicker="Stock intelligence" title="Warehouse availability" span2>
+      <RecordDetailSection
+        tone="stock"
+        kicker="Stock intelligence"
+        title="Warehouse availability"
+        span2
+      >
         <div className="tlb-table-scroll tlb-orders-panel">
           <table>
             <thead>
@@ -541,7 +601,9 @@ export function OpsRequestDetail({
             </thead>
             <tbody>
               {lines.flatMap((line) => {
-                const needed = Math.max(0, line.requestedQty - line.cancelledQty - line.approvedQty) || line.requestedQty;
+                const needed =
+                  Math.max(0, line.requestedQty - line.cancelledQty - line.approvedQty) ||
+                  line.requestedQty;
                 const rows = warehouseAvailabilityForProduct(state, line.productId, needed);
                 if (!rows.length) {
                   return [
@@ -599,7 +661,10 @@ export function OpsRequestDetail({
                         max={line.requestedQty - line.cancelledQty}
                         value={lineApprovals[line.id] ?? 0}
                         onChange={(e) =>
-                          setLineApprovals((prev) => ({ ...prev, [line.id]: Number(e.target.value) }))
+                          setLineApprovals((prev) => ({
+                            ...prev,
+                            [line.id]: Number(e.target.value),
+                          }))
                         }
                       />
                     </td>
@@ -656,7 +721,12 @@ export function OpsRequestDetail({
       ) : null}
 
       {showWarehouse ? (
-        <RecordDetailSection tone="supplies" kicker="Warehouse" title="Review · prepare · release" span2>
+        <RecordDetailSection
+          tone="supplies"
+          kicker="Warehouse"
+          title="Review · prepare · release"
+          span2
+        >
           <div className="tlb-table-scroll tlb-orders-panel">
             <table>
               <thead>
@@ -686,7 +756,10 @@ export function OpsRequestDetail({
                           <select
                             value={rev.wh}
                             onChange={(e) =>
-                              setReviewNotes((p) => ({ ...p, [line.id]: { ...rev, wh: e.target.value } }))
+                              setReviewNotes((p) => ({
+                                ...p,
+                                [line.id]: { ...rev, wh: e.target.value },
+                              }))
                             }
                           >
                             {state.warehouses
@@ -722,7 +795,10 @@ export function OpsRequestDetail({
                           <input
                             value={rev.note}
                             onChange={(e) =>
-                              setReviewNotes((p) => ({ ...p, [line.id]: { ...rev, note: e.target.value } }))
+                              setReviewNotes((p) => ({
+                                ...p,
+                                [line.id]: { ...rev, note: e.target.value },
+                              }))
                             }
                           />
                         </td>
@@ -731,7 +807,7 @@ export function OpsRequestDetail({
                             type="number"
                             min={0}
                             max={line.approvedQty}
-                            value={prepQtys[line.id] ?? 0}
+                            value={prepQtys[line.id] ?? (line.preparedQty || line.approvedQty)}
                             onChange={(e) =>
                               setPrepQtys((p) => ({ ...p, [line.id]: Number(e.target.value) }))
                             }
@@ -759,7 +835,9 @@ export function OpsRequestDetail({
                         availability: rev?.availability ?? "Available",
                         availabilityNote: rev?.note || undefined,
                         clarificationNote:
-                          rev?.availability === "Clarification" ? rev.note || "Needs clarification" : undefined,
+                          rev?.availability === "Clarification"
+                            ? rev.note || "Needs clarification"
+                            : undefined,
                       };
                     }),
                 })
@@ -773,7 +851,10 @@ export function OpsRequestDetail({
                 store.prepareOps(request.id, {
                   lines: lines
                     .filter((l) => l.approvedQty > 0)
-                    .map((l) => ({ lineId: l.id, preparedQty: prepQtys[l.id] ?? 0 })),
+                    .map((l) => ({
+                      lineId: l.id,
+                      preparedQty: prepQtys[l.id] ?? (l.preparedQty || l.approvedQty),
+                    })),
                 })
               }
             >
@@ -785,14 +866,21 @@ export function OpsRequestDetail({
             <Button
               type="button"
               onClick={() =>
-                store.releaseOpsGoods(request.id, driverId ? { driverId, vehicle: vehicle || undefined } : undefined)
+                store.releaseOpsGoods(
+                  request.id,
+                  driverId ? { driverId, vehicle: vehicle || undefined } : undefined,
+                )
               }
             >
               Release goods
             </Button>
             {(request.status === "Issued" || request.status === "Ready for Collection") &&
             !request.warehouseCollectConfirmed ? (
-              <Button type="button" variant="outline" onClick={() => store.confirmOpsWarehouseCollect(request.id)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => store.confirmOpsWarehouseCollect(request.id)}
+              >
                 Confirm WH collection
               </Button>
             ) : null}
@@ -836,9 +924,15 @@ export function OpsRequestDetail({
       ) : null}
 
       {showReceipt ? (
-        <RecordDetailSection tone="receipts" kicker="Receipt" title="Three-way delivery check" span2>
+        <RecordDetailSection
+          tone="receipts"
+          kicker="Receipt"
+          title="Three-way delivery check"
+          span2
+        >
           <p className="tlb-muted-line" style={{ padding: "0 12px" }}>
-            Compare issued vs received. Missing here is a delivery discrepancy — not warehouse shortage outstanding.
+            Compare issued vs received. Missing here is a delivery discrepancy — not warehouse
+            shortage outstanding.
           </p>
           <div className="tlb-table-scroll tlb-orders-panel">
             <table>
@@ -951,7 +1045,12 @@ export function OpsRequestDetail({
         </RecordDetailSection>
       ) : null}
 
-      <RecordDetailSection tone="outstanding" kicker="Outstanding" title="Warehouse shortage vs delivery missing" span2>
+      <RecordDetailSection
+        tone="outstanding"
+        kicker="Outstanding"
+        title="Warehouse shortage vs delivery missing"
+        span2
+      >
         <div className="tlb-table-scroll tlb-orders-panel">
           <table>
             <thead>
@@ -975,7 +1074,10 @@ export function OpsRequestDetail({
         {discrepancies.length > 0 ? (
           <ul className="tlb-muted-line" style={{ padding: 12, margin: 0, listStyle: "none" }}>
             {discrepancies.map((d) => (
-              <li key={d.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <li
+                key={d.id}
+                style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}
+              >
                 <span>
                   {d.kind} × {d.quantity} · {productLabel(store, d.productId)}
                   {d.resolvedAt ? " (resolved)" : ""}
@@ -995,7 +1097,10 @@ export function OpsRequestDetail({
 
       {canChat ? (
         <RecordDetailSection tone="activity" kicker="Communication" title="Request chat" span2>
-          <div className="tlb-chip-row" style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: "0 12px 8px" }}>
+          <div
+            className="tlb-chip-row"
+            style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: "0 12px 8px" }}
+          >
             {MESSAGE_CHIPS.map((chip) => (
               <button
                 key={chip}
@@ -1102,7 +1207,10 @@ export function OpsRequestDetail({
 
       <RecordDetailSection tone="deliveries" kicker="Custody" title="Custody chain" span2>
         {custody.length === 0 ? (
-          <EmptyState title="No custody events" detail="Release and delivery hand-offs will log here." />
+          <EmptyState
+            title="No custody events"
+            detail="Release and delivery hand-offs will log here."
+          />
         ) : (
           <div className="tlb-table-scroll tlb-orders-panel">
             <table>
@@ -1177,15 +1285,27 @@ export function OpsRequestsModule({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot focus
   }, [focusId]);
 
+  const opsRequests = store.state.opsRequests;
   const rows = useMemo(() => {
-    return liveOpsRequests(store).filter((r) => {
-      if (!filterByPeriodDate(r.requestedAt, range)) return false;
-      return matchesSearch(
-        [r.number, r.title, r.type, r.status, r.priority, r.destination, r.requestedBy, r.driverName],
-        search,
-      );
-    });
-  }, [store.state.opsRequests, search, range]);
+    return (opsRequests ?? []).filter(
+      (r) =>
+        !r.deletedAt &&
+        filterByPeriodDate(r.requestedAt, range) &&
+        matchesSearch(
+          [
+            r.number,
+            r.title,
+            r.type,
+            r.status,
+            r.priority,
+            r.destination,
+            r.requestedBy,
+            r.driverName,
+          ],
+          search,
+        ),
+    );
+  }, [opsRequests, search, range]);
 
   const detail = liveOpsRequests(store).find((r) => r.id === detailId) ?? null;
   if (detail) {
@@ -1212,7 +1332,11 @@ export function OpsRequestsModule({
           </p>
         </div>
         <div className="tlb-toolbar-actions">
-          <ModuleSearch value={search} onChange={setSearch} placeholder="Search request #, title, status…" />
+          <ModuleSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search request #, title, status…"
+          />
           {(store.can("ops.request") || store.can("ops.view")) && (
             <Button type="button" onClick={() => setOpen((v) => !v)}>
               {open ? "Close form" : "New request"}
@@ -1236,7 +1360,10 @@ export function OpsRequestsModule({
             </label>
             <label>
               Priority
-              <select value={priority} onChange={(e) => setPriority(e.target.value as OpsRequestPriority)}>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as OpsRequestPriority)}
+              >
                 {OPS_PRIORITIES.map((p) => (
                   <option key={p} value={p}>
                     {p}
@@ -1256,7 +1383,11 @@ export function OpsRequestsModule({
             ) : null}
             <label className="tlb-span-2">
               Title
-              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Short request title" />
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Short request title"
+              />
             </label>
             <label>
               Destination
@@ -1301,7 +1432,9 @@ export function OpsRequestsModule({
                         value={line.productId}
                         onChange={(e) =>
                           setDraftLines((rows) =>
-                            rows.map((r, i) => (i === idx ? { ...r, productId: e.target.value } : r)),
+                            rows.map((r, i) =>
+                              i === idx ? { ...r, productId: e.target.value } : r,
+                            ),
                           )
                         }
                       >
@@ -1321,7 +1454,9 @@ export function OpsRequestsModule({
                         value={line.quantity}
                         onChange={(e) =>
                           setDraftLines((rows) =>
-                            rows.map((r, i) => (i === idx ? { ...r, quantity: Number(e.target.value) } : r)),
+                            rows.map((r, i) =>
+                              i === idx ? { ...r, quantity: Number(e.target.value) } : r,
+                            ),
                           )
                         }
                       />
@@ -1375,6 +1510,7 @@ export function OpsRequestsModule({
                   setOpen(false);
                   setTitle("");
                   setPriorityReason("");
+                  if (typeof ok === "string") setDetailId(ok);
                 }
               }}
             >
@@ -1399,6 +1535,7 @@ export function OpsRequestsModule({
                   setOpen(false);
                   setTitle("");
                   setPriorityReason("");
+                  if (typeof ok === "string") setDetailId(ok);
                 }
               }}
             >
@@ -1410,7 +1547,10 @@ export function OpsRequestsModule({
 
       <article className="tlb-panel tlb-orders-panel">
         {rows.length === 0 ? (
-          <EmptyState title="No ops requests" detail="Create a request to start the operations workflow." />
+          <EmptyState
+            title="No ops requests"
+            detail="Create a request to start the operations workflow."
+          />
         ) : (
           <div className="tlb-table-scroll">
             <table>
@@ -1452,7 +1592,11 @@ export function OpsRequestsModule({
                     </td>
                     <td>{r.requestedAt.slice(0, 10)}</td>
                     <td>
-                      <button type="button" aria-label={`Open ${r.number}`} onClick={() => setDetailId(r.id)}>
+                      <button
+                        type="button"
+                        aria-label={`Open ${r.number}`}
+                        onClick={() => setDetailId(r.id)}
+                      >
                         <ChevronRight />
                       </button>
                     </td>
@@ -1478,7 +1622,12 @@ const WAREHOUSE_ACTION_STATUSES = new Set([
   "Issued",
 ]);
 
-export function OpsWarehouseActionsModule({ store, focusId, onFocusConsumed, onOpenRequest }: ModuleProps) {
+export function OpsWarehouseActionsModule({
+  store,
+  focusId,
+  onFocusConsumed,
+  onOpenRequest,
+}: ModuleProps) {
   const [detailId, setDetailId] = useState<string | null>(focusId ?? null);
   const [search, setSearch] = useState("");
 
@@ -1489,12 +1638,15 @@ export function OpsWarehouseActionsModule({ store, focusId, onFocusConsumed, onO
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusId]);
 
+  const opsRequests = store.state.opsRequests;
   const rows = useMemo(() => {
-    return liveOpsRequests(store).filter((r) => {
-      if (!WAREHOUSE_ACTION_STATUSES.has(r.status)) return false;
-      return matchesSearch([r.number, r.title, r.status, r.priority, r.destination], search);
-    });
-  }, [store.state.opsRequests, search]);
+    return (opsRequests ?? []).filter(
+      (r) =>
+        !r.deletedAt &&
+        WAREHOUSE_ACTION_STATUSES.has(r.status) &&
+        matchesSearch([r.number, r.title, r.status, r.priority, r.destination], search),
+    );
+  }, [opsRequests, search]);
 
   const detail = liveOpsRequests(store).find((r) => r.id === detailId) ?? null;
   if (detail) {
@@ -1521,7 +1673,10 @@ export function OpsWarehouseActionsModule({ store, focusId, onFocusConsumed, onO
       </div>
       <article className="tlb-panel tlb-orders-panel">
         {rows.length === 0 ? (
-          <EmptyState title="No warehouse work" detail="Approved requests needing pick/pack will appear here." />
+          <EmptyState
+            title="No warehouse work"
+            detail="Approved requests needing pick/pack will appear here."
+          />
         ) : (
           <div className="tlb-table-scroll">
             <table>
@@ -1551,7 +1706,11 @@ export function OpsWarehouseActionsModule({ store, focusId, onFocusConsumed, onO
                     <td>
                       <div className="tlb-inline-actions compact">
                         {(r.status === "Approved" || r.status === "Partially Approved") && (
-                          <Button type="button" variant="outline" onClick={() => store.autoReviewOps(r.id)}>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => store.autoReviewOps(r.id)}
+                          >
                             Review
                           </Button>
                         )}
@@ -1562,7 +1721,11 @@ export function OpsWarehouseActionsModule({ store, focusId, onFocusConsumed, onO
                         )}
                         {(r.status === "Issued" || r.status === "Ready for Collection") &&
                           !r.warehouseCollectConfirmed && (
-                            <Button type="button" variant="outline" onClick={() => store.confirmOpsWarehouseCollect(r.id)}>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => store.confirmOpsWarehouseCollect(r.id)}
+                            >
                               WH collect
                             </Button>
                           )}
@@ -1605,8 +1768,10 @@ export function OpsDispatchModule({ store, focusId, onFocusConsumed, onOpenReque
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusId]);
 
+  const opsRequests = store.state.opsRequests;
   const rows = useMemo(() => {
-    return liveOpsRequests(store).filter((r) => {
+    return (opsRequests ?? []).filter((r) => {
+      if (r.deletedAt) return false;
       const releaseReady =
         r.status === "Ready for Collection" ||
         r.status === "Issued" ||
@@ -1615,13 +1780,18 @@ export function OpsDispatchModule({ store, focusId, onFocusConsumed, onOpenReque
       if (!releaseReady) return false;
       return matchesSearch([r.number, r.title, r.status, r.driverName, r.destination], search);
     });
-  }, [store.state.opsRequests, search]);
+  }, [opsRequests, search]);
 
   const drivers = (store.state.opsDrivers ?? []).filter((d) => d.active && !d.deletedAt);
   const detail = liveOpsRequests(store).find((r) => r.id === detailId) ?? null;
   if (detail) {
     return (
-      <OpsRequestDetail store={store} request={detail} onBack={() => setDetailId(null)} backLabel="Dispatch" />
+      <OpsRequestDetail
+        store={store}
+        request={detail}
+        onBack={() => setDetailId(null)}
+        backLabel="Dispatch"
+      />
     );
   }
 
@@ -1638,7 +1808,10 @@ export function OpsDispatchModule({ store, focusId, onFocusConsumed, onOpenReque
       </div>
       <article className="tlb-panel tlb-orders-panel">
         {rows.length === 0 ? (
-          <EmptyState title="Dispatch queue empty" detail="Ready-for-collection and issued jobs will show here." />
+          <EmptyState
+            title="Dispatch queue empty"
+            detail="Ready-for-collection and issued jobs will show here."
+          />
         ) : (
           <div className="tlb-table-scroll">
             <table>
@@ -1717,9 +1890,13 @@ export function OpsDispatchModule({ store, focusId, onFocusConsumed, onOpenReque
 
 function requestOriginLabel(store: TlbStoreApi, request: OpsRequest): string {
   const lines = linesFor(store, request.id);
-  const warehouseIds = [...new Set(lines.map((l) => l.fulfilWarehouseId || l.warehouseId).filter(Boolean))];
+  const warehouseIds = [
+    ...new Set(lines.map((l) => l.fulfilWarehouseId || l.warehouseId).filter(Boolean)),
+  ];
   if (warehouseIds.length === 0) return "—";
-  const names = warehouseIds.map((id) => store.state.warehouses.find((w) => w.id === id)?.name ?? id);
+  const names = warehouseIds.map(
+    (id) => store.state.warehouses.find((w) => w.id === id)?.name ?? id,
+  );
   return names.join(", ");
 }
 
@@ -1735,31 +1912,48 @@ function DriverDetailModule({
   onOpenRequest: (requestId: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ code: "", name: "", phone: "", vehicle: "", notes: "", active: true });
+  const [form, setForm] = useState({
+    code: "",
+    name: "",
+    phone: "",
+    vehicle: "",
+    notes: "",
+    active: true,
+  });
   const canEdit =
-    store.can("ops.dispatch") || store.can("delivery.manage") || store.can("records.edit") || store.can("settings.manage");
+    store.can("ops.dispatch") ||
+    store.can("delivery.manage") ||
+    store.can("records.edit") ||
+    store.can("settings.manage");
   const selected =
     (store.state.opsDrivers ?? []).find((d) => d.id === driverId && !isSoftDeleted(d)) ?? null;
 
+  const users = store.state.users;
+  const roles = store.state.roles;
+  const opsRequests = store.state.opsRequests;
   const linkedUserLabel = useMemo(() => {
     if (!selected?.userId) return null as string | null;
-    const user = (store.state.users ?? []).find((u) => u.id === selected.userId);
+    const user = (users ?? []).find((u) => u.id === selected.userId);
     if (!user) return null;
-    const role = (store.state.roles ?? []).find((r) => r.id === user.roleId);
+    const role = (roles ?? []).find((r) => r.id === user.roleId);
     return role ? `${user.name} · ${role.name}` : user.name;
-  }, [selected, store.state.users, store.state.roles]);
+  }, [selected, users, roles]);
 
   const assignedJobs = useMemo(() => {
     if (!selected) return [] as OpsRequest[];
-    return liveOpsRequests(store)
-      .filter((r) => r.driverId === selected.id)
-      .sort((a, b) => (b.assignedAt ?? b.updatedAt ?? b.createdAt).localeCompare(a.assignedAt ?? a.updatedAt ?? a.createdAt));
-  }, [selected, store.state.opsRequests]);
+    return (opsRequests ?? [])
+      .filter((r) => !r.deletedAt && r.driverId === selected.id)
+      .sort((a, b) =>
+        (b.assignedAt ?? b.updatedAt ?? b.createdAt).localeCompare(
+          a.assignedAt ?? a.updatedAt ?? a.createdAt,
+        ),
+      );
+  }, [selected, opsRequests]);
 
   const todayJobs = useMemo(() => {
     if (!selected) return [] as OpsRequest[];
-    return listDriverTodayJobs(store.state, selected.id);
-  }, [selected, store.state.opsRequests]);
+    return listDriverTodayJobs({ opsRequests } as TlbState, selected.id);
+  }, [selected, opsRequests]);
 
   const recentJobs = useMemo(() => assignedJobs.slice(0, 20), [assignedJobs]);
 
@@ -1777,7 +1971,9 @@ function DriverDetailModule({
   const latestAssigner = useMemo(() => {
     if (!selected) return null as string | null;
     const events = (store.state.opsActivity ?? [])
-      .filter((ev) => ev.action === "driver_assigned" && assignedJobs.some((j) => j.id === ev.requestId))
+      .filter(
+        (ev) => ev.action === "driver_assigned" && assignedJobs.some((j) => j.id === ev.requestId),
+      )
       .sort((a, b) => b.at.localeCompare(a.at));
     return events[0]?.actor ?? null;
   }, [selected, assignedJobs, store.state.opsActivity]);
@@ -1797,9 +1993,10 @@ function DriverDetailModule({
     : undefined;
   const statusLabel = selected.deletedAt ? "Trashed" : selected.active ? "Active" : "Inactive";
   const statusToneValue = selected.deletedAt ? "danger" : selected.active ? "success" : "warning";
-  const inTransit = todayJobs.filter((j) =>
-    ["In Transit", "Collected", "Issued"].includes(j.status) ||
-    ["Departed", "En Route Warehouse", "Collected"].includes(j.driverStatus ?? ""),
+  const inTransit = todayJobs.filter(
+    (j) =>
+      ["In Transit", "Collected", "Issued"].includes(j.status) ||
+      ["Departed", "En Route Warehouse", "Collected"].includes(j.driverStatus ?? ""),
   ).length;
   const problems = todayJobs.filter((j) => j.driverStatus === "Problem").length;
 
@@ -1814,7 +2011,9 @@ function DriverDetailModule({
         <>
           <StatusBadge tone={statusToneValue}>{statusLabel}</StatusBadge>
           {todayJobs.length > 0 ? (
-            <StatusBadge tone="info">{todayJobs.length} job{todayJobs.length === 1 ? "" : "s"} today</StatusBadge>
+            <StatusBadge tone="info">
+              {todayJobs.length} job{todayJobs.length === 1 ? "" : "s"} today
+            </StatusBadge>
           ) : null}
         </>
       }
@@ -1883,19 +2082,34 @@ function DriverDetailModule({
             </div>
             <label>
               Code
-              <input required value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} />
+              <input
+                required
+                value={form.code}
+                onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
+              />
             </label>
             <label>
               Name
-              <input required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+              <input
+                required
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              />
             </label>
             <label>
               Phone
-              <input required value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+              <input
+                required
+                value={form.phone}
+                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              />
             </label>
             <label>
               Vehicle
-              <input value={form.vehicle} onChange={(e) => setForm((f) => ({ ...f, vehicle: e.target.value }))} />
+              <input
+                value={form.vehicle}
+                onChange={(e) => setForm((f) => ({ ...f, vehicle: e.target.value }))}
+              />
             </label>
             <label>
               Active
@@ -1909,7 +2123,10 @@ function DriverDetailModule({
             </label>
             <label className="tlb-span-2">
               Notes
-              <input value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
+              <input
+                value={form.notes}
+                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+              />
             </label>
             <div className="tlb-form-actions tlb-span-2">
               <Button type="submit">Save driver</Button>
@@ -1918,200 +2135,253 @@ function DriverDetailModule({
         </article>
       ) : null}
       {editing ? null : (
-      <>
-      <RecordDetailSection tone="summary" kicker="Overview" title="Today's jobs" span2>
-        <div className="tlb-customer-summary" aria-label="Driver today summary">
-          <div className={todayJobs.length > 0 ? "tlb-customer-summary-tile--info" : "tlb-customer-summary-tile--muted"}>
-            <span>Today</span>
-            <strong>{todayJobs.length}</strong>
-          </div>
-          <div className={inTransit > 0 ? "tlb-customer-summary-tile--gold" : "tlb-customer-summary-tile--muted"}>
-            <span>In progress</span>
-            <strong>{inTransit}</strong>
-          </div>
-          <div className={problems > 0 ? "tlb-customer-summary-tile--danger" : "tlb-customer-summary-tile--muted"}>
-            <span>Problems</span>
-            <strong>{problems}</strong>
-          </div>
-          <div className="tlb-customer-summary-tile--success">
-            <span>All assigned</span>
-            <strong>{assignedJobs.length}</strong>
-          </div>
-        </div>
-      </RecordDetailSection>
-
-      <RecordDetailSection tone="profile" kicker="Profile" title="Driver details" span2>
-        <dl className="tlb-kv">
-          <div>
-            <dt>Name</dt>
-            <dd>{selected.name}</dd>
-          </div>
-          <div>
-            <dt>Code</dt>
-            <dd>{selected.code}</dd>
-          </div>
-          <div>
-            <dt>Phone</dt>
-            <dd>{selected.phone || "—"}</dd>
-          </div>
-          <div>
-            <dt>Vehicle</dt>
-            <dd>{selected.vehicle || "—"}</dd>
-          </div>
-          <div>
-            <dt>Registration</dt>
-            <dd>{selected.vehicle || "—"}</dd>
-          </div>
-          <div>
-            <dt>Status</dt>
-            <dd>
-              <StatusBadge tone={statusToneValue}>{statusLabel}</StatusBadge>
-            </dd>
-          </div>
-          <div>
-            <dt>Linked user</dt>
-            <dd>{linkedUserLabel || "—"}</dd>
-          </div>
-          <div>
-            <dt>Assigned by</dt>
-            <dd>{latestAssigner || "—"}</dd>
-          </div>
-          <div className="tlb-span-2">
-            <dt>Notes</dt>
-            <dd>{selected.notes?.trim() ? selected.notes : "—"}</dd>
-          </div>
-          {selected.deletedAt ? (
-            <div className="tlb-span-2">
-              <dt>Trash</dt>
-              <dd>
-                Moved {new Date(selected.deletedAt).toLocaleString()}
-                {selected.deletedBy ? ` by ${selected.deletedBy}` : ""}
-                {selected.deletedReason ? ` · ${selected.deletedReason}` : ""}
-              </dd>
+        <>
+          <RecordDetailSection tone="summary" kicker="Overview" title="Today's jobs" span2>
+            <div className="tlb-customer-summary" aria-label="Driver today summary">
+              <div
+                className={
+                  todayJobs.length > 0
+                    ? "tlb-customer-summary-tile--info"
+                    : "tlb-customer-summary-tile--muted"
+                }
+              >
+                <span>Today</span>
+                <strong>{todayJobs.length}</strong>
+              </div>
+              <div
+                className={
+                  inTransit > 0
+                    ? "tlb-customer-summary-tile--gold"
+                    : "tlb-customer-summary-tile--muted"
+                }
+              >
+                <span>In progress</span>
+                <strong>{inTransit}</strong>
+              </div>
+              <div
+                className={
+                  problems > 0
+                    ? "tlb-customer-summary-tile--danger"
+                    : "tlb-customer-summary-tile--muted"
+                }
+              >
+                <span>Problems</span>
+                <strong>{problems}</strong>
+              </div>
+              <div className="tlb-customer-summary-tile--success">
+                <span>All assigned</span>
+                <strong>{assignedJobs.length}</strong>
+              </div>
             </div>
-          ) : null}
-        </dl>
-      </RecordDetailSection>
+          </RecordDetailSection>
 
-      <RecordDetailSection tone="deliveries" kicker="Jobs" title="Current / recent jobs" span2>
-        {recentJobs.length === 0 ? (
-          <EmptyState title="No jobs assigned" detail="Ops requests assigned to this driver will appear here." />
-        ) : (
-          <div className="tlb-table-scroll tlb-orders-panel">
-            <table>
-              <thead>
-                <tr>
-                  <th>Request</th>
-                  <th>Status</th>
-                  <th>Driver status</th>
-                  <th>Origin</th>
-                  <th>Destination</th>
-                  <th>Assigned</th>
-                  <th>Dates</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {recentJobs.map((job) => (
-                  <tr key={job.id}>
-                    <td>
-                      <strong>{job.number}</strong>
-                      <div className="tlb-muted-line">{job.title}</div>
-                    </td>
-                    <td>
-                      <StatusBadge tone={opsStatusTone(job.status)}>{job.status}</StatusBadge>
-                    </td>
-                    <td>
-                      {job.driverStatus ? (
-                        <StatusBadge tone={opsStatusTone(job.driverStatus)}>{job.driverStatus}</StatusBadge>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td>{requestOriginLabel(store, job)}</td>
-                    <td>{job.destination || "—"}</td>
-                    <td>
-                      {job.assignedAt ? new Date(job.assignedAt).toLocaleString() : "—"}
-                      {assignmentActors.get(job.id) ? (
-                        <div className="tlb-muted-line">by {assignmentActors.get(job.id)}</div>
-                      ) : null}
-                    </td>
-                    <td>
-                      {job.neededBy ? (
-                        <div>Needed {job.neededBy.slice(0, 10)}</div>
-                      ) : null}
-                      {job.deliveredAt ? (
-                        <div className="tlb-muted-line">Delivered {new Date(job.deliveredAt).toLocaleDateString()}</div>
-                      ) : job.departedAt ? (
-                        <div className="tlb-muted-line">Departed {new Date(job.departedAt).toLocaleDateString()}</div>
-                      ) : (
-                        <div className="tlb-muted-line">Updated {new Date(job.updatedAt).toLocaleDateString()}</div>
-                      )}
-                    </td>
-                    <td>
-                      <Button type="button" variant="outline" onClick={() => onOpenRequest(job.id)}>
-                        Open
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </RecordDetailSection>
+          <RecordDetailSection tone="profile" kicker="Profile" title="Driver details" span2>
+            <dl className="tlb-kv">
+              <div>
+                <dt>Name</dt>
+                <dd>{selected.name}</dd>
+              </div>
+              <div>
+                <dt>Code</dt>
+                <dd>{selected.code}</dd>
+              </div>
+              <div>
+                <dt>Phone</dt>
+                <dd>{selected.phone || "—"}</dd>
+              </div>
+              <div>
+                <dt>Vehicle</dt>
+                <dd>{selected.vehicle || "—"}</dd>
+              </div>
+              <div>
+                <dt>Registration</dt>
+                <dd>{selected.vehicle || "—"}</dd>
+              </div>
+              <div>
+                <dt>Status</dt>
+                <dd>
+                  <StatusBadge tone={statusToneValue}>{statusLabel}</StatusBadge>
+                </dd>
+              </div>
+              <div>
+                <dt>Linked user</dt>
+                <dd>{linkedUserLabel || "—"}</dd>
+              </div>
+              <div>
+                <dt>Assigned by</dt>
+                <dd>{latestAssigner || "—"}</dd>
+              </div>
+              <div className="tlb-span-2">
+                <dt>Notes</dt>
+                <dd>{selected.notes?.trim() ? selected.notes : "—"}</dd>
+              </div>
+              {selected.deletedAt ? (
+                <div className="tlb-span-2">
+                  <dt>Trash</dt>
+                  <dd>
+                    Moved {new Date(selected.deletedAt).toLocaleString()}
+                    {selected.deletedBy ? ` by ${selected.deletedBy}` : ""}
+                    {selected.deletedReason ? ` · ${selected.deletedReason}` : ""}
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+          </RecordDetailSection>
 
-      <RecordDetailSection tone="activity" kicker="Today" title="Today's job cards" span2>
-        {todayJobs.length === 0 ? (
-          <EmptyState title="No jobs today" detail="Assigned collection and transit jobs for today will appear here." />
-        ) : (
-          <div
-            className="tlb-ops-driver-jobs"
-            style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}
-          >
-            {todayJobs.map((job) => {
-              const next = nextDriverAction(job.driverStatus);
-              return (
-                <article key={job.id} className="tlb-panel" style={{ padding: 16, display: "grid", gap: 10 }}>
-                  <div>
-                    <span className="tlb-eyebrow">{job.number}</span>
-                    <strong style={{ display: "block" }}>{job.title}</strong>
-                    <p className="tlb-muted-line">
-                      {requestOriginLabel(store, job)} → {job.destination}
-                    </p>
-                  </div>
-                  <div className="tlb-inline-actions">
-                    <StatusBadge tone={opsStatusTone(job.status)}>{job.status}</StatusBadge>
-                    {job.driverStatus ? (
-                      <StatusBadge tone={opsStatusTone(job.driverStatus)}>{job.driverStatus}</StatusBadge>
-                    ) : null}
-                  </div>
-                  <div className="tlb-inline-actions" style={{ flexWrap: "wrap" }}>
-                    {next ? (
-                      <Button type="button" onClick={() => store.advanceOpsDriver(job.id, next.to)}>
-                        {next.label}
-                      </Button>
-                    ) : null}
-                    {job.driverStatus !== "Problem" && job.driverStatus !== "Delivered" ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => store.advanceOpsDriver(job.id, "Problem", "Problem reported")}
-                      >
-                        Report problem
-                      </Button>
-                    ) : null}
-                    <Button type="button" variant="outline" onClick={() => onOpenRequest(job.id)}>
-                      Open
-                    </Button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </RecordDetailSection>
-      </>
+          <RecordDetailSection tone="deliveries" kicker="Jobs" title="Current / recent jobs" span2>
+            {recentJobs.length === 0 ? (
+              <EmptyState
+                title="No jobs assigned"
+                detail="Ops requests assigned to this driver will appear here."
+              />
+            ) : (
+              <div className="tlb-table-scroll tlb-orders-panel">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Request</th>
+                      <th>Status</th>
+                      <th>Driver status</th>
+                      <th>Origin</th>
+                      <th>Destination</th>
+                      <th>Assigned</th>
+                      <th>Dates</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentJobs.map((job) => (
+                      <tr key={job.id}>
+                        <td>
+                          <strong>{job.number}</strong>
+                          <div className="tlb-muted-line">{job.title}</div>
+                        </td>
+                        <td>
+                          <StatusBadge tone={opsStatusTone(job.status)}>{job.status}</StatusBadge>
+                        </td>
+                        <td>
+                          {job.driverStatus ? (
+                            <StatusBadge tone={opsStatusTone(job.driverStatus)}>
+                              {job.driverStatus}
+                            </StatusBadge>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td>{requestOriginLabel(store, job)}</td>
+                        <td>{job.destination || "—"}</td>
+                        <td>
+                          {job.assignedAt ? new Date(job.assignedAt).toLocaleString() : "—"}
+                          {assignmentActors.get(job.id) ? (
+                            <div className="tlb-muted-line">by {assignmentActors.get(job.id)}</div>
+                          ) : null}
+                        </td>
+                        <td>
+                          {job.neededBy ? <div>Needed {job.neededBy.slice(0, 10)}</div> : null}
+                          {job.deliveredAt ? (
+                            <div className="tlb-muted-line">
+                              Delivered {new Date(job.deliveredAt).toLocaleDateString()}
+                            </div>
+                          ) : job.departedAt ? (
+                            <div className="tlb-muted-line">
+                              Departed {new Date(job.departedAt).toLocaleDateString()}
+                            </div>
+                          ) : (
+                            <div className="tlb-muted-line">
+                              Updated {new Date(job.updatedAt).toLocaleDateString()}
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => onOpenRequest(job.id)}
+                          >
+                            Open
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </RecordDetailSection>
+
+          <RecordDetailSection tone="activity" kicker="Today" title="Today's job cards" span2>
+            {todayJobs.length === 0 ? (
+              <EmptyState
+                title="No jobs today"
+                detail="Assigned collection and transit jobs for today will appear here."
+              />
+            ) : (
+              <div
+                className="tlb-ops-driver-jobs"
+                style={{
+                  display: "grid",
+                  gap: 12,
+                  gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+                }}
+              >
+                {todayJobs.map((job) => {
+                  const next = nextDriverAction(job.driverStatus);
+                  return (
+                    <article
+                      key={job.id}
+                      className="tlb-panel"
+                      style={{ padding: 16, display: "grid", gap: 10 }}
+                    >
+                      <div>
+                        <span className="tlb-eyebrow">{job.number}</span>
+                        <strong style={{ display: "block" }}>{job.title}</strong>
+                        <p className="tlb-muted-line">
+                          {requestOriginLabel(store, job)} → {job.destination}
+                        </p>
+                      </div>
+                      <div className="tlb-inline-actions">
+                        <StatusBadge tone={opsStatusTone(job.status)}>{job.status}</StatusBadge>
+                        {job.driverStatus ? (
+                          <StatusBadge tone={opsStatusTone(job.driverStatus)}>
+                            {job.driverStatus}
+                          </StatusBadge>
+                        ) : null}
+                      </div>
+                      <div className="tlb-inline-actions" style={{ flexWrap: "wrap" }}>
+                        {next ? (
+                          <Button
+                            type="button"
+                            onClick={() => store.advanceOpsDriver(job.id, next.to)}
+                          >
+                            {next.label}
+                          </Button>
+                        ) : null}
+                        {job.driverStatus !== "Problem" && job.driverStatus !== "Delivered" ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() =>
+                              store.advanceOpsDriver(job.id, "Problem", "Problem reported")
+                            }
+                          >
+                            Report problem
+                          </Button>
+                        ) : null}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => onOpenRequest(job.id)}
+                        >
+                          Open
+                        </Button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </RecordDetailSection>
+        </>
       )}
     </RecordDetailPage>
   );
@@ -2156,12 +2426,16 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
   const driverIds = useMemo(() => drivers.map((d) => d.id), [drivers]);
   const selection = useListSelection(canBulkTrash ? driverIds : []);
 
+  const opsRequests = store.state.opsRequests;
   const jobs = useMemo(() => {
-    const all = listDriverTodayJobs(store.state, undefined);
-    return all.filter((r) => matchesSearch([r.number, r.title, r.destination, r.driverName, r.driverStatus], search));
-  }, [store.state.opsRequests, search]);
+    const all = listDriverTodayJobs({ opsRequests } as TlbState, undefined);
+    return all.filter((r) =>
+      matchesSearch([r.number, r.title, r.destination, r.driverName, r.driverStatus], search),
+    );
+  }, [opsRequests, search]);
 
-  const profileDriver = (store.state.opsDrivers ?? []).find((d) => d.id === profileDriverId) ?? null;
+  const profileDriver =
+    (store.state.opsDrivers ?? []).find((d) => d.id === profileDriverId) ?? null;
   const requestDetail = liveOpsRequests(store).find((r) => r.id === requestDetailId) ?? null;
 
   if (requestDetail) {
@@ -2194,7 +2468,9 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
         <div>
           <span className="tlb-eyebrow">Communication Hub</span>
           <strong>Drivers</strong>
-          <p className="tlb-muted-line">Roster and today&apos;s jobs — click a driver for full profile</p>
+          <p className="tlb-muted-line">
+            Roster and today&apos;s jobs — click a driver for full profile
+          </p>
         </div>
         <div className="tlb-toolbar-actions">
           <ModuleSearch value={search} onChange={setSearch} placeholder="Search drivers or jobs…" />
@@ -2231,13 +2507,23 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
             </label>
             <label>
               Vehicle / registration
-              <input value={vehicle} onChange={(e) => setVehicle(e.target.value)} placeholder="e.g. GN-4521-21" />
+              <input
+                value={vehicle}
+                onChange={(e) => setVehicle(e.target.value)}
+                placeholder="e.g. GN-4521-21"
+              />
             </label>
           </div>
           <Button
             type="button"
             onClick={() => {
-              const ok = store.saveOpsDriver({ code, name, phone, vehicle: vehicle || undefined, active: true });
+              const ok = store.saveOpsDriver({
+                code,
+                name,
+                phone,
+                vehicle: vehicle || undefined,
+                active: true,
+              });
               if (ok) {
                 setShowForm(false);
                 setCode("");
@@ -2340,7 +2626,9 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
                       <td>{d.phone}</td>
                       <td>{d.vehicle ?? "—"}</td>
                       <td>
-                        <StatusBadge tone={d.active ? "success" : "neutral"}>{d.active ? "Active" : "Off"}</StatusBadge>
+                        <StatusBadge tone={d.active ? "success" : "neutral"}>
+                          {d.active ? "Active" : "Off"}
+                        </StatusBadge>
                       </td>
                       <td>
                         <button
@@ -2355,7 +2643,10 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
                         </button>
                       </td>
                       {canBulkTrash ? (
-                        <td onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                        <td
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
                           <MoveToTrashButton
                             store={store}
                             entityType="ops_driver"
@@ -2381,17 +2672,28 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
 
       <div
         className="tlb-ops-driver-jobs"
-        style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}
+        style={{
+          display: "grid",
+          gap: 12,
+          gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+        }}
       >
         {jobs.length === 0 ? (
           <article className="tlb-panel" style={{ padding: 16 }}>
-            <EmptyState title="No jobs today" detail="Assigned collection and transit jobs will appear as cards." />
+            <EmptyState
+              title="No jobs today"
+              detail="Assigned collection and transit jobs will appear as cards."
+            />
           </article>
         ) : (
           jobs.map((job) => {
             const next = nextDriverAction(job.driverStatus);
             return (
-              <article key={job.id} className="tlb-panel" style={{ padding: 16, display: "grid", gap: 10 }}>
+              <article
+                key={job.id}
+                className="tlb-panel"
+                style={{ padding: 16, display: "grid", gap: 10 }}
+              >
                 <div>
                   <span className="tlb-eyebrow">{job.number}</span>
                   <strong style={{ display: "block" }}>{job.title}</strong>
@@ -2400,7 +2702,9 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
                 <div className="tlb-inline-actions">
                   <StatusBadge tone={opsStatusTone(job.status)}>{job.status}</StatusBadge>
                   {job.driverStatus ? (
-                    <StatusBadge tone={opsStatusTone(job.driverStatus)}>{job.driverStatus}</StatusBadge>
+                    <StatusBadge tone={opsStatusTone(job.driverStatus)}>
+                      {job.driverStatus}
+                    </StatusBadge>
                   ) : null}
                 </div>
                 <div className="tlb-inline-actions" style={{ flexWrap: "wrap" }}>
@@ -2410,7 +2714,11 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
                     </Button>
                   ) : null}
                   {job.driverStatus !== "Problem" && job.driverStatus !== "Delivered" ? (
-                    <Button type="button" variant="outline" onClick={() => store.advanceOpsDriver(job.id, "Problem", "Problem reported")}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => store.advanceOpsDriver(job.id, "Problem", "Problem reported")}
+                    >
                       Report problem
                     </Button>
                   ) : null}
@@ -2440,17 +2748,30 @@ export function OpsOutstandingModule({ store, onOpenRequest }: ModuleProps) {
   const [search, setSearch] = useState("");
   const [ageFilter, setAgeFilter] = useState<"all" | "0-2" | "3-7" | "8+">("all");
 
+  const opsRequests = store.state.opsRequests;
+  const opsRequestLines = store.state.opsRequestLines;
+  const products = store.state.products;
   const rows = useMemo(() => {
-    return listOutstandingOpsRows(store.state).filter((r) => {
-      if (ageFilter === "0-2" && r.ageDays > 2) return false;
-      if (ageFilter === "3-7" && (r.ageDays < 3 || r.ageDays > 7)) return false;
-      if (ageFilter === "8+" && r.ageDays < 8) return false;
-      return matchesSearch(
-        [r.requestNumber, r.productName, r.title, r.status, r.priority, r.outstandingQty, r.missingDiscrepancyQty],
-        search,
-      );
-    });
-  }, [store.state.opsRequests, store.state.opsRequestLines, search, ageFilter]);
+    return listOutstandingOpsRows({ opsRequests, opsRequestLines, products } as TlbState).filter(
+      (r) => {
+        if (ageFilter === "0-2" && r.ageDays > 2) return false;
+        if (ageFilter === "3-7" && (r.ageDays < 3 || r.ageDays > 7)) return false;
+        if (ageFilter === "8+" && r.ageDays < 8) return false;
+        return matchesSearch(
+          [
+            r.requestNumber,
+            r.productName,
+            r.title,
+            r.status,
+            r.priority,
+            r.outstandingQty,
+            r.missingDiscrepancyQty,
+          ],
+          search,
+        );
+      },
+    );
+  }, [opsRequests, opsRequestLines, products, search, ageFilter]);
 
   return (
     <div className="tlb-module">
@@ -2459,7 +2780,9 @@ export function OpsOutstandingModule({ store, onOpenRequest }: ModuleProps) {
         <div>
           <span className="tlb-eyebrow">Communication Hub</span>
           <strong>Outstanding Requests</strong>
-          <p className="tlb-muted-line">Warehouse shortage outstanding — separate from delivery missing</p>
+          <p className="tlb-muted-line">
+            Warehouse shortage outstanding — separate from delivery missing
+          </p>
         </div>
         <ModuleSearch value={search} onChange={setSearch} placeholder="Search outstanding…" />
       </div>
@@ -2486,7 +2809,10 @@ export function OpsOutstandingModule({ store, onOpenRequest }: ModuleProps) {
       </section>
       <article className="tlb-panel tlb-orders-panel">
         {rows.length === 0 ? (
-          <EmptyState title="No outstanding shortage" detail="Partial approvals leave shortage rows here until fulfilled." />
+          <EmptyState
+            title="No outstanding shortage"
+            detail="Partial approvals leave shortage rows here until fulfilled."
+          />
         ) : (
           <div className="tlb-table-scroll">
             <table>
@@ -2558,9 +2884,18 @@ export function OpsExceptionsModule({ store, onOpenRequest }: ModuleProps) {
       if (!showResolved && d.resolvedAt) return false;
       const req = store.state.opsRequests.find((r) => r.id === d.requestId);
       const product = store.state.products.find((p) => p.id === d.productId);
-      return matchesSearch([req?.number, product?.name, d.kind, d.quantity, d.notes, d.loggedBy], search);
+      return matchesSearch(
+        [req?.number, product?.name, d.kind, d.quantity, d.notes, d.loggedBy],
+        search,
+      );
     });
-  }, [store.state.opsDiscrepancies, store.state.opsRequests, store.state.products, search, showResolved]);
+  }, [
+    store.state.opsDiscrepancies,
+    store.state.opsRequests,
+    store.state.products,
+    search,
+    showResolved,
+  ]);
 
   return (
     <div className="tlb-module">
@@ -2569,7 +2904,9 @@ export function OpsExceptionsModule({ store, onOpenRequest }: ModuleProps) {
         <div>
           <span className="tlb-eyebrow">Communication Hub</span>
           <strong>Exceptions / Discrepancies</strong>
-          <p className="tlb-muted-line">Delivery missing, damaged, wrong, and rejected — not warehouse shortage</p>
+          <p className="tlb-muted-line">
+            Delivery missing, damaged, wrong, and rejected — not warehouse shortage
+          </p>
         </div>
         <div className="tlb-toolbar-actions">
           <ModuleSearch value={search} onChange={setSearch} placeholder="Search discrepancies…" />
@@ -2580,7 +2917,10 @@ export function OpsExceptionsModule({ store, onOpenRequest }: ModuleProps) {
       </div>
       <article className="tlb-panel tlb-orders-panel">
         {rows.length === 0 ? (
-          <EmptyState title="No discrepancies" detail="Receipt shortfalls and damages will log here." />
+          <EmptyState
+            title="No discrepancies"
+            detail="Receipt shortfalls and damages will log here."
+          />
         ) : (
           <div className="tlb-table-scroll">
             <table>
@@ -2643,7 +2983,10 @@ export function OpsMyActionsModule({
   const [search, setSearch] = useState("");
   const items = useMemo(() => {
     return buildMyOpsActions(store.state).filter((a) =>
-      matchesSearch([a.title, a.subtitle, a.requestNumber, a.kind, a.status, a.priority, a.nav], search),
+      matchesSearch(
+        [a.title, a.subtitle, a.requestNumber, a.kind, a.status, a.priority, a.nav],
+        search,
+      ),
     );
   }, [store.state, search]);
 
@@ -2660,7 +3003,10 @@ export function OpsMyActionsModule({
       </div>
       <article className="tlb-panel tlb-orders-panel">
         {items.length === 0 ? (
-          <EmptyState title="You're clear" detail="No acknowledge, approve, warehouse, drive, or receive tasks right now." />
+          <EmptyState
+            title="You're clear"
+            detail="No acknowledge, approve, warehouse, drive, or receive tasks right now."
+          />
         ) : (
           <div className="tlb-table-scroll">
             <table>
@@ -2715,7 +3061,8 @@ export function OpsMyActionsModule({
 /* ─── 8. Live Board ─── */
 
 export function OpsLiveBoardModule({ store, onOpenRequest }: ModuleProps) {
-  const columns = useMemo(() => opsKanbanColumns(store.state), [store.state.opsRequests]);
+  const opsRequests = store.state.opsRequests;
+  const columns = useMemo(() => opsKanbanColumns({ opsRequests } as TlbState), [opsRequests]);
 
   return (
     <div className="tlb-module">
@@ -2724,7 +3071,9 @@ export function OpsLiveBoardModule({ store, onOpenRequest }: ModuleProps) {
         <div>
           <span className="tlb-eyebrow">Communication Hub</span>
           <strong>Live Operations Board</strong>
-          <p className="tlb-muted-line">Kanban across submit → approve → prepare → transit → delivered</p>
+          <p className="tlb-muted-line">
+            Kanban across submit → approve → prepare → transit → delivered
+          </p>
         </div>
       </div>
       <div
@@ -2756,7 +3105,8 @@ export function OpsLiveBoardModule({ store, onOpenRequest }: ModuleProps) {
                     style={{
                       padding: 10,
                       textAlign: "left",
-                      border: "1px solid color-mix(in oklab, var(--tlb-purple, #803EEA) 18%, transparent)",
+                      border:
+                        "1px solid color-mix(in oklab, var(--tlb-purple, #803EEA) 18%, transparent)",
                       background: "color-mix(in oklab, var(--tlb-gold, #FFDC7A) 8%, transparent)",
                       cursor: "pointer",
                     }}

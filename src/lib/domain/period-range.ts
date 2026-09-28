@@ -24,6 +24,15 @@ export type DashboardRangeSelection =
 /** Demo clock aligned with seed data (2026-09-09). */
 export const DEMO_AS_OF = "2026-09-09T12:00:00.000";
 
+/**
+ * Live period anchor. Seed metrics stay on the demo clock until wall time passes it,
+ * then Today / This Week include records just created.
+ */
+export function livePeriodAsOf(now: Date = new Date()): string {
+  const nowIso = now.toISOString();
+  return nowIso > DEMO_AS_OF ? nowIso : DEMO_AS_OF;
+}
+
 function pad(n: number): string {
   return String(n).padStart(2, "0");
 }
@@ -88,7 +97,10 @@ export function endOfYear(d: Date): Date {
   return new Date(d.getFullYear(), 11, 31, 23, 59, 59, 999);
 }
 
-export function getPeriodRange(period: DashboardPeriod, asOf: Date | string = DEMO_AS_OF): DateRange {
+export function getPeriodRange(
+  period: DashboardPeriod,
+  asOf: Date | string = DEMO_AS_OF,
+): DateRange {
   const d = typeof asOf === "string" ? new Date(asOf) : asOf;
   switch (period) {
     case "Today":

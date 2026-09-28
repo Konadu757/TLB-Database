@@ -11,13 +11,8 @@ import {
 } from "@/components/modules/list-bulk-trash";
 import { TrashConfirmDialog } from "@/components/modules/trash-confirm-dialog";
 import { Button } from "@/components/ui/button";
-import {
-  listVisibleNotifications,
-} from "@/lib/domain/notifications";
-import {
-  canManageAllNotifications,
-  resolveRole,
-} from "@/lib/domain/permissions";
+import { listVisibleNotifications } from "@/lib/domain/notifications";
+import { canManageAllNotifications, resolveRole } from "@/lib/domain/permissions";
 import type { AppNotification } from "@/lib/domain/types";
 import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
 
@@ -66,8 +61,10 @@ function relatedLabel(n: AppNotification): string {
 }
 
 function alertTone(type: string): string {
-  if (type.includes("overdue") || type.includes("extended") || type.includes("exception")) return "danger";
-  if (type.includes("approaching") || type.includes("partial") || type.includes("shortage")) return "warning";
+  if (type.includes("overdue") || type.includes("extended") || type.includes("exception"))
+    return "danger";
+  if (type.includes("approaching") || type.includes("partial") || type.includes("shortage"))
+    return "warning";
   return "info";
 }
 
@@ -135,13 +132,25 @@ export function NotificationsModule({
           >
             <Trash2 /> Move to Trash selected
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => store.refreshNotifications()}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => store.refreshNotifications()}
+          >
             <Bell /> Refresh
           </Button>
         </div>
       </div>
 
-      <div className="tlb-split-panels" style={{ display: "grid", gap: "1rem", gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)" }}>
+      <div
+        className="tlb-split-panels"
+        style={{
+          display: "grid",
+          gap: "1rem",
+          gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)",
+        }}
+      >
         <article className="tlb-panel tlb-orders-panel">
           <div className="tlb-table-scroll">
             {visible.length === 0 ? (
@@ -190,7 +199,10 @@ export function NotificationsModule({
                         <div className="tlb-muted">{n.body}</div>
                       </td>
                       <td>
-                        <span className={`tlb-alert-dot tlb-alert-${alertTone(n.type)}`} aria-hidden />{" "}
+                        <span
+                          className={`tlb-alert-dot tlb-alert-${alertTone(n.type)}`}
+                          aria-hidden
+                        />{" "}
                         {n.type}
                       </td>
                       <td>{formatWhen(n.createdAt)}</td>
@@ -258,22 +270,42 @@ export function NotificationsModule({
                   </dd>
                 </div>
               </dl>
-              <div className="tlb-toolbar-actions" style={{ marginTop: "1rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+              <div
+                className="tlb-toolbar-actions"
+                style={{ marginTop: "1rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}
+              >
                 {!selected.readAt ? (
-                  <Button type="button" size="sm" onClick={() => store.readNotification(selected.id)}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => store.readNotification(selected.id)}
+                  >
                     Mark as read
                   </Button>
                 ) : null}
-                <Button type="button" size="sm" variant="outline" onClick={() => onOpenRelated(selected)}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onOpenRelated(selected)}
+                >
                   Open related
                 </Button>
-                <Button type="button" size="sm" variant="outline" onClick={() => setDeleteIds([selected.id])}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setDeleteIds([selected.id])}
+                >
                   <Trash2 /> Move to Trash
                 </Button>
               </div>
             </>
           ) : (
-            <EmptyState title="Select a notification" detail="Click a row to see full detail and actions." />
+            <EmptyState
+              title="Select a notification"
+              detail="Click a row to see full detail and actions."
+            />
           )}
         </article>
       </div>
@@ -283,7 +315,7 @@ export function NotificationsModule({
         mode="trash"
         recordLabel={
           deleteIds?.length === 1
-            ? visible.find((n) => n.id === deleteIds[0])?.title ?? "notification"
+            ? (visible.find((n) => n.id === deleteIds[0])?.title ?? "notification")
             : `${deleteIds?.length ?? 0} selected notifications`
         }
         {...(deleteIds && deleteIds.length > 1 ? { count: deleteIds.length } : {})}
