@@ -311,6 +311,9 @@ function StatusBadge({ children, tone }: { children: React.ReactNode; tone: stri
   return <span className={`status-badge status-${tone}`}>{children}</span>;
 }
 
+const WAREHOUSE_FILTERS = ["All warehouses", "Main Warehouse", "Factory Store"] as const;
+type WarehouseFilter = (typeof WAREHOUSE_FILTERS)[number];
+
 export function TLBDashboard() {
   return (
     <DetailBackProvider>
@@ -329,7 +332,8 @@ function TLBDashboardInner() {
     mode: "preset",
     period: "This Month",
   });
-  const [warehouse, setWarehouse] = useState("All warehouses");
+  const [warehouse, setWarehouse] = useState<WarehouseFilter>("All warehouses");
+  const [warehouseOpen, setWarehouseOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
@@ -493,6 +497,7 @@ function TLBDashboardInner() {
     setNotificationsOpen(false);
     setQuickOpen(false);
     setUserOpen(false);
+    setWarehouseOpen(false);
   };
 
   const openOrderDetail = (orderId: string, returnNav?: string) => {
@@ -631,6 +636,7 @@ function TLBDashboardInner() {
     setNotificationsOpen(false);
     setQuickOpen(false);
     setUserOpen(false);
+    setWarehouseOpen(false);
     window.setTimeout(() => searchInputRef.current?.focus(), 0);
   };
 
@@ -722,6 +728,7 @@ function TLBDashboardInner() {
         setNotificationsOpen(false);
         setQuickOpen(false);
         setUserOpen(false);
+        setWarehouseOpen(false);
         setMobileOpen(false);
         setInspector(null);
       }
@@ -734,9 +741,10 @@ function TLBDashboardInner() {
   const notificationsWrapRef = useRef<HTMLDivElement | null>(null);
   const quickWrapRef = useRef<HTMLDivElement | null>(null);
   const userWrapRef = useRef<HTMLDivElement | null>(null);
+  const warehouseWrapRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!notificationsOpen && !quickOpen && !userOpen && !searchOpen) return;
+    if (!notificationsOpen && !quickOpen && !userOpen && !searchOpen && !warehouseOpen) return;
     if (typeof document === "undefined") return;
 
     const onMouseDown = (event: MouseEvent) => {
@@ -747,16 +755,25 @@ function TLBDashboardInner() {
       if (notificationsOpen && notificationsWrapRef.current?.contains(target)) return;
       if (quickOpen && quickWrapRef.current?.contains(target)) return;
       if (userOpen && userWrapRef.current?.contains(target)) return;
+      if (warehouseOpen && warehouseWrapRef.current?.contains(target)) return;
 
       if (searchOpen) closeHeaderSearch({ blur: false });
       setNotificationsOpen(false);
       setQuickOpen(false);
       setUserOpen(false);
+      setWarehouseOpen(false);
     };
 
     document.addEventListener("mousedown", onMouseDown);
     return () => document.removeEventListener("mousedown", onMouseDown);
-  }, [notificationsOpen, quickOpen, userOpen, searchOpen]);
+  }, [notificationsOpen, quickOpen, userOpen, searchOpen, warehouseOpen]);
+
+  useEffect(() => {
+    if (!warehouseOpen) return;
+    warehouseWrapRef.current
+      ?.querySelector<HTMLButtonElement>('[role="option"][aria-selected="true"]')
+      ?.focus();
+  }, [warehouseOpen, warehouse]);
 
   const dash = useMemo(
     () => buildDashboardSnapshot(store.state, rangeSelection, warehouse, livePeriodAsOf()),
@@ -923,6 +940,7 @@ function TLBDashboardInner() {
                     setNotificationsOpen(false);
                     setQuickOpen(false);
                     setUserOpen(false);
+                    setWarehouseOpen(false);
                   }}
                   onKeyDown={(event) => {
                     if (event.key === "Escape") {
@@ -1255,19 +1273,76 @@ function TLBDashboardInner() {
                   </button>
                 ))}
               </div>
-              <label className="tlb-select">
-                <Warehouse />
-                <select
-                  value={warehouse}
-                  onChange={(event) => setWarehouse(event.target.value)}
+              <div
+                className="tlb-select tlb-warehouse-select"
+                ref={warehouseWrapRef}
+                data-open={warehouseOpen ? "true" : "false"}
+              >
+                <button
+                  type="button"
+                  className="tlb-warehouse-trigger"
+                  aria-haspopup="listbox"
+                  aria-expanded={warehouseOpen}
+                  aria-controls="tlb-warehouse-menu"
                   aria-label="Warehouse"
+                  onClick={() => {
+                    setWarehouseOpen((open) => !open);
+                    setNotificationsOpen(false);
+                    setQuickOpen(false);
+                    setUserOpen(false);
+                    if (searchOpen) closeHeaderSearch({ blur: false });
+                  }}
                 >
-                  <option>All warehouses</option>
-                  <option>Main Warehouse</option>
-                  <option>Factory Store</option>
-                </select>
-                <ChevronDown />
-              </label>
+                  <Warehouse aria-hidden="true" />
+                  <span>{warehouse}</span>
+                  <ChevronDown className="tlb-warehouse-chevron" aria-hidden="true" />
+                </button>
+                {warehouseOpen && (
+                  <div
+                    id="tlb-warehouse-menu"
+                    className="tlb-warehouse-menu"
+                    role="listbox"
+                    aria-label="Warehouse"
+                    onKeyDown={(event) => {
+                      const index = WAREHOUSE_FILTERS.indexOf(warehouse);
+                      if (event.key === "ArrowDown") {
+                        event.preventDefault();
+                        setWarehouse(
+                          WAREHOUSE_FILTERS[Math.min(index + 1, WAREHOUSE_FILTERS.length - 1)]!,
+                        );
+                      } else if (event.key === "ArrowUp") {
+                        event.preventDefault();
+                        setWarehouse(WAREHOUSE_FILTERS[Math.max(index - 1, 0)]!);
+                      } else if (event.key === "Home") {
+                        event.preventDefault();
+                        setWarehouse(WAREHOUSE_FILTERS[0]);
+                      } else if (event.key === "End") {
+                        event.preventDefault();
+                        setWarehouse(WAREHOUSE_FILTERS[WAREHOUSE_FILTERS.length - 1]!);
+                      } else if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setWarehouseOpen(false);
+                      }
+                    }}
+                  >
+                    {WAREHOUSE_FILTERS.map((option) => (
+                      <button
+                        type="button"
+                        role="option"
+                        key={option}
+                        aria-selected={warehouse === option}
+                        className={warehouse === option ? "is-selected" : undefined}
+                        onClick={() => {
+                          setWarehouse(option);
+                          setWarehouseOpen(false);
+                        }}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </section>
           )}
 
@@ -1538,7 +1613,7 @@ function TLBDashboardInner() {
               <SettingsModule store={store} />
             ) : null
           ) : (
-            <div className="tlb-dashboard-home">
+            <>
               <section
                 className="tlb-overview-section"
                 aria-labelledby="tlb-business-overview-heading"
@@ -1970,7 +2045,7 @@ function TLBDashboardInner() {
                   </article>
                 </div>
               </section>
-            </div>
+            </>
           )}
         </main>
       </div>
