@@ -2145,3 +2145,175 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
     transform: translateY(0);
   }
 }
+
+/* Dashboard home cards: center title, value, and supporting text. */
+.tlb-dashboard-home {
+  display: contents;
+}
+
+.tlb-dashboard-home .tlb-metric {
+  align-items: center;
+  text-align: center;
+}
+
+.tlb-dashboard-home .tlb-metric-label,
+.tlb-dashboard-home .tlb-metric-value,
+.tlb-dashboard-home .tlb-metric-progress,
+.tlb-dashboard-home .tlb-metric > p {
+  align-self: stretch;
+}
+
+.tlb-dashboard-home .tlb-metric-label {
+  justify-content: center;
+}
+
+.tlb-dashboard-home .tlb-metric-title {
+  flex: 0 1 auto;
+  text-align: center;
+}
+
+.tlb-dashboard-home .tlb-metric-value {
+  text-align: center;
+}
+
+.tlb-dashboard-home .tlb-metric > p {
+  justify-content: center;
+  text-align: center;
+}
+
+.tlb-dashboard-home .tlb-due-panel--summary {
+  align-items: center;
+  text-align: center;
+}
+
+.tlb-dashboard-home .tlb-due-panel-title {
+  width: 100%;
+  text-align: center;
+}
+
+.tlb-dashboard-home .tlb-due-panel-body {
+  justify-content: center;
+}
+
+.tlb-dashboard-home .tlb-due-panel-summary {
+  flex: 0 1 auto;
+  text-align: center;
+}
+
+.tlb-dashboard-home .tlb-panel-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+}
+
+.tlb-dashboard-home .tlb-panel-heading > div {
+  grid-column: 2;
+  align-items: center;
+  text-align: center;
+}
+
+.tlb-dashboard-home .tlb-panel-heading > button,
+.tlb-dashboard-home .tlb-panel-heading > .status-badge {
+  grid-column: 3;
+  justify-self: end;
+}
+
+.tlb-dashboard-home .tlb-inventory-value {
+  justify-content: center;
+  gap: 14px;
+}
+
+.tlb-dashboard-home .tlb-inventory-value > div {
+  align-items: center;
+  text-align: center;
+}
+
+.tlb-dashboard-home .tlb-stock-list > div > div:first-child {
+  justify-content: center;
+  gap: 10px;
+}
+
+.tlb-dashboard-home .tlb-stock-summary > div {
+  align-items: center;
+  text-align: center;
+}
+
+.tlb-dashboard-home .tlb-chart-footer {
+  justify-content: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.tlb-dashboard-home .tlb-receivable-legend {
+  justify-items: center;
+}
+
+.tlb-dashboard-home .tlb-receivable-legend span {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.tlb-dashboard-home .tlb-alert-row {
+  grid-template-columns: minmax(30px, 1fr) minmax(0, max-content) minmax(16px, 1fr);
+  text-align: center;
+}
+
+.tlb-dashboard-home .tlb-alert-icon {
+  justify-self: end;
+}
+
+.tlb-dashboard-home .tlb-alert-row > span:nth-child(2) {
+  align-items: center;
+  text-align: center;
+}
+
+.tlb-dashboard-home .tlb-alert-row > svg {
+  justify-self: start;
+}
+
+.tlb-dashboard-home .tlb-operation-row {
+  grid-template-columns: minmax(34px, 1fr) minmax(0, max-content) minmax(130px, 1fr);
+  text-align: center;
+}
+
+.tlb-dashboard-home .tlb-operation-icon {
+  justify-self: end;
+}
+
+.tlb-dashboard-home .tlb-operation-row > div:nth-child(2) {
+  align-items: center;
+  text-align: center;
+}
+
+.tlb-dashboard-home .tlb-operation-progress {
+  justify-self: start;
+}
+
+.tlb-dashboard-home .tlb-operation-progress small {
+  text-align: center;
+}
+
+.tlb-dashboard-home .tlb-panel th,
+.tlb-dashboard-home .tlb-panel td {
+  text-align: center;
+}
+
+.tlb-dashboard-home .tlb-muted-line {
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .tlb-dashboard-home .tlb-operation-row {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .tlb-dashboard-home .tlb-operation-icon {
+    justify-self: center;
+  }
+
+  .tlb-dashboard-home .tlb-operation-progress {
+    grid-column: 2;
+    justify-self: stretch;
+  }
+}

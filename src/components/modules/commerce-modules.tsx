@@ -27,13 +27,7 @@ import type {
   TlbState,
 } from "@/lib/domain/types";
 import { getRelatedRecords } from "@/lib/domain/notifications";
-import {
-  type DashboardRangeSelection,
-  DEMO_AS_OF,
-  isoInRange,
-  resolveSelectionRange,
-  selectionLabel,
-} from "@/lib/domain/period-range";
+import { isoInRange } from "@/lib/domain/period-range";
 import { buildSearchIndex, searchDocuments } from "@/lib/domain/search";
 import {
   countOutstandingOrdersForProduct,
@@ -1373,9 +1367,6 @@ export function SalesOrdersModule({
               onDone={selection.clear}
             />
           ) : null}
-          <Button type="button" variant="outline" onClick={store.resetDemo}>
-            Reset Phase 30 demo
-          </Button>
           <Button type="button" onClick={() => setCreating((v) => !v)}>
             <Plus /> New order
           </Button>
@@ -2692,31 +2683,28 @@ export function LiveSearchResults({
   const openHit = (hit: SearchHit) => openSearchHit(hit, { onOpenOrder, onOpenNav });
 
   if (!query.trim()) {
+    const featuredOrder =
+      store.state.orders.find((o) => o.id === "ord-phase30" && !isSoftDeleted(o)) ??
+      notSoftDeleted(store.state.orders)[0];
+    const shortcuts: { label: string; onOpen: () => void }[] = [
+      { label: "Chemical A · CHEM-A", onOpen: () => onOpenNav("Stock") },
+      {
+        label: featuredOrder?.number ?? "Sales Orders",
+        onOpen: () => (featuredOrder ? onOpenOrder(featuredOrder.id) : onOpenNav("Sales Orders")),
+      },
+      { label: "Outstanding Supplies", onOpen: () => onOpenNav("Outstanding Supplies") },
+      { label: "Invoices", onOpen: () => onOpenNav("Invoices") },
+    ];
     return (
       <>
         <p>QUICK ACCESS</p>
-        {["Chemical A · CHEM-A", "TLB-ORD Phase 30 order", "Outstanding Supplies", "Invoices"].map(
-          (label) => (
-            <button
-              type="button"
-              role="option"
-              key={label}
-              onClick={() => {
-                if (label.includes("Outstanding")) onOpenNav("Outstanding Supplies");
-                else if (label.includes("Invoice")) onOpenNav("Invoices");
-                else if (label.includes("ORD")) {
-                  const order = store.state.orders.find((o) => o.id === "ord-phase30");
-                  if (order) onOpenOrder(order.id);
-                  else onOpenNav("Sales Orders");
-                } else onOpenNav("Stock");
-              }}
-            >
-              <PackageSearch />
-              <span>{label}</span>
-              <ChevronRight />
-            </button>
-          ),
-        )}
+        {shortcuts.map((item) => (
+          <button type="button" role="option" key={item.label} onClick={item.onOpen}>
+            <PackageSearch />
+            <span>{item.label}</span>
+            <ChevronRight />
+          </button>
+        ))}
       </>
     );
   }

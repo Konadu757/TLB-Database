@@ -33,7 +33,6 @@ import {
   refreshOpsNotifications,
   releaseReservation,
   reserveForOutstanding,
-  resetToSeed,
   restoreTrashItem,
   softDeleteRecord,
   acceptInvite,
@@ -275,17 +274,6 @@ export function useTlbStore() {
     },
     outstanding,
     can: (permission: Permission) => canPerm(state, permission),
-    resetDemo: () => {
-      const seed = resetToSeed();
-      skipNextPersist.current = false;
-      setState(seed);
-      setNotice(
-        repo.backend === "supabase"
-          ? "Demo reset locally — next save will upsert seed into Supabase (does not truncate other rows first)."
-          : "Demo reset to Phase 30 Chemical A/B starting stock.",
-      );
-      setError(null);
-    },
     saveCustomer: (input: Parameters<typeof upsertCustomer>[1]) =>
       apply((s) => upsertCustomer(s, input), "Customer saved."),
     saveSupplier: (input: Parameters<typeof upsertSupplier>[1]) =>

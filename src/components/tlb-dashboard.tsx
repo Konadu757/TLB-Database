@@ -30,7 +30,6 @@ import {
   PanelLeftOpen,
   Plus,
   Receipt,
-  RotateCcw,
   Route,
   Search,
   Settings,
@@ -267,10 +266,6 @@ const quickActionGroups: { label: string; items: QuickActionItem[] }[] = [
       { label: "Receive goods", hint: "Stock", icon: Boxes },
       { label: "View outstanding supplies", hint: "Outstanding supplies", icon: PackageCheck },
     ],
-  },
-  {
-    label: "Workspace",
-    items: [{ label: "Reset Phase 30 demo", hint: "Sample data", icon: RotateCcw }],
   },
 ];
 
@@ -1221,7 +1216,6 @@ function TLBDashboardInner() {
                                     openLiveModule("Outstanding Supplies");
                                   else if (action.label === "Create invoice")
                                     openLiveModule("Invoices");
-                                  else store.resetDemo();
                                 }}
                               >
                                 <span className="tlb-quick-actions-icon" aria-hidden="true">
@@ -1544,7 +1538,7 @@ function TLBDashboardInner() {
               <SettingsModule store={store} />
             ) : null
           ) : (
-            <>
+            <div className="tlb-dashboard-home">
               <section
                 className="tlb-overview-section"
                 aria-labelledby="tlb-business-overview-heading"
@@ -1976,7 +1970,7 @@ function TLBDashboardInner() {
                   </article>
                 </div>
               </section>
-            </>
+            </div>
           )}
         </main>
       </div>

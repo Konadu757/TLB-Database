@@ -21,8 +21,8 @@ import { isSoftDeleted, notSoftDeleted } from "@/lib/domain/trash";
 import type { PaymentTerms, Supplier, SupplierCategory } from "@/lib/domain/types";
 import {
   type DashboardRangeSelection,
-  DEMO_AS_OF,
   isoInRange,
+  livePeriodAsOf,
   resolveSelectionRange,
   selectionLabel,
 } from "@/lib/domain/period-range";
@@ -194,7 +194,7 @@ export function SuppliersModule({
   const [search, setSearch] = useState("");
   const [form, setForm] = useState(emptySupplierForm);
 
-  const range = useMemo(() => resolveSelectionRange(rangeSelection, DEMO_AS_OF), [rangeSelection]);
+  const range = useMemo(() => resolveSelectionRange(rangeSelection, livePeriodAsOf()), [rangeSelection]);
   const periodLabel = selectionLabel(rangeSelection);
 
   const periodStatsBySupplier = useMemo(() => {
@@ -537,7 +537,7 @@ function SupplierDetailModule({
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(emptySupplierForm);
 
-  const range = useMemo(() => resolveSelectionRange(rangeSelection, DEMO_AS_OF), [rangeSelection]);
+  const range = useMemo(() => resolveSelectionRange(rangeSelection, livePeriodAsOf()), [rangeSelection]);
   const periodLabel = selectionLabel(rangeSelection);
 
   useEffect(() => {

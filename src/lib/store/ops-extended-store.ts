@@ -88,7 +88,7 @@ function requestApproval(
     requestedBy: state.currentUser,
     decidedAt: input.autoApprove ? now : undefined,
     decidedBy: input.autoApprove ? state.currentUser : undefined,
-    decisionNote: input.autoApprove ? "Auto-approved for demo accountability trail." : undefined,
+    decisionNote: input.autoApprove ? "Auto-approved." : undefined,
   });
   pushAudit(state, {
     action: "approval.requested",
