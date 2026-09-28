@@ -106,8 +106,8 @@
   --card-foreground: oklch(0.26 0.065 296);
   --popover: var(--cream);
   --popover-foreground: oklch(0.26 0.065 296);
-  /* Very bright brand purple, same hue (was oklch 0.48 / 0.20). L 0.56 keeps text on white near 5:1. */
-  --primary: oklch(0.56 0.23 296);
+  /* Deep vivid brand purple (was the lighter oklch 0.56 / #8149E9). White labels stay readable. */
+  --primary: oklch(0.446 0.235 292);
   --primary-foreground: oklch(0.995 0.02 95);
   --secondary: oklch(0.965 0.07 92);
   --secondary-foreground: oklch(0.40 0.18 296);
@@ -120,20 +120,20 @@
   --destructive-foreground: oklch(0.99 0.01 95);
   --border: oklch(0.90 0.05 92);
   --input: oklch(0.90 0.05 92);
-  --ring: oklch(0.56 0.23 296);
-  --chart-1: oklch(0.56 0.23 296);
+  --ring: oklch(0.446 0.235 292);
+  --chart-1: oklch(0.446 0.235 292);
   --chart-2: oklch(0.92 0.13 82);
   --chart-3: oklch(0.66 0.18 296);
   --chart-4: oklch(0.62 0.20 150);
   --chart-5: oklch(0.74 0.15 85);
-  /* Bright sidebar purple — same hue 296, higher lightness and chroma */
-  --sidebar: oklch(0.56 0.22 296);
+  /* Sidebar fill matches the deep vivid brand purple, not the previous light lift */
+  --sidebar: oklch(0.446 0.235 292);
   --sidebar-foreground: oklch(0.98 0.02 95);
   --sidebar-primary: oklch(0.92 0.13 82);
   --sidebar-primary-foreground: oklch(0.26 0.065 296);
-  --sidebar-accent: oklch(0.66 0.18 296);
+  --sidebar-accent: oklch(0.52 0.20 292);
   --sidebar-accent-foreground: oklch(0.995 0.02 95);
-  --sidebar-border: oklch(0.68 0.14 296);
+  --sidebar-border: oklch(0.50 0.16 292);
   --sidebar-ring: oklch(0.92 0.13 82);
   --brand-gold: oklch(0.92 0.13 82);
   --brand-gold-muted: oklch(0.96 0.08 82);
@@ -144,7 +144,7 @@
   --warning-foreground: oklch(0.42 0.12 70);
   --danger: oklch(0.58 0.24 28);
   --danger-muted: oklch(0.96 0.07 25);
-  --info: oklch(0.56 0.21 296);
+  --info: oklch(0.446 0.235 292);
   --info-muted: oklch(0.95 0.075 296);
   /* Shared elevation ? readable on cream/white cards (avoid neon/purple glow) */
   --tlb-shadow: 0 4px 16px color-mix(in oklab, var(--foreground) 10%, transparent);
@@ -269,8 +269,8 @@ table.tlb-table,
   /* Fresher lilac canvas (was muddy #F4F3F8) */
   --tlb-chrome-canvas: #F6F4FC;
   --tlb-header-h: 64px;
-  /* Same hues as #5E3F9A / #FFD45E, lifted much brighter */
-  --tlb-purple: #8149E9;
+  /* Deep vivid violet; gold stays bright */
+  --tlb-purple: #6016C7;
   --tlb-gold: #FFDC7A;
   --tlb-surface-soft: #F3F0FA;
 }
@@ -350,9 +350,9 @@ table.tlb-table,
   overflow-y: auto;
   padding: 13px 10px;
   padding-bottom: 25px;
-  /* Custom thin scrollbar ? light brand purple (var(--tlb-purple) family) */
+  /* Thin scrollbar in the brand purple family */
   scrollbar-width: thin;
-  scrollbar-color: #D4C4F8 color-mix(in oklab, var(--tlb-purple) 22%, transparent);
+  scrollbar-color: color-mix(in oklab, #ffffff 68%, var(--tlb-purple)) color-mix(in oklab, var(--tlb-purple) 22%, transparent);
 }
 .tlb-nav::-webkit-scrollbar {
   width: 7px;
@@ -362,11 +362,11 @@ table.tlb-table,
   border-radius: 999px;
 }
 .tlb-nav::-webkit-scrollbar-thumb {
-  background: #D4C4F8;
+  background: color-mix(in oklab, #ffffff 68%, var(--tlb-purple));
   border-radius: 999px;
 }
 .tlb-nav::-webkit-scrollbar-thumb:hover {
-  background: #E0D2FC;
+  background: color-mix(in oklab, #ffffff 80%, var(--tlb-purple));
 }
 .tlb-nav-group + .tlb-nav-group { margin-top: 8px; }
 .tlb-nav-group-toggle {
