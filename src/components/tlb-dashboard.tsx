@@ -274,52 +274,6 @@ const PERIOD_SCOPED_NAV = new Set([
   "Stock Ageing",
 ]);
 
-const MODULE_BLURBS: Record<string, string> = {
-  Customers: "Customer accounts with credit, terms, TIN, and transaction history.",
-  Suppliers: "Approved suppliers with period-scoped purchase orders, receipts, and spend.",
-  Quotations: "Commercial quotations — click a row for full detail; period filters quote dates.",
-  "Sales Orders": "Customer purchase orders with partial supply and fulfilment history.",
-  "Outstanding Supplies": "Open ordered quantities that still need supply — never silently cleared.",
-  Products: "Finished goods and raw chemicals in the product master.",
-  Stock: "Physical, reserved, available, damaged, and outstanding demand links.",
-  Batches: "Live lots with remaining qty, expiry alerts, and recall timelines.",
-  Warehouses: "Storage locations with live stock balances from the product master.",
-  "Goods In": "GRN goods receipts — PO / Non-PO with accepted, rejected, and damaged qty.",
-  "Goods Out": "Stock issues with reasons and FEFO/FIFO batch picks.",
-  Returns: "Customer and supplier returns with disposition and ledger movements.",
-  Transfers: "Warehouse transfers — destination stock only on receive confirmation.",
-  Adjustments: "Counts and variances with approval when over threshold.",
-  "Stock Movements": "Immutable ledger — receipts, issues, transfers, adjustments, returns.",
-  "Stock Ageing": "Batch age bands and fast / slow / dead velocity.",
-  "Trace Product": "Clickable product timeline from supplier through customer payment.",
-  Procurement: "Purchase orders awaiting receipt or approval — filtered by order date.",
-  "Non-PO Purchases": "Non-PO request → approval → GRN goods-in workflow.",
-  "Import & Export": "Import/export shipment tracking with clearance and GRN links.",
-  Factory: "Production orders on the factory floor — filtered by run date.",
-  "Quality Control": "Laboratory holds and releases — filtered by QC event date.",
-  Deliveries: "Deliveries linked to supplies — order stays open while outstanding remains.",
-  "My Actions": "Role-aware ops tasks — acknowledge, approve, prepare, drive, receive.",
-  Requests: "Operations requests from draft through delivery with line-level shortage tracking.",
-  "Warehouse Actions": "Review availability, prepare picks, ready for collection, and release goods.",
-  Dispatch: "Assign drivers to release-ready and in-transit ops requests.",
-  Drivers: "Driver roster and today's jobs with mobile-friendly status actions.",
-  "Outstanding Requests": "Warehouse shortage outstanding — kept separate from delivery missing.",
-  "Exceptions / Discrepancies": "Delivery missing, damaged, wrong, and rejected exceptions.",
-  "Live Operations Board": "Kanban board across submit → approve → prepare → transit → delivered.",
-  Notifications: "All alerts with full detail — mark read, delete, and open linked records.",
-  Finance: "VAT invoices, ordinary receipts (TLB-RCT), and payments.",
-  Invoices: "VAT invoices (TLB-INV) generated from posted sales supplies.",
-  Receipts: "Ordinary receipts (TLB-RCT) from supplied quantities and payments.",
-  "Accounts Receivable": "Customer invoice ageing 0–30 / 31–60 / 61–90 / 90+.",
-  "Accounts Payable": "Supplier PO balances ageing by due date.",
-  Approvals: "Credit overrides, Non-PO, adjustments, transfers, ops requests, and high-value checks.",
-  "Ask TLB": "Structured BI question presets over live store records.",
-  Reports: "Deep operational reports with filters and CSV export.",
-  "Audit Log": "Append-only audit trail — users cannot delete history.",
-  Trash: "Soft-deleted records — restore or permanently delete with confirmation.",
-  Settings: "Company letterhead, configurable VAT rates, roles, and reminder thresholds.",
-};
-
 type Inspector = { title: string; kicker: string; lines: string[] };
 
 function HeaderDetailBack() {
@@ -1115,16 +1069,10 @@ function TLBDashboardInner() {
         </header>
 
         <main className={cn("tlb-content", detailOpen && "tlb-content--detail-open", overlayOpen && "tlb-content--overlay-open")}>
-          {activeNav !== "Dashboard" && (
-            <div className="tlb-breadcrumb"><span>TLB Enterprise</span><ChevronRight /><span>{activeNav}</span></div>
-          )}
           {!detailOpen && (
           <div className={cn("tlb-page-heading", quickOpen && "tlb-page-heading--overlay-open")}>
             <div>
               <h1 className={cn(activeNav === "Dashboard" && "tlb-dashboard-title")}>{activeNav === "Dashboard" ? "Dashboard" : activeNav}</h1>
-              {activeNav !== "Dashboard" && (
-                <p>{MODULE_BLURBS[activeNav] ?? "Operational records for this module."}</p>
-              )}
             </div>
             <div className="tlb-heading-actions">
               <div className="tlb-popover-wrap" ref={quickWrapRef}>
