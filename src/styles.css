@@ -658,6 +658,10 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   letter-spacing: -0.02em;
   color: #1f1630;
 }
+/* Dashboard home title only — 1.8rem = 27px at the 15px root (old 1.5rem × 18px). */
+.tlb-page-heading h1.tlb-dashboard-title {
+  font-size: 1.8rem;
+}
 .tlb-page-heading p:last-child { margin: 7px 0 0; color: var(--muted-foreground); font-size: 0.875rem; }
 /* Detail views: drop the bulky module title so Back sits near the top under sticky chrome. */
 .tlb-content:has(.tlb-record-detail-page) .tlb-page-heading,

@@ -1121,7 +1121,7 @@ function TLBDashboardInner() {
           {!detailOpen && (
           <div className={cn("tlb-page-heading", quickOpen && "tlb-page-heading--overlay-open")}>
             <div>
-              <h1>{activeNav === "Dashboard" ? "Dashboard" : activeNav}</h1>
+              <h1 className={cn(activeNav === "Dashboard" && "tlb-dashboard-title")}>{activeNav === "Dashboard" ? "Dashboard" : activeNav}</h1>
               {activeNav !== "Dashboard" && (
                 <p>{MODULE_BLURBS[activeNav] ?? "Operational records for this module."}</p>
               )}
