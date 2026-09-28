@@ -1115,7 +1115,9 @@ function TLBDashboardInner() {
         </header>
 
         <main className={cn("tlb-content", detailOpen && "tlb-content--detail-open", overlayOpen && "tlb-content--overlay-open")}>
-          <div className="tlb-breadcrumb"><span>TLB Enterprise</span><ChevronRight /><span>{activeNav === "Dashboard" ? "Executive Dashboard" : activeNav}</span></div>
+          {activeNav !== "Dashboard" && (
+            <div className="tlb-breadcrumb"><span>TLB Enterprise</span><ChevronRight /><span>{activeNav}</span></div>
+          )}
           {!detailOpen && (
           <div className={cn("tlb-page-heading", quickOpen && "tlb-page-heading--overlay-open")}>
             <div>
