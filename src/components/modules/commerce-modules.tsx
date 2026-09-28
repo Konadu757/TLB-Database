@@ -1238,7 +1238,6 @@ export function SalesOrdersModule({
         <div>
           <span className="tlb-eyebrow">Business · Customer purchase orders</span>
           <strong>Sales Orders</strong>
-          {periodLabel ? <p className="tlb-muted-line">Order dates scoped to {periodLabel}</p> : null}
         </div>
         <div className="tlb-toolbar-actions">
           <label className="tlb-module-search">
