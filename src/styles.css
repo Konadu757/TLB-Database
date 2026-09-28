@@ -198,7 +198,6 @@
   }
 
   html {
-    /* Match --tlb-chrome-canvas so desktop zoom:0.95 gap isn't a white footer strip */
     background: var(--tlb-chrome-canvas) !important;
     background-color: var(--tlb-chrome-canvas) !important;
     font-size: var(--font-size-root);
@@ -223,7 +222,8 @@
     min-height: 100%;
   }
 
-  /* Desktop default ~95% browser-zoom feel; mobile stays at 100% */
+  /* Desktop default ~95% browser-zoom feel; mobile stays at 100%.
+     --tlb-shell-h cancels that scale so the shell still fills the viewport. */
   @media (min-width: 1024px) {
     html {
       zoom: 0.95;
@@ -269,6 +269,8 @@ table.tlb-table,
   /* Fresher lilac canvas (was muddy #F4F3F8) */
   --tlb-chrome-canvas: #F6F4FC;
   --tlb-header-h: 64px;
+  /* Pre-zoom shell height. Desktop uses 100dvh / 0.95 so zoom still covers the window. */
+  --tlb-shell-h: 100dvh;
   /* Deep vivid violet; gold stays bright */
   --tlb-purple: #6016C7;
   --tlb-gold: #FFDC7A;
@@ -283,7 +285,7 @@ table.tlb-table,
 }
 .tlb-sidebar {
   width: var(--tlb-sidebar-w);
-  height: 100vh;
+  height: var(--tlb-shell-h);
   display: flex;
   flex-direction: column;
   background: var(--tlb-purple);
@@ -462,14 +464,18 @@ table.tlb-table,
 
 @media (min-width: 901px) {
   html, body {
-    height: 100dvh;
-    max-height: 100dvh;
+    height: var(--tlb-shell-h);
+    max-height: var(--tlb-shell-h);
     overflow: hidden;
     overscroll-behavior: none;
   }
+  #root {
+    height: 100%;
+    min-height: 100%;
+  }
   .tlb-app-shell {
-    height: 100dvh;
-    max-height: 100dvh;
+    height: var(--tlb-shell-h);
+    max-height: var(--tlb-shell-h);
     overflow: hidden;
   }
   .tlb-desktop-sidebar {
@@ -477,7 +483,7 @@ table.tlb-table,
     top: var(--tlb-chrome-gap);
     left: var(--tlb-chrome-gap);
     width: var(--tlb-sidebar-w);
-    height: calc(100dvh - (2 * var(--tlb-chrome-gap)));
+    height: calc(var(--tlb-shell-h) - (2 * var(--tlb-chrome-gap)));
     z-index: 40;
   }
   .tlb-desktop-sidebar .tlb-sidebar { height: 100%; }
@@ -485,8 +491,8 @@ table.tlb-table,
   .tlb-main {
     margin-left: calc(var(--tlb-sidebar-w) + (2 * var(--tlb-chrome-gap)));
     width: calc(100% - (var(--tlb-sidebar-w) + (2 * var(--tlb-chrome-gap))));
-    height: 100dvh;
-    max-height: 100dvh;
+    height: var(--tlb-shell-h);
+    max-height: var(--tlb-shell-h);
     min-height: 0;
     overflow-x: hidden;
     overflow-y: auto;
@@ -572,6 +578,8 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
     --tlb-chrome-gap: 8px;
     --tlb-header-h: 52px;
     --tlb-sidebar-w: 236px;
+    /* Inverse of html { zoom: 0.95 }. After scale the shell meets the window. */
+    --tlb-shell-h: calc(100dvh / 0.95);
   }
   .tlb-sidebar {
     border-radius: 16px;
@@ -602,7 +610,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
     white-space: nowrap;
   }
   .tlb-desktop-sidebar {
-    height: calc(100dvh - (2 * var(--tlb-chrome-gap)));
+    height: calc(var(--tlb-shell-h) - (2 * var(--tlb-chrome-gap)));
   }
   .tlb-header {
     gap: 12px;
