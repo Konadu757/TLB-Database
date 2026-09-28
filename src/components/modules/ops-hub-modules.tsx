@@ -2757,7 +2757,7 @@ export function OpsLiveBoardModule({ store, onOpenRequest }: ModuleProps) {
                       padding: 10,
                       textAlign: "left",
                       border: "1px solid color-mix(in oklab, var(--tlb-purple, #8149E9) 18%, transparent)",
-                      background: "color-mix(in oklab, var(--tlb-gold, #FFE14A) 8%, transparent)",
+                      background: "color-mix(in oklab, var(--tlb-gold, #FFDC7A) 8%, transparent)",
                       cursor: "pointer",
                     }}
                     onClick={() => onOpenRequest?.(r.id)}

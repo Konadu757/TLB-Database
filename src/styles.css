@@ -122,21 +122,21 @@
   --input: oklch(0.90 0.05 92);
   --ring: oklch(0.56 0.23 296);
   --chart-1: oklch(0.56 0.23 296);
-  --chart-2: oklch(0.91 0.165 96);
+  --chart-2: oklch(0.92 0.13 82);
   --chart-3: oklch(0.66 0.18 296);
   --chart-4: oklch(0.62 0.20 150);
   --chart-5: oklch(0.74 0.15 85);
   /* Bright sidebar purple — same hue 296, higher lightness and chroma */
   --sidebar: oklch(0.56 0.22 296);
   --sidebar-foreground: oklch(0.98 0.02 95);
-  --sidebar-primary: oklch(0.91 0.165 96);
+  --sidebar-primary: oklch(0.92 0.13 82);
   --sidebar-primary-foreground: oklch(0.26 0.065 296);
   --sidebar-accent: oklch(0.66 0.18 296);
   --sidebar-accent-foreground: oklch(0.995 0.02 95);
   --sidebar-border: oklch(0.68 0.14 296);
-  --sidebar-ring: oklch(0.91 0.165 96);
-  --brand-gold: oklch(0.91 0.165 96);
-  --brand-gold-muted: oklch(0.96 0.10 96);
+  --sidebar-ring: oklch(0.92 0.13 82);
+  --brand-gold: oklch(0.92 0.13 82);
+  --brand-gold-muted: oklch(0.96 0.08 82);
   --success: oklch(0.60 0.20 150);
   --success-muted: oklch(0.95 0.075 150);
   --warning: oklch(0.82 0.19 85);
