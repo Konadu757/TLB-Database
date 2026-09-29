@@ -73,13 +73,25 @@ function mergeById<T extends { id: string }>(primary: T[], secondary: T[]): T[] 
 function authDirectoryFromSettings(value: unknown): {
   users?: AppUser[];
   roles?: RoleDefinition[];
+  purgedRoleIds?: string[];
 } {
   if (!value || typeof value !== "object") return {};
-  const v = value as { users?: unknown; roles?: unknown };
-  return {
-    users: Array.isArray(v.users) ? (v.users as AppUser[]) : undefined,
-    roles: Array.isArray(v.roles) ? (v.roles as RoleDefinition[]) : undefined,
-  };
+  const v = value as { users?: unknown; roles?: unknown; purgedRoleIds?: unknown };
+  const directory: {
+    users?: AppUser[];
+    roles?: RoleDefinition[];
+    purgedRoleIds?: string[];
+  } = {};
+  if (Array.isArray(v.users)) directory.users = v.users as AppUser[];
+  if (Array.isArray(v.roles)) directory.roles = v.roles as RoleDefinition[];
+  if (Array.isArray(v.purgedRoleIds)) {
+    directory.purgedRoleIds = v.purgedRoleIds.filter((id): id is string => typeof id === "string");
+  }
+  return directory;
+}
+
+function purgedRoleIdsFromState(state: { catalogPurgedIds?: string[] }): string[] {
+  return (state.catalogPurgedIds ?? []).filter((id) => id.startsWith("role-"));
 }
 
 type LocalOnlySlice = Pick<
@@ -606,24 +618,36 @@ export class SupabaseTlbRepository implements TlbRepository {
         reservations: reservations.map(reservationFromRow),
       };
 
+      if (authDir.purgedRoleIds?.length) {
+        const purged = new Set(merged.catalogPurgedIds ?? []);
+        for (const id of authDir.purgedRoleIds) purged.add(id);
+        merged.catalogPurgedIds = [...purged];
+      }
+
       // After a successful remote load, treat current rows as synced so inbox/ops
       // mutations do not re-upsert warehouses (and other unchanged P0 tables).
-      const roleCatalogDirty =
-        merged.roles.length !== 1 ||
-        merged.roles.some((role) => role.systemKey !== "Owner") ||
-        merged.currentRole !== "Owner" ||
-        merged.users.some((user) => {
-          const role = merged.roles.find((item) => item.id === user.roleId);
-          return role?.systemKey !== "Owner";
-        });
+      const roleSnapshot = JSON.stringify({
+        roles: merged.roles.map((role) => role.id).sort(),
+        users: merged.users.map((user) => [user.id, user.roleId, user.active]),
+        currentRoleId: merged.currentRoleId,
+        currentUserId: merged.currentUserId,
+        currentRole: merged.currentRole,
+      });
       this.rememberRemoteFingerprints(merged);
       lockWorkspaceToOwner(merged);
-      if (roleCatalogDirty) {
+      const roleSnapshotAfter = JSON.stringify({
+        roles: merged.roles.map((role) => role.id).sort(),
+        users: merged.users.map((user) => [user.id, user.roleId, user.active]),
+        currentRoleId: merged.currentRoleId,
+        currentUserId: merged.currentUserId,
+        currentRole: merged.currentRole,
+      });
+      if (roleSnapshot !== roleSnapshotAfter) {
         try {
           await this.save(merged);
         } catch (persistErr) {
           console.warn(
-            "[SupabaseTlbRepository] could not persist Owner-only role catalog:",
+            "[SupabaseTlbRepository] could not persist the role catalog:",
             persistErr,
           );
         }
@@ -719,6 +743,7 @@ export class SupabaseTlbRepository implements TlbRepository {
           value: {
             users: staffUsersForRemoteDirectory(state.users),
             roles: state.roles,
+            purgedRoleIds: purgedRoleIdsFromState(state),
           } as unknown as Json,
         },
       ];

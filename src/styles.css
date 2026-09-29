@@ -2343,3 +2343,169 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
 .tlb-popover.tlb-quick-menu.tlb-user-menu button.is-selected:hover svg {
   color: #2a1f12;
 }
+
+/* Sign-in gate. Scoped so dashboard chrome, menus, and cards stay as they are. */
+.tlb-login {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 28px 16px;
+  background:
+    radial-gradient(ellipse at 0% 0%, color-mix(in oklab, #6420d0 16%, transparent), transparent 46%),
+    #f6f4fc;
+  font-family: var(--font-sans);
+}
+.tlb-login-card {
+  width: min(880px, 100%);
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) 1fr;
+  border-radius: 22px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 6px 22px color-mix(in oklab, #6420d0 12%, transparent);
+}
+.tlb-login-brand {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 28px;
+  min-height: 440px;
+  padding: 32px 28px;
+  background: #6420d0;
+  color: #fff;
+}
+.tlb-login-mark {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  border-radius: 18px;
+  background: #fff;
+}
+.tlb-login-brand h1 {
+  margin: 16px 0 0;
+  color: #fff;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+.tlb-login-rule {
+  display: block;
+  width: 52px;
+  height: 4px;
+  margin: 14px 0;
+  border-radius: 99px;
+  background: #ffdc7a;
+}
+.tlb-login-brand p {
+  margin: 0;
+  color: color-mix(in oklab, #ffdc7a 82%, white);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.tlb-login-note {
+  color: color-mix(in oklab, white 88%, #ffdc7a) !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+  line-height: 1.45;
+  text-transform: none !important;
+}
+.tlb-login-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 32px 32px 28px;
+}
+.tlb-login-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.tlb-login-heading span {
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.tlb-login-heading strong {
+  color: #1f1630;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.tlb-login-form {
+  padding: 8px 0 0;
+  grid-template-columns: 1fr;
+}
+.tlb-login-lead,
+.tlb-login-status {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.5;
+  text-transform: none;
+}
+.tlb-login-status {
+  margin-top: 18px;
+}
+.tlb-login-error {
+  margin: 0;
+  color: var(--destructive);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.4;
+  text-transform: none;
+}
+.tlb-login-submit {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 12px;
+  background: #6420d0;
+  color: #fff;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.tlb-login-submit:hover {
+  background: #803eea;
+}
+.tlb-login-submit:focus-visible {
+  outline: 2px solid #ffdc7a;
+  outline-offset: 2px;
+}
+.tlb-login-submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+@media (max-width: 720px) {
+  .tlb-login-card {
+    grid-template-columns: 1fr;
+  }
+  .tlb-login-brand {
+    min-height: 0;
+    gap: 18px;
+  }
+}
+
+.tlb-profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.tlb-profile-identity .tlb-avatar {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  font-size: 0.875rem;
+}

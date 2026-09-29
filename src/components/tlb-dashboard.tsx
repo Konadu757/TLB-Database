@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -20,6 +21,7 @@ import {
   Kanban,
   LayoutDashboard,
   ListTodo,
+  LogOut,
   Menu,
   MessageSquareText,
   PackageCheck,
@@ -48,6 +50,7 @@ import {
 
 import logoUrl from "@/assets/tlb-logo.png";
 import { DetailBackProvider, useDetailBack } from "@/components/modules/detail-back-context";
+import { usePortalSignOut } from "@/components/portal-gate";
 import { RecordBackLink } from "@/components/modules/record-browser";
 import {
   CustomersModule,
@@ -324,6 +327,10 @@ export function TLBDashboard() {
 
 function TLBDashboardInner() {
   const store = useTlbStore();
+  const signOut = usePortalSignOut();
+  const navigate = useNavigate();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const onProfilePage = pathname === "/profile";
   const { detailBack, setDetailBack } = useDetailBack();
   const detailOpen = Boolean(detailBack);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -498,6 +505,7 @@ function TLBDashboardInner() {
     setQuickOpen(false);
     setUserOpen(false);
     setWarehouseOpen(false);
+    if (pathname === "/profile") void navigate({ to: "/" });
   };
 
   const openOrderDetail = (orderId: string, returnNav?: string) => {
@@ -847,7 +855,7 @@ function TLBDashboardInner() {
               >
                 {group.items.map((item) => {
                   const Icon = item.icon;
-                  const active = item.label === activeNav;
+                  const active = item.label === activeNav && !onProfilePage;
                   return (
                     <button
                       type="button"
@@ -904,7 +912,7 @@ function TLBDashboardInner() {
             <Menu />
           </Button>
           <HeaderDetailBack />
-          {showPeriodBar && !detailOpen && (
+          {showPeriodBar && !detailOpen && !onProfilePage && (
             <p
               className="tlb-header-context"
               title={`Wednesday, 09 September 2026 · ${periodCaption} · ${warehouse}`}
@@ -1142,17 +1150,18 @@ function TLBDashboardInner() {
                   <button
                     type="button"
                     role="menuitem"
-                    onClick={() =>
-                      openInspector({
-                        title: store.state.currentUser,
-                        kicker: "Signed in",
-                        lines: [
-                          `Role: ${store.state.currentRole}`,
-                          "Workspace: TLB Enterprise",
-                          "Owner manages users & roles under Settings.",
-                        ],
-                      })
-                    }
+                    className={onProfilePage ? "is-selected" : undefined}
+                    onClick={() => {
+                      setUserOpen(false);
+                      setDetailBack(null);
+                      closeHeaderSearch();
+                      setNotificationsOpen(false);
+                      setQuickOpen(false);
+                      setWarehouseOpen(false);
+                      setMobileOpen(false);
+                      setInspector(null);
+                      void navigate({ to: "/profile" });
+                    }}
                   >
                     <UserRound aria-hidden="true" />
                     Profile
@@ -1161,14 +1170,30 @@ function TLBDashboardInner() {
                   <button
                     type="button"
                     role="menuitem"
-                    className={activeNav === "Settings" ? "is-selected" : undefined}
+                    className={
+                      !onProfilePage && activeNav === "Settings" ? "is-selected" : undefined
+                    }
                     onClick={() => {
                       setUserOpen(false);
+                      setDetailBack(null);
                       setActiveNav("Settings");
+                      if (onProfilePage) void navigate({ to: "/" });
                     }}
                   >
                     <Settings aria-hidden="true" />
                     Settings
+                    <ChevronRight aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setUserOpen(false);
+                      void signOut();
+                    }}
+                  >
+                    <LogOut aria-hidden="true" />
+                    Sign out
                     <ChevronRight aria-hidden="true" />
                   </button>
                 </div>
@@ -1187,8 +1212,12 @@ function TLBDashboardInner() {
           {!detailOpen && (
             <div className={cn("tlb-page-heading", quickOpen && "tlb-page-heading--overlay-open")}>
               <div>
-                <h1 className={cn(activeNav === "Dashboard" && "tlb-dashboard-title")}>
-                  {activeNav === "Dashboard" ? "Dashboard" : activeNav}
+                <h1
+                  className={cn(
+                    !onProfilePage && activeNav === "Dashboard" && "tlb-dashboard-title",
+                  )}
+                >
+                  {onProfilePage ? "Profile" : activeNav === "Dashboard" ? "Dashboard" : activeNav}
                 </h1>
               </div>
               <div className="tlb-heading-actions">
@@ -1234,7 +1263,8 @@ function TLBDashboardInner() {
                                     openLiveModule("Quotations");
                                   } else if (action.label === "Create customer order")
                                     openLiveModule("Sales Orders");
-                                  else if (action.label === "Receive goods") openLiveModule("Stock");
+                                  else if (action.label === "Receive goods")
+                                    openLiveModule("Stock");
                                   else if (action.label === "View outstanding supplies")
                                     openLiveModule("Outstanding Supplies");
                                   else if (action.label === "Create invoice")
@@ -1260,7 +1290,7 @@ function TLBDashboardInner() {
             </div>
           )}
 
-          {showPeriodBar && !detailOpen && (
+          {showPeriodBar && !detailOpen && !onProfilePage && (
             <section className="tlb-filter-bar" aria-label="Period filters">
               <div className="tlb-periods">
                 {DASHBOARD_PERIODS.map((item) => (
@@ -1351,7 +1381,9 @@ function TLBDashboardInner() {
             </section>
           )}
 
-          {liveModuleNav ? (
+          {onProfilePage ? (
+            <Outlet />
+          ) : liveModuleNav ? (
             activeNav === "Customers" ? (
               <CustomersModule
                 store={store}
@@ -2052,6 +2084,7 @@ function TLBDashboardInner() {
               </section>
             </>
           )}
+          {!onProfilePage ? <Outlet /> : null}
         </main>
       </div>
 

@@ -1177,6 +1177,10 @@ export function purgeTrashItem(
       if (idx < 0) return { ok: false, error: "Trashed role not found." };
       const ownerRole = next.roles.find((r) => r.systemKey === "Owner" && r.active);
       const [removed] = next.roles.splice(idx, 1);
+      next.catalogPurgedIds ??= [];
+      if (removed && !next.catalogPurgedIds.includes(removed.id)) {
+        next.catalogPurgedIds.push(removed.id);
+      }
       if (ownerRole && removed) {
         for (const user of next.users) {
           if (user.roleId === removed.id) user.roleId = ownerRole.id;

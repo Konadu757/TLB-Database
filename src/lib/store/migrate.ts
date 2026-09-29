@@ -13,6 +13,7 @@ import type {
   InventorySettings,
   Permission,
   RoleDefinition,
+  SystemRoleKey,
   TlbState,
   VatRate,
 } from "../domain/types";
@@ -128,10 +129,33 @@ function defaultUsers(roles: RoleDefinition[]): AppUser[] {
 }
 
 /**
+ * Predefined roles besides Owner are listed so the signed-in Owner can move
+ * them to Trash. They are not assignable and cannot become the session.
+ * Roles already in the list (including soft-deleted) are left alone. Roles
+ * recorded in catalogPurgedIds stay gone after permanent delete.
+ */
+export function ensureDeletableSystemRoles(state: TlbState): void {
+  const purged = new Set(state.catalogPurgedIds ?? []);
+  const presentIds = new Set(state.roles.map((role) => role.id));
+  const presentKeys = new Set(
+    state.roles.map((role) => role.systemKey).filter((key): key is SystemRoleKey => Boolean(key)),
+  );
+  for (const role of createSystemRoles()) {
+    if (role.systemKey === "Owner") continue;
+    if (presentIds.has(role.id) || (role.systemKey && presentKeys.has(role.systemKey))) continue;
+    if (purged.has(role.id)) continue;
+    state.roles.push({ ...role, permissions: [...role.permissions] });
+    presentIds.add(role.id);
+    if (role.systemKey) presentKeys.add(role.systemKey);
+  }
+}
+
+/**
  * App sessions only sign in as Owner. Other roles stay in the list so the Owner
  * can move them to Trash; they are not assignable and cannot become the session.
- * Users whose role is missing or already in Trash are reassigned to Owner.
- * Soft-deleted roles are kept so Trash survives reload.
+ * Users whose role is missing or already in Trash are reassigned to Owner
+ * before missing system roles are restored, so a stripped catalog does not
+ * put people back on those roles. Soft-deleted roles are kept so Trash survives reload.
  */
 export function lockWorkspaceToOwner(state: TlbState): void {
   const catalogOwner = createSystemRoles().find((r) => r.systemKey === "Owner");
@@ -159,6 +183,7 @@ export function lockWorkspaceToOwner(state: TlbState): void {
   for (const user of state.users) {
     if (!liveRoleIds.has(user.roleId)) user.roleId = owner.id;
   }
+  ensureDeletableSystemRoles(state);
   const ownerUser = state.users.find((u) => u.id === OWNER_USER_ID);
   if (ownerUser) {
     ownerUser.active = true;

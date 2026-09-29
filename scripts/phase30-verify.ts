@@ -208,7 +208,17 @@ function testPermissions() {
   assert.equal(canAccessNav(state, "Finance"), true);
   assert.deepEqual(
     state.roles.map((role) => role.systemKey),
-    ["Owner"],
+    [
+      "Owner",
+      "Admin",
+      "Manager",
+      "Sales",
+      "Warehouse",
+      "Finance",
+      "Driver",
+      "Requester",
+      "Receiver",
+    ],
   );
   assert.ok(state.users.every((user) => user.roleId === SYSTEM_ROLE_IDS.Owner));
   const switched = switchRole(state, "Sales");

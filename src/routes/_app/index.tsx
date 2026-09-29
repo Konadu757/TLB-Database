@@ -1,10 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { TLBDashboard } from "@/components/tlb-dashboard";
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/_app/")({
   head: () => ({
     meta: [
-      { title: "Executive Dashboard | TLB Enterprise" },
+      { title: "TLB Enterprise" },
       {
         name: "description",
         content: "TLB Enterprise operations, inventory, production, sales, and finance dashboard.",
@@ -18,9 +17,10 @@ export const Route = createFileRoute("/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: Index,
+  component: HomeRoute,
 });
 
-function Index() {
-  return <TLBDashboard />;
+/** Canvas is the dashboard inside the app shell. This route exists so `/` stays a real path. */
+function HomeRoute() {
+  return null;
 }

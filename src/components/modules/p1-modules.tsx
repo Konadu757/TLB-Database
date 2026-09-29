@@ -445,9 +445,9 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
               </div>
             </div>
             <p className="tlb-muted-line" style={{ padding: "0 17px 8px" }}>
-              The workspace signs in as Owner. Owner permissions are predefined and cannot be
-              customized. The Owner role is protected. Other roles can be moved to Trash even when
-              people or tasks are already assigned; those people move to Owner.
+              Permissions stay predefined. The Owner role is protected. Delete on any other role
+              asks you to type DELETE, then moves that role to Trash. People assigned to it move to
+              Owner. Tasks already on that role stay in place and do not block the delete.
             </p>
             <div className="tlb-table-scroll tlb-orders-panel">
               <table>

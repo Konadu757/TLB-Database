@@ -264,7 +264,9 @@ function testRoleDeleteWithUsersAndTasks() {
   let state = ownerState();
   const warehouse = createSystemRoles().find((role) => role.systemKey === "Warehouse");
   assert.ok(warehouse);
-  state.roles.push({ ...warehouse, permissions: [...warehouse.permissions] });
+  if (!state.roles.some((role) => role.id === warehouse.id)) {
+    state.roles.push({ ...warehouse, permissions: [...warehouse.permissions] });
+  }
   const sales = state.users.find((user) => user.id === "user-sales");
   assert.ok(sales);
   sales.roleId = SYSTEM_ROLE_IDS.Warehouse;
@@ -322,15 +324,20 @@ function testRoleDeleteWithUsersAndTasks() {
   state = purged.data.state;
   assert.ok(!state.roles.some((role) => role.id === SYSTEM_ROLE_IDS.Warehouse));
   assert.equal(state.users.find((user) => user.id === "user-sales")?.roleId, SYSTEM_ROLE_IDS.Owner);
+  lockWorkspaceToOwner(state);
+  assert.ok(!state.roles.some((role) => role.id === SYSTEM_ROLE_IDS.Warehouse));
 
   const kept = ownerState();
-  kept.roles.push({
+  const trashedWarehouse = {
     ...warehouse,
     permissions: [...warehouse.permissions],
     active: false,
     deletedAt: new Date().toISOString(),
     deletedBy: "TLB Owner",
-  });
+  };
+  const existingWarehouse = kept.roles.findIndex((role) => role.id === warehouse.id);
+  if (existingWarehouse >= 0) kept.roles[existingWarehouse] = trashedWarehouse;
+  else kept.roles.push(trashedWarehouse);
   lockWorkspaceToOwner(kept);
   assert.ok(kept.roles.some((role) => role.id === SYSTEM_ROLE_IDS.Warehouse && role.deletedAt));
   assert.equal(kept.currentRole, "Owner");

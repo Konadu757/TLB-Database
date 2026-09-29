@@ -15,7 +15,7 @@ const THIS_YEAR = "2026-03-18T10:00:00.000Z";
 
 /** Seed includes Phase 30 Chemical A/B scenario ready to demo. */
 export function createSeedState(): TlbState {
-  const roles = createSystemRoles().filter((role) => role.systemKey === "Owner");
+  const roles = createSystemRoles();
   return {
     version: 14,
     currentUserId: OWNER_USER_ID,
