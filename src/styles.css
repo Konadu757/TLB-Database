@@ -2407,14 +2407,6 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.tlb-login-note {
-  color: color-mix(in oklab, white 88%, #ffdc7a) !important;
-  font-size: 0.875rem !important;
-  font-weight: 500 !important;
-  letter-spacing: 0 !important;
-  line-height: 1.45;
-  text-transform: none !important;
-}
 .tlb-login-body {
   display: flex;
   flex-direction: column;
@@ -2444,7 +2436,48 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
   padding: 8px 0 0;
   grid-template-columns: 1fr;
 }
-.tlb-login-lead,
+.tlb-login-form input {
+  height: 44px;
+  border-radius: 999px;
+  padding: 0 18px;
+}
+.tlb-login-password {
+  position: relative;
+  display: block;
+}
+.tlb-login-password input {
+  width: 100%;
+  padding-right: 78px;
+}
+.tlb-login-reveal {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #6420d0;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+.tlb-login-reveal:hover {
+  background: color-mix(in oklab, #ffdc7a 70%, white);
+}
+.tlb-login-reveal:focus-visible {
+  outline: 2px solid #ffdc7a;
+  outline-offset: 2px;
+}
+.tlb-login-reveal:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
 .tlb-login-status {
   margin: 0;
   color: var(--muted-foreground);

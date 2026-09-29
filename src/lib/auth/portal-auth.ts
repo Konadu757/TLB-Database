@@ -11,11 +11,35 @@ export type PortalSession = {
 };
 
 export type SignInResult =
-  | { ok: true; userId: string; email: string }
-  | { ok: false; error: string };
+  { ok: true; userId: string; email: string } | { ok: false; error: string };
 
 export const SIGN_IN_REQUIRED =
   "Sign-in is required. Supabase Auth is not configured for this portal, so it stays closed.";
+
+export const SIGN_IN_UNREACHABLE =
+  "Could not reach Supabase (Failed to fetch). The sign-in host did not respond, so the password was not checked. Confirm the Supabase project is active and VITE_SUPABASE_URL is that project's URL.";
+
+/** Browser "Failed to fetch" is a network failure, not a rejected password. */
+export function signInFailureMessage(
+  error: {
+    message?: string;
+    name?: string;
+    status?: number;
+  } | null,
+): string {
+  const message = error?.message?.trim() ?? "";
+  const lower = message.toLowerCase();
+  const unreachable =
+    lower === "failed to fetch" ||
+    lower.includes("failed to fetch") ||
+    lower.includes("networkerror") ||
+    lower.includes("network request failed") ||
+    lower.includes("load failed") ||
+    (error?.name === "AuthRetryableFetchError" && !error.status && !message);
+  if (unreachable) return SIGN_IN_UNREACHABLE;
+  if (message) return message;
+  return "Sign-in failed. Check the email and password.";
+}
 
 function envValue(name: string): string {
   try {
@@ -85,10 +109,7 @@ export async function signInWithOwnerPassword(
       password,
     });
     if (error || !data.session?.user?.id) {
-      return {
-        ok: false,
-        error: error?.message || "Sign-in failed. Check the email and password.",
-      };
+      return { ok: false, error: signInFailureMessage(error) };
     }
     return {
       ok: true,
@@ -96,8 +117,8 @@ export async function signInWithOwnerPassword(
       email: data.session.user.email ?? trimmed,
     };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Sign-in failed.";
-    return { ok: false, error: message };
+    const named = err instanceof Error ? err : null;
+    return { ok: false, error: signInFailureMessage(named) };
   }
 }
 
@@ -107,9 +128,7 @@ export async function signOutPortal(): Promise<void> {
   await supabase.auth.signOut();
 }
 
-export function subscribePortalAuth(
-  onChange: (session: PortalSession | null) => void,
-): () => void {
+export function subscribePortalAuth(onChange: (session: PortalSession | null) => void): () => void {
   if (!publishableAuthConfigured() || typeof window === "undefined") return () => {};
   let unsubscribe = () => {};
   let cancelled = false;

@@ -14,6 +14,7 @@ type PortalLoginProps = {
 export function PortalLogin({ configured, checking, pending, error, onSubmit }: PortalLoginProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   return (
     <div className="tlb-login">
@@ -27,9 +28,6 @@ export function PortalLogin({ configured, checking, pending, error, onSubmit }: 
             <i className="tlb-login-rule" aria-hidden="true" />
             <p>Operations portal</p>
           </div>
-          <p className="tlb-login-note">
-            The workspace opens only after this sign-in is accepted. The Owner uses the same gate.
-          </p>
         </div>
         <div className="tlb-login-body">
           <div className="tlb-login-heading">
@@ -46,11 +44,9 @@ export function PortalLogin({ configured, checking, pending, error, onSubmit }: 
                 onSubmit(email, password);
               }}
             >
-              <p className="tlb-login-lead tlb-span-2">
-                Enter the Owner email and password. Nothing in the portal is available until this
-                check succeeds.
-              </p>
-              {!configured ? <p className="tlb-login-error tlb-span-2">{SIGN_IN_REQUIRED}</p> : null}
+              {!configured ? (
+                <p className="tlb-login-error tlb-span-2">{SIGN_IN_REQUIRED}</p>
+              ) : null}
               <label className="tlb-span-2">
                 Email
                 <input
@@ -65,15 +61,27 @@ export function PortalLogin({ configured, checking, pending, error, onSubmit }: 
               </label>
               <label className="tlb-span-2">
                 Password
-                <input
-                  type="password"
-                  name="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  required
-                  disabled={pending}
-                />
+                <span className="tlb-login-password">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    name="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    required
+                    disabled={pending}
+                  />
+                  <button
+                    type="button"
+                    className="tlb-login-reveal"
+                    aria-pressed={showPassword}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    onClick={() => setShowPassword((visible) => !visible)}
+                    disabled={pending}
+                  >
+                    {showPassword ? "Hide" : "Show"}
+                  </button>
+                </span>
               </label>
               {error ? <p className="tlb-login-error tlb-span-2">{error}</p> : null}
               <div className="tlb-form-actions tlb-span-2">
