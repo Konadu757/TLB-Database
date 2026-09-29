@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   AlertTriangle,
@@ -54,15 +54,13 @@ import { usePortalSignOut } from "@/components/portal-gate";
 import { RecordBackLink } from "@/components/modules/record-browser";
 import {
   CustomersModule,
-  LiveSearchResults,
-  openSearchHit,
   OutstandingDashboardWidget,
   OutstandingSuppliesModule,
   SalesOrdersModule,
   StockModule,
   SuppliersModule,
 } from "@/components/modules/commerce-modules";
-import type { AppNotification, SearchHit } from "@/lib/domain/types";
+import type { AppNotification } from "@/lib/domain/types";
 import { resolveAskTlbHitOpen } from "@/lib/domain/inventory";
 import {
   AccountsPayableModule,
@@ -341,7 +339,7 @@ function TLBDashboardInner() {
   });
   const [warehouse, setWarehouse] = useState<WarehouseFilter>("All warehouses");
   const [warehouseOpen, setWarehouseOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
@@ -364,10 +362,9 @@ function TLBDashboardInner() {
   const desktopSidebarOpenRef = useRef(sidebarOpen);
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-  const searchWrapRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLElement | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchActiveIndex, setSearchActiveIndex] = useState(0);
-  const searchHitsRef = useRef<SearchHit[]>([]);
+  const [noSearchMatches, setNoSearchMatches] = useState(false);
 
   const FOCUSABLE_SEARCH_NAVS = useMemo(
     () =>
@@ -497,10 +494,6 @@ function TLBDashboardInner() {
     setOrderReturnNav(null);
     setMobileOpen(false);
     setInspector(null);
-    setSearchOpen(false);
-    setSearchQuery("");
-    setSearchActiveIndex(0);
-    searchHitsRef.current = [];
     setNotificationsOpen(false);
     setQuickOpen(false);
     setUserOpen(false);
@@ -511,20 +504,6 @@ function TLBDashboardInner() {
   const openOrderDetail = (orderId: string, returnNav?: string) => {
     openLiveModule("Sales Orders", orderId);
     setOrderReturnNav(returnNav ?? null);
-  };
-
-  const openFromSearchHit = (hit: SearchHit) => {
-    openSearchHit(hit, {
-      onOpenOrder: (id) => openOrderDetail(id),
-      onOpenNav: (nav, entityId) => {
-        if (nav === "Customers") openLiveModule("Customers", null, null, entityId ?? null);
-        else if (nav === "Suppliers")
-          openLiveModule("Suppliers", null, null, null, entityId ?? null);
-        else if (FOCUSABLE_SEARCH_NAVS.has(nav)) {
-          openLiveModule(nav, null, null, null, null, entityId ?? null);
-        } else openLiveModule(nav);
-      },
-    });
   };
 
   const handleSelectOrder = (id: string | null) => {
@@ -638,29 +617,17 @@ function TLBDashboardInner() {
     });
   }, []);
 
-  const focusHeaderSearch = () => {
-    setSearchOpen(true);
+  const focusHeaderSearch = useCallback(() => {
     setMobileOpen(false);
     setNotificationsOpen(false);
     setQuickOpen(false);
     setUserOpen(false);
     setWarehouseOpen(false);
     window.setTimeout(() => searchInputRef.current?.focus(), 0);
-  };
-
-  const closeHeaderSearch = (options?: { clear?: boolean; blur?: boolean }) => {
-    setSearchOpen(false);
-    if (options?.clear !== false) {
-      setSearchQuery("");
-      setSearchActiveIndex(0);
-      searchHitsRef.current = [];
-    }
-    if (options?.blur !== false) searchInputRef.current?.blur();
-  };
+  }, []);
 
   const openInspector = (payload: Inspector) => {
     setInspector(payload);
-    closeHeaderSearch();
     setNotificationsOpen(false);
     setQuickOpen(false);
     setUserOpen(false);
@@ -728,10 +695,16 @@ function TLBDashboardInner() {
         return;
       }
 
-      // Escape closes any open overlay/popover.
+      // Escape clears an active header search, then closes any open overlay.
       if (event.key === "Escape") {
-        if (searchOpen || document.activeElement === searchInputRef.current) {
-          closeHeaderSearch();
+        if (document.activeElement === searchInputRef.current) {
+          event.preventDefault();
+          setSearchQuery((current) => {
+            if (current) return "";
+            searchInputRef.current?.blur();
+            return current;
+          });
+          return;
         }
         setNotificationsOpen(false);
         setQuickOpen(false);
@@ -744,7 +717,7 @@ function TLBDashboardInner() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [searchOpen]);
+  }, [focusHeaderSearch]);
 
   const notificationsWrapRef = useRef<HTMLDivElement | null>(null);
   const quickWrapRef = useRef<HTMLDivElement | null>(null);
@@ -752,20 +725,18 @@ function TLBDashboardInner() {
   const warehouseWrapRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!notificationsOpen && !quickOpen && !userOpen && !searchOpen && !warehouseOpen) return;
+    if (!notificationsOpen && !quickOpen && !userOpen && !warehouseOpen) return;
     if (typeof document === "undefined") return;
 
     const onMouseDown = (event: MouseEvent) => {
       const target = event.target as Node | null;
       if (!target) return;
 
-      if (searchOpen && searchWrapRef.current?.contains(target)) return;
       if (notificationsOpen && notificationsWrapRef.current?.contains(target)) return;
       if (quickOpen && quickWrapRef.current?.contains(target)) return;
       if (userOpen && userWrapRef.current?.contains(target)) return;
       if (warehouseOpen && warehouseWrapRef.current?.contains(target)) return;
 
-      if (searchOpen) closeHeaderSearch({ blur: false });
       setNotificationsOpen(false);
       setQuickOpen(false);
       setUserOpen(false);
@@ -774,7 +745,39 @@ function TLBDashboardInner() {
 
     document.addEventListener("mousedown", onMouseDown);
     return () => document.removeEventListener("mousedown", onMouseDown);
-  }, [notificationsOpen, quickOpen, userOpen, searchOpen, warehouseOpen]);
+  }, [notificationsOpen, quickOpen, userOpen, warehouseOpen]);
+
+  useLayoutEffect(() => {
+    const root = contentRef.current;
+    if (!root) return;
+
+    const apply = () => {
+      const tokens = searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      const records = root.querySelectorAll<HTMLElement>(
+        "tbody tr, .tlb-ops-kanban button.tlb-panel",
+      );
+      let matched = 0;
+      records.forEach((row) => {
+        if (tokens.length === 0) {
+          if (row.hidden) row.hidden = false;
+          return;
+        }
+        const text = (row.textContent ?? "").replace(/\s+/g, " ").toLowerCase();
+        const ok = tokens.every((token) => text.includes(token));
+        if (row.hidden === ok) row.hidden = !ok;
+        if (ok) matched += 1;
+      });
+      const showEmpty = tokens.length > 0 && records.length > 0 && matched === 0;
+      setNoSearchMatches((current) => (current === showEmpty ? current : showEmpty));
+    };
+
+    apply();
+    if (!searchQuery.trim()) return;
+
+    const observer = new MutationObserver(() => apply());
+    observer.observe(root, { childList: true, subtree: true, characterData: true });
+    return () => observer.disconnect();
+  }, [searchQuery, noSearchMatches, activeNav, pathname, detailOpen, store.state]);
 
   useEffect(() => {
     if (!warehouseOpen) return;
@@ -905,7 +908,6 @@ function TLBDashboardInner() {
               setMobileOpen(true);
               setNotificationsOpen(false);
               setQuickOpen(false);
-              setSearchOpen(false);
             }}
             aria-label="Open navigation"
           >
@@ -921,112 +923,43 @@ function TLBDashboardInner() {
             </p>
           )}
           <div className="tlb-header-actions">
-            <div className="tlb-popover-wrap tlb-global-search-wrap" ref={searchWrapRef}>
-              <label className={cn("tlb-global-search", searchOpen && "tlb-global-search-active")}>
+            <div className="tlb-popover-wrap tlb-global-search-wrap">
+              <label className={cn("tlb-global-search", searchFocused && "tlb-global-search-active")}>
                 <Search aria-hidden="true" />
                 <input
                   ref={searchInputRef}
                   type="search"
                   placeholder="Search products, batches, orders, invoices…"
                   aria-label="Search products, batches, orders, invoices"
-                  aria-expanded={searchOpen}
-                  aria-controls="tlb-search-results"
-                  aria-haspopup="listbox"
-                  aria-activedescendant={
-                    searchOpen && searchQuery.trim() && searchHitsRef.current.length > 0
-                      ? `tlb-search-option-${searchActiveIndex}`
-                      : undefined
-                  }
+                  autoComplete="off"
+                  spellCheck={false}
                   value={searchQuery}
                   onChange={(event) => {
                     setSearchQuery(event.target.value);
-                    setSearchActiveIndex(0);
-                    setSearchOpen(true);
                   }}
                   onFocus={() => {
-                    setSearchOpen(true);
+                    setSearchFocused(true);
                     setNotificationsOpen(false);
                     setQuickOpen(false);
                     setUserOpen(false);
                     setWarehouseOpen(false);
                   }}
+                  onBlur={() => setSearchFocused(false)}
                   onKeyDown={(event) => {
                     if (event.key === "Escape") {
                       event.preventDefault();
                       event.stopPropagation();
-                      if (searchQuery) {
-                        setSearchQuery("");
-                        setSearchActiveIndex(0);
-                        searchHitsRef.current = [];
-                        setSearchOpen(true);
-                      } else {
-                        closeHeaderSearch();
-                      }
-                      return;
-                    }
-                    const hits = searchHitsRef.current;
-                    if (event.key === "ArrowDown") {
-                      if (!searchQuery.trim()) return;
-                      event.preventDefault();
-                      setSearchOpen(true);
-                      setSearchActiveIndex((prev) =>
-                        hits.length ? Math.min(prev + 1, hits.length - 1) : 0,
-                      );
-                      return;
-                    }
-                    if (event.key === "ArrowUp") {
-                      if (!searchQuery.trim()) return;
-                      event.preventDefault();
-                      setSearchOpen(true);
-                      setSearchActiveIndex((prev) => Math.max(prev - 1, 0));
+                      if (searchQuery) setSearchQuery("");
+                      else searchInputRef.current?.blur();
                       return;
                     }
                     if (event.key === "Enter") {
                       event.preventDefault();
-                      const q = searchQuery.trim().toLowerCase();
-                      if (hits.length > 0) {
-                        openFromSearchHit(hits[Math.min(searchActiveIndex, hits.length - 1)]!);
-                        return;
-                      }
-                      if (!q) return;
-                      if (q.includes("outstanding")) {
-                        openLiveModule("Outstanding Supplies");
-                        return;
-                      }
-                      openLiveModule("Sales Orders");
                     }
                   }}
                 />
                 <kbd>{searchShortcutLabel}</kbd>
               </label>
-              {searchOpen && (
-                <div
-                  id="tlb-search-results"
-                  className="tlb-popover tlb-search-dropdown tlb-search-results"
-                  role="listbox"
-                  aria-label="Search results"
-                >
-                  <LiveSearchResults
-                    store={store}
-                    query={searchQuery}
-                    activeIndex={searchActiveIndex}
-                    onActiveIndexChange={setSearchActiveIndex}
-                    onResultsChange={(hits) => {
-                      searchHitsRef.current = hits;
-                    }}
-                    onOpenOrder={(id) => openOrderDetail(id)}
-                    onOpenNav={(nav, entityId) => {
-                      if (nav === "Customers")
-                        openLiveModule("Customers", null, null, entityId ?? null);
-                      else if (nav === "Suppliers")
-                        openLiveModule("Suppliers", null, null, null, entityId ?? null);
-                      else if (FOCUSABLE_SEARCH_NAVS.has(nav)) {
-                        openLiveModule(nav, null, null, null, null, entityId ?? null);
-                      } else openLiveModule(nav);
-                    }}
-                  />
-                </div>
-              )}
             </div>
             <div className="tlb-popover-wrap" ref={notificationsWrapRef}>
               <Button
@@ -1037,7 +970,6 @@ function TLBDashboardInner() {
                   setNotificationsOpen(opening);
                   if (opening) {
                     setQuickOpen(false);
-                    setSearchOpen(false);
                     setUserOpen(false);
                     // Unread decreases when items are shown in the open panel (first 6).
                     // Clicking a row also marks that item read (persisted via readAt).
@@ -1128,7 +1060,6 @@ function TLBDashboardInner() {
                     if (next) {
                       setNotificationsOpen(false);
                       setQuickOpen(false);
-                      setSearchOpen(false);
                     }
                     return next;
                   });
@@ -1154,7 +1085,6 @@ function TLBDashboardInner() {
                     onClick={() => {
                       setUserOpen(false);
                       setDetailBack(null);
-                      closeHeaderSearch();
                       setNotificationsOpen(false);
                       setQuickOpen(false);
                       setWarehouseOpen(false);
@@ -1203,12 +1133,18 @@ function TLBDashboardInner() {
         </header>
 
         <main
+          ref={contentRef}
           className={cn(
             "tlb-content",
             detailOpen && "tlb-content--detail-open",
             overlayOpen && "tlb-content--overlay-open",
           )}
         >
+          {noSearchMatches ? (
+            <p className="tlb-muted-line" role="status">
+              No records match your search.
+            </p>
+          ) : null}
           {!detailOpen && (
             <div className={cn("tlb-page-heading", quickOpen && "tlb-page-heading--overlay-open")}>
               <div>
@@ -1228,7 +1164,6 @@ function TLBDashboardInner() {
                         const next = !value;
                         if (next) {
                           setNotificationsOpen(false);
-                          setSearchOpen(false);
                           setUserOpen(false);
                         }
                         return next;
@@ -1325,7 +1260,6 @@ function TLBDashboardInner() {
                     setNotificationsOpen(false);
                     setQuickOpen(false);
                     setUserOpen(false);
-                    if (searchOpen) closeHeaderSearch({ blur: false });
                   }}
                 >
                   <Warehouse aria-hidden="true" />

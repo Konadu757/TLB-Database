@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ChevronRight, PackageSearch, Plus, Search, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronRight, Plus, Search, X } from "lucide-react";
 
 import {
   RecordDetailPage,
@@ -23,12 +23,10 @@ import type {
   CustomerCategory,
   CustomerPurchaseOrder,
   PaymentTerms,
-  SearchHit,
   TlbState,
 } from "@/lib/domain/types";
 import { getRelatedRecords } from "@/lib/domain/notifications";
 import { isoInRange } from "@/lib/domain/period-range";
-import { buildSearchIndex, searchDocuments } from "@/lib/domain/search";
 import {
   countOutstandingOrdersForProduct,
   formatMoney,
@@ -2594,156 +2592,6 @@ export function OutstandingDashboardWidget({
         </p>
       )}
     </article>
-  );
-}
-
-export function highlightSearchMatch(text: string, query: string): ReactNode {
-  const q = query.trim();
-  if (!q || !text) return text;
-  const lower = text.toLowerCase();
-  const needle = q.toLowerCase();
-  const parts: ReactNode[] = [];
-  let cursor = 0;
-  let matchIndex = lower.indexOf(needle, cursor);
-  let key = 0;
-  while (matchIndex >= 0) {
-    if (matchIndex > cursor) parts.push(text.slice(cursor, matchIndex));
-    parts.push(
-      <mark key={`m-${key++}`} className="tlb-search-mark">
-        {text.slice(matchIndex, matchIndex + needle.length)}
-      </mark>,
-    );
-    cursor = matchIndex + needle.length;
-    matchIndex = lower.indexOf(needle, cursor);
-  }
-  if (cursor < text.length) parts.push(text.slice(cursor));
-  return parts.length ? parts : text;
-}
-
-export function openSearchHit(
-  hit: SearchHit,
-  handlers: {
-    onOpenOrder: (id: string) => void;
-    onOpenNav: (nav: string, entityId?: string) => void;
-  },
-) {
-  if (hit.kind === "Order" || (hit.kind === "Supply" && hit.orderId)) {
-    handlers.onOpenOrder(hit.orderId ?? hit.id);
-    return;
-  }
-  if (hit.kind === "Goods Out" && hit.orderId) {
-    handlers.onOpenOrder(hit.orderId);
-    return;
-  }
-  handlers.onOpenNav(hit.nav, hit.id);
-}
-
-const SEARCH_DEBOUNCE_MS = 160;
-
-export function LiveSearchResults({
-  store,
-  query,
-  activeIndex = 0,
-  onActiveIndexChange,
-  onResultsChange,
-  onOpenOrder,
-  onOpenNav,
-}: {
-  store: TlbStoreApi;
-  query: string;
-  activeIndex?: number;
-  onActiveIndexChange?: (index: number) => void;
-  onResultsChange?: (hits: SearchHit[]) => void;
-  onOpenOrder: (id: string) => void;
-  onOpenNav: (nav: string, entityId?: string) => void;
-}) {
-  const [debouncedQuery, setDebouncedQuery] = useState(query);
-
-  useEffect(() => {
-    const handle = window.setTimeout(() => setDebouncedQuery(query), SEARCH_DEBOUNCE_MS);
-    return () => window.clearTimeout(handle);
-  }, [query]);
-
-  const index = useMemo(() => buildSearchIndex(store.state), [store.state]);
-  const q = debouncedQuery.trim();
-  const hits = useMemo(() => searchDocuments(index, q, 18), [index, q]);
-
-  useEffect(() => {
-    onResultsChange?.(hits);
-    // Parent often passes an inline setter; sync whenever hits change only.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hits]);
-
-  useEffect(() => {
-    if (hits.length === 0) return;
-    if (activeIndex > hits.length - 1) onActiveIndexChange?.(hits.length - 1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hits.length, activeIndex]);
-
-  const openHit = (hit: SearchHit) => openSearchHit(hit, { onOpenOrder, onOpenNav });
-
-  if (!query.trim()) {
-    const featuredOrder =
-      store.state.orders.find((o) => o.id === "ord-phase30" && !isSoftDeleted(o)) ??
-      notSoftDeleted(store.state.orders)[0];
-    const shortcuts: { label: string; onOpen: () => void }[] = [
-      { label: "Chemical A · CHEM-A", onOpen: () => onOpenNav("Stock") },
-      {
-        label: featuredOrder?.number ?? "Sales Orders",
-        onOpen: () => (featuredOrder ? onOpenOrder(featuredOrder.id) : onOpenNav("Sales Orders")),
-      },
-      { label: "Outstanding Supplies", onOpen: () => onOpenNav("Outstanding Supplies") },
-      { label: "Invoices", onOpen: () => onOpenNav("Invoices") },
-    ];
-    return (
-      <>
-        <p>QUICK ACCESS</p>
-        {shortcuts.map((item) => (
-          <button type="button" role="option" key={item.label} onClick={item.onOpen}>
-            <PackageSearch />
-            <span>{item.label}</span>
-            <ChevronRight />
-          </button>
-        ))}
-      </>
-    );
-  }
-
-  if (!hits.length) {
-    return (
-      <>
-        <p>NO MATCHES</p>
-        <div className="tlb-search-empty" role="status">
-          No records match your search.
-        </div>
-      </>
-    );
-  }
-
-  return (
-    <>
-      <p>RESULTS · {hits.length}</p>
-      {hits.map((hit, index) => {
-        const active = index === activeIndex;
-        const line = hit.subtitle ? `${hit.label} · ${hit.subtitle}` : hit.label;
-        return (
-          <button
-            type="button"
-            role="option"
-            aria-selected={active}
-            id={`tlb-search-option-${index}`}
-            className={active ? "tlb-search-option-active" : undefined}
-            key={`${hit.kind}-${hit.id}`}
-            onMouseEnter={() => onActiveIndexChange?.(index)}
-            onClick={() => openHit(hit)}
-          >
-            <PackageSearch />
-            <span>{highlightSearchMatch(line, q)}</span>
-            <ChevronRight />
-          </button>
-        );
-      })}
-    </>
   );
 }
 
