@@ -105,10 +105,14 @@ export function RecordBackLink({ label, onBack }: { label: string; onBack: () =>
   );
 }
 
-/** Registers header ← Back only (in-page bar hidden to avoid duplicate with HeaderDetailBack). */
+/** Sticky in-page ← Back. One control on the page; the header slot is not used. */
 export function DetailBackChrome({ label, onBack }: { label: string; onBack: () => void }) {
   useRegisterDetailBack(label, onBack);
-  return null;
+  return (
+    <div className="tlb-record-back-bar">
+      <RecordBackLink label={label} onBack={onBack} />
+    </div>
+  );
 }
 
 export function RecordDetailHeader({
@@ -130,8 +134,12 @@ export function RecordDetailHeader({
 }) {
   useRegisterDetailBack(backLabel, onBack);
   return (
-    <header className="tlb-record-detail-header tlb-customer-detail-header">
-      <div className="tlb-record-detail-header-row tlb-customer-detail-header-row">
+    <>
+      <div className="tlb-record-back-bar">
+        <RecordBackLink label={backLabel} onBack={onBack} />
+      </div>
+      <header className="tlb-record-detail-header tlb-customer-detail-header">
+        <div className="tlb-record-detail-header-row tlb-customer-detail-header-row">
         <div className="tlb-record-detail-identity tlb-customer-detail-identity">
           {code ? (
             <span className="tlb-record-detail-code tlb-customer-detail-code">{code}</span>
@@ -147,6 +155,7 @@ export function RecordDetailHeader({
         </div>
       </div>
     </header>
+    </>
   );
 }
 

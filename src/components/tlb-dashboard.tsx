@@ -300,16 +300,6 @@ const PERIOD_SCOPED_NAV = new Set([
 
 type Inspector = { title: string; kicker: string; lines: string[] };
 
-function HeaderDetailBack() {
-  const { detailBack } = useDetailBack();
-  if (!detailBack) return null;
-  return (
-    <div className="tlb-header-back-slot">
-      <RecordBackLink label={detailBack.label} onBack={detailBack.onBack} />
-    </div>
-  );
-}
-
 function StatusBadge({ children, tone }: { children: React.ReactNode; tone: string }) {
   return <span className={`status-badge status-${tone}`}>{children}</span>;
 }
@@ -920,7 +910,6 @@ function TLBDashboardInner() {
           >
             <Menu />
           </Button>
-          <HeaderDetailBack />
           {showPeriodBar && !detailOpen && !onProfilePage && (
             <p
               className="tlb-header-context"
@@ -1210,6 +1199,16 @@ function TLBDashboardInner() {
             overlayOpen && "tlb-content--overlay-open",
           )}
         >
+          {onProfilePage ? (
+            <div className="tlb-record-back-bar">
+              <RecordBackLink
+                label={activeNav}
+                onBack={() => {
+                  void navigate({ to: "/" });
+                }}
+              />
+            </div>
+          ) : null}
           {!detailOpen && (
             <div className={cn("tlb-page-heading", quickOpen && "tlb-page-heading--overlay-open")}>
               <div>
