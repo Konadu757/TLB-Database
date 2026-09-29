@@ -375,19 +375,24 @@ table.tlb-table,
 .tlb-nav::-webkit-scrollbar-thumb:hover {
   background: color-mix(in oklab, #ffffff 80%, var(--tlb-purple));
 }
-.tlb-nav-group + .tlb-nav-group { margin-top: 8px; }
+.tlb-nav-group + .tlb-nav-group { margin-top: 14px; }
 .tlb-nav-group-toggle {
   width: 100%;
   display: flex;
   align-items: center;
   gap: 6px;
   margin: 0;
-  padding: 8px 10px 4px;
+  min-height: 0;
+  padding: 12px 8px 2px;
   border: 0;
   border-radius: 8px;
   background: transparent;
   color: color-mix(in oklab, #ffffff 94%, transparent);
+  font-size: 10.5px;
   font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0;
+  text-transform: none;
   cursor: pointer;
   text-align: left;
 }
@@ -399,15 +404,16 @@ table.tlb-table,
   margin: 0;
   flex: 1;
   color: inherit;
-  /* Locked to prior 17px-root size (0.6875rem @ 17px) */
+  /* Section kicker: smaller and tracked, so it does not read as a nav option. */
   font-size: 10.5px;
   font-weight: 700;
+  line-height: 1.2;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
 }
 .tlb-nav-group-chevron {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   flex: none;
   opacity: 0.9;
   color: inherit;
@@ -420,16 +426,19 @@ table.tlb-table,
 .tlb-nav-group-items {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   margin-top: 4px;
 }
 .tlb-nav-group-items-collapsed {
   display: none;
 }
-.tlb-nav-group-items .tlb-nav-item {
-  padding-left: 12px;
+.tlb-nav-group:has(.tlb-nav-group-toggle) .tlb-nav-group-items .tlb-nav-item {
+  padding-left: 26px;
   color: #ffffff;
+  font-size: 14.5px;
   font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
 }
 .tlb-nav-group-items .tlb-nav-item:hover {
   background: color-mix(in oklab, #ffffff 12%, transparent);
@@ -456,7 +465,11 @@ table.tlb-table,
   gap: 1px;
   margin-top: 0;
 }
-.tlb-sidebar-collapsed .tlb-nav-item { justify-content: center; padding-inline: 8px; }
+.tlb-sidebar-collapsed .tlb-nav-item,
+.tlb-sidebar-collapsed .tlb-nav-group:has(.tlb-nav-group-toggle) .tlb-nav-group-items .tlb-nav-item {
+  justify-content: center;
+  padding-inline: 8px;
+}
 .tlb-desktop-sidebar { flex-shrink: 0; z-index: 30; }
 .tlb-mobile-sidebar, .tlb-mobile-overlay { display: none; }
 .tlb-main {
