@@ -1154,17 +1154,22 @@ function TLBDashboardInner() {
                       })
                     }
                   >
-                    Profile <ChevronRight />
+                    <UserRound aria-hidden="true" />
+                    Profile
+                    <ChevronRight aria-hidden="true" />
                   </button>
                   <button
                     type="button"
                     role="menuitem"
+                    className={activeNav === "Settings" ? "is-selected" : undefined}
                     onClick={() => {
                       setUserOpen(false);
                       setActiveNav("Settings");
                     }}
                   >
-                    Settings <ChevronRight />
+                    <Settings aria-hidden="true" />
+                    Settings
+                    <ChevronRight aria-hidden="true" />
                   </button>
                 </div>
               )}
