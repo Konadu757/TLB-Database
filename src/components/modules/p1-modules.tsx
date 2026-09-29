@@ -1,11 +1,9 @@
-import { useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { ChevronDown, X } from "lucide-react";
 
-import { TrashConfirmDialog } from "@/components/modules/trash-confirm-dialog";
 import { Button } from "@/components/ui/button";
-import { listAssignableRoles, resolveRole } from "@/lib/domain/permissions";
+import { listAssignableRoles } from "@/lib/domain/permissions";
 import { buildInviteLink, isInvitePending } from "@/lib/domain/invites";
-import { isSoftDeleted } from "@/lib/domain/trash";
 import type { RoleDefinition } from "@/lib/domain/types";
 import { formatMoney } from "@/lib/store/tlb-store";
 import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
@@ -43,6 +41,80 @@ function EmptyState({ title, detail }: { title: string; detail: string }) {
     <div className="tlb-empty-state">
       <strong>{title}</strong>
       <p>{detail}</p>
+    </div>
+  );
+}
+
+function RoleMenu({
+  roles,
+  value,
+  onChange,
+}: {
+  roles: RoleDefinition[];
+  value: string;
+  onChange: (roleId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const listId = useId();
+  const selected = roles.find((role) => role.id === value);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="tlb-role-field">
+      <span id={`${listId}-label`}>Role</span>
+      <div
+        className="tlb-role-select"
+        data-open={open ? "true" : "false"}
+        ref={rootRef}
+      >
+        <button
+          type="button"
+          className="tlb-role-trigger"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-controls={listId}
+          aria-labelledby={`${listId}-label`}
+          onClick={() => setOpen((current) => !current)}
+        >
+          <span>{selected?.name ?? "Select a role"}</span>
+          <ChevronDown className="tlb-role-chevron" aria-hidden="true" />
+        </button>
+        {open ? (
+          <div className="tlb-role-menu" id={listId} role="listbox" aria-label="Role">
+            {roles.map((role) => (
+              <button
+                key={role.id}
+                type="button"
+                role="option"
+                aria-selected={role.id === value}
+                className={role.id === value ? "is-selected" : undefined}
+                onClick={() => {
+                  onChange(role.id);
+                  setOpen(false);
+                }}
+              >
+                {role.name}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -125,31 +197,29 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
   const [ageing, setAgeing] = useState(store.state.ageing);
   const [newUser, setNewUser] = useState({
     name: "",
+    contact: "",
     email: "",
-    roleId: store.state.roles[0]?.id ?? "",
+    roleId: "",
   });
-  const [roleTrash, setRoleTrash] = useState<RoleDefinition | null>(null);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editUser, setEditUser] = useState({
     name: "",
+    contact: "",
     email: "",
     roleId: "",
     active: true,
   });
 
-  const activeRoles = useMemo(
-    () => listAssignableRoles(store.state.roles).filter((role) => role.systemKey === "Owner"),
-    [store.state.roles],
-  );
+  const activeRoles = useMemo(() => listAssignableRoles(store.state.roles), [store.state.roles]);
   const editingUser = store.state.users.find((u) => u.id === editingUserId) ?? null;
   const canManageUsers = store.can("users.manage");
   const canManageSettings = store.can("settings.manage");
-  const isOwnerSession = resolveRole(store.state)?.systemKey === "Owner";
 
   const startEditUser = (user: (typeof store.state.users)[number]) => {
     setEditingUserId(user.id);
     setEditUser({
       name: user.name,
+      contact: user.contact ?? "",
       email: user.email,
       roleId: user.roleId,
       active: user.active,
@@ -158,7 +228,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
 
   const cancelEditUser = () => {
     setEditingUserId(null);
-    setEditUser({ name: "", email: "", roleId: "", active: true });
+    setEditUser({ name: "", contact: "", email: "", roleId: "", active: true });
   };
 
   return (
@@ -192,6 +262,9 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
               <div>
                 <span>Access</span>
                 <strong>Users &amp; role assignment</strong>
+                <p className="tlb-muted-line">
+                  Enter the person’s name, contact, and email, then choose a predefined role.
+                </p>
               </div>
             </div>
             {store.lastInvite ? (
@@ -245,6 +318,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                   <thead>
                     <tr>
                       <th>Name</th>
+                      <th>Contact</th>
                       <th>Email</th>
                       <th>Role</th>
                       <th>Status</th>
@@ -259,6 +333,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                         className={editingUserId === user.id ? "tlb-row-selected" : undefined}
                       >
                         <td>{user.name}</td>
+                        <td>{user.contact?.trim() || "—"}</td>
                         <td>{user.email}</td>
                         <td>
                           {store.state.roles.find((r) => r.id === user.roleId)?.name ?? "Owner"}
@@ -325,6 +400,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                     store.saveUser({
                       id: editingUser.id,
                       name: editUser.name,
+                      contact: editUser.contact,
                       email: editUser.email,
                       roleId: editUser.roleId,
                       active: editUser.active,
@@ -355,6 +431,15 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                   />
                 </label>
                 <label>
+                  Contact
+                  <input
+                    type="tel"
+                    value={editUser.contact}
+                    onChange={(e) => setEditUser({ ...editUser, contact: e.target.value })}
+                    required
+                  />
+                </label>
+                <label>
                   Email
                   <input
                     type="email"
@@ -363,19 +448,11 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                     required
                   />
                 </label>
-                <label>
-                  Role
-                  <select
-                    value={editUser.roleId}
-                    onChange={(e) => setEditUser({ ...editUser, roleId: e.target.value })}
-                  >
-                    {activeRoles.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <RoleMenu
+                  roles={activeRoles}
+                  value={editUser.roleId}
+                  onChange={(roleId) => setEditUser({ ...editUser, roleId })}
+                />
                 <label>
                   Status
                   <select
@@ -398,15 +475,25 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                 onSubmit={(e) => {
                   e.preventDefault();
                   if (store.saveUser(newUser)) {
-                    setNewUser({ name: "", email: "", roleId: activeRoles[0]?.id ?? "" });
+                    setNewUser({ name: "", contact: "", email: "", roleId: "" });
                   }
                 }}
               >
                 <label>
-                  New user name
+                  Name
                   <input
                     value={newUser.name}
                     onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                    required
+                  />
+                </label>
+                <label>
+                  Contact
+                  <input
+                    type="tel"
+                    value={newUser.contact}
+                    onChange={(e) => setNewUser({ ...newUser, contact: e.target.value })}
+                    required
                   />
                 </label>
                 <label>
@@ -415,116 +502,20 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                     type="email"
                     value={newUser.email}
                     onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                    required
                   />
                 </label>
-                <label>
-                  Role
-                  <select
-                    value={newUser.roleId}
-                    onChange={(e) => setNewUser({ ...newUser, roleId: e.target.value })}
-                  >
-                    {activeRoles.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="tlb-form-actions">
-                  <Button type="submit">Add user</Button>
+                <RoleMenu
+                  roles={activeRoles}
+                  value={newUser.roleId}
+                  onChange={(roleId) => setNewUser({ ...newUser, roleId })}
+                />
+                <div className="tlb-form-actions tlb-span-2">
+                  <Button type="submit">Assign role</Button>
                 </div>
               </form>
             )}
           </article>
-
-          <article className="tlb-panel" style={{ marginBottom: 14 }}>
-            <div className="tlb-panel-heading">
-              <div>
-                <span>Access</span>
-                <strong>Roles</strong>
-              </div>
-            </div>
-            <p className="tlb-muted-line" style={{ padding: "0 17px 8px" }}>
-              Permissions stay predefined. The Owner role is protected. Delete on any other role
-              asks you to type DELETE, then moves that role to Trash. People assigned to it move to
-              Owner. Tasks already on that role stay in place and do not block the delete.
-            </p>
-            <div className="tlb-table-scroll tlb-orders-panel">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Role</th>
-                    <th>Type</th>
-                    <th>Active users</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...store.state.roles]
-                    .filter((role) => role.active && !isSoftDeleted(role))
-                    .sort((a, b) => {
-                      if (a.systemKey === "Owner") return -1;
-                      if (b.systemKey === "Owner") return 1;
-                      return a.name.localeCompare(b.name);
-                    })
-                    .map((role) => {
-                      const assigned = store.state.users.filter(
-                        (u) => u.roleId === role.id && u.active,
-                      ).length;
-                      const isOwnerRole = role.systemKey === "Owner";
-                      return (
-                        <tr key={role.id}>
-                          <td>
-                            <strong>{role.name}</strong>
-                            {role.description ? (
-                              <div className="tlb-muted">{role.description}</div>
-                            ) : null}
-                          </td>
-                          <td>{role.systemKey ? "System" : "Custom"}</td>
-                          <td>{assigned}</td>
-                          <td>Active</td>
-                          <td>
-                            {isOwnerRole ? (
-                              <StatusBadge tone="neutral">Protected</StatusBadge>
-                            ) : isOwnerSession ? (
-                              <button
-                                type="button"
-                                className="tlb-link-btn"
-                                onClick={() => setRoleTrash(role)}
-                              >
-                                Delete
-                              </button>
-                            ) : (
-                              <span className="tlb-muted">Owner only</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                </tbody>
-              </table>
-            </div>
-          </article>
-          <TrashConfirmDialog
-            open={Boolean(roleTrash)}
-            mode="trash"
-            recordLabel={roleTrash?.name ?? "this role"}
-            {...(roleTrash
-              ? {
-                  extraNote: `Assigned people will move to Owner (${store.state.users.filter((u) => u.roleId === roleTrash.id).length} user(s)). Tasks already assigned to this role do not block deletion.`,
-                }
-              : {})}
-            onOpenChange={(open) => {
-              if (!open) setRoleTrash(null);
-            }}
-            onConfirm={(reason) => {
-              if (!roleTrash) return;
-              if (reason) store.deleteRole(roleTrash.id, reason);
-              else store.deleteRole(roleTrash.id);
-              setRoleTrash(null);
-            }}
-          />
         </>
       ) : (
         <article className="tlb-panel" style={{ marginBottom: 14 }}>

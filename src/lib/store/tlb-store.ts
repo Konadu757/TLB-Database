@@ -20,7 +20,12 @@ import {
   markInviteAccepted,
   normalizeAccessCode,
 } from "../domain/invites";
-import { hasPermission, resolveRole, systemRoleKeyForDbCode } from "../domain/permissions";
+import {
+  hasPermission,
+  isAssignableSystemRole,
+  resolveRole,
+  systemRoleKeyForDbCode,
+} from "../domain/permissions";
 
 export { buildInviteLink, isInvitePending } from "../domain/invites";
 import { isSoftDeleted } from "../domain/trash";
@@ -1517,10 +1522,11 @@ export function assignUserRole(
   const user = next.users.find((u) => u.id === userId);
   if (!user) return { ok: false, error: "User not found." };
   const role = next.roles.find((r) => r.id === roleId);
-  if (!role) return { ok: false, error: "Role not found." };
-  if (!role.active) return { ok: false, error: "Cannot assign an inactive role." };
-  if (role.systemKey !== "Owner") {
-    return { ok: false, error: "Only the Owner role can be assigned." };
+  if (!isAssignableSystemRole(role)) {
+    return { ok: false, error: "Select a predefined role." };
+  }
+  if (userId === state.currentUserId && role.systemKey !== "Owner") {
+    return { ok: false, error: "The signed-in account stays on the Owner role." };
   }
   user.roleId = role.id;
   if (next.currentUserId === user.id) syncSessionIdentity(next);
@@ -1535,19 +1541,27 @@ export function assignUserRole(
 
 export function upsertAppUser(
   state: TlbState,
-  input: { id?: string; name: string; email: string; roleId: string; active?: boolean },
+  input: {
+    id?: string;
+    name: string;
+    email: string;
+    contact?: string;
+    roleId: string;
+    active?: boolean;
+  },
 ): MutResult<AppUser> {
   const blocked = requirePerm(state, "users.manage");
   if (blocked) return { ok: false, error: blocked };
   const name = input.name.trim();
   const email = input.email.trim().toLowerCase();
+  const contact = input.contact?.trim() ?? "";
   if (!name) return { ok: false, error: "User name is required." };
   if (!email) return { ok: false, error: "User email is required." };
   const next = cloneState(state);
   const role = next.roles.find((r) => r.id === input.roleId);
-  if (!role || !role.active) return { ok: false, error: "Select an active role." };
-  if (role.systemKey !== "Owner") {
-    return { ok: false, error: "Only the Owner role can be assigned." };
+  if (!isAssignableSystemRole(role)) return { ok: false, error: "Select a predefined role." };
+  if (input.id && input.id === state.currentUserId && role.systemKey !== "Owner") {
+    return { ok: false, error: "The signed-in account stays on the Owner role." };
   }
 
   if (input.id) {
@@ -1565,6 +1579,10 @@ export function upsertAppUser(
     const prevActive = user.active;
     user.name = name;
     user.email = email;
+    if (input.contact !== undefined) {
+      if (contact) user.contact = contact;
+      else delete user.contact;
+    }
     user.roleId = role.id;
     if (input.active !== undefined) user.active = input.active;
     if (next.currentUserId === user.id) syncSessionIdentity(next);
@@ -1597,6 +1615,7 @@ export function upsertAppUser(
     id: uid("user"),
     name,
     email,
+    ...(contact ? { contact } : {}),
     roleId: role.id,
     active: input.active ?? true,
   };

@@ -382,13 +382,24 @@ export function canManageAllNotifications(
   return hasPermission(state, "users.manage");
 }
 
-/** The only role the workspace can assign. Other system keys stay in the permission catalog. */
-export function listAssignableRoles(roles: RoleDefinition[]): RoleDefinition[] {
-  return roles.filter((r) => r.active && r.systemKey === "Owner");
+/** Predefined roles the Owner can assign to a person. Sign-in stays the authenticated Owner. */
+export const ALL_ROLES: SystemRoleKey[] = Object.keys(SYSTEM_ROLE_PERMISSIONS) as SystemRoleKey[];
+
+export function isAssignableSystemRole(role: RoleDefinition | undefined): role is RoleDefinition {
+  if (!role?.active || role.deletedAt || !role.systemKey) return false;
+  return Object.prototype.hasOwnProperty.call(SYSTEM_ROLE_PERMISSIONS, role.systemKey);
 }
 
-/** Roles offered in the app. Permission checks for other system keys stay in SYSTEM_ROLE_PERMISSIONS. */
-export const ALL_ROLES: SystemRoleKey[] = ["Owner"];
+/** Active predefined roles, in catalog order. Soft-deleted roles stay out of the menu. */
+export function listAssignableRoles(roles: RoleDefinition[]): RoleDefinition[] {
+  const order = ALL_ROLES;
+  return roles
+    .filter(isAssignableSystemRole)
+    .sort(
+      (a, b) =>
+        order.indexOf(a.systemKey as SystemRoleKey) - order.indexOf(b.systemKey as SystemRoleKey),
+    );
+}
 
 export function userInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);

@@ -231,14 +231,17 @@ function testPermissions() {
   const blockedDelete = deleteRole(asSales, SYSTEM_ROLE_IDS.Warehouse);
   assert.equal(blockedDelete.ok, false);
 
-  // Owner can delete a system role; assigned users are reassigned to Owner.
+  // Owner assigns a predefined role without changing the signed-in session.
   const roleState = withSystemRole(structuredClone(state), "Warehouse");
-  const blockedAssign = assignUserRole(roleState, "user-sales", SYSTEM_ROLE_IDS.Warehouse);
-  assert.equal(blockedAssign.ok, false);
-  const salesBeforeDelete = roleState.users.find((u) => u.id === "user-sales");
-  assert.ok(salesBeforeDelete);
-  if (salesBeforeDelete) salesBeforeDelete.roleId = SYSTEM_ROLE_IDS.Warehouse;
-  const deleted = deleteRole(roleState, SYSTEM_ROLE_IDS.Warehouse);
+  const assigned = assignUserRole(roleState, "user-sales", SYSTEM_ROLE_IDS.Warehouse);
+  assert.equal(assigned.ok, true);
+  if (!assigned.ok) return;
+  assert.equal(assigned.data.data.roleId, SYSTEM_ROLE_IDS.Warehouse);
+  assert.equal(assigned.data.state.currentRole, "Owner");
+  assert.equal(assigned.data.state.currentUserId, state.currentUserId);
+
+  // Owner can still move a system role to trash; assigned users return to Owner.
+  const deleted = deleteRole(assigned.data.state, SYSTEM_ROLE_IDS.Warehouse);
   assert.equal(deleted.ok, true);
   if (!deleted.ok) return;
   const warehouseGone = deleted.data.state.roles.find((r) => r.id === SYSTEM_ROLE_IDS.Warehouse);

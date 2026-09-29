@@ -316,6 +316,8 @@ export interface AppUser {
   id: string;
   name: string;
   email: string;
+  /** Phone or other contact the Owner enters when assigning a role. */
+  contact?: string;
   roleId: string;
   active: boolean;
   inviteToken?: string;
