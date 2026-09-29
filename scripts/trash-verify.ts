@@ -343,6 +343,48 @@ function testRoleDeleteWithUsersAndTasks() {
   assert.equal(kept.currentRole, "Owner");
 }
 
+function testOwnerDeletesAssignmentWithoutSwitchingSession() {
+  const state = ownerState();
+  const beforeUser = state.currentUserId;
+  const beforeRole = state.currentRole;
+  const blockedSelf = softDeleteRecord(state, {
+    entityType: "user",
+    entityId: state.currentUserId,
+  });
+  assert.equal(blockedSelf.ok, false);
+
+  const blockedRole = softDeleteRecord(sessionAsSales(state), {
+    entityType: "user",
+    entityId: "user-finance",
+  });
+  assert.equal(blockedRole.ok, false);
+
+  const deleted = softDeleteRecord(state, {
+    entityType: "user",
+    entityId: "user-sales",
+    reason: "left the team",
+  });
+  assert.equal(deleted.ok, true, deleted.ok ? "" : deleted.error);
+  if (!deleted.ok) return;
+  assert.equal(deleted.data.state.currentUserId, beforeUser);
+  assert.equal(deleted.data.state.currentRole, beforeRole);
+  assert.equal(deleted.data.state.currentUser, state.currentUser);
+  const trashed = deleted.data.state.users.find((user) => user.id === "user-sales");
+  assert.ok(trashed && isSoftDeleted(trashed));
+  assert.equal(trashed.active, false);
+  assert.ok(
+    listTrashItems(deleted.data.state).some(
+      (item) => item.entityType === "user" && item.entityId === "user-sales",
+    ),
+  );
+  lockWorkspaceToOwner(deleted.data.state);
+  assert.equal(deleted.data.state.currentRole, "Owner");
+  assert.equal(deleted.data.state.currentUserId, beforeUser);
+  assert.ok(isSoftDeleted(deleted.data.state.users.find((user) => user.id === "user-sales")!));
+  assert.equal(trashBlockReason(state, "user", state.currentUserId)?.length ? true : false, true);
+}
+
+testOwnerDeletesAssignmentWithoutSwitchingSession();
 testInvoiceTrashRestorePurge();
 testOpsRequestTrashAndBlock();
 testStockMovementHideNoPurge();

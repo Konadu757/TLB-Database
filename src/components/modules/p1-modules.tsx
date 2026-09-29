@@ -1,10 +1,12 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ChevronDown, X } from "lucide-react";
 
+import { TrashConfirmDialog } from "@/components/modules/trash-confirm-dialog";
 import { Button } from "@/components/ui/button";
-import { listAssignableRoles } from "@/lib/domain/permissions";
+import { listAssignableRoles, OWNER_USER_ID } from "@/lib/domain/permissions";
 import { buildInviteLink, isInvitePending } from "@/lib/domain/invites";
-import type { RoleDefinition } from "@/lib/domain/types";
+import { notSoftDeleted } from "@/lib/domain/trash";
+import type { AppUser, RoleDefinition } from "@/lib/domain/types";
 import { formatMoney } from "@/lib/store/tlb-store";
 import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
 
@@ -209,11 +211,17 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
     roleId: "",
     active: true,
   });
+  const [pendingDelete, setPendingDelete] = useState<AppUser | null>(null);
 
   const activeRoles = useMemo(() => listAssignableRoles(store.state.roles), [store.state.roles]);
-  const editingUser = store.state.users.find((u) => u.id === editingUserId) ?? null;
+  const assignedUsers = useMemo(
+    () => notSoftDeleted(store.state.users),
+    [store.state.users],
+  );
+  const editingUser = assignedUsers.find((u) => u.id === editingUserId) ?? null;
   const canManageUsers = store.can("users.manage");
   const canManageSettings = store.can("settings.manage");
+  const canDeleteAssignment = store.can("records.delete");
 
   const startEditUser = (user: (typeof store.state.users)[number]) => {
     setEditingUserId(user.id);
@@ -260,7 +268,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
           <article className="tlb-panel" style={{ marginBottom: 14 }}>
             <div className="tlb-panel-heading">
               <div>
-                <span>Access</span>
+                <span>Staff</span>
                 <strong>Users &amp; role assignment</strong>
                 <p className="tlb-muted-line">
                   Enter the person’s name, contact, and email, then choose a predefined role.
@@ -310,7 +318,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                 </div>
               </div>
             ) : null}
-            {store.state.users.length === 0 ? (
+            {assignedUsers.length === 0 ? (
               <EmptyState title="No users" detail="Create a user to assign roles." />
             ) : (
               <div className="tlb-table-scroll tlb-orders-panel">
@@ -327,7 +335,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {store.state.users.map((user) => (
+                    {assignedUsers.map((user) => (
                       <tr
                         key={user.id}
                         className={editingUserId === user.id ? "tlb-row-selected" : undefined}
@@ -384,6 +392,20 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                           >
                             {editingUserId === user.id ? "Cancel" : "Edit"}
                           </button>
+                          {canDeleteAssignment &&
+                          user.id !== store.state.currentUserId &&
+                          user.id !== OWNER_USER_ID ? (
+                            <>
+                              {" "}
+                              <button
+                                type="button"
+                                className="tlb-link-btn"
+                                onClick={() => setPendingDelete(user)}
+                              >
+                                Delete
+                              </button>
+                            </>
+                          ) : null}
                         </td>
                       </tr>
                     ))}
@@ -515,6 +537,33 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                 </div>
               </form>
             )}
+            <TrashConfirmDialog
+              open={pendingDelete !== null}
+              mode="trash"
+              recordLabel={
+                pendingDelete ? `${pendingDelete.name}'s role assignment` : "role assignment"
+              }
+              extraNote="This removes that person's assigned role. You stay signed in as Owner."
+              onOpenChange={(open) => {
+                if (!open) setPendingDelete(null);
+              }}
+              onConfirm={(reason) => {
+                if (!pendingDelete) return;
+                if (
+                  pendingDelete.id === store.state.currentUserId ||
+                  pendingDelete.id === OWNER_USER_ID
+                ) {
+                  return;
+                }
+                const id = pendingDelete.id;
+                const ok = store.moveToTrash({
+                  entityType: "user",
+                  entityId: id,
+                  ...(reason ? { reason } : {}),
+                });
+                if (ok && editingUserId === id) cancelEditUser();
+              }}
+            />
           </article>
         </>
       ) : (

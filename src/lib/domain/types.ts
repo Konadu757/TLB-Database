@@ -274,7 +274,8 @@ export type TrashEntityType =
   | "supplier_payment"
   | "approval"
   | "notification"
-  | "role";
+  | "role"
+  | "user";
 
 /** Soft-deleted catalog (quotations / sandbox list) rows. */
 export interface CatalogDeletion {
@@ -311,8 +312,8 @@ export interface RoleDefinition extends SoftDeleteFields {
   systemKey?: SystemRoleKey;
 }
 
-/** Local mock-auth user — swap for Supabase auth user later. */
-export interface AppUser {
+/** Person assigned to a predefined role. Soft-delete removes that assignment. */
+export interface AppUser extends SoftDeleteFields {
   id: string;
   name: string;
   email: string;

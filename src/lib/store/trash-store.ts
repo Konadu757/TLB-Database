@@ -3,7 +3,7 @@
  * Stock movements may be soft-hidden but never permanently purged (ledger integrity).
  * Audit events and system Owner role are never trashable.
  */
-import { hasPermission } from "../domain/permissions";
+import { hasPermission, OWNER_USER_ID } from "../domain/permissions";
 import { syncSessionIdentity } from "./migrate";
 import {
   buildCatalogDeletion,
@@ -148,6 +148,11 @@ export function trashBlockReason(
     if (!row) return null;
     if (["In transit", "Partially received"].includes(row.status)) {
       return `Cannot trash supplier PO ${row.number} while ${row.status}.`;
+    }
+  }
+  if (entityType === "user") {
+    if (entityId === state.currentUserId || entityId === OWNER_USER_ID) {
+      return "The signed-in Owner account cannot be deleted.";
     }
   }
   return null;
@@ -505,6 +510,31 @@ export function softDeleteRecord(
       );
       break;
     }
+    case "user": {
+      if (input.entityId === next.currentUserId || input.entityId === OWNER_USER_ID) {
+        err = "The signed-in Owner account cannot be deleted.";
+        break;
+      }
+      const row = next.users.find((u) => u.id === input.entityId);
+      const sessionUserId = next.currentUserId;
+      const sessionRoleId = next.currentRoleId;
+      const sessionRole = next.currentRole;
+      const sessionName = next.currentUser;
+      err = soft(
+        row,
+        "Person not found.",
+        "This assignment is already in trash.",
+        (r) => `Moved ${r.name}'s role assignment to trash.`,
+        (r) => {
+          r.active = false;
+        },
+      );
+      next.currentUserId = sessionUserId;
+      next.currentRoleId = sessionRoleId;
+      next.currentRole = sessionRole;
+      next.currentUser = sessionName;
+      break;
+    }
     case "role": {
       const role = next.roles.find((r) => r.id === input.entityId);
       if (!role) {
@@ -859,6 +889,18 @@ export function restoreTrashItem(
       );
       break;
     }
+    case "user": {
+      const user = next.users.find((u) => u.id === input.entityId);
+      if (user && (user.id === next.currentUserId || user.id === OWNER_USER_ID)) {
+        err = "The signed-in Owner account cannot be restored from here.";
+        break;
+      }
+      err = restore(user, "Trashed role assignment not found.", (r) => {
+        r.active = true;
+        return `Restored ${r.name}'s role assignment from trash.`;
+      });
+      break;
+    }
     case "role": {
       const role = next.roles.find((r) => r.id === input.entityId);
       if (!role || role.systemKey === "Owner" || !isSoftDeleted(role)) {
@@ -1168,6 +1210,16 @@ export function purgeTrashItem(
         (n) => !(n.id === input.entityId && isSoftDeleted(n)),
       );
       summary = `Permanently deleted notification ${input.entityId}.`;
+      break;
+    }
+    case "user": {
+      const user = next.users.find((u) => u.id === input.entityId && isSoftDeleted(u));
+      if (!user) return { ok: false, error: "Trashed role assignment not found." };
+      if (user.id === next.currentUserId || user.id === OWNER_USER_ID) {
+        return { ok: false, error: "The signed-in Owner account cannot be deleted." };
+      }
+      next.users = next.users.filter((u) => u.id !== user.id);
+      summary = `Permanently deleted ${user.name}'s role assignment.`;
       break;
     }
     case "role": {

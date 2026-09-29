@@ -107,6 +107,8 @@ export function trashTypeLabel(entityType: TrashEntityType, module?: string): st
       return "Notification";
     case "role":
       return "Role";
+    case "user":
+      return "Role assignment";
     default:
       return entityType;
   }
@@ -230,6 +232,10 @@ export function listTrashItems(state: TlbState): TrashListItem[] {
   }
   for (const n of state.notifications) {
     pushTrash(items, "notification", n.id, n.title, n, n.type);
+  }
+  for (const user of state.users) {
+    const roleName = state.roles.find((role) => role.id === user.roleId)?.name;
+    pushTrash(items, "user", user.id, user.name, user, roleName ?? user.email);
   }
   for (const role of state.roles) {
     if (role.systemKey === "Owner") continue;
