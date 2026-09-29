@@ -2419,13 +2419,6 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
   gap: 4px;
   margin-bottom: 8px;
 }
-.tlb-login-heading span {
-  color: var(--muted-foreground);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
 .tlb-login-heading strong {
   color: #1f1630;
   font-size: 1.35rem;

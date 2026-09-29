@@ -31,7 +31,6 @@ export function PortalLogin({ configured, checking, pending, error, onSubmit }: 
         </div>
         <div className="tlb-login-body">
           <div className="tlb-login-heading">
-            <span>Access</span>
             <strong>{checking ? "Checking session" : "Sign in"}</strong>
           </div>
           {checking ? (
