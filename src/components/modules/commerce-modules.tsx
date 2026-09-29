@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, Plus, Search, X } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { ChevronRight, PackageSearch, Plus, Search, X } from "lucide-react";
 
 import {
   RecordDetailPage,
@@ -23,10 +23,12 @@ import type {
   CustomerCategory,
   CustomerPurchaseOrder,
   PaymentTerms,
+  SearchHit,
   TlbState,
 } from "@/lib/domain/types";
 import { getRelatedRecords } from "@/lib/domain/notifications";
 import { isoInRange } from "@/lib/domain/period-range";
+import { buildSearchIndex, searchDocuments } from "@/lib/domain/search";
 import {
   countOutstandingOrdersForProduct,
   formatMoney,
@@ -2592,6 +2594,127 @@ export function OutstandingDashboardWidget({
         </p>
       )}
     </article>
+  );
+}
+
+export function highlightSearchMatch(text: string, query: string): ReactNode {
+  const q = query.trim();
+  if (!q || !text) return text;
+  const lower = text.toLowerCase();
+  const needle = q.toLowerCase();
+  const parts: ReactNode[] = [];
+  let cursor = 0;
+  let matchIndex = lower.indexOf(needle, cursor);
+  let key = 0;
+  while (matchIndex >= 0) {
+    if (matchIndex > cursor) parts.push(text.slice(cursor, matchIndex));
+    parts.push(
+      <mark key={`m-${key++}`} className="tlb-search-mark">
+        {text.slice(matchIndex, matchIndex + needle.length)}
+      </mark>,
+    );
+    cursor = matchIndex + needle.length;
+    matchIndex = lower.indexOf(needle, cursor);
+  }
+  if (cursor < text.length) parts.push(text.slice(cursor));
+  return parts.length ? parts : text;
+}
+
+export function openSearchHit(
+  hit: SearchHit,
+  handlers: {
+    onOpenOrder: (id: string) => void;
+    onOpenNav: (nav: string, entityId?: string) => void;
+  },
+) {
+  if (hit.kind === "Order" || (hit.kind === "Supply" && hit.orderId)) {
+    handlers.onOpenOrder(hit.orderId ?? hit.id);
+    return;
+  }
+  if (hit.kind === "Goods Out" && hit.orderId) {
+    handlers.onOpenOrder(hit.orderId);
+    return;
+  }
+  handlers.onOpenNav(hit.nav, hit.id);
+}
+
+export function LiveSearchResults({
+  store,
+  query,
+  activeIndex = 0,
+  onActiveIndexChange,
+  onResultsChange,
+  onOpenOrder,
+  onOpenNav,
+}: {
+  store: TlbStoreApi;
+  query: string;
+  activeIndex?: number;
+  onActiveIndexChange?: (index: number) => void;
+  onResultsChange?: (hits: SearchHit[]) => void;
+  onOpenOrder: (id: string) => void;
+  onOpenNav: (nav: string, entityId?: string) => void;
+}) {
+  const index = useMemo(() => buildSearchIndex(store.state), [store.state]);
+  const q = query.trim();
+  const hits = useMemo(() => (q ? searchDocuments(index, q, 18) : []), [index, q]);
+
+  useEffect(() => {
+    onResultsChange?.(hits);
+    // Parent often passes an inline setter; sync whenever hits change only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hits]);
+
+  useEffect(() => {
+    if (hits.length === 0) return;
+    if (activeIndex > hits.length - 1) onActiveIndexChange?.(hits.length - 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hits.length, activeIndex]);
+
+  if (!q) return null;
+
+  const openHit = (hit: SearchHit) => openSearchHit(hit, { onOpenOrder, onOpenNav });
+
+  if (!hits.length) {
+    return (
+      <>
+        <p className="tlb-search-menu-label">NO MATCHES</p>
+        <div className="tlb-search-empty" role="status">
+          No records match your search.
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <p className="tlb-search-menu-label">RESULTS · {hits.length}</p>
+      {hits.map((hit, index) => {
+        const active = index === activeIndex;
+        return (
+          <button
+            type="button"
+            role="option"
+            aria-selected={active}
+            id={`tlb-search-option-${index}`}
+            className={active ? "is-selected" : undefined}
+            key={`${hit.kind}-${hit.id}`}
+            onMouseEnter={() => onActiveIndexChange?.(index)}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => openHit(hit)}
+          >
+            <span className="tlb-search-menu-icon">
+              <PackageSearch aria-hidden="true" />
+            </span>
+            <span className="tlb-search-menu-copy">
+              <strong>{highlightSearchMatch(hit.label, q)}</strong>
+              {hit.subtitle ? <span>{highlightSearchMatch(hit.subtitle, q)}</span> : null}
+            </span>
+            <em className="tlb-search-menu-kind">{hit.kind}</em>
+          </button>
+        );
+      })}
+    </>
   );
 }
 

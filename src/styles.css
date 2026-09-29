@@ -2377,6 +2377,165 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
   color: #2a1f12;
 }
 
+/* Header search results. Same floating panel as Quick action, All warehouses, and the Owner menu. */
+.tlb-search-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  left: auto;
+  z-index: 90;
+  width: min(26rem, calc(100vw - 32px));
+  max-height: min(28rem, calc(100dvh - 7.5rem));
+  margin: 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 0;
+  border-radius: 20px;
+  background: #ffffff;
+  color: #1f1630;
+  font-family: var(--font-sans);
+  box-shadow:
+    0 18px 42px color-mix(in oklab, #6420d0 16%, transparent),
+    0 2px 8px color-mix(in oklab, #1f1630 6%, transparent);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, #6420d0 32%, white) transparent;
+  animation: tlb-quick-actions-in 180ms ease;
+}
+.tlb-search-menu::-webkit-scrollbar {
+  width: 8px;
+}
+.tlb-search-menu::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, #6420d0 28%, white);
+  border-radius: 999px;
+}
+.tlb-search-menu-label {
+  margin: 8px 12px 4px;
+  color: #6420d0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+.tlb-search-menu button {
+  width: 100%;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #1f1630;
+  font-family: var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 180ms ease, color 180ms ease, transform 120ms ease;
+}
+.tlb-search-menu button:hover {
+  background: color-mix(in oklab, #6420d0 8%, white);
+  color: #6420d0;
+}
+.tlb-search-menu button.is-selected {
+  background: #ffdc7a;
+  color: #2a1f12;
+}
+.tlb-search-menu button.is-selected:hover {
+  background: color-mix(in oklab, #ffdc7a 86%, #6420d0);
+  color: #2a1f12;
+}
+.tlb-search-menu button:active {
+  transform: translateY(1px);
+}
+.tlb-search-menu button:focus-visible {
+  outline: 2px solid #6420d0;
+  outline-offset: -2px;
+}
+.tlb-search-menu-icon {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: color-mix(in oklab, #6420d0 10%, #f6f4fc);
+  color: #6420d0;
+}
+.tlb-search-menu button.is-selected .tlb-search-menu-icon,
+.tlb-search-menu button:hover .tlb-search-menu-icon {
+  background: #6420d0;
+  color: #ffdc7a;
+}
+.tlb-search-menu button.is-selected:hover .tlb-search-menu-icon {
+  background: #6420d0;
+  color: #ffdc7a;
+}
+.tlb-search-menu-icon svg {
+  width: 17px;
+  height: 17px;
+}
+.tlb-search-menu-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.tlb-search-menu-copy strong {
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tlb-search-menu-copy span {
+  color: color-mix(in oklab, #1f1630 52%, white);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tlb-search-menu button.is-selected .tlb-search-menu-copy span {
+  color: color-mix(in oklab, #2a1f12 70%, white);
+}
+.tlb-search-menu-kind {
+  flex: none;
+  color: #6420d0;
+  font-size: 0.6875rem;
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.tlb-search-menu button.is-selected .tlb-search-menu-kind,
+.tlb-search-menu button:hover .tlb-search-menu-kind {
+  color: inherit;
+}
+.tlb-search-menu .tlb-search-empty {
+  margin: 2px 8px 8px;
+  padding: 12px 10px 14px;
+  color: color-mix(in oklab, #1f1630 52%, white);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+.tlb-search-menu .tlb-search-mark {
+  padding: 0 1px;
+  border-radius: 3px;
+  background: color-mix(in oklab, #ffdc7a 72%, white);
+  color: inherit;
+}
+.tlb-search-menu button.is-selected .tlb-search-mark {
+  background: color-mix(in oklab, #6420d0 16%, #ffdc7a);
+}
+
 /* Sign-in gate. Scoped so dashboard chrome, menus, and cards stay as they are. */
 .tlb-login {
   min-height: 100dvh;
