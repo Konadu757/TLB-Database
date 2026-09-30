@@ -1376,6 +1376,16 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
 .tlb-perm-row input { margin-top: 2px; }
 .tlb-inline-select { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 8px; font-size: 0.75rem; background: #fff; max-width: 160px; }
 .tlb-link-btn { border: 0; background: transparent; color: var(--primary); font-size: 0.75rem; font-weight: 700; cursor: pointer; padding: 0; }
+.tlb-user-row-actions { display: inline-flex; align-items: center; gap: 10px; vertical-align: middle; }
+.tlb-user-action {
+  border: 0; border-radius: 4px; padding: 4px 10px; font-size: 0.75rem; font-weight: 700;
+  line-height: 1.2; cursor: pointer; color: #fff;
+}
+.tlb-user-action--edit { background: #6420D0; }
+.tlb-user-action--edit:hover { background: #5419b3; }
+.tlb-user-action--delete { background: var(--danger); }
+.tlb-user-action--delete:hover { background: color-mix(in oklab, var(--danger) 86%, black); }
+.tlb-user-action:focus-visible { outline: 2px solid #2a1f12; outline-offset: 2px; }
 @media (max-width: 900px) {
   .tlb-roles-layout { grid-template-columns: 1fr; }
 }

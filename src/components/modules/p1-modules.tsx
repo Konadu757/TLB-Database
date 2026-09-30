@@ -383,29 +383,28 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                               </button>{" "}
                             </>
                           ) : null}
-                          <button
-                            type="button"
-                            className="tlb-link-btn"
-                            onClick={() =>
-                              editingUserId === user.id ? cancelEditUser() : startEditUser(user)
-                            }
-                          >
-                            {editingUserId === user.id ? "Cancel" : "Edit"}
-                          </button>
-                          {canDeleteAssignment &&
-                          user.id !== store.state.currentUserId &&
-                          user.id !== OWNER_USER_ID ? (
-                            <>
-                              {" "}
+                          <span className="tlb-user-row-actions">
+                            <button
+                              type="button"
+                              className="tlb-user-action tlb-user-action--edit"
+                              onClick={() =>
+                                editingUserId === user.id ? cancelEditUser() : startEditUser(user)
+                              }
+                            >
+                              {editingUserId === user.id ? "Cancel" : "Edit"}
+                            </button>
+                            {canDeleteAssignment &&
+                            user.id !== store.state.currentUserId &&
+                            user.id !== OWNER_USER_ID ? (
                               <button
                                 type="button"
-                                className="tlb-link-btn"
+                                className="tlb-user-action tlb-user-action--delete"
                                 onClick={() => setPendingDelete(user)}
                               >
                                 Delete
                               </button>
-                            </>
-                          ) : null}
+                            ) : null}
+                          </span>
                         </td>
                       </tr>
                     ))}
