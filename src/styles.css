@@ -2253,34 +2253,37 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
   }
 }
 
-/* Header warehouse filter menu — same floating panel family as Quick actions. */
+/* Header warehouse filter — gold pill so All warehouses stands out in the filter bar. */
 .tlb-warehouse-select {
   position: relative;
   height: auto;
   padding: 0;
+  border-left: 0;
 }
 .tlb-warehouse-trigger {
   height: 32px;
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 0 9px;
+  padding: 0 14px;
   border: 0;
-  background: transparent;
-  color: var(--foreground);
+  border-radius: 999px;
+  background: var(--tlb-gold);
+  color: #2a1f12;
   font-family: var(--font-sans);
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1;
   cursor: pointer;
+  box-shadow: 0 1px 2px color-mix(in oklab, #2a1f12 8%, transparent);
 }
 .tlb-warehouse-trigger span {
-  color: var(--foreground);
+  color: #2a1f12;
 }
 .tlb-warehouse-trigger svg {
   width: 14px;
   height: 14px;
-  color: var(--muted-foreground);
+  color: #2a1f12;
 }
 .tlb-warehouse-chevron {
   transition: transform 180ms ease;
@@ -2291,7 +2294,7 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
 .tlb-warehouse-trigger:focus-visible {
   outline: 2px solid var(--tlb-purple);
   outline-offset: 2px;
-  border-radius: 8px;
+  border-radius: 999px;
 }
 .tlb-warehouse-menu {
   position: absolute;
