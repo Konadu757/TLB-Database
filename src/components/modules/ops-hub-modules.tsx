@@ -2312,14 +2312,7 @@ function DriverDetailModule({
                 detail="Assigned collection and transit jobs for today will appear here."
               />
             ) : (
-              <div
-                className="tlb-ops-driver-jobs"
-                style={{
-                  display: "grid",
-                  gap: 12,
-                  gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-                }}
-              >
+              <div className="tlb-ops-driver-jobs">
                 {todayJobs.map((job) => {
                   const next = nextDriverAction(job.driverStatus);
                   return (
@@ -2666,14 +2659,7 @@ export function OpsDriversModule({ store, focusId, onFocusConsumed, onOpenReques
         )}
       </article>
 
-      <div
-        className="tlb-ops-driver-jobs"
-        style={{
-          display: "grid",
-          gap: 12,
-          gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-        }}
-      >
+      <div className="tlb-ops-driver-jobs">
         {jobs.length === 0 ? (
           <article className="tlb-panel" style={{ padding: 16 }}>
             <EmptyState
@@ -3072,15 +3058,7 @@ export function OpsLiveBoardModule({ store, onOpenRequest }: ModuleProps) {
           </p>
         </div>
       </div>
-      <div
-        className="tlb-ops-kanban"
-        style={{
-          display: "grid",
-          gap: 12,
-          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-          alignItems: "start",
-        }}
-      >
+      <div className="tlb-ops-kanban">
         {columns.map((col) => (
           <article key={col.id} className="tlb-panel" style={{ padding: 12, minHeight: 180 }}>
             <div className="tlb-panel-heading" style={{ marginBottom: 8 }}>

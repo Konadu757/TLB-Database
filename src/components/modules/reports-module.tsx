@@ -120,15 +120,7 @@ export function ReportsModule({
         </div>
       </div>
       {tab === "performance" ? (
-        <div
-          className="tlb-kpi-strip"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: 10,
-            marginBottom: 12,
-          }}
-        >
+        <div className="tlb-kpi-strip tlb-kpi-strip--3" style={{ marginBottom: 12 }}>
           <article className="tlb-panel" style={{ padding: 12 }}>
             <span className="tlb-eyebrow">Fully supplied</span>
             <strong>{performance.summary.fullySupplied}</strong>

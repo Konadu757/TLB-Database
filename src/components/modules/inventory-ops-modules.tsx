@@ -2220,10 +2220,7 @@ export function AccountsReceivableModule({ store }: { store: TlbStoreApi }) {
           <p className="tlb-muted-line">Customer → Invoice → Payment ageing</p>
         </div>
       </div>
-      <div
-        className="tlb-kpi-strip"
-        style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}
-      >
+      <div className="tlb-kpi-strip">
         {(["0-30", "31-60", "61-90", "90+"] as const).map((b) => (
           <article key={b} className="tlb-panel" style={{ padding: 12 }}>
             <span className="tlb-eyebrow">{b} days</span>

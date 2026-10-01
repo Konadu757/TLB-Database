@@ -101,21 +101,20 @@ function InviteDeliveryLine({
                   : "Sending…"
                 : status;
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "5.5rem minmax(4.5rem, auto) 1fr",
-        gap: 10,
-        alignItems: "start",
-        padding: "8px 0",
-        borderBottom: "1px solid color-mix(in oklab, var(--border) 70%, transparent)",
-      }}
-    >
+    <div className="tlb-invite-status-row">
       <strong style={{ fontSize: "0.8125rem", letterSpacing: "0.04em", textTransform: "uppercase" }}>
         {label}
       </strong>
       <StatusBadge tone={tone}>{statusWord}</StatusBadge>
-      <span style={{ color, fontWeight: tone === "danger" ? 700 : 500, fontSize: "0.875rem" }}>
+      <span
+        style={{
+          color,
+          fontWeight: tone === "danger" ? 700 : 500,
+          fontSize: "0.875rem",
+          minWidth: 0,
+          overflowWrap: "anywhere",
+        }}
+      >
         {note}
       </span>
     </div>
