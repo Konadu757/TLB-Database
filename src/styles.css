@@ -4025,3 +4025,31 @@ button.tlb-user-action:focus-visible {
   flex: none;
   font-size: 0.875rem;
 }
+/* Profile “Update password” — gold CTA (not purple Edit / red Delete) */
+.tlb-profile-update-btn {
+  min-height: 36px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--tlb-gold);
+  color: #2a1f12;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 10px color-mix(in oklab, var(--tlb-gold) 55%, transparent);
+  transition: background 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
+}
+.tlb-profile-update-btn:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--tlb-gold) 86%, #2a1f12);
+  box-shadow: 0 3px 12px color-mix(in oklab, var(--tlb-gold) 45%, transparent);
+}
+.tlb-profile-update-btn:focus-visible {
+  outline: 2px solid var(--tlb-gold);
+  outline-offset: 2px;
+}
+.tlb-profile-update-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}

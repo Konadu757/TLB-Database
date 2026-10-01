@@ -160,7 +160,11 @@ export function ProfilePage() {
             {passwordError ? <p className="tlb-login-error tlb-span-2">{passwordError}</p> : null}
             {passwordNotice ? <p className="tlb-login-status tlb-span-2">{passwordNotice}</p> : null}
             <div className="tlb-form-actions tlb-span-2">
-              <button type="submit" disabled={passwordPending}>
+              <button
+                type="submit"
+                className="tlb-profile-update-btn"
+                disabled={passwordPending}
+              >
                 {passwordPending ? "Saving…" : "Update password"}
               </button>
             </div>
