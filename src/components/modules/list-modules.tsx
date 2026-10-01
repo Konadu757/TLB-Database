@@ -499,7 +499,11 @@ export function QuotationsModule(props: CatalogModuleProps) {
       {...(store ? { userQuotations: notSoftDeleted(store.state.quotations) } : {})}
       toolbarExtra={
         store ? (
-          <Button type="button" onClick={() => (creating ? closeCreate() : openCreate())}>
+          <Button
+            type="button"
+            className="tlb-quotations-new-btn"
+            onClick={() => (creating ? closeCreate() : openCreate())}
+          >
             <Plus /> {creating ? "Close form" : "New quotation"}
           </Button>
         ) : null

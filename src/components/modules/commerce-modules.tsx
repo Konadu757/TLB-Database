@@ -1382,7 +1382,11 @@ export function SalesOrdersModule({
               onDone={selection.clear}
             />
           ) : null}
-          <Button type="button" onClick={() => setCreating((v) => !v)}>
+          <Button
+            type="button"
+            className="tlb-orders-new-btn"
+            onClick={() => setCreating((v) => !v)}
+          >
             <Plus /> New order
           </Button>
         </div>

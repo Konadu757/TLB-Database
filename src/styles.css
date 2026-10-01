@@ -1458,15 +1458,17 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
 }
 .tlb-module-search {
   display: flex; align-items: center; gap: 8px; min-width: min(360px, 100%); flex: 1;
-  height: 36px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  height: 36px; padding: 0 12px; border: 1px solid var(--border); border-radius: 999px;
   background: #fff;
 }
-/* Customers page search only — pill to match header search / sign-in inputs */
+/* Customers page search — keep class for markup compatibility (already pill via .tlb-module-search) */
 .tlb-customers-search {
   border-radius: 999px;
 }
-/* Customers page “New customer” toolbar button only — match search pill */
-.tlb-customers-new-btn {
+/* Toolbar “New …” primary buttons — fully rounded pills matching search */
+.tlb-customers-new-btn,
+.tlb-quotations-new-btn,
+.tlb-orders-new-btn {
   border-radius: 999px;
 }
 .tlb-module-search svg { width: 15px; color: var(--primary); flex: none; }
