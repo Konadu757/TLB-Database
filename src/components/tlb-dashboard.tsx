@@ -131,7 +131,7 @@ import {
   resolveRole,
   userInitials,
 } from "@/lib/domain/permissions";
-import { listTrashItems } from "@/lib/domain/trash";
+import { listTrashItems, notSoftDeleted } from "@/lib/domain/trash";
 import { cn } from "@/lib/utils";
 
 function countBadgeLabel(count: number): string | undefined {
@@ -432,9 +432,8 @@ function TLBDashboardInner() {
                 };
               }
               if (item.label === "Sales Orders") {
-                const count = store.state.orders.filter(
-                  (o) => !o.deletedAt && o.status !== "Delivered" && o.status !== "Cancelled",
-                ).length;
+                // Match Sales Orders module base set: all non-trashed orders (not period-scoped).
+                const count = notSoftDeleted(store.state.orders).length;
                 return { ...item, badge: count > 0 ? String(count) : undefined };
               }
               if (item.label === "Notifications") {

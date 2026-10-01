@@ -1302,11 +1302,13 @@ export function SalesOrdersModule({
 
   const rangeFrom = range?.from;
   const rangeTo = range?.to;
-  const filteredOrders = useMemo(() => {
+  const activeOrders = useMemo(() => notSoftDeleted(state.orders), [state.orders]);
+  const activeOrderCount = activeOrders.length;
+
+  const { filteredOrders, periodFallback } = useMemo(() => {
     const q = search.trim().toLowerCase();
     const activeRange = rangeFrom && rangeTo ? { from: rangeFrom, to: rangeTo } : null;
-    return notSoftDeleted(state.orders).filter((order) => {
-      if (activeRange && !isoInRange(order.orderDate, activeRange)) return false;
+    const matchesSearch = (order: (typeof activeOrders)[number]) => {
       if (!q) return true;
       const customer = state.customers.find((c) => c.id === order.customerId);
       const hay = [
@@ -1321,10 +1323,22 @@ export function SalesOrdersModule({
         .join(" ")
         .toLowerCase();
       return hay.includes(q);
+    };
+    const inPeriod = activeOrders.filter((order) => {
+      if (activeRange && !isoInRange(order.orderDate, activeRange)) return false;
+      return matchesSearch(order);
     });
-  }, [state.orders, state.customers, rangeFrom, rangeTo, search]);
+    // Period bar defaults to "This Month" while seed/legacy orders often sit earlier.
+    // If the period alone empties the register, show the same non-trashed base set the
+    // sidebar badge counts so the module is never blank while the badge says N > 0.
+    const periodAloneEmpty =
+      Boolean(activeRange) && !q && inPeriod.length === 0 && activeOrders.length > 0;
+    if (periodAloneEmpty) {
+      return { filteredOrders: activeOrders.filter(matchesSearch), periodFallback: true };
+    }
+    return { filteredOrders: inPeriod, periodFallback: false };
+  }, [activeOrders, state.customers, rangeFrom, rangeTo, search]);
 
-  const activeOrderCount = useMemo(() => notSoftDeleted(state.orders).length, [state.orders]);
   const canBulkTrash = store.can("records.delete");
   const filteredOrderIds = useMemo(() => filteredOrders.map((o) => o.id), [filteredOrders]);
   const selection = useListSelection(canBulkTrash ? filteredOrderIds : []);
@@ -1616,7 +1630,13 @@ export function SalesOrdersModule({
             </table>
           )}
         </div>
-        {search.trim() && filteredOrders.length > 0 ? (
+        {periodFallback && filteredOrders.length > 0 ? (
+          <div className="tlb-list-meta">
+            No orders in {periodLabel ?? "this period"} — showing all {activeOrderCount} active
+            order{activeOrderCount === 1 ? "" : "s"}
+            {selection.count > 0 ? ` · ${selection.count} selected` : ""}
+          </div>
+        ) : search.trim() && filteredOrders.length > 0 ? (
           <div className="tlb-list-meta">
             Showing {filteredOrders.length} of {activeOrderCount} orders
             {selection.count > 0 ? ` · ${selection.count} selected` : ""}
