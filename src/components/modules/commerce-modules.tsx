@@ -334,7 +334,7 @@ export function CustomersModule({
           <strong>Customers</strong>
         </div>
         <div className="tlb-toolbar-actions">
-          <label className="tlb-module-search">
+          <label className="tlb-module-search tlb-customers-search">
             <Search aria-hidden />
             <input
               type="search"

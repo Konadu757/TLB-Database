@@ -1461,6 +1461,10 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
   height: 36px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
   background: #fff;
 }
+/* Customers page search only — pill to match header search / sign-in inputs */
+.tlb-customers-search {
+  border-radius: 999px;
+}
 .tlb-module-search svg { width: 15px; color: var(--primary); flex: none; }
 .tlb-module-search input {
   min-width: 0; flex: 1; border: 0; outline: 0; background: transparent;
