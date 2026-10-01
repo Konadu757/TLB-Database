@@ -4,14 +4,18 @@
  * Secrets stay in process.env — never import this from browser code.
  */
 
-import { looksLikePhoneNumber, normalizePhoneForSms } from "@/lib/access/invite-phone";
+import {
+  looksLikePhoneNumber,
+  normalizePhoneDigits,
+  normalizePhoneForSms,
+} from "@/lib/access/invite-phone";
 
 export type InviteSendResult =
   | { ok: true }
   | { ok: false; notConfigured: true; error: string }
   | { ok: false; notConfigured?: false; error: string };
 
-export { looksLikePhoneNumber, normalizePhoneForSms };
+export { looksLikePhoneNumber, normalizePhoneDigits, normalizePhoneForSms };
 
 const DEFAULT_ARKESEL_BASE_URL = "https://sms.arkesel.com";
 const DEFAULT_TERMII_BASE_URL = "https://api.ng.termii.com";
@@ -29,11 +33,6 @@ function basicAuthHeader(user: string, pass: string): string {
     return `Basic ${Buffer.from(raw).toString("base64")}`;
   }
   return `Basic ${btoa(raw)}`;
-}
-
-/** Arkesel / Termii expect international digits without a leading +. */
-function normalizePhoneDigits(raw: string): string {
-  return normalizePhoneForSms(raw).replace(/^\+/, "");
 }
 
 function arkeselConfigured(): boolean {
@@ -68,8 +67,9 @@ export async function sendInviteEmailWithResend(input: {
     };
   }
 
-  const to = input.to.trim();
-  if (!to || !to.includes("@")) {
+  const to = input.to.trim().toLowerCase();
+  // Require a real mailbox shape (reject "name@" / "@domain" / spaces).
+  if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
     return { ok: false, error: "A valid recipient email is required." };
   }
 
@@ -153,6 +153,12 @@ export async function sendInviteSmsWithArkesel(input: {
   }
 
   const to = normalizePhoneDigits(input.to);
+  if (!to || to.startsWith("0")) {
+    return {
+      ok: false,
+      error: `Phone “${input.to.trim()}” could not be normalized to international format (e.g. 23324…).`,
+    };
+  }
   const message = input.body.trim();
   if (!message) {
     return { ok: false, error: "SMS body is required." };
@@ -230,6 +236,12 @@ export async function sendInviteSmsWithTermii(input: {
   }
 
   const to = normalizePhoneDigits(input.to);
+  if (!to || to.startsWith("0")) {
+    return {
+      ok: false,
+      error: `Phone “${input.to.trim()}” could not be normalized to international format (e.g. 23324…).`,
+    };
+  }
   const sms = input.body.trim();
   if (!sms) {
     return { ok: false, error: "SMS body is required." };

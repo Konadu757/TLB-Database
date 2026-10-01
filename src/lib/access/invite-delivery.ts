@@ -54,7 +54,7 @@ export function inviteSmsEndpoint(): string {
   return BUILTIN_INVITE_SMS_PATH;
 }
 
-export { looksLikePhoneNumber };
+export { looksLikePhoneNumber, normalizePhoneDigits, normalizePhoneForSms };
 
 export function buildInviteSmsBody(input: {
   name: string;
@@ -83,7 +83,7 @@ export function initialInviteDelivery(input: {
       : "Local invite only (Supabase sync is off).",
     email: "pending",
     emailNote: "Sending email…",
-    sms: phone ? "pending" : contact ? "skipped" : "not_configured",
+    sms: phone ? "pending" : "skipped",
     smsNote: phone
       ? `Sending SMS to ${phone}…`
       : contact

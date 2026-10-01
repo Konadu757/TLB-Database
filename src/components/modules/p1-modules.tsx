@@ -43,12 +43,23 @@ function inviteDeliveryTone(
   status: string,
 ): "success" | "warning" | "danger" | "info" | "pending" {
   if (status === "ok" || status === "sent") return "success";
-  if (status === "failed") return "danger";
-  if (status === "not_configured" || status === "skipped" || status === "local_only") {
-    return "warning";
-  }
+  if (status === "failed" || status === "not_configured") return "danger";
+  if (status === "skipped" || status === "local_only") return "warning";
   if (status === "pending") return "pending";
   return "info";
+}
+
+function invitePanelIsError(invite: {
+  contact?: string;
+  delivery: { email: string; sms: string };
+}): boolean {
+  const { email, sms } = invite.delivery;
+  if (email === "failed" || email === "not_configured") return true;
+  if (email === "pending") return false;
+  if (sms === "failed" || sms === "not_configured") return true;
+  if (sms === "skipped" && Boolean(invite.contact?.trim())) return true;
+  if (sms === "pending") return false;
+  return email !== "sent" || (Boolean(invite.contact?.trim()) && sms !== "sent");
 }
 
 function InviteDeliveryLine({
@@ -69,10 +80,34 @@ function InviteDeliveryLine({
         : tone === "warning"
           ? "var(--warning-foreground)"
           : "inherit";
+  const statusWord =
+    status === "sent" || status === "ok"
+      ? "Sent"
+      : status === "failed"
+        ? "Failed"
+        : status === "not_configured"
+          ? "Not configured"
+          : status === "skipped"
+            ? "Skipped"
+            : status === "pending"
+              ? "Sending…"
+              : status;
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-start" }}>
-      <StatusBadge tone={tone}>{label}</StatusBadge>
-      <span style={{ flex: "1 1 12rem", color, fontWeight: tone === "danger" ? 600 : 500 }}>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "5.5rem minmax(4.5rem, auto) 1fr",
+        gap: 10,
+        alignItems: "start",
+        padding: "8px 0",
+        borderBottom: "1px solid color-mix(in oklab, var(--border) 70%, transparent)",
+      }}
+    >
+      <strong style={{ fontSize: "0.8125rem", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+        {label}
+      </strong>
+      <StatusBadge tone={tone}>{statusWord}</StatusBadge>
+      <span style={{ color, fontWeight: tone === "danger" ? 700 : 500, fontSize: "0.875rem" }}>
         {note}
       </span>
     </div>
@@ -257,7 +292,12 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
   useEffect(() => {
     if (!store.lastInvite) return;
     invitePanelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [store.lastInvite?.userId, store.lastInvite?.inviteCode]);
+  }, [
+    store.lastInvite?.userId,
+    store.lastInvite?.inviteCode,
+    store.lastInvite?.delivery.email,
+    store.lastInvite?.delivery.sms,
+  ]);
 
   const copyInviteValue = async (key: string, value: string) => {
     const ok = await copyToClipboard(value);
@@ -365,6 +405,143 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                 </p>
               </div>
             </div>
+            {store.lastInvite ? (
+              <div
+                ref={invitePanelRef}
+                className={
+                  invitePanelIsError(store.lastInvite)
+                    ? "tlb-flash tlb-flash-error"
+                    : "tlb-flash tlb-flash-ok"
+                }
+                style={{
+                  margin: "12px",
+                  flexDirection: "column",
+                  alignItems: "stretch",
+                  gap: 10,
+                  borderWidth: 2,
+                  outline: invitePanelIsError(store.lastInvite)
+                    ? "2px solid var(--danger)"
+                    : undefined,
+                }}
+                role="status"
+                aria-live="assertive"
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                  }}
+                >
+                  <strong style={{ fontSize: "1.125rem" }}>
+                    Invitation ready for {store.lastInvite.name}
+                  </strong>
+                  <span className="tlb-muted-line" style={{ fontSize: "0.75rem", margin: 0 }}>
+                    Check Email and SMS status below — do not leave until both update
+                  </span>
+                </div>
+                <p className="tlb-muted-line" style={{ margin: 0 }}>
+                  {store.lastInvite.email}
+                  {store.lastInvite.contact ? ` · ${store.lastInvite.contact}` : ""}
+                </p>
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 0,
+                    marginTop: 2,
+                    padding: "4px 12px 8px",
+                    borderRadius: 8,
+                    background: "color-mix(in oklab, var(--surface) 88%, transparent)",
+                    border: "1px solid var(--border)",
+                    fontSize: "0.8125rem",
+                    lineHeight: 1.45,
+                  }}
+                >
+                  <InviteDeliveryLine
+                    label="Email"
+                    status={store.lastInvite.delivery.email}
+                    note={store.lastInvite.delivery.emailNote}
+                  />
+                  <InviteDeliveryLine
+                    label="SMS"
+                    status={store.lastInvite.delivery.sms}
+                    note={store.lastInvite.delivery.smsNote}
+                  />
+                  <InviteDeliveryLine
+                    label="Cloud"
+                    status={store.lastInvite.delivery.cloud}
+                    note={store.lastInvite.delivery.cloudNote}
+                  />
+                </div>
+                <div>
+                  <span
+                    className="tlb-muted-line"
+                    style={{ display: "block", marginBottom: 4, fontSize: "0.6875rem" }}
+                  >
+                    Access code
+                  </span>
+                  <p
+                    className="tlb-mono"
+                    style={{ margin: 0, fontSize: "1.125rem", fontWeight: 700, letterSpacing: "0.04em" }}
+                  >
+                    {store.lastInvite.inviteCode}
+                  </p>
+                </div>
+                <div>
+                  <span
+                    className="tlb-muted-line"
+                    style={{ display: "block", marginBottom: 4, fontSize: "0.6875rem" }}
+                  >
+                    Shareable link
+                  </span>
+                  <p
+                    className="tlb-mono"
+                    style={{
+                      margin: 0,
+                      fontSize: "0.75rem",
+                      wordBreak: "break-all",
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    {store.lastInvite.inviteLink}
+                  </p>
+                </div>
+                <div className="tlb-inline-actions" style={{ flexWrap: "wrap", gap: 12 }}>
+                  <button
+                    type="button"
+                    className="tlb-link-btn"
+                    onClick={() => {
+                      void copyInviteValue("code", store.lastInvite!.inviteCode);
+                    }}
+                  >
+                    {copiedKey === "code" ? "Copied code" : "Copy access code"}
+                  </button>
+                  <button
+                    type="button"
+                    className="tlb-link-btn"
+                    onClick={() => {
+                      void copyInviteValue("link", store.lastInvite!.inviteLink);
+                    }}
+                  >
+                    {copiedKey === "link" ? "Copied link" : "Copy invite link"}
+                  </button>
+                  <button
+                    type="button"
+                    className="tlb-link-btn"
+                    onClick={() => {
+                      void copyInviteValue("sms", store.lastInvite!.delivery.smsBody);
+                    }}
+                  >
+                    {copiedKey === "sms" ? "Copied SMS text" : "Copy SMS text"}
+                  </button>
+                  <button type="button" className="tlb-link-btn" onClick={store.clearLastInvite}>
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            ) : null}
             {assignedUsers.length === 0 ? (
               <EmptyState title="No users" detail="Create a user to assign roles." />
             ) : (
@@ -601,141 +778,6 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                 </div>
               </form>
             )}
-            {store.lastInvite ? (
-              <div
-                ref={invitePanelRef}
-                className={
-                  store.lastInvite.delivery.email === "failed" ||
-                  store.lastInvite.delivery.sms === "failed"
-                    ? "tlb-flash tlb-flash-error"
-                    : "tlb-flash tlb-flash-ok"
-                }
-                style={{
-                  margin: "12px",
-                  flexDirection: "column",
-                  alignItems: "stretch",
-                  gap: 10,
-                  borderWidth: 2,
-                }}
-                role="status"
-                aria-live="polite"
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 8,
-                  }}
-                >
-                  <strong style={{ fontSize: "1.05rem" }}>
-                    Invitation ready for {store.lastInvite.name}
-                  </strong>
-                  <span className="tlb-muted-line" style={{ fontSize: "0.75rem", margin: 0 }}>
-                    Share the code or link — email/SMS status updates below
-                  </span>
-                </div>
-                <p className="tlb-muted-line" style={{ margin: 0 }}>
-                  {store.lastInvite.email}
-                  {store.lastInvite.contact ? ` · ${store.lastInvite.contact}` : ""}
-                </p>
-                <div>
-                  <span
-                    className="tlb-muted-line"
-                    style={{ display: "block", marginBottom: 4, fontSize: "0.6875rem" }}
-                  >
-                    Access code
-                  </span>
-                  <p
-                    className="tlb-mono"
-                    style={{ margin: 0, fontSize: "1.125rem", fontWeight: 700, letterSpacing: "0.04em" }}
-                  >
-                    {store.lastInvite.inviteCode}
-                  </p>
-                </div>
-                <div>
-                  <span
-                    className="tlb-muted-line"
-                    style={{ display: "block", marginBottom: 4, fontSize: "0.6875rem" }}
-                  >
-                    Shareable link
-                  </span>
-                  <p
-                    className="tlb-mono"
-                    style={{
-                      margin: 0,
-                      fontSize: "0.75rem",
-                      wordBreak: "break-all",
-                      lineHeight: 1.45,
-                    }}
-                  >
-                    {store.lastInvite.inviteLink}
-                  </p>
-                </div>
-                <div className="tlb-inline-actions" style={{ flexWrap: "wrap", gap: 12 }}>
-                  <button
-                    type="button"
-                    className="tlb-link-btn"
-                    onClick={() => {
-                      void copyInviteValue("code", store.lastInvite!.inviteCode);
-                    }}
-                  >
-                    {copiedKey === "code" ? "Copied code" : "Copy access code"}
-                  </button>
-                  <button
-                    type="button"
-                    className="tlb-link-btn"
-                    onClick={() => {
-                      void copyInviteValue("link", store.lastInvite!.inviteLink);
-                    }}
-                  >
-                    {copiedKey === "link" ? "Copied link" : "Copy invite link"}
-                  </button>
-                  <button
-                    type="button"
-                    className="tlb-link-btn"
-                    onClick={() => {
-                      void copyInviteValue("sms", store.lastInvite!.delivery.smsBody);
-                    }}
-                  >
-                    {copiedKey === "sms" ? "Copied SMS text" : "Copy SMS text"}
-                  </button>
-                  <button type="button" className="tlb-link-btn" onClick={store.clearLastInvite}>
-                    Dismiss
-                  </button>
-                </div>
-                <div
-                  style={{
-                    display: "grid",
-                    gap: 8,
-                    marginTop: 2,
-                    padding: "10px 12px",
-                    borderRadius: 8,
-                    background: "color-mix(in oklab, var(--surface) 88%, transparent)",
-                    border: "1px solid var(--border)",
-                    fontSize: "0.8125rem",
-                    lineHeight: 1.45,
-                  }}
-                >
-                  <InviteDeliveryLine
-                    label="Cloud"
-                    status={store.lastInvite.delivery.cloud}
-                    note={store.lastInvite.delivery.cloudNote}
-                  />
-                  <InviteDeliveryLine
-                    label="Email"
-                    status={store.lastInvite.delivery.email}
-                    note={store.lastInvite.delivery.emailNote}
-                  />
-                  <InviteDeliveryLine
-                    label="SMS"
-                    status={store.lastInvite.delivery.sms}
-                    note={store.lastInvite.delivery.smsNote}
-                  />
-                </div>
-              </div>
-            ) : null}
             <TrashConfirmDialog
               open={pendingDelete !== null}
               mode="trash"

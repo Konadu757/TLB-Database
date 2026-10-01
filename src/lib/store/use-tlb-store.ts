@@ -264,7 +264,13 @@ export function useTlbStore() {
   };
 
   const deliverStaffInvite = (user: AppUser, replacesToken?: string) => {
-    if (!user.inviteToken || !user.inviteCode) return;
+    if (!user.inviteToken || !user.inviteCode) {
+      setError(
+        "User saved, but invite code/link was not generated — email and SMS were not sent. Try Re-issue on the staff row.",
+      );
+      setNotice(null);
+      return;
+    }
     const inviteLink = buildInviteLink(user.inviteToken);
     const willPublishCloud = repo.backend === "supabase";
     const roleName =
@@ -279,6 +285,9 @@ export function useTlbStore() {
     });
     const snap = inviteSnapshot(user, delivery);
     if (snap) setLastInvite(snap);
+    // Replace any prior “User saved” / “Role assigned” flash immediately.
+    setNotice("Invitation ready below — sending email and SMS…");
+    setError(null);
 
     if (willPublishCloud) {
       const roleCode = dbRoleCodeForRoleId(user.roleId);
@@ -422,7 +431,7 @@ export function useTlbStore() {
         lines.push(
           emailNotConfigured
             ? "Email not configured (set RESEND_* on Vercel)"
-            : `Email failed: ${emailResult.error}`,
+            : `Email failed: ${"error" in emailResult ? emailResult.error : "unknown error"}`,
         );
       }
       if (smsSkipped) {
@@ -433,16 +442,16 @@ export function useTlbStore() {
         lines.push(
           smsNotConfigured
             ? "SMS not configured (set ARKESEL_* on Vercel)"
-            : `SMS failed: ${smsResult.error}`,
+            : `SMS failed: ${"error" in smsResult ? smsResult.error : "unknown error"}`,
         );
       }
 
       const summary = `Invitation ready below. ${lines.join(" · ")}`;
-      const hardFail =
-        (!emailResult.ok && !emailNotConfigured) ||
-        (!smsSkipped && !smsResult.ok && !smsNotConfigured);
+      // Any channel that did not succeed is a hard fail — never leave only “user saved”.
+      const emailOk = emailResult.ok === true;
+      const smsOk = smsResult.ok === true || (smsSkipped && !phone);
+      const hardFail = !emailOk || !smsOk || emailNotConfigured || smsNotConfigured;
 
-      // Always replace the brief "Role assigned…" flash with the exact delivery outcome.
       if (hardFail) {
         setError(summary);
         setNotice(null);
@@ -629,8 +638,8 @@ export function useTlbStore() {
       const result = applyCapture(
         (s) => upsertAppUser(s, input),
         input.id
-          ? "User saved. Invite was not re-sent — use Re-issue to email/SMS again."
-          : "Role assigned — sending invite…",
+          ? "Staff details saved. Email/SMS were NOT sent — click Re-issue on the staff row to deliver the invite."
+          : "Role assigned — preparing invitation…",
       );
       if (result.ok && !input.id && result.data) {
         deliverStaffInvite(result.data as AppUser);
@@ -641,7 +650,7 @@ export function useTlbStore() {
       const previousToken = state.users.find((user) => user.id === userId)?.inviteToken;
       const result = applyCapture(
         (s) => issueUserInvite(s, userId),
-        "Invite re-issued — sending email/SMS…",
+        "Invite re-issued — preparing email/SMS…",
       );
       if (result.ok && result.data) {
         deliverStaffInvite(result.data as AppUser, previousToken);
