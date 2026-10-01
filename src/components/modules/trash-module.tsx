@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { RotateCcw, Trash2 } from "lucide-react";
+import { RotateCcw, Trash2, X } from "lucide-react";
 
 import {
   BulkPurgeMixedToolbar,
@@ -44,7 +44,7 @@ function Flash({
     <div className={`tlb-flash ${error ? "tlb-flash-error" : "tlb-flash-ok"}`} role="status">
       <span>{error ?? notice}</span>
       <button type="button" onClick={onClear} aria-label="Dismiss">
-        ×
+        <X />
       </button>
     </div>
   );
@@ -64,16 +64,23 @@ export function TrashModule({ store }: { store: TlbStoreApi }) {
   );
 
   if (!store.can("trash.view")) {
-    return <EmptyState title="Trash restricted" detail="Your role cannot view the trash." />;
+    return (
+      <div className="tlb-module tlb-trash-module">
+        <EmptyState title="Trash restricted" detail="Your role cannot view the trash." />
+      </div>
+    );
   }
 
   return (
-    <div className="tlb-module">
+    <div className="tlb-module tlb-trash-module">
       <Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />
       <div className="tlb-module-toolbar">
         <div>
           <span className="tlb-eyebrow">Control</span>
           <strong>Trash</strong>
+          <p className="tlb-muted-line">
+            Soft-deleted records stay here until restored or permanently removed by an Owner.
+          </p>
         </div>
         <div className="tlb-toolbar-actions">
           {canPurge ? (
@@ -89,7 +96,7 @@ export function TrashModule({ store }: { store: TlbStoreApi }) {
         </div>
       </div>
 
-      <article className="tlb-panel tlb-orders-panel">
+      <article className="tlb-panel tlb-orders-panel tlb-trash-list-panel">
         <div className="tlb-table-scroll">
           {items.length === 0 ? (
             <EmptyState
@@ -131,19 +138,19 @@ export function TrashModule({ store }: { store: TlbStoreApi }) {
                       />
                     ) : null}
                     <td>
-                      <strong>{item.typeLabel}</strong>
+                      <strong className="tlb-trash-type">{item.typeLabel}</strong>
                     </td>
                     <td>
-                      {item.label}
+                      <span className="tlb-trash-label">{item.label}</span>
                       {item.subtitle ? <div className="tlb-muted-line">{item.subtitle}</div> : null}
                       {item.deletedReason ? (
                         <div className="tlb-muted-line">Reason: {item.deletedReason}</div>
                       ) : null}
                     </td>
                     <td>{item.deletedBy}</td>
-                    <td>{formatWhen(item.deletedAt)}</td>
+                    <td className="tlb-trash-when">{formatWhen(item.deletedAt)}</td>
                     <td>
-                      <div className="tlb-inline-actions">
+                      <div className="tlb-inline-actions compact">
                         {canRestore ? (
                           <Button
                             type="button"

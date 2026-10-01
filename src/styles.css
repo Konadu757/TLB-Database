@@ -1633,6 +1633,140 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
   }
 }
 
+/* Trash — portal white / deep violet labels (no cream zebra) */
+.tlb-trash-module {
+  gap: 18px;
+}
+.tlb-trash-module .tlb-module-toolbar {
+  padding: 16px 18px;
+  border: 0;
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 6px 22px color-mix(in oklab, #6420d0 7%, transparent);
+}
+.tlb-trash-module .tlb-module-toolbar .tlb-eyebrow {
+  color: #6420d0;
+}
+.tlb-trash-module .tlb-module-toolbar strong {
+  color: #1f1630;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.tlb-trash-module .tlb-module-toolbar .tlb-muted-line {
+  margin: 0.4rem 0 0;
+  color: color-mix(in oklab, #1f1630 55%, #6420d0);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+.tlb-trash-module .tlb-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.tlb-trash-list-panel {
+  background: #ffffff;
+  border-radius: 22px;
+  box-shadow: 0 6px 22px color-mix(in oklab, #6420d0 7%, transparent);
+}
+.tlb-trash-list-panel > .tlb-table-scroll > table thead th {
+  background: #ffffff;
+  color: #6420d0;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid color-mix(in oklab, #6420d0 10%, #e8e6ef);
+}
+.tlb-trash-list-panel tbody tr:hover {
+  background: color-mix(in oklab, #6420d0 6%, white);
+}
+.tlb-trash-list-panel tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.tlb-row-selected) {
+  background: #ffffff;
+}
+.tlb-trash-list-panel tbody tr.tlb-row-selected {
+  background: color-mix(in oklab, #6420d0 10%, #f6f4fc);
+  box-shadow: inset 3px 0 0 #6420d0;
+}
+.tlb-trash-list-panel tbody tr.tlb-row-selected:hover {
+  background: color-mix(in oklab, #6420d0 14%, #f6f4fc);
+}
+.tlb-trash-list-panel td {
+  white-space: normal;
+  vertical-align: middle;
+  color: #1f1630;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  padding: 14px 15px;
+  border-top: 1px solid color-mix(in oklab, #6420d0 8%, #e8e6ef);
+}
+.tlb-trash-list-panel .tlb-trash-type {
+  color: #6420d0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.tlb-trash-list-panel .tlb-trash-label {
+  display: block;
+  color: #1f1630;
+  font-weight: 600;
+}
+.tlb-trash-list-panel .tlb-muted-line {
+  margin-top: 4px;
+  color: color-mix(in oklab, #1f1630 55%, #6420d0);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  white-space: normal;
+}
+.tlb-trash-list-panel .tlb-trash-when {
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in oklab, #1f1630 70%, #6420d0);
+  white-space: nowrap;
+}
+.tlb-trash-list-panel .tlb-inline-actions {
+  gap: 8px;
+  justify-content: flex-end;
+}
+.tlb-trash-list-panel td:last-child button:not(.tlb-user-action):not(.bg-destructive) {
+  border: 1px solid color-mix(in oklab, #6420d0 18%, #e8e6ef);
+  background: #ffffff;
+  color: #1f1630;
+  box-shadow: none;
+}
+.tlb-trash-list-panel td:last-child button:not(.tlb-user-action):not(.bg-destructive):hover {
+  background: color-mix(in oklab, #6420d0 6%, white);
+  border-color: color-mix(in oklab, #6420d0 28%, #e8e6ef);
+  color: #6420d0;
+}
+.tlb-trash-list-panel td:last-child button.bg-destructive {
+  border: 1px solid color-mix(in oklab, var(--destructive, #b42318) 30%, transparent);
+  background: color-mix(in oklab, var(--destructive, #b42318) 92%, #1f1630);
+  color: #ffffff;
+  box-shadow: none;
+}
+.tlb-trash-list-panel td:last-child button.bg-destructive:hover {
+  background: color-mix(in oklab, var(--destructive, #b42318) 85%, #1f1630);
+}
+.tlb-trash-list-panel .tlb-list-meta {
+  padding: 12px 16px 14px;
+  color: color-mix(in oklab, #1f1630 60%, #6420d0);
+  font-size: 0.8125rem;
+  border-top: 1px solid color-mix(in oklab, #6420d0 10%, #e8e6ef);
+  background: #ffffff;
+}
+.tlb-trash-module .tlb-empty-state {
+  padding: 48px 24px;
+}
+.tlb-trash-module .tlb-empty-state strong {
+  color: #1f1630;
+  font-size: 0.9375rem;
+  letter-spacing: -0.01em;
+}
+.tlb-trash-module .tlb-empty-state p {
+  color: color-mix(in oklab, #1f1630 55%, #6420d0);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
 .tlb-fulfilment-cell {
   font-variant-numeric: tabular-nums;
   font-weight: 700;
@@ -2110,36 +2244,43 @@ button.tlb-user-action:focus-visible {
 .tlb-trash-dialog .tlb-trash-reason { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
 .tlb-trash-dialog .tlb-trash-reason textarea {
   width: 100%;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 8px 10px;
+  border: 1px solid color-mix(in oklab, #6420d0 12%, #e8e6ef);
+  border-radius: 12px;
+  padding: 10px 12px;
   font: inherit;
   resize: vertical;
   min-height: 72px;
+  background: #ffffff;
 }
 .tlb-trash-dialog .tlb-trash-purge-warning {
   margin: 0;
-  padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--destructive, #b42318) 35%, var(--border));
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--destructive, #b42318) 8%, transparent);
-  color: var(--foreground);
-  font-size: 12px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--destructive, #b42318) 28%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--destructive, #b42318) 7%, white);
+  color: #1f1630;
+  font-size: 0.8125rem;
   line-height: 1.45;
 }
 .tlb-trash-dialog .tlb-trash-type-confirm {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 12px;
+  font-size: 0.8125rem;
+}
+.tlb-trash-dialog .tlb-trash-type-confirm label {
+  color: #6420d0;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 .tlb-trash-dialog .tlb-trash-type-confirm label strong {
   font-family: var(--font-mono);
   letter-spacing: 0.02em;
+  color: #1f1630;
 }
 .tlb-trash-dialog .tlb-trash-type-hint {
-  color: var(--muted-foreground);
-  font-size: 11px;
+  color: color-mix(in oklab, #1f1630 55%, #6420d0);
+  font-size: 0.75rem;
   line-height: 1.4;
 }
 /* Sign-out confirm — same floating-panel family as quick actions / trash dialogs */
