@@ -4,6 +4,8 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { PortalLogin } from "@/components/portal-login";
 import {
   dashboardAllowed,
+  discardRestoredSessionIfColdVisit,
+  hasTabAuthSession,
   publishableAuthConfigured,
   readPortalSession,
   sessionFromSignIn,
@@ -29,9 +31,9 @@ export function usePortalSignOut(): () => Promise<void> {
 }
 
 /**
- * Withholds the dashboard until a Supabase Auth session exists.
- * The first render is always the sign-in hold, including on the server,
- * so an unauthenticated load cannot paint the Owner workspace.
+ * Withholds the dashboard until a Supabase Auth session exists for this tab.
+ * A cold URL visit (no tab sign-in marker) clears any restored token and shows
+ * the login screen. Refresh after a successful sign-in stays open.
  */
 export function PortalGate({ children }: { children: ReactNode }) {
   const [phase, setPhase] = useState<"checking" | "closed" | "open">("checking");
@@ -42,16 +44,30 @@ export function PortalGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    let authEventSeen = false;
-    const stop = subscribePortalAuth((session) => {
+    let stop = () => {};
+
+    void (async () => {
+      await discardRestoredSessionIfColdVisit();
       if (cancelled) return;
-      authEventSeen = true;
-      setPhase(dashboardAllowed(session) ? "open" : "closed");
-    });
-    void readPortalSession().then((session) => {
+
+      if (!hasTabAuthSession()) {
+        setPhase("closed");
+      }
+
+      let authEventSeen = false;
+      stop = subscribePortalAuth((session) => {
+        if (cancelled) return;
+        authEventSeen = true;
+        setPhase(dashboardAllowed(session) ? "open" : "closed");
+      });
+
+      if (!hasTabAuthSession()) return;
+
+      const session = await readPortalSession();
       if (cancelled || authEventSeen) return;
       setPhase(dashboardAllowed(session) ? "open" : "closed");
-    });
+    })();
+
     return () => {
       cancelled = true;
       stop();

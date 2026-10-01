@@ -3,6 +3,10 @@
  * A Supabase Auth session is the only way in. A failed password, a missing
  * session, or missing publishable env never opens the dashboard and never
  * writes the Owner workspace session.
+ *
+ * Persisted tokens alone do not open the portal on a cold URL visit. This tab
+ * must complete email/password sign-in once (sessionStorage marker). Refresh
+ * in the same tab stays signed in; a new tab or browser session asks again.
  */
 
 export type PortalSession = {
@@ -18,6 +22,9 @@ export const SIGN_IN_REQUIRED =
 
 export const SIGN_IN_UNREACHABLE =
   "Could not reach Supabase (Failed to fetch). The sign-in host did not respond, so the password was not checked. Confirm the Supabase project is active and VITE_SUPABASE_URL is that project's URL.";
+
+/** sessionStorage flag: this tab completed password sign-in. */
+const TAB_AUTH_KEY = "tlb-portal-tab-auth";
 
 /** Browser "Failed to fetch" is a network failure, not a rejected password. */
 export function signInFailureMessage(
@@ -60,6 +67,34 @@ export function publishableAuthConfigured(): boolean {
   return Boolean(url && key);
 }
 
+/** True when this browser tab has completed a fresh email/password sign-in. */
+export function hasTabAuthSession(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return sessionStorage.getItem(TAB_AUTH_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markTabAuthSession(): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(TAB_AUTH_KEY, "1");
+  } catch {
+    /* private mode / blocked storage */
+  }
+}
+
+function clearTabAuthSession(): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(TAB_AUTH_KEY);
+  } catch {
+    /* private mode / blocked storage */
+  }
+}
+
 /** A rejected password produces no session. */
 export function sessionFromSignIn(result: SignInResult): PortalSession | null {
   if (!result.ok || !result.userId) return null;
@@ -76,8 +111,24 @@ async function authClient() {
   return supabase;
 }
 
+/**
+ * On a cold visit (no tab sign-in marker), clear any restored localStorage
+ * session so typing the portal URL cannot bypass the login screen.
+ */
+export async function discardRestoredSessionIfColdVisit(): Promise<void> {
+  if (!publishableAuthConfigured() || typeof window === "undefined") return;
+  if (hasTabAuthSession()) return;
+  try {
+    const supabase = await authClient();
+    await supabase.auth.signOut({ scope: "local" });
+  } catch {
+    /* stay closed; gate will show sign-in */
+  }
+}
+
 export async function readPortalSession(): Promise<PortalSession | null> {
   if (!publishableAuthConfigured() || typeof window === "undefined") return null;
+  if (!hasTabAuthSession()) return null;
   try {
     const supabase = await authClient();
     const { data, error } = await supabase.auth.getSession();
@@ -109,20 +160,24 @@ export async function signInWithOwnerPassword(
       password,
     });
     if (error || !data.session?.user?.id) {
+      clearTabAuthSession();
       return { ok: false, error: signInFailureMessage(error) };
     }
+    markTabAuthSession();
     return {
       ok: true,
       userId: data.session.user.id,
       email: data.session.user.email ?? trimmed,
     };
   } catch (err) {
+    clearTabAuthSession();
     const named = err instanceof Error ? err : null;
     return { ok: false, error: signInFailureMessage(named) };
   }
 }
 
 export async function signOutPortal(): Promise<void> {
+  clearTabAuthSession();
   if (!publishableAuthConfigured() || typeof window === "undefined") return;
   const supabase = await authClient();
   await supabase.auth.signOut();
@@ -135,7 +190,7 @@ export function subscribePortalAuth(onChange: (session: PortalSession | null) =>
   void authClient().then((supabase) => {
     if (cancelled) return;
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session?.user?.id) {
+      if (!session?.user?.id || !hasTabAuthSession()) {
         onChange(null);
         return;
       }

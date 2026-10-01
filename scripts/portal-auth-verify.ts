@@ -61,10 +61,15 @@ assert.match(gate, /if \(phase !== "open"\)/);
 assert.match(gate, /sessionFromSignIn\(result\)/);
 assert.match(gate, /!result\.ok \|\| !dashboardAllowed\(session\)/);
 assert.match(auth, /signInWithPassword/);
+assert.match(auth, /discardRestoredSessionIfColdVisit/);
+assert.match(auth, /hasTabAuthSession/);
+assert.match(auth, /tlb-portal-tab-auth/);
+assert.match(gate, /discardRestoredSessionIfColdVisit/);
+assert.match(gate, /hasTabAuthSession/);
 assert.doesNotMatch(
   auth,
   /lockWorkspaceToOwner|currentUserId|OWNER_USER_ID|service_role|SERVICE_ROLE/,
 );
 assert.doesNotMatch(gate, /lockWorkspaceToOwner|currentUserId/);
 
-console.log("portal auth gate: unauthenticated and failed sign-in stay closed");
+console.log("portal auth gate: cold visit requires login; failed sign-in stays closed");
