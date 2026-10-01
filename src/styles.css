@@ -1317,6 +1317,88 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
   background: #ffffff;
 }
 
+/* Batches — portal white / deep violet labels (no cream zebra) */
+.tlb-batches-module {
+  gap: 18px;
+}
+.tlb-batches-module .tlb-module-toolbar {
+  padding: 14px 16px;
+  border: 0;
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 6px 22px color-mix(in oklab, #6420d0 7%, transparent);
+}
+.tlb-batches-module .tlb-module-toolbar .tlb-eyebrow { color: #6420d0; }
+.tlb-batches-module .tlb-module-toolbar strong {
+  color: #1f1630;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.tlb-batches-module .tlb-module-toolbar .tlb-muted-line {
+  margin: 0.4rem 0 0;
+  color: color-mix(in oklab, #1f1630 55%, #6420d0);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+.tlb-batches-module .tlb-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.tlb-batches-list-panel,
+.tlb-batches-detail-panel {
+  background: #ffffff;
+  border-radius: 22px;
+  box-shadow: 0 6px 22px color-mix(in oklab, #6420d0 7%, transparent);
+}
+.tlb-batches-list-panel .tlb-panel-heading,
+.tlb-batches-detail-panel .tlb-panel-heading,
+.tlb-batches-list-panel > .tlb-table-scroll > table thead th {
+  background: #ffffff;
+  color: #6420d0;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid color-mix(in oklab, #6420d0 10%, #e8e6ef);
+}
+.tlb-batches-list-panel .tlb-panel-heading strong,
+.tlb-batches-detail-panel .tlb-panel-heading strong {
+  color: #1f1630;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.tlb-batches-list-panel tbody tr.tlb-row-clickable {
+  cursor: pointer;
+}
+.tlb-batches-list-panel tbody tr.tlb-row-clickable:hover {
+  background: color-mix(in oklab, #6420d0 6%, white);
+}
+.tlb-batches-list-panel tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.tlb-row-selected) {
+  background: #ffffff;
+}
+.tlb-batches-list-panel .tlb-list-meta {
+  padding: 10px 15px 14px;
+  color: color-mix(in oklab, #1f1630 60%, #6420d0);
+  font-size: 0.8125rem;
+  border-top: 1px solid color-mix(in oklab, #6420d0 10%, #e8e6ef);
+  background: #ffffff;
+}
+.tlb-batches-kv {
+  padding: 16px 18px 18px;
+  gap: 14px 18px;
+}
+.tlb-batches-kv span {
+  color: #6420d0;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.tlb-batches-kv strong {
+  color: #1f1630;
+  font-weight: 600;
+}
+
 /* Notifications — portal inbox (no dense table / cream zebra) */
 .tlb-notifications-module {
   gap: 18px;

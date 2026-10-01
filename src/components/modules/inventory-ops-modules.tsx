@@ -171,25 +171,60 @@ export function LiveBatchesModule({
   onFocusConsumed?: () => void;
 }) {
   const [selected, setSelected] = useState<string | null>(focusId ?? null);
+  const [search, setSearch] = useState("");
   useEffect(() => {
     if (!focusId) return;
     setSelected(focusId);
     onFocusConsumed?.();
   }, [focusId, onFocusConsumed]);
-  const batch = notSoftDeleted(store.state.batches).find((b) => b.id === selected);
+
+  const batches = useMemo(() => notSoftDeleted(store.state.batches), [store.state.batches]);
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return batches;
+    return batches.filter((b) => {
+      const product = store.state.products.find((p) => p.id === b.productId);
+      const wh = store.state.warehouses.find((w) => w.id === b.warehouseId);
+      const supplier = store.state.suppliers.find((s) => s.id === b.supplierId);
+      const hay = [
+        b.code,
+        b.status,
+        product?.sku,
+        product?.name,
+        wh?.code,
+        wh?.name,
+        supplier?.name,
+        b.expiresAt,
+        batchExpiryBand(b),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [batches, search, store.state.products, store.state.warehouses, store.state.suppliers]);
+
+  const openBatch = (id: string) => {
+    setSelected(id);
+    onOpenBatch?.(id);
+  };
+
+  const batch = batches.find((b) => b.id === selected);
 
   if (batch) {
     const product = store.state.products.find((p) => p.id === batch.productId);
     const nodes = buildBatchTrace(store.state, batch.id);
     const band = batchExpiryBand(batch);
     return (
-      <div className="tlb-module tlb-record-detail">
+      <div className="tlb-module tlb-batches-module tlb-record-detail">
+        <Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />
         <div className="tlb-module-toolbar">
           <div>
             <span className="tlb-eyebrow">Batch</span>
             <strong>{batch.code}</strong>
             <p className="tlb-muted-line">
-              {product?.name} · remain {batch.remainingQty} · cost {formatMoney(batch.unitCost)}
+              {product?.name ?? product?.sku ?? "Product"} · remain {batch.remainingQty} · cost{" "}
+              {formatMoney(batch.unitCost)}
             </p>
           </div>
           <div className="tlb-inline-actions">
@@ -205,7 +240,7 @@ export function LiveBatchesModule({
             </Button>
           </div>
         </div>
-        <article className="tlb-panel">
+        <article className="tlb-panel tlb-batches-detail-panel">
           <div className="tlb-panel-heading">
             <div>
               <span>Status</span>
@@ -219,7 +254,7 @@ export function LiveBatchesModule({
               </strong>
             </div>
           </div>
-          <div className="tlb-kv-grid" style={{ padding: 16 }}>
+          <div className="tlb-kv tlb-batches-kv">
             <div>
               <span>MFD</span>
               <strong>{batch.manufacturedAt ?? "—"}</strong>
@@ -240,7 +275,7 @@ export function LiveBatchesModule({
             </div>
           </div>
         </article>
-        <article className="tlb-panel tlb-orders-panel">
+        <article className="tlb-panel tlb-orders-panel tlb-batches-list-panel">
           <div className="tlb-panel-heading">
             <div>
               <span>Recall chain</span>
@@ -258,18 +293,26 @@ export function LiveBatchesModule({
                 </tr>
               </thead>
               <tbody>
-                {nodes.map((n) => (
-                  <tr key={`${n.id}-${n.kind}`}>
-                    <td>{n.at ? n.at.slice(0, 10) : "—"}</td>
-                    <td>
-                      <StatusBadge tone="info">{n.kind}</StatusBadge>
+                {nodes.length === 0 ? (
+                  <tr>
+                    <td colSpan={4}>
+                      <EmptyState title="No recall events" detail="No linked movements for this batch yet." />
                     </td>
-                    <td>
-                      <strong>{n.title}</strong>
-                    </td>
-                    <td>{n.detail}</td>
                   </tr>
-                ))}
+                ) : (
+                  nodes.map((n) => (
+                    <tr key={`${n.id}-${n.kind}`}>
+                      <td>{n.at ? n.at.slice(0, 10) : "—"}</td>
+                      <td>
+                        <StatusBadge tone="info">{n.kind}</StatusBadge>
+                      </td>
+                      <td>
+                        <strong>{n.title}</strong>
+                      </td>
+                      <td>{n.detail}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -279,69 +322,112 @@ export function LiveBatchesModule({
   }
 
   return (
-    <div className="tlb-module">
+    <div className="tlb-module tlb-batches-module">
+      <Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />
       <div className="tlb-module-toolbar">
         <div>
           <span className="tlb-eyebrow">Inventory</span>
           <strong>Batches</strong>
           <p className="tlb-muted-line">Lot remaining, expiry, and recall timeline</p>
         </div>
+        <div className="tlb-toolbar-actions">
+          <label className="tlb-module-search">
+            <Search aria-hidden />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search batch, product, warehouse, status…"
+              aria-label="Search batches"
+            />
+          </label>
+        </div>
       </div>
-      <article className="tlb-panel tlb-orders-panel">
-        <div className="tlb-table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Batch</th>
-                <th>Product</th>
-                <th>Warehouse</th>
-                <th>Remain</th>
-                <th>Cost</th>
-                <th>EXP</th>
-                <th>Alert</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {notSoftDeleted(store.state.batches).map((b) => {
-                const product = store.state.products.find((p) => p.id === b.productId);
-                const wh = store.state.warehouses.find((w) => w.id === b.warehouseId);
-                const band = batchExpiryBand(b);
-                return (
-                  <tr key={b.id}>
-                    <td>
-                      <strong>{b.code}</strong>
-                    </td>
-                    <td>{product?.sku}</td>
-                    <td>{wh?.code}</td>
-                    <td>{b.remainingQty}</td>
-                    <td>{formatMoney(b.unitCost)}</td>
-                    <td>{b.expiresAt?.slice(0, 10) ?? "—"}</td>
-                    <td>
-                      <StatusBadge
-                        tone={band === "ok" ? "success" : band === "expired" ? "danger" : "warning"}
-                      >
-                        {band === "ok" ? "OK" : band}
-                      </StatusBadge>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        aria-label="Open batch"
-                        onClick={() => {
-                          setSelected(b.id);
-                          onOpenBatch?.(b.id);
+      <article className="tlb-panel tlb-orders-panel tlb-batches-list-panel">
+        {filtered.length === 0 ? (
+          <EmptyState
+            title={batches.length === 0 ? "No batches yet" : "No matching batches"}
+            detail={
+              batches.length === 0
+                ? "Batches appear when stock is received through Goods In."
+                : "Try a different search term."
+            }
+          />
+        ) : (
+          <>
+            <div className="tlb-table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Batch</th>
+                    <th>Product</th>
+                    <th>Warehouse</th>
+                    <th>Remain</th>
+                    <th>Cost</th>
+                    <th>EXP</th>
+                    <th>Alert</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((b) => {
+                    const product = store.state.products.find((p) => p.id === b.productId);
+                    const wh = store.state.warehouses.find((w) => w.id === b.warehouseId);
+                    const band = batchExpiryBand(b);
+                    return (
+                      <tr
+                        key={b.id}
+                        className="tlb-row-clickable"
+                        tabIndex={0}
+                        onClick={() => openBatch(b.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            openBatch(b.id);
+                          }
                         }}
                       >
-                        <ChevronRight />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                        <td>
+                          <strong>{b.code}</strong>
+                        </td>
+                        <td>{product?.sku ?? "—"}</td>
+                        <td>{wh?.code ?? "—"}</td>
+                        <td>{b.remainingQty}</td>
+                        <td>{formatMoney(b.unitCost)}</td>
+                        <td>{b.expiresAt?.slice(0, 10) ?? "—"}</td>
+                        <td>
+                          <StatusBadge
+                            tone={
+                              band === "ok" ? "success" : band === "expired" ? "danger" : "warning"
+                            }
+                          >
+                            {band === "ok" ? "OK" : band}
+                          </StatusBadge>
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            aria-label={`Open batch ${b.code}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openBatch(b.id);
+                            }}
+                          >
+                            <ChevronRight />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <p className="tlb-list-meta">
+              {filtered.length} batch{filtered.length === 1 ? "" : "es"}
+              {search.trim() ? ` matching “${search.trim()}”` : ""}
+            </p>
+          </>
+        )}
       </article>
     </div>
   );
