@@ -533,14 +533,18 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                   </button>
                   <button
                     type="button"
-                    className="tlb-link-btn"
+                    className="tlb-user-action tlb-user-action--copy"
                     onClick={() => {
                       void copyInviteValue("sms", store.lastInvite!.delivery.smsBody);
                     }}
                   >
                     {copiedKey === "sms" ? "Copied SMS text" : "Copy SMS text"}
                   </button>
-                  <button type="button" className="tlb-link-btn" onClick={store.clearLastInvite}>
+                  <button
+                    type="button"
+                    className="tlb-user-action tlb-user-action--delete"
+                    onClick={store.clearLastInvite}
+                  >
                     Dismiss
                   </button>
                 </div>
