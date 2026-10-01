@@ -126,7 +126,7 @@ export async function sendInviteEmailWithResend(input: {
     `Access code: ${input.inviteCode}`,
     `Sign-in link: ${input.inviteLink}`,
     "",
-    "Treat this code like a password. Do not forward it.",
+    "Treat this access code like a secret. Open the link, enter the code, then create your own password. Do not forward it.",
     "",
     "— TLB",
   ]
@@ -139,7 +139,7 @@ export async function sendInviteEmailWithResend(input: {
     ${input.role?.trim() ? `<p><strong>Role:</strong> ${escapeHtml(input.role.trim())}</p>` : ""}
     <p><strong>Access code:</strong> <code>${escapeHtml(input.inviteCode)}</code></p>
     <p><a href="${escapeAttr(input.inviteLink)}">Open invite link</a></p>
-    <p style="color:#555;font-size:13px">Treat this code like a password. Do not forward it.</p>
+    <p style="color:#555;font-size:13px">Enter the access code (not a password). After it is accepted you will create your own password for future sign-in. Do not forward the code.</p>
     <p>— TLB</p>
   `.trim();
 

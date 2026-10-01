@@ -197,7 +197,7 @@ Stop. Leave the SQL Editor as it is.
 
 ## How a second person signs in
 
-Invites are access codes inside the portal. When the Supabase environment is set, Settings also calls `public.create_invite`, and the access page calls `public.accept_invite`. After assign, the portal POSTs to same-origin `/api/invite-email` (Resend) and, when contact looks like a phone, `/api/invite-sms` (Arkesel preferred; Termii then Twilio fallback). Those routes read server env only. If the keys are missing, the **Invitation ready** panel still shows the code/link and says email/SMS were not sent. `accept_invite` stores a profile and a role. It does not create a password the person can type into Supabase Authentication, and it does not open a GoTrue session.
+Invites are access codes inside the portal. When the Supabase environment is set, Settings also calls `public.create_invite`, and the access page calls `public.validate_invite` then `public.accept_invite` with the password the invitee chose. After assign, the portal POSTs to same-origin `/api/invite-email` (Resend) and, when contact looks like a phone, `/api/invite-sms` (Arkesel preferred; Termii then Twilio fallback). Those routes read server env only. If the keys are missing, the **Invitation ready** panel still shows the code/link and says email/SMS were not sent. `accept_invite` stores a profile, assigns a role, and sets the Auth password. It does not open a GoTrue session by itself — the access page signs the person in with email + that new password.
 
 ### Invite bootstrap (Owner Auth + anon execute)
 
@@ -215,9 +215,10 @@ The steps:
 2. Enter name, contact, email, and role, then choose **Assign role** (or **Re-issue** on a pending row).
 3. Directly under the form, the green **Invitation ready** panel shows the access code (`TLB-XXXX-XXXX`) and the full `/access?invite=…` link. Use **Copy access code**, **Copy invite link**, or **Copy SMS text**. The panel stays until you dismiss it.
 4. The panel lists cloud / email / SMS status honestly (sent, not configured, or failed). Copy buttons stay available either way. Treat the code and link like a password.
-5. The other person opens the link (`https://portal.tlbgh.com/access?invite=...`) or opens [https://portal.tlbgh.com/access](https://portal.tlbgh.com/access), types the code, and chooses **Sign in**.
-6. Wait until the button says **Sign in** rather than **Loading**. They should land on the dashboard as that person.
-7. If the page says the invite is invalid or expired, the administrator refreshes the portal once (so the user list can finish saving) and sends the code again. A brand-new code from **Re-issue** replaces the old one.
+5. The other person opens the link (`https://portal.tlbgh.com/access?invite=...`) or opens [https://portal.tlbgh.com/access](https://portal.tlbgh.com/access) and enters the **access code** (not a password).
+6. After the code is validated, they **create their own password** (and confirm it), then the portal signs them in.
+7. Later visits use the normal sign-in screen with **email + that password**. The access code is single-use.
+8. If the page says the invite is invalid or expired, the administrator refreshes the portal once (so the user list can finish saving) and sends a fresh code via **Re-issue**.
 
 ### Email and SMS (Resend + Arkesel on Vercel)
 

@@ -148,7 +148,7 @@ export async function signInWithOwnerPassword(
 ): Promise<SignInResult> {
   const trimmed = email.trim();
   if (!trimmed || !password) {
-    return { ok: false, error: "Enter the Owner email and password." };
+    return { ok: false, error: "Enter your email and password." };
   }
   if (!publishableAuthConfigured()) {
     return { ok: false, error: SIGN_IN_REQUIRED };
@@ -161,7 +161,7 @@ export async function signInWithOwnerPassword(
     });
     if (error || !data.session?.user?.id) {
       clearTabAuthSession();
-      return { ok: false, error: signInFailureMessage(error) };
+      return { ok: false, error: signInFailureMessage(error as { message?: string; name?: string; status?: number } | null) };
     }
     markTabAuthSession();
     return {

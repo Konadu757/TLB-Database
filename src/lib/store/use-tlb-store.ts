@@ -8,7 +8,11 @@ import {
   trySendInviteSms,
   type InviteDeliveryStatus,
 } from "@/lib/access/invite-delivery";
-import { acceptInviteOnSupabase, createInviteOnSupabase } from "@/lib/access/supabase-invites";
+import {
+  acceptInviteOnSupabase,
+  createInviteOnSupabase,
+  validateInviteOnSupabase,
+} from "@/lib/access/supabase-invites";
 import { buildInviteLink, normalizeAccessCode } from "@/lib/domain/invites";
 import { dbRoleCodeForRoleId } from "@/lib/domain/permissions";
 import type { AppUser, DeliveryStatus, Permission, TlbState } from "@/lib/domain/types";
@@ -45,6 +49,7 @@ import {
   softDeleteRecord,
   acceptInvite,
   applyHostedInviteAcceptance,
+  previewLocalInvite,
   issueUserInvite,
   updateAgeingSettings,
   updateCompanyProfile,
@@ -651,10 +656,99 @@ export function useTlbStore() {
       }
       return result.ok;
     },
-    acceptInvite: async (input: Parameters<typeof acceptInvite>[1]) => {
+    validateInvite: async (input: { token?: string; code?: string }) => {
+      const token = input.token?.trim() || undefined;
+      const code = input.code?.trim() || undefined;
+      const normalizedCode = code ? normalizeAccessCode(code) : "";
+      const byToken = token ? state.users.find((user) => user.inviteToken === token) : undefined;
+      const byCode = normalizedCode
+        ? state.users.find(
+            (user) => user.inviteCode && normalizeAccessCode(user.inviteCode) === normalizedCode,
+          )
+        : undefined;
+      if (byToken && byCode && byToken.id !== byCode.id) {
+        setError("Invite link and access code do not match.");
+        setNotice(null);
+        return { ok: false as const, data: null };
+      }
+      const localUser = byToken ?? byCode;
+      const inviteArgs: { token?: string; code?: string } = {
+        ...(token ? { token } : {}),
+        ...(code ? { code } : {}),
+      };
+
       if (repo.backend === "supabase") {
-        const token = input.token?.trim();
-        const code = input.code?.trim();
+        const hosted = await validateInviteOnSupabase(inviteArgs);
+        if (hosted.ok) {
+          setError(null);
+          setNotice(null);
+          return { ok: true as const, data: hosted.data };
+        }
+        const missingRpc =
+          /Could not find the function public\.validate_invite/i.test(hosted.error) ||
+          /schema cache/i.test(hosted.error);
+        const cloudMiss =
+          /invalid invite/i.test(hosted.error) ||
+          /invite expired/i.test(hosted.error) ||
+          /invite already used/i.test(hosted.error) ||
+          /Invalid or expired invite/i.test(hosted.error);
+        if ((missingRpc || cloudMiss) && localUser) {
+          const local = previewLocalInvite(state, inviteArgs);
+          if (local.ok && local.data) {
+            setError(null);
+            setNotice(null);
+            return {
+              ok: true as const,
+              data: {
+                email: local.data.data.email,
+                fullName: local.data.data.fullName,
+                roleCode: "local",
+                ...(local.data.data.accessCode
+                  ? { accessCode: local.data.data.accessCode }
+                  : {}),
+              },
+            };
+          }
+        }
+        setError(
+          missingRpc
+            ? "Cloud invite check is not set up on the database yet. Ask an Owner to apply the invite password SQL, then Re-issue."
+            : cloudMiss && !localUser
+              ? "Invalid or expired invite. Ask an Owner to Re-issue a fresh code."
+              : hosted.error,
+        );
+        setNotice(null);
+        return { ok: false as const, data: null };
+      }
+
+      const local = previewLocalInvite(state, inviteArgs);
+      if (!local.ok) {
+        setError(local.error);
+        setNotice(null);
+        return { ok: false as const, data: null };
+      }
+      setError(null);
+      setNotice(null);
+      return {
+        ok: true as const,
+        data: {
+          email: local.data.data.email,
+          fullName: local.data.data.fullName,
+          roleCode: "local",
+          ...(local.data.data.accessCode ? { accessCode: local.data.data.accessCode } : {}),
+        },
+      };
+    },
+    acceptInvite: async (input: Parameters<typeof acceptInvite>[1]) => {
+      const password = input.password ?? "";
+      if (password.length < 8) {
+        setError("Password must be at least 8 characters.");
+        setNotice(null);
+        return { ok: false as const, data: null };
+      }
+      if (repo.backend === "supabase") {
+        const token = input.token?.trim() || undefined;
+        const code = input.code?.trim() || undefined;
         const normalizedCode = code ? normalizeAccessCode(code) : "";
         const byToken = token ? state.users.find((user) => user.inviteToken === token) : undefined;
         const byCode = normalizedCode
@@ -673,35 +767,60 @@ export function useTlbStore() {
           setNotice(null);
           return { ok: false as const, data: null };
         }
-        const hosted = await acceptInviteOnSupabase({ token, code });
+        const acceptArgs = {
+          password,
+          ...(token ? { token } : {}),
+          ...(code ? { code } : {}),
+        };
+        const hosted = await acceptInviteOnSupabase(acceptArgs);
         if (hosted.ok) {
-          return applyCapture((s) => applyHostedInviteAcceptance(s, hosted.data), "Signed in.");
+          const applied = applyCapture(
+            (s) => applyHostedInviteAcceptance(s, hosted.data),
+            "Invite activated. Signing you in…",
+          );
+          if (applied.ok) {
+            return { ok: true as const, data: hosted.data };
+          }
+          return { ok: false as const, data: null };
         }
         // Hosted RPC missing, unreachable, or cloud row never saved (create_invite failed):
         // fall back to local invite acceptance when this browser still holds the pending invite.
         // SMS recipients on other devices need a Re-issue after cloud create_invite works.
         const missingRpc =
           /Could not find the function public\.accept_invite/i.test(hosted.error) ||
-          /schema cache/i.test(hosted.error);
+          /Could not find the function/i.test(hosted.error) ||
+          /schema cache/i.test(hosted.error) ||
+          /function public\.accept_invite/i.test(hosted.error);
         const cloudMiss =
           /invalid invite/i.test(hosted.error) ||
           /invite expired/i.test(hosted.error) ||
           /Invalid or expired invite/i.test(hosted.error);
         if ((missingRpc || cloudMiss) && localUser) {
-          const local = applyCapture((s) => acceptInvite(s, input), "Signed in (this browser).");
+          const local = applyCapture(
+            (s) => acceptInvite(s, acceptArgs),
+            "Signed in (this browser).",
+          );
           if (local.ok) {
             setNotice(
               missingRpc
-                ? "Signed in on this browser. Cloud invite sync is not ready yet — ask an Owner to apply the invite SQL on Supabase."
-                : "Signed in on this browser. Cloud invite was missing — ask an Owner to Re-issue so other devices can use the code.",
+                ? "Activated on this browser only. Ask an Owner to apply the invite password SQL on Supabase, then Re-issue for other devices."
+                : "Activated on this browser. Cloud invite was missing — ask an Owner to Re-issue so other devices can use the code.",
             );
             setError(null);
-            return local;
+            return {
+              ok: true as const,
+              data: {
+                profileId: localUser.id,
+                email: localUser.email,
+                fullName: localUser.name,
+                roleCode: "local",
+              },
+            };
           }
         }
         setError(
-          missingRpc
-            ? "Cloud invite is not set up on the database yet. If the code was issued on this same browser, try again after the Owner applies invite SQL. Otherwise ask them to Re-issue."
+          missingRpc && !localUser
+            ? "Cloud invite activation needs a database update (password setup). Ask an Owner to apply the invite password SQL, then Re-issue."
             : cloudMiss && !localUser
               ? "Invalid or expired invite. Ask an Owner to Re-issue a fresh code (cloud sync must succeed first)."
               : hosted.error,
@@ -709,7 +828,20 @@ export function useTlbStore() {
         setNotice(null);
         return { ok: false as const, data: null };
       }
-      return applyCapture((s) => acceptInvite(s, input), "Signed in.");
+      const local = applyCapture((s) => acceptInvite(s, input), "Invite activated.");
+      if (!local.ok) return { ok: false as const, data: null };
+      const accepted = local.data as AppUser | null;
+      return {
+        ok: true as const,
+        data: accepted
+          ? {
+              profileId: accepted.id,
+              email: accepted.email,
+              fullName: accepted.name,
+              roleCode: "local",
+            }
+          : null,
+      };
     },
     createInvoice: (input: Parameters<typeof createInvoiceFromSupply>[1]) =>
       apply((s) => createInvoiceFromSupply(s, input), "VAT invoice created."),

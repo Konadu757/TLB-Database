@@ -1714,14 +1714,70 @@ export function issueUserInvite(state: TlbState, userId: string): MutResult<AppU
   return { ok: true, data: { state: next, data: updated } };
 }
 
-export function acceptInvite(
+export function previewLocalInvite(
   state: TlbState,
   input: { token?: string; code?: string },
-): MutResult<AppUser> {
+): MutResult<{ email: string; fullName: string; accessCode?: string }> {
   const token = input.token?.trim();
   const code = input.code?.trim();
   if (!token && !code) {
     return { ok: false, error: "Enter an access code or open your invite link." };
+  }
+
+  let user: AppUser | undefined;
+  if (token) user = findUserByInviteToken(state.users, token);
+  if (!user && code) user = findUserByInviteCode(state.users, code);
+  if (!user) return { ok: false, error: "Invalid or expired invite." };
+  if (!user.active) return { ok: false, error: "User account is inactive." };
+  if (!isInvitePending(user) && !user.inviteToken && !user.inviteCode) {
+    return { ok: false, error: "Invalid or expired invite." };
+  }
+  if (!isInvitePending(user)) {
+    return { ok: false, error: "Invite already used." };
+  }
+
+  if (token && code) {
+    const byCode = findUserByInviteCode(state.users, code);
+    if (byCode && byCode.id !== user.id) {
+      return { ok: false, error: "Invite link and access code do not match." };
+    }
+  }
+  if (token && user.inviteToken !== token) {
+    return { ok: false, error: "Invalid or expired invite." };
+  }
+  if (
+    code &&
+    user.inviteCode &&
+    normalizeAccessCode(user.inviteCode) !== normalizeAccessCode(code)
+  ) {
+    return { ok: false, error: "Invalid or expired invite." };
+  }
+
+  return {
+    ok: true,
+    data: {
+      state,
+      data: {
+        email: user.email,
+        fullName: user.name,
+        ...(user.inviteCode ? { accessCode: user.inviteCode } : {}),
+      },
+    },
+  };
+}
+
+export function acceptInvite(
+  state: TlbState,
+  input: { token?: string; code?: string; password?: string },
+): MutResult<AppUser> {
+  const token = input.token?.trim();
+  const code = input.code?.trim();
+  const password = input.password ?? "";
+  if (!token && !code) {
+    return { ok: false, error: "Enter an access code or open your invite link." };
+  }
+  if (password.length < 8) {
+    return { ok: false, error: "Password must be at least 8 characters." };
   }
 
   let user: AppUser | undefined;
@@ -1763,7 +1819,7 @@ export function acceptInvite(
       action: "user.invite_accepted",
       entityType: "user",
       entityId: updated.id,
-      summary: `${updated.name} activated invite and signed in.`,
+      summary: `${updated.name} activated invite and set a password.`,
     });
   }
 

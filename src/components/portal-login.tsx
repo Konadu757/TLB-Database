@@ -84,6 +84,11 @@ export function PortalLogin({ configured, pending, error, onSubmit }: PortalLogi
                 {pending ? "Checking…" : "Sign in"}
               </button>
             </div>
+            <p className="tlb-login-invite tlb-span-2">
+              Have an invite?{" "}
+              <a href="/access">Enter your access code</a>
+              {" — then set your own password."}
+            </p>
           </form>
         </div>
       </section>

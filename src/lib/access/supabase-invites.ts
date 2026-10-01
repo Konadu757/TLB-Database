@@ -1,6 +1,6 @@
 /**
  * Browser calls for tlb invites. Uses the publishable key only.
- * public.create_invite / public.accept_invite are the Data API names.
+ * public.create_invite / public.accept_invite / public.validate_invite are the Data API names.
  * Neither call sends or stores a service-role key.
  */
 
@@ -10,6 +10,13 @@ import type { HostedInviteAcceptance } from "@/lib/store/tlb-store";
 type RpcResult = { data: unknown; error: { message: string } | null };
 
 const CLOUD_INVITE_TIMEOUT_MS = 10_000;
+
+export type HostedInvitePreview = {
+  email: string;
+  fullName: string;
+  roleCode: string;
+  accessCode?: string;
+};
 
 async function rpc(fn: string, args: Record<string, unknown>): Promise<RpcResult> {
   const client = supabase as unknown as {
@@ -36,6 +43,28 @@ async function rpcWithTimeout(
   } finally {
     if (timer) clearTimeout(timer);
   }
+}
+
+function parseInviteProfile(data: unknown): HostedInviteAcceptance | null {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const row = data as Record<string, unknown>;
+  const profileId = typeof row["profile_id"] === "string" ? row["profile_id"] : "";
+  const email = typeof row["email"] === "string" ? row["email"] : "";
+  const fullName = typeof row["full_name"] === "string" ? row["full_name"] : "";
+  const roleCode = typeof row["role_code"] === "string" ? row["role_code"] : "";
+  if (!profileId || !email || !fullName || !roleCode) return null;
+  return { profileId, email, fullName, roleCode };
+}
+
+function parseInvitePreview(data: unknown): HostedInvitePreview | null {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const row = data as Record<string, unknown>;
+  const email = typeof row["email"] === "string" ? row["email"] : "";
+  const fullName = typeof row["full_name"] === "string" ? row["full_name"] : "";
+  const roleCode = typeof row["role_code"] === "string" ? row["role_code"] : "";
+  const accessCode = typeof row["access_code"] === "string" ? row["access_code"] : undefined;
+  if (!email || !fullName || !roleCode) return null;
+  return { email, fullName, roleCode, ...(accessCode ? { accessCode } : {}) };
 }
 
 export async function createInviteOnSupabase(input: {
@@ -65,28 +94,40 @@ export async function createInviteOnSupabase(input: {
   }
 }
 
+export async function validateInviteOnSupabase(input: {
+  token?: string;
+  code?: string;
+}): Promise<{ ok: true; data: HostedInvitePreview } | { ok: false; error: string }> {
+  try {
+    const { data, error } = await rpcWithTimeout("validate_invite", {
+      p_token: input.token ?? null,
+      p_access_code: input.code ?? null,
+    });
+    if (error) return { ok: false, error: error.message };
+    const preview = parseInvitePreview(data);
+    if (!preview) return { ok: false, error: "Invalid or expired invite." };
+    return { ok: true, data: preview };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message };
+  }
+}
+
 export async function acceptInviteOnSupabase(input: {
   token?: string;
   code?: string;
+  password: string;
 }): Promise<{ ok: true; data: HostedInviteAcceptance } | { ok: false; error: string }> {
   try {
     const { data, error } = await rpcWithTimeout("accept_invite", {
       p_token: input.token ?? null,
       p_access_code: input.code ?? null,
+      p_password: input.password,
     });
     if (error) return { ok: false, error: error.message };
-    if (!data || typeof data !== "object" || Array.isArray(data)) {
-      return { ok: false, error: "Invalid or expired invite." };
-    }
-    const row = data as Record<string, unknown>;
-    const profileId = typeof row.profile_id === "string" ? row.profile_id : "";
-    const email = typeof row.email === "string" ? row.email : "";
-    const fullName = typeof row.full_name === "string" ? row.full_name : "";
-    const roleCode = typeof row.role_code === "string" ? row.role_code : "";
-    if (!profileId || !email || !fullName || !roleCode) {
-      return { ok: false, error: "Invalid or expired invite." };
-    }
-    return { ok: true, data: { profileId, email, fullName, roleCode } };
+    const profile = parseInviteProfile(data);
+    if (!profile) return { ok: false, error: "Invalid or expired invite." };
+    return { ok: true, data: profile };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, error: message };
