@@ -5,7 +5,11 @@
  * Optional override: VITE_TLB_INVITE_MAIL_ENDPOINT for a custom mail URL.
  */
 
-import { looksLikePhoneNumber } from "@/lib/access/invite-phone";
+import {
+  looksLikePhoneNumber,
+  normalizePhoneDigits,
+  normalizePhoneForSms,
+} from "@/lib/access/invite-phone";
 import { buildInviteLink } from "@/lib/domain/invites";
 
 export type InviteCloudStatus = "pending" | "ok" | "failed" | "local_only";
