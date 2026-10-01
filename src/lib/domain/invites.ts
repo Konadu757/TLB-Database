@@ -93,26 +93,61 @@ export function staffUsersForRemoteDirectory(users: AppUser[]): AppUser[] {
 /**
  * Prefer remote staff rows, but keep invite secrets that exist only on this browser.
  * Remote auth_directory intentionally omits token and code.
+ * Soft-delete on either side must survive hydrate (local tombstone wins if remote is stale).
+ * Permanently purged ids never reappear from remote or local seed.
  */
-export function mergeStaffUsers(remote: AppUser[] | undefined, local: AppUser[]): AppUser[] {
-  if (!remote?.length) return local;
+export function mergeStaffUsers(
+  remote: AppUser[] | undefined,
+  local: AppUser[],
+  purgedIds?: Iterable<string> | null,
+): AppUser[] {
+  const purged = purgedIds ? (purgedIds instanceof Set ? purgedIds : new Set(purgedIds)) : null;
+  const isPurged = (id: string) =>
+    Boolean(purged && (purged.has(`user:${id}`) || purged.has(id)));
+
+  if (!remote?.length) {
+    return purged ? local.filter((user) => !isPurged(user.id)) : local;
+  }
   const localById = new Map(local.map((user) => [user.id, user]));
   const seen = new Set<string>();
-  const merged = remote.map((remoteUser) => {
+  const merged: AppUser[] = [];
+  for (const remoteUser of remote) {
+    if (isPurged(remoteUser.id)) continue;
     seen.add(remoteUser.id);
     const localUser = localById.get(remoteUser.id);
-    if (!localUser) return remoteUser;
-    return {
+    if (!localUser) {
+      merged.push(remoteUser);
+      continue;
+    }
+    const soft =
+      remoteUser.deletedAt
+        ? {
+            deletedAt: remoteUser.deletedAt,
+            deletedBy: remoteUser.deletedBy,
+            deletedReason: remoteUser.deletedReason,
+            active: false,
+          }
+        : localUser.deletedAt
+          ? {
+              deletedAt: localUser.deletedAt,
+              deletedBy: localUser.deletedBy,
+              deletedReason: localUser.deletedReason,
+              active: false,
+            }
+          : {};
+    merged.push({
       ...remoteUser,
+      ...soft,
       inviteToken: remoteUser.inviteToken ?? localUser.inviteToken,
       inviteCode: remoteUser.inviteCode ?? localUser.inviteCode,
       inviteCreatedAt: remoteUser.inviteCreatedAt ?? localUser.inviteCreatedAt,
       inviteAcceptedAt: remoteUser.inviteAcceptedAt ?? localUser.inviteAcceptedAt,
       invitePending: remoteUser.invitePending ?? localUser.invitePending,
-    };
-  });
+    });
+  }
   for (const localUser of local) {
-    if (!seen.has(localUser.id)) merged.push(localUser);
+    if (seen.has(localUser.id) || isPurged(localUser.id)) continue;
+    merged.push(localUser);
   }
   return merged;
 }

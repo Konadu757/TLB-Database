@@ -57,6 +57,19 @@ function softFromRow(row: {
   };
 }
 
+/** Persist SoftDeleteFields onto optional P2 deleted_* columns (null clears on restore). */
+export function softToRow(fields: SoftDeleteFields): {
+  deleted_at: string | null;
+  deleted_by: string | null;
+  deleted_reason: string | null;
+} {
+  return {
+    deleted_at: fields.deletedAt ?? null,
+    deleted_by: fields.deletedBy ?? null,
+    deleted_reason: fields.deletedReason ?? null,
+  };
+}
+
 function applySoft(
   id: string,
   entityType: string,
@@ -88,6 +101,7 @@ export function warehouseToRow(w: Warehouse): Tables["warehouses"]["Insert"] {
     name: w.name,
     location: w.location || null,
     active: w.active,
+    ...softToRow(w),
   };
 }
 
@@ -116,6 +130,7 @@ export function productToRow(p: Product): Tables["products"]["Insert"] {
     unit: p.unit,
     category: p.category || null,
     active: p.active,
+    ...softToRow(p),
   };
 }
 
@@ -184,6 +199,7 @@ export function customerToRow(c: Customer): Tables["customers"]["Insert"] {
     active: c.active,
     created_at: c.createdAt,
     updated_at: c.updatedAt,
+    ...softToRow(c),
   };
 }
 
@@ -226,6 +242,7 @@ export function orderToRow(o: CustomerPurchaseOrder): Tables["customer_purchase_
     created_by: o.createdBy || null,
     created_at: o.createdAt,
     updated_at: o.updatedAt,
+    ...softToRow(o),
   };
 }
 

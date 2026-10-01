@@ -60,6 +60,7 @@ import {
 } from "./mappers";
 import { mergeCanonicalBalances, mergeCanonicalMovements } from "./ledger-rpc";
 import { mergeStaffUsers, staffUsersForRemoteDirectory } from "../domain/invites";
+import { omitPurgedEntities } from "../domain/trash";
 import type { TlbRepository } from "./tlb-repository";
 import { ensureTaxCatalog } from "../domain/tax";
 import type { VatRate } from "../domain/types";
@@ -73,6 +74,30 @@ type Sb = SupabaseClient<Database>;
 function mergeById<T extends { id: string }>(primary: T[], secondary: T[]): T[] {
   const ids = new Set(primary.map((e) => e.id));
   return [...primary, ...secondary.filter((e) => !ids.has(e.id))];
+}
+
+/** Prefer remote roles but keep local soft-delete tombstones when remote is stale. */
+function mergeRolesPreferringSoftDelete(
+  remote: RoleDefinition[] | undefined,
+  local: RoleDefinition[],
+  purged: Set<string>,
+): RoleDefinition[] {
+  const base = remote?.length ? mergeById(remote, local) : local;
+  const localById = new Map(local.map((role) => [role.id, role]));
+  return base
+    .filter((role) => !purged.has(`role:${role.id}`) && !purged.has(role.id))
+    .map((role) => {
+      if (role.deletedAt) return role;
+      const localRole = localById.get(role.id);
+      if (!localRole?.deletedAt) return role;
+      return {
+        ...role,
+        deletedAt: localRole.deletedAt,
+        deletedBy: localRole.deletedBy,
+        deletedReason: localRole.deletedReason,
+        active: false,
+      };
+    });
 }
 
 function authDirectoryFromSettings(value: unknown): {
@@ -273,8 +298,23 @@ function mergeNotificationsFromLocal(
     seen.add(r.id);
     const l = localById.get(r.id);
     if (!l) return r;
+    const soft =
+      r.deletedAt
+        ? {
+            deletedAt: r.deletedAt,
+            deletedBy: r.deletedBy,
+            deletedReason: r.deletedReason,
+          }
+        : l.deletedAt
+          ? {
+              deletedAt: l.deletedAt,
+              deletedBy: l.deletedBy,
+              deletedReason: l.deletedReason,
+            }
+          : {};
     return {
       ...r,
+      ...soft,
       opsRequestId: r.opsRequestId ?? l.opsRequestId,
       targetUserId: r.targetUserId ?? l.targetUserId,
       targetRole: r.targetRole ?? l.targetRole,
@@ -387,7 +427,10 @@ async function deleteMissing(
 ): Promise<void> {
   try {
     const { data, error } = await sb.from(table).select("id");
-    if (error) throw new Error(`list ${String(table)}: ${error.message}`);
+    if (error) {
+      console.warn(`[SupabaseTlbRepository] list ${String(table)}:`, error.message);
+      return;
+    }
     const remoteIds = ((data ?? []) as { id: string }[]).map((r) => r.id);
     const keep = new Set(keepIds);
     const toDelete = remoteIds.filter((id) => !keep.has(id));
@@ -396,12 +439,14 @@ async function deleteMissing(
     for (let i = 0; i < toDelete.length; i += 100) {
       const chunk = toDelete.slice(i, i + 100);
       const { error: delErr } = await sb.from(table).delete().in("id", chunk);
-      if (delErr) throw new Error(`delete ${String(table)}: ${delErr.message}`);
+      // FK blocks are expected for some parents — purged_entity_ids still hide them on load.
+      if (delErr) {
+        console.warn(`[SupabaseTlbRepository] delete ${String(table)}:`, delErr.message);
+      }
     }
   } catch (err) {
-    if (err instanceof Error && /^(list|delete) /.test(err.message)) throw err;
     const detail = err instanceof Error ? err.message : String(err);
-    throw new Error(`list ${String(table)}: ${detail}`);
+    console.warn(`[SupabaseTlbRepository] deleteMissing ${String(table)}:`, detail);
   }
 }
 
@@ -462,6 +507,10 @@ export class SupabaseTlbRepository implements TlbRepository {
         value: buildSoftDeleteOverlay(state) as unknown as Json,
       },
       {
+        key: "purged_entity_ids",
+        value: (state.catalogPurgedIds ?? []) as unknown as Json,
+      },
+      {
         key: "tax_rates",
         value: state.vatRates as unknown as Json,
       },
@@ -474,6 +523,7 @@ export class SupabaseTlbRepository implements TlbRepository {
         value: {
           users: staffUsersForRemoteDirectory(state.users),
           roles: state.roles,
+          purgedRoleIds: purgedRoleIdsFromState(state),
         } as unknown as Json,
       },
     ];
@@ -587,16 +637,30 @@ export class SupabaseTlbRepository implements TlbRepository {
       const taxRatesSetting = settingsMap.get("tax_rates");
       const taxOverlay = (settingsMap.get("document_tax_overlay") ?? {}) as DocumentTaxOverlay;
       const authDir = authDirectoryFromSettings(settingsMap.get("auth_directory"));
-      const mergedUsers = mergeStaffUsers(authDir.users, localOnly.users);
-      const mergedRoles = authDir.roles?.length
-        ? mergeById(authDir.roles, localOnly.roles)
-        : localOnly.roles;
+      const remotePurged = Array.isArray(settingsMap.get("purged_entity_ids"))
+        ? (settingsMap.get("purged_entity_ids") as string[])
+        : [];
+      const purged = new Set<string>([
+        ...(localOnly.catalogPurgedIds ?? []),
+        ...remotePurged,
+        ...(authDir.purgedRoleIds ?? []),
+      ]);
+      const mergedUsers = mergeStaffUsers(authDir.users, localOnly.users, purged);
+      const mergedRoles = mergeRolesPreferringSoftDelete(authDir.roles, localOnly.roles, purged);
 
       const prior = loadState();
       const ledger = await readCanonicalLedger(this.sb);
       const prototypeStock = stock.map((row) => stockFromRow(row, stockExtras[row.id]));
-      const baseCustomers = customers.map((row) => customerFromRow(row, softOverlay));
-      const baseInvoices = invoices.map(invoiceFromRow);
+      const baseCustomers = omitPurgedEntities(
+        customers.map((row) => customerFromRow(row, softOverlay)),
+        "customer",
+        purged,
+      );
+      const baseInvoices = omitPurgedEntities(
+        invoices.map((row) => invoiceFromRow(row, softOverlay)),
+        "invoice",
+        purged,
+      );
       const withTax = applyDocumentTaxOverlay(baseCustomers, baseInvoices, taxOverlay);
       const remoteVat = vatRates.length ? vatRates.map(vatFromRow) : [];
       const settingVat = Array.isArray(taxRatesSetting)
@@ -604,21 +668,68 @@ export class SupabaseTlbRepository implements TlbRepository {
         : undefined;
       const mergedVatRates = ensureTaxCatalog(settingVat?.length ? settingVat : remoteVat);
 
-      const merged: TlbState = {
-        ...seed,
+      const localOnlyFiltered: LocalOnlySlice = {
         ...localOnly,
+        catalogPurgedIds: [...purged],
         users: mergedUsers,
         roles: mergedRoles,
-        warehouses: warehouses.map((row) => warehouseFromRow(row, softOverlay)),
-        products: products.map((row) => productFromRow(row, productExtras[row.id], softOverlay)),
+        suppliers: omitPurgedEntities(localOnly.suppliers, "supplier", purged),
+        quotations: omitPurgedEntities(localOnly.quotations ?? [], "quotation", purged),
+        customerReturns: omitPurgedEntities(localOnly.customerReturns ?? [], "customer_return", purged),
+        supplierReturns: omitPurgedEntities(localOnly.supplierReturns ?? [], "supplier_return", purged),
+        nonPoPurchases: omitPurgedEntities(localOnly.nonPoPurchases ?? [], "non_po_purchase", purged),
+        importShipments: omitPurgedEntities(localOnly.importShipments ?? [], "import_shipment", purged),
+        exportShipments: omitPurgedEntities(localOnly.exportShipments ?? [], "export_shipment", purged),
+        opsDrivers: omitPurgedEntities(localOnly.opsDrivers ?? [], "ops_driver", purged),
+        opsRequests: omitPurgedEntities(localOnly.opsRequests ?? [], "ops_request", purged),
+        opsDiscrepancies: omitPurgedEntities(localOnly.opsDiscrepancies ?? [], "ops_discrepancy", purged),
+        opsMessages: omitPurgedEntities(localOnly.opsMessages ?? [], "ops_message", purged),
+        goodsReceipts: omitPurgedEntities(localOnly.goodsReceipts ?? [], "goods_receipt", purged),
+        stockIssues: omitPurgedEntities(localOnly.stockIssues ?? [], "stock_issue", purged),
+        transfers: omitPurgedEntities(localOnly.transfers ?? [], "transfer", purged),
+        adjustments: omitPurgedEntities(localOnly.adjustments ?? [], "adjustment", purged),
+        batches: omitPurgedEntities(localOnly.batches ?? [], "batch", purged),
+        supplierPurchaseOrders: omitPurgedEntities(
+          localOnly.supplierPurchaseOrders ?? [],
+          "supplier_po",
+          purged,
+        ),
+        supplierReceipts: omitPurgedEntities(localOnly.supplierReceipts ?? [], "supplier_receipt", purged),
+        supplierPayments: omitPurgedEntities(localOnly.supplierPayments ?? [], "supplier_payment", purged),
+        approvals: omitPurgedEntities(localOnly.approvals ?? [], "approval", purged),
+      };
+
+      const merged: TlbState = {
+        ...seed,
+        ...localOnlyFiltered,
+        users: mergedUsers,
+        roles: mergedRoles,
+        warehouses: omitPurgedEntities(
+          warehouses.map((row) => warehouseFromRow(row, softOverlay)),
+          "warehouse",
+          purged,
+        ),
+        products: omitPurgedEntities(
+          products.map((row) => productFromRow(row, productExtras[row.id], softOverlay)),
+          "product",
+          purged,
+        ),
         stock: ledger ? mergeCanonicalBalances(prototypeStock, ledger.balances) : prototypeStock,
         stockMovements: ledger
           ? mergeCanonicalMovements(localOnly.stockMovements, ledger.movements)
           : localOnly.stockMovements,
         customers: withTax.customers,
-        orders: orders.map((row) => orderFromRow(row, softOverlay)),
+        orders: omitPurgedEntities(
+          orders.map((row) => orderFromRow(row, softOverlay)),
+          "order",
+          purged,
+        ),
         orderLines: orderLines.map(orderLineFromRow),
-        supplies: supplies.map(supplyFromRow),
+        supplies: omitPurgedEntities(
+          supplies.map((row) => supplyFromRow(row, softOverlay)),
+          "supply",
+          purged,
+        ),
         supplyLines: supplyLines.map(supplyLineFromRow),
         audit: audit.map(auditFromRow).sort((a, b) => (a.at < b.at ? 1 : -1)),
         counters: {
@@ -630,23 +741,34 @@ export class SupabaseTlbRepository implements TlbRepository {
         vatRates: mergedVatRates,
         invoices: withTax.invoices,
         invoiceLines: invoiceLines.map(invoiceLineFromRow),
-        receipts: receipts.map(receiptFromRow),
+        receipts: omitPurgedEntities(
+          receipts.map((row) => receiptFromRow(row, softOverlay)),
+          "receipt",
+          purged,
+        ),
         receiptLines: receiptLines.map(receiptLineFromRow),
-        deliveries: deliveries.map(deliveryFromRow),
+        deliveries: omitPurgedEntities(
+          deliveries.map((row) => deliveryFromRow(row, softOverlay)),
+          "delivery",
+          purged,
+        ),
         deliveryItems: deliveryItems.map(deliveryItemFromRow),
-        payments: payments.map(paymentFromRow),
-        notifications: mergeNotificationsFromLocal(
-          notifications.map(notificationFromRow),
-          prior.notifications,
+        payments: omitPurgedEntities(
+          payments.map((row) => paymentFromRow(row, softOverlay)),
+          "payment",
+          purged,
+        ),
+        notifications: omitPurgedEntities(
+          mergeNotificationsFromLocal(
+            notifications.map((row) => notificationFromRow(row, softOverlay)),
+            prior.notifications,
+          ),
+          "notification",
+          purged,
         ),
         reservations: reservations.map(reservationFromRow),
+        catalogPurgedIds: [...purged],
       };
-
-      if (authDir.purgedRoleIds?.length) {
-        const purged = new Set(merged.catalogPurgedIds ?? []);
-        for (const id of authDir.purgedRoleIds) purged.add(id);
-        merged.catalogPurgedIds = [...purged];
-      }
 
       // After a successful remote load, treat current rows as synced so inbox/ops
       // mutations do not re-upsert warehouses (and other unchanged P0 tables).
@@ -704,58 +826,27 @@ export class SupabaseTlbRepository implements TlbRepository {
 
     try {
       // Parent → child order for FK safety. Skip tables unchanged since last successful sync/load.
-      const changed = {
-        warehouses: await this.upsertIfChanged("warehouses", state.warehouses.map(warehouseToRow)),
-        products: await this.upsertIfChanged("products", state.products.map(productToRow)),
-        vat_rates: await this.upsertIfChanged("vat_rates", state.vatRates.map(vatToRow)),
-        customers: await this.upsertIfChanged("customers", state.customers.map(customerToRow)),
-        stock_balances: await this.upsertIfChanged("stock_balances", state.stock.map(stockToRow)),
-        customer_purchase_orders: await this.upsertIfChanged(
-          "customer_purchase_orders",
-          state.orders.map(orderToRow),
-        ),
-        customer_order_lines: await this.upsertIfChanged(
-          "customer_order_lines",
-          state.orderLines.map(orderLineToRow),
-        ),
-        supplies: await this.upsertIfChanged("supplies", state.supplies.map(supplyToRow)),
-        supply_lines: await this.upsertIfChanged(
-          "supply_lines",
-          state.supplyLines.map(supplyLineToRow),
-        ),
-        stock_reservations: await this.upsertIfChanged(
-          "stock_reservations",
-          state.reservations.map(reservationToRow),
-        ),
-        invoices: await this.upsertIfChanged("invoices", state.invoices.map(invoiceToRow)),
-        invoice_lines: await this.upsertIfChanged(
-          "invoice_lines",
-          state.invoiceLines.map(invoiceLineToRow),
-        ),
-        receipts: await this.upsertIfChanged("receipts", state.receipts.map(receiptToRow)),
-        receipt_lines: await this.upsertIfChanged(
-          "receipt_lines",
-          state.receiptLines.map(receiptLineToRow),
-        ),
-        deliveries: await this.upsertIfChanged("deliveries", state.deliveries.map(deliveryToRow)),
-        delivery_items: await this.upsertIfChanged(
-          "delivery_items",
-          state.deliveryItems.map(deliveryItemToRow),
-        ),
-        payments: await this.upsertIfChanged("payments", state.payments.map(paymentToRow)),
-        notifications: await this.upsertIfChanged(
-          "notifications",
-          state.notifications.map(notificationToRow),
-        ),
-        // Audit is append-friendly; upsert by id keeps history stable.
-        audit_events: await this.upsertIfChanged(
-          "audit_events",
-          state.audit.slice(0, 500).map(auditToRow),
-        ),
-        document_counters: await this.upsertIfChanged("document_counters", [
-          countersToRow(state.counters),
-        ]),
-      };
+      await this.upsertIfChanged("warehouses", state.warehouses.map(warehouseToRow));
+      await this.upsertIfChanged("products", state.products.map(productToRow));
+      await this.upsertIfChanged("vat_rates", state.vatRates.map(vatToRow));
+      await this.upsertIfChanged("customers", state.customers.map(customerToRow));
+      await this.upsertIfChanged("stock_balances", state.stock.map(stockToRow));
+      await this.upsertIfChanged("customer_purchase_orders", state.orders.map(orderToRow));
+      await this.upsertIfChanged("customer_order_lines", state.orderLines.map(orderLineToRow));
+      await this.upsertIfChanged("supplies", state.supplies.map(supplyToRow));
+      await this.upsertIfChanged("supply_lines", state.supplyLines.map(supplyLineToRow));
+      await this.upsertIfChanged("stock_reservations", state.reservations.map(reservationToRow));
+      await this.upsertIfChanged("invoices", state.invoices.map(invoiceToRow));
+      await this.upsertIfChanged("invoice_lines", state.invoiceLines.map(invoiceLineToRow));
+      await this.upsertIfChanged("receipts", state.receipts.map(receiptToRow));
+      await this.upsertIfChanged("receipt_lines", state.receiptLines.map(receiptLineToRow));
+      await this.upsertIfChanged("deliveries", state.deliveries.map(deliveryToRow));
+      await this.upsertIfChanged("delivery_items", state.deliveryItems.map(deliveryItemToRow));
+      await this.upsertIfChanged("payments", state.payments.map(paymentToRow));
+      await this.upsertIfChanged("notifications", state.notifications.map(notificationToRow));
+      // Audit is append-friendly; upsert by id keeps history stable.
+      await this.upsertIfChanged("audit_events", state.audit.slice(0, 500).map(auditToRow));
+      await this.upsertIfChanged("document_counters", [countersToRow(state.counters)]);
 
       const settingsPayload: Database["public"]["Tables"]["app_settings"]["Insert"][] = [
         { key: "outstanding_ageing", value: state.ageing as unknown as Json },
@@ -763,6 +854,10 @@ export class SupabaseTlbRepository implements TlbRepository {
         {
           key: "soft_delete_overlay",
           value: buildSoftDeleteOverlay(state) as unknown as Json,
+        },
+        {
+          key: "purged_entity_ids",
+          value: (state.catalogPurgedIds ?? []) as unknown as Json,
         },
         {
           key: "tax_rates",
@@ -790,134 +885,99 @@ export class SupabaseTlbRepository implements TlbRepository {
         this.remoteFingerprints.set("app_settings", settingsFp);
       }
 
-      // Remove remote rows purged from domain state — only for tables we just wrote.
+      // Always reconcile remote deletes so permanent purge sticks even when
+      // FK blocks leave orphan rows (purged_entity_ids still hide them on load).
       // Child → parent order for FK safety.
-      if (changed.delivery_items) {
-        await deleteMissing(
-          this.sb,
-          "delivery_items",
-          state.deliveryItems.map((r) => r.id),
-        );
-      }
-      if (changed.invoice_lines) {
-        await deleteMissing(
-          this.sb,
-          "invoice_lines",
-          state.invoiceLines.map((r) => r.id),
-        );
-      }
-      if (changed.receipt_lines) {
-        await deleteMissing(
-          this.sb,
-          "receipt_lines",
-          state.receiptLines.map((r) => r.id),
-        );
-      }
-      if (changed.supply_lines) {
-        await deleteMissing(
-          this.sb,
-          "supply_lines",
-          state.supplyLines.map((r) => r.id),
-        );
-      }
-      if (changed.customer_order_lines) {
-        await deleteMissing(
-          this.sb,
-          "customer_order_lines",
-          state.orderLines.map((r) => r.id),
-        );
-      }
-      if (changed.stock_reservations) {
-        await deleteMissing(
-          this.sb,
-          "stock_reservations",
-          state.reservations.map((r) => r.id),
-        );
-      }
-      if (changed.notifications) {
-        await deleteMissing(
-          this.sb,
-          "notifications",
-          state.notifications.map((r) => r.id),
-        );
-      }
-      if (changed.payments) {
-        await deleteMissing(
-          this.sb,
-          "payments",
-          state.payments.map((r) => r.id),
-        );
-      }
-      if (changed.deliveries) {
-        await deleteMissing(
-          this.sb,
-          "deliveries",
-          state.deliveries.map((r) => r.id),
-        );
-      }
-      if (changed.receipts) {
-        await deleteMissing(
-          this.sb,
-          "receipts",
-          state.receipts.map((r) => r.id),
-        );
-      }
-      if (changed.invoices) {
-        await deleteMissing(
-          this.sb,
-          "invoices",
-          state.invoices.map((r) => r.id),
-        );
-      }
-      if (changed.supplies) {
-        await deleteMissing(
-          this.sb,
-          "supplies",
-          state.supplies.map((r) => r.id),
-        );
-      }
-      if (changed.customer_purchase_orders) {
-        await deleteMissing(
-          this.sb,
-          "customer_purchase_orders",
-          state.orders.map((r) => r.id),
-        );
-      }
-      if (changed.stock_balances) {
-        await deleteMissing(
-          this.sb,
-          "stock_balances",
-          state.stock.map((r) => r.id),
-        );
-      }
-      if (changed.customers) {
-        await deleteMissing(
-          this.sb,
-          "customers",
-          state.customers.map((r) => r.id),
-        );
-      }
-      if (changed.vat_rates) {
-        await deleteMissing(
-          this.sb,
-          "vat_rates",
-          state.vatRates.map((r) => r.id),
-        );
-      }
-      if (changed.products) {
-        await deleteMissing(
-          this.sb,
-          "products",
-          state.products.map((r) => r.id),
-        );
-      }
-      if (changed.warehouses) {
-        await deleteMissing(
-          this.sb,
-          "warehouses",
-          state.warehouses.map((r) => r.id),
-        );
-      }
+      await deleteMissing(
+        this.sb,
+        "delivery_items",
+        state.deliveryItems.map((r) => r.id),
+      );
+      await deleteMissing(
+        this.sb,
+        "invoice_lines",
+        state.invoiceLines.map((r) => r.id),
+      );
+      await deleteMissing(
+        this.sb,
+        "receipt_lines",
+        state.receiptLines.map((r) => r.id),
+      );
+      await deleteMissing(
+        this.sb,
+        "supply_lines",
+        state.supplyLines.map((r) => r.id),
+      );
+      await deleteMissing(
+        this.sb,
+        "customer_order_lines",
+        state.orderLines.map((r) => r.id),
+      );
+      await deleteMissing(
+        this.sb,
+        "stock_reservations",
+        state.reservations.map((r) => r.id),
+      );
+      await deleteMissing(
+        this.sb,
+        "notifications",
+        state.notifications.map((r) => r.id),
+      );
+      await deleteMissing(
+        this.sb,
+        "payments",
+        state.payments.map((r) => r.id),
+      );
+      await deleteMissing(
+        this.sb,
+        "deliveries",
+        state.deliveries.map((r) => r.id),
+      );
+      await deleteMissing(
+        this.sb,
+        "receipts",
+        state.receipts.map((r) => r.id),
+      );
+      await deleteMissing(
+        this.sb,
+        "invoices",
+        state.invoices.map((r) => r.id),
+      );
+      await deleteMissing(
+        this.sb,
+        "supplies",
+        state.supplies.map((r) => r.id),
+      );
+      await deleteMissing(
+        this.sb,
+        "customer_purchase_orders",
+        state.orders.map((r) => r.id),
+      );
+      await deleteMissing(
+        this.sb,
+        "stock_balances",
+        state.stock.map((r) => r.id),
+      );
+      await deleteMissing(
+        this.sb,
+        "customers",
+        state.customers.map((r) => r.id),
+      );
+      await deleteMissing(
+        this.sb,
+        "vat_rates",
+        state.vatRates.map((r) => r.id),
+      );
+      await deleteMissing(
+        this.sb,
+        "products",
+        state.products.map((r) => r.id),
+      );
+      await deleteMissing(
+        this.sb,
+        "warehouses",
+        state.warehouses.map((r) => r.id),
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const unreachable =

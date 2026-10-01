@@ -153,6 +153,8 @@ export function useTlbStore() {
   const [lastInvite, setLastInvite] = useState<LastStaffInvite | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipNextPersist = useRef(true);
+  /** Trash / purge / restore must flush before refresh can resurrect rows. */
+  const pendingImmediateSave = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -205,6 +207,8 @@ export function useTlbStore() {
       return;
     }
     if (saveTimer.current) clearTimeout(saveTimer.current);
+    const delay = pendingImmediateSave.current ? 0 : SAVE_DEBOUNCE_MS;
+    pendingImmediateSave.current = false;
     saveTimer.current = setTimeout(() => {
       setSaving(true);
       void repo
@@ -229,7 +233,7 @@ export function useTlbStore() {
           setPersistError(`Save to ${repo.backend} failed: ${message}`);
         })
         .finally(() => setSaving(false));
-    }, SAVE_DEBOUNCE_MS);
+    }, delay);
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
@@ -265,6 +269,14 @@ export function useTlbStore() {
     if (successMessage) setNotice(successMessage);
     return entityId ?? true;
   }, []);
+
+  const applyTrashMutation = useCallback(
+    (fn: MutFn, successMessage?: string): boolean | string => {
+      pendingImmediateSave.current = true;
+      return apply(fn, successMessage);
+    },
+    [apply],
+  );
 
   const applyCapture = useCallback((fn: MutFn, successMessage?: string) => {
     setError(null);
@@ -677,7 +689,7 @@ export function useTlbStore() {
     upsertExport: (input: Parameters<typeof upsertExportShipment>[1]) =>
       apply((s) => upsertExportShipment(s, input), "Export shipment saved."),
     moveOpsToTrash: (input: Parameters<typeof softDeleteOpsRecord>[1]) =>
-      apply((s) => softDeleteOpsRecord(s, input), "Moved to trash."),
+      applyTrashMutation((s) => softDeleteOpsRecord(s, input), "Moved to trash."),
     reserve: (productId: string, warehouseId: string) =>
       apply(
         (s) => reserveForOutstanding(s, productId, warehouseId),
@@ -715,9 +727,9 @@ export function useTlbStore() {
     updateRole: (roleId: string, input: Parameters<typeof updateRole>[2]) =>
       apply((s) => updateRole(s, roleId, input), "Role updated."),
     deleteRole: (roleId: string, reason?: string) =>
-      apply((s) => deleteRole(s, roleId, reason), "Role moved to trash."),
+      applyTrashMutation((s) => deleteRole(s, roleId, reason), "Role moved to trash."),
     deactivateRole: (roleId: string, reason?: string) =>
-      apply((s) => deleteRole(s, roleId, reason), "Role moved to trash."),
+      applyTrashMutation((s) => deleteRole(s, roleId, reason), "Role moved to trash."),
     assignUserRole: (userId: string, roleId: string) =>
       apply((s) => assignUserRole(s, userId, roleId), "User role assigned."),
     saveUser: (input: Parameters<typeof upsertAppUser>[1]) => {
@@ -971,16 +983,16 @@ export function useTlbStore() {
     markAllNotificationsRead: (ids?: string[]) =>
       apply((s) => markAllNotificationsRead(s, ids), "Notifications marked as read."),
     deleteNotification: (id: string) =>
-      apply((s) => deleteNotification(s, id), "Notification deleted."),
+      applyTrashMutation((s) => deleteNotification(s, id), "Notification deleted."),
     deleteNotifications: (ids: string[]) =>
-      apply((s) => deleteNotifications(s, ids), "Notifications deleted."),
+      applyTrashMutation((s) => deleteNotifications(s, ids), "Notifications deleted."),
     refreshNotifications: () => apply((s) => refreshOpsNotifications(s)),
     moveToTrash: (input: Parameters<typeof softDeleteRecord>[1]) =>
-      apply((s) => softDeleteRecord(s, input), "Moved to trash."),
+      applyTrashMutation((s) => softDeleteRecord(s, input), "Moved to trash."),
     restoreFromTrash: (input: Parameters<typeof restoreTrashItem>[1]) =>
-      apply((s) => restoreTrashItem(s, input), "Restored from trash."),
+      applyTrashMutation((s) => restoreTrashItem(s, input), "Restored from trash."),
     purgeFromTrash: (input: Parameters<typeof purgeTrashItem>[1]) =>
-      apply((s) => purgeTrashItem(s, input), "Permanently deleted."),
+      applyTrashMutation((s) => purgeTrashItem(s, input), "Permanently deleted."),
   };
 }
 

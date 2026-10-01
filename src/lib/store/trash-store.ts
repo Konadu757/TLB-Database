@@ -9,6 +9,7 @@ import {
   buildCatalogDeletion,
   isSoftDeleted,
   listTrashItems as collectTrashItems,
+  purgedEntityKey,
 } from "../domain/trash";
 import type {
   AuditEvent,
@@ -952,12 +953,20 @@ export function purgeTrashItem(
 
   const next = cloneState(state);
   let summary = "";
+  next.catalogPurgedIds ??= [];
+  const recordPurge = (entityType: string, entityId: string) => {
+    const key = purgedEntityKey(entityType, entityId);
+    if (!next.catalogPurgedIds.includes(key)) next.catalogPurgedIds.push(key);
+    // Keep bare ids for legacy catalog / role tombstones.
+    if (!next.catalogPurgedIds.includes(entityId)) next.catalogPurgedIds.push(entityId);
+  };
 
   switch (input.entityType) {
     case "customer": {
       const idx = next.customers.findIndex((c) => c.id === input.entityId && isSoftDeleted(c));
       if (idx < 0) return { ok: false, error: "Trashed customer not found." };
       const [removed] = next.customers.splice(idx, 1);
+      recordPurge("customer", input.entityId);
       summary = `Permanently deleted customer ${removed?.code ?? input.entityId}.`;
       break;
     }
@@ -965,6 +974,7 @@ export function purgeTrashItem(
       const idx = next.suppliers.findIndex((s) => s.id === input.entityId && isSoftDeleted(s));
       if (idx < 0) return { ok: false, error: "Trashed supplier not found." };
       const [removed] = next.suppliers.splice(idx, 1);
+      recordPurge("supplier", input.entityId);
       summary = `Permanently deleted supplier ${removed?.code ?? input.entityId}.`;
       break;
     }
@@ -973,6 +983,7 @@ export function purgeTrashItem(
       if (idx < 0) return { ok: false, error: "Trashed product not found." };
       const [removed] = next.products.splice(idx, 1);
       next.stock = next.stock.filter((s) => s.productId !== input.entityId);
+      recordPurge("product", input.entityId);
       summary = `Permanently deleted product ${removed?.sku ?? input.entityId}.`;
       break;
     }
@@ -981,6 +992,7 @@ export function purgeTrashItem(
       if (idx < 0) return { ok: false, error: "Trashed warehouse not found." };
       const [removed] = next.warehouses.splice(idx, 1);
       next.stock = next.stock.filter((s) => s.warehouseId !== input.entityId);
+      recordPurge("warehouse", input.entityId);
       summary = `Permanently deleted warehouse ${removed?.code ?? input.entityId}.`;
       break;
     }
@@ -993,6 +1005,7 @@ export function purgeTrashItem(
         const line = state.orderLines.find((l) => l.id === r.orderLineId);
         return line?.orderId !== input.entityId;
       });
+      recordPurge("order", input.entityId);
       summary = `Permanently deleted order ${removed?.number ?? input.entityId}.`;
       break;
     }
@@ -1000,9 +1013,7 @@ export function purgeTrashItem(
       const idx = next.catalogDeletions.findIndex((d) => d.catalogId === input.entityId);
       if (idx < 0) return { ok: false, error: "Trashed catalog record not found." };
       const [removed] = next.catalogDeletions.splice(idx, 1);
-      if (!next.catalogPurgedIds.includes(input.entityId)) {
-        next.catalogPurgedIds.push(input.entityId);
-      }
+      recordPurge("catalog", input.entityId);
       summary = `Permanently deleted ${removed?.module ?? "catalog"} ${removed?.label ?? input.entityId}.`;
       break;
     }
@@ -1010,6 +1021,7 @@ export function purgeTrashItem(
       next.customerReturns = (next.customerReturns ?? []).filter(
         (r) => !(r.id === input.entityId && isSoftDeleted(r)),
       );
+      recordPurge("customer_return", input.entityId);
       summary = `Permanently deleted customer return ${input.entityId}.`;
       break;
     }
@@ -1017,6 +1029,7 @@ export function purgeTrashItem(
       next.supplierReturns = (next.supplierReturns ?? []).filter(
         (r) => !(r.id === input.entityId && isSoftDeleted(r)),
       );
+      recordPurge("supplier_return", input.entityId);
       summary = `Permanently deleted supplier return ${input.entityId}.`;
       break;
     }
@@ -1027,6 +1040,7 @@ export function purgeTrashItem(
       next.nonPoPurchaseLines = (next.nonPoPurchaseLines ?? []).filter(
         (l) => l.nonPoId !== input.entityId,
       );
+      recordPurge("non_po_purchase", input.entityId);
       summary = `Permanently deleted Non-PO ${input.entityId}.`;
       break;
     }
@@ -1037,6 +1051,7 @@ export function purgeTrashItem(
       next.importShipmentLines = (next.importShipmentLines ?? []).filter(
         (l) => l.shipmentId !== input.entityId,
       );
+      recordPurge("import_shipment", input.entityId);
       summary = `Permanently deleted import ${input.entityId}.`;
       break;
     }
@@ -1047,6 +1062,7 @@ export function purgeTrashItem(
       next.exportShipmentLines = (next.exportShipmentLines ?? []).filter(
         (l) => l.shipmentId !== input.entityId,
       );
+      recordPurge("export_shipment", input.entityId);
       summary = `Permanently deleted export ${input.entityId}.`;
       break;
     }
@@ -1056,6 +1072,7 @@ export function purgeTrashItem(
       );
       if (idx < 0) return { ok: false, error: "Trashed driver not found." };
       const [removed] = next.opsDrivers.splice(idx, 1);
+      recordPurge("ops_driver", input.entityId);
       summary = `Permanently deleted driver ${removed?.code ?? input.entityId}.`;
       break;
     }
@@ -1074,6 +1091,7 @@ export function purgeTrashItem(
       next.opsDiscrepancies = (next.opsDiscrepancies ?? []).filter(
         (d) => d.requestId !== input.entityId,
       );
+      recordPurge("ops_request", input.entityId);
       summary = `Permanently deleted ops request ${removed?.number ?? input.entityId}.`;
       break;
     }
@@ -1081,6 +1099,7 @@ export function purgeTrashItem(
       next.opsDiscrepancies = (next.opsDiscrepancies ?? []).filter(
         (d) => !(d.id === input.entityId && isSoftDeleted(d)),
       );
+      recordPurge("ops_discrepancy", input.entityId);
       summary = `Permanently deleted discrepancy ${input.entityId}.`;
       break;
     }
@@ -1088,6 +1107,7 @@ export function purgeTrashItem(
       next.opsMessages = (next.opsMessages ?? []).filter(
         (m) => !(m.id === input.entityId && isSoftDeleted(m)),
       );
+      recordPurge("ops_message", input.entityId);
       summary = `Permanently deleted ops message ${input.entityId}.`;
       break;
     }
@@ -1095,6 +1115,7 @@ export function purgeTrashItem(
       next.quotations = (next.quotations ?? []).filter(
         (q) => !(q.id === input.entityId && isSoftDeleted(q)),
       );
+      recordPurge("quotation", input.entityId);
       summary = `Permanently deleted quotation ${input.entityId}.`;
       break;
     }
@@ -1103,6 +1124,7 @@ export function purgeTrashItem(
       if (idx < 0) return { ok: false, error: "Trashed invoice not found." };
       const [removed] = next.invoices.splice(idx, 1);
       next.invoiceLines = next.invoiceLines.filter((l) => l.invoiceId !== input.entityId);
+      recordPurge("invoice", input.entityId);
       summary = `Permanently deleted invoice ${removed?.number ?? input.entityId}.`;
       break;
     }
@@ -1111,6 +1133,7 @@ export function purgeTrashItem(
       if (idx < 0) return { ok: false, error: "Trashed receipt not found." };
       const [removed] = next.receipts.splice(idx, 1);
       next.receiptLines = next.receiptLines.filter((l) => l.receiptId !== input.entityId);
+      recordPurge("receipt", input.entityId);
       summary = `Permanently deleted receipt ${removed?.number ?? input.entityId}.`;
       break;
     }
@@ -1118,6 +1141,7 @@ export function purgeTrashItem(
       const idx = next.payments.findIndex((p) => p.id === input.entityId && isSoftDeleted(p));
       if (idx < 0) return { ok: false, error: "Trashed payment not found." };
       const [removed] = next.payments.splice(idx, 1);
+      recordPurge("payment", input.entityId);
       summary = `Permanently deleted payment ${removed?.number ?? input.entityId}.`;
       break;
     }
@@ -1126,6 +1150,7 @@ export function purgeTrashItem(
       if (idx < 0) return { ok: false, error: "Trashed delivery not found." };
       const [removed] = next.deliveries.splice(idx, 1);
       next.deliveryItems = next.deliveryItems.filter((i) => i.deliveryId !== input.entityId);
+      recordPurge("delivery", input.entityId);
       summary = `Permanently deleted delivery ${removed?.number ?? input.entityId}.`;
       break;
     }
@@ -1136,6 +1161,7 @@ export function purgeTrashItem(
       next.goodsReceiptLines = (next.goodsReceiptLines ?? []).filter(
         (l) => l.grnId !== input.entityId,
       );
+      recordPurge("goods_receipt", input.entityId);
       summary = `Permanently deleted GRN ${input.entityId}.`;
       break;
     }
@@ -1146,6 +1172,7 @@ export function purgeTrashItem(
       next.stockIssueLines = (next.stockIssueLines ?? []).filter(
         (l) => l.issueId !== input.entityId,
       );
+      recordPurge("stock_issue", input.entityId);
       summary = `Permanently deleted stock issue ${input.entityId}.`;
       break;
     }
@@ -1156,6 +1183,7 @@ export function purgeTrashItem(
       next.transferLines = (next.transferLines ?? []).filter(
         (l) => l.transferId !== input.entityId,
       );
+      recordPurge("transfer", input.entityId);
       summary = `Permanently deleted transfer ${input.entityId}.`;
       break;
     }
@@ -1166,6 +1194,7 @@ export function purgeTrashItem(
       next.adjustmentLines = (next.adjustmentLines ?? []).filter(
         (l) => l.adjustmentId !== input.entityId,
       );
+      recordPurge("adjustment", input.entityId);
       summary = `Permanently deleted adjustment ${input.entityId}.`;
       break;
     }
@@ -1173,6 +1202,7 @@ export function purgeTrashItem(
       next.batches = (next.batches ?? []).filter(
         (b) => !(b.id === input.entityId && isSoftDeleted(b)),
       );
+      recordPurge("batch", input.entityId);
       summary = `Permanently deleted batch ${input.entityId}.`;
       break;
     }
@@ -1181,6 +1211,7 @@ export function purgeTrashItem(
       if (idx < 0) return { ok: false, error: "Trashed supply not found." };
       const [removed] = next.supplies.splice(idx, 1);
       next.supplyLines = next.supplyLines.filter((l) => l.supplyId !== input.entityId);
+      recordPurge("supply", input.entityId);
       summary = `Permanently deleted supply ${removed?.number ?? input.entityId}.`;
       break;
     }
@@ -1188,6 +1219,7 @@ export function purgeTrashItem(
       next.supplierPurchaseOrders = (next.supplierPurchaseOrders ?? []).filter(
         (p) => !(p.id === input.entityId && isSoftDeleted(p)),
       );
+      recordPurge("supplier_po", input.entityId);
       summary = `Permanently deleted supplier PO ${input.entityId}.`;
       break;
     }
@@ -1195,6 +1227,7 @@ export function purgeTrashItem(
       next.supplierReceipts = (next.supplierReceipts ?? []).filter(
         (r) => !(r.id === input.entityId && isSoftDeleted(r)),
       );
+      recordPurge("supplier_receipt", input.entityId);
       summary = `Permanently deleted supplier receipt ${input.entityId}.`;
       break;
     }
@@ -1202,6 +1235,7 @@ export function purgeTrashItem(
       next.supplierPayments = (next.supplierPayments ?? []).filter(
         (p) => !(p.id === input.entityId && isSoftDeleted(p)),
       );
+      recordPurge("supplier_payment", input.entityId);
       summary = `Permanently deleted supplier payment ${input.entityId}.`;
       break;
     }
@@ -1209,6 +1243,7 @@ export function purgeTrashItem(
       next.approvals = (next.approvals ?? []).filter(
         (a) => !(a.id === input.entityId && isSoftDeleted(a)),
       );
+      recordPurge("approval", input.entityId);
       summary = `Permanently deleted approval ${input.entityId}.`;
       break;
     }
@@ -1216,6 +1251,7 @@ export function purgeTrashItem(
       next.notifications = next.notifications.filter(
         (n) => !(n.id === input.entityId && isSoftDeleted(n)),
       );
+      recordPurge("notification", input.entityId);
       summary = `Permanently deleted notification ${input.entityId}.`;
       break;
     }
@@ -1226,6 +1262,7 @@ export function purgeTrashItem(
         return { ok: false, error: "The signed-in Owner account cannot be deleted." };
       }
       next.users = next.users.filter((u) => u.id !== user.id);
+      recordPurge("user", user.id);
       summary = `Permanently deleted ${user.name}'s role assignment.`;
       break;
     }
@@ -1236,10 +1273,7 @@ export function purgeTrashItem(
       if (idx < 0) return { ok: false, error: "Trashed role not found." };
       const ownerRole = next.roles.find((r) => r.systemKey === "Owner" && r.active);
       const [removed] = next.roles.splice(idx, 1);
-      next.catalogPurgedIds ??= [];
-      if (removed && !next.catalogPurgedIds.includes(removed.id)) {
-        next.catalogPurgedIds.push(removed.id);
-      }
+      recordPurge("role", input.entityId);
       if (ownerRole && removed) {
         for (const user of next.users) {
           if (user.roleId === removed.id) user.roleId = ownerRole.id;

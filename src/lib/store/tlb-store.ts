@@ -2035,6 +2035,10 @@ export function deleteNotification(state: TlbState, id: string): MutResult<null>
   const before = next.notifications.length;
   next.notifications = next.notifications.filter((n) => n.id !== id);
   if (next.notifications.length === before) return { ok: false, error: "Notification not found." };
+  next.catalogPurgedIds ??= [];
+  const key = `notification:${id}`;
+  if (!next.catalogPurgedIds.includes(key)) next.catalogPurgedIds.push(key);
+  if (!next.catalogPurgedIds.includes(id)) next.catalogPurgedIds.push(id);
   return { ok: true, data: { state: next, data: null } };
 }
 
@@ -2044,6 +2048,12 @@ export function deleteNotifications(state: TlbState, ids: string[]): MutResult<n
   const idSet = new Set(ids);
   const before = next.notifications.length;
   next.notifications = next.notifications.filter((n) => !idSet.has(n.id));
+  next.catalogPurgedIds ??= [];
+  for (const id of ids) {
+    const key = `notification:${id}`;
+    if (!next.catalogPurgedIds.includes(key)) next.catalogPurgedIds.push(key);
+    if (!next.catalogPurgedIds.includes(id)) next.catalogPurgedIds.push(id);
+  }
   return { ok: true, data: { state: next, data: before - next.notifications.length } };
 }
 

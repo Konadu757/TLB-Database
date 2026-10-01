@@ -95,6 +95,8 @@ function testInvoiceTrashRestorePurge() {
   if (!purged.ok) return;
   state = purged.data.state;
   assert.ok(!state.invoices.some((i) => i.id === invoice.id));
+  assert.ok(state.catalogPurgedIds.includes(`invoice:${invoice.id}`));
+  assert.ok(state.catalogPurgedIds.includes(invoice.id));
   assert.ok(state.audit.some((a) => a.action === "record.purged" && a.entityId === invoice.id));
 }
 

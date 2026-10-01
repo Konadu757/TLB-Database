@@ -32,6 +32,32 @@ export function catalogPurgedSet(state: Pick<TlbState, "catalogPurgedIds">): Set
   return new Set(state.catalogPurgedIds);
 }
 
+/** Stable tombstone key so permanent deletes survive cloud hydrate / FK-blocked remote deletes. */
+export function purgedEntityKey(entityType: string, entityId: string): string {
+  return `${entityType}:${entityId}`;
+}
+
+export function isEntityPurged(
+  entityType: string,
+  entityId: string,
+  purged: Iterable<string> | null | undefined,
+): boolean {
+  if (!purged) return false;
+  const set = purged instanceof Set ? purged : new Set(purged);
+  return set.has(purgedEntityKey(entityType, entityId)) || set.has(entityId);
+}
+
+export function omitPurgedEntities<T extends { id: string }>(
+  rows: T[],
+  entityType: string,
+  purged: Iterable<string> | null | undefined,
+): T[] {
+  if (!purged) return rows;
+  const set = purged instanceof Set ? purged : new Set(purged);
+  if (!set.size) return rows;
+  return rows.filter((row) => !isEntityPurged(entityType, row.id, set));
+}
+
 export function isCatalogHidden(
   catalogId: string,
   state: Pick<TlbState, "catalogDeletions" | "catalogPurgedIds">,

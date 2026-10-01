@@ -27,6 +27,7 @@ import { DEFAULT_INVENTORY_SETTINGS } from "../domain/inventory";
 import { MATURE_SEQUENCE_FLOOR, floorMatureCommercialCounters } from "../domain/numbering";
 import { defaultTaxCatalog, ensureTaxCatalog } from "../domain/tax";
 import { createSeedState } from "./seed";
+import { omitPurgedEntities } from "../domain/trash";
 
 const DEFAULT_COMPANY: CompanyProfile = {
   legalName: "TLB Enterprise Limited",
@@ -788,6 +789,44 @@ export function migrateState(raw: unknown): TlbState {
       const defaults = SYSTEM_ROLE_PERMISSIONS[role.systemKey] as Permission[] | undefined;
       if (defaults) role.permissions = [...defaults];
     }
+  }
+
+  // Drop permanently purged rows so seed upgrades / mergeById cannot resurrect them.
+  const purged = next.catalogPurgedIds ?? [];
+  if (purged.length) {
+    next.warehouses = omitPurgedEntities(next.warehouses, "warehouse", purged);
+    next.products = omitPurgedEntities(next.products, "product", purged);
+    next.customers = omitPurgedEntities(next.customers, "customer", purged);
+    next.suppliers = omitPurgedEntities(next.suppliers, "supplier", purged);
+    next.orders = omitPurgedEntities(next.orders, "order", purged);
+    next.invoices = omitPurgedEntities(next.invoices, "invoice", purged);
+    next.receipts = omitPurgedEntities(next.receipts, "receipt", purged);
+    next.payments = omitPurgedEntities(next.payments, "payment", purged);
+    next.deliveries = omitPurgedEntities(next.deliveries, "delivery", purged);
+    next.supplies = omitPurgedEntities(next.supplies, "supply", purged);
+    next.notifications = omitPurgedEntities(next.notifications, "notification", purged);
+    next.quotations = omitPurgedEntities(next.quotations ?? [], "quotation", purged);
+    next.users = omitPurgedEntities(next.users, "user", purged);
+    next.roles = omitPurgedEntities(next.roles, "role", purged);
+    next.batches = omitPurgedEntities(next.batches ?? [], "batch", purged);
+    next.goodsReceipts = omitPurgedEntities(next.goodsReceipts ?? [], "goods_receipt", purged);
+    next.transfers = omitPurgedEntities(next.transfers ?? [], "transfer", purged);
+    next.adjustments = omitPurgedEntities(next.adjustments ?? [], "adjustment", purged);
+    next.approvals = omitPurgedEntities(next.approvals ?? [], "approval", purged);
+    next.opsDrivers = omitPurgedEntities(next.opsDrivers ?? [], "ops_driver", purged);
+    next.opsRequests = omitPurgedEntities(next.opsRequests ?? [], "ops_request", purged);
+    next.customerReturns = omitPurgedEntities(next.customerReturns ?? [], "customer_return", purged);
+    next.supplierReturns = omitPurgedEntities(next.supplierReturns ?? [], "supplier_return", purged);
+    next.nonPoPurchases = omitPurgedEntities(next.nonPoPurchases ?? [], "non_po_purchase", purged);
+    next.importShipments = omitPurgedEntities(next.importShipments ?? [], "import_shipment", purged);
+    next.exportShipments = omitPurgedEntities(next.exportShipments ?? [], "export_shipment", purged);
+    next.supplierPurchaseOrders = omitPurgedEntities(
+      next.supplierPurchaseOrders ?? [],
+      "supplier_po",
+      purged,
+    );
+    next.supplierReceipts = omitPurgedEntities(next.supplierReceipts ?? [], "supplier_receipt", purged);
+    next.supplierPayments = omitPurgedEntities(next.supplierPayments ?? [], "supplier_payment", purged);
   }
 
   syncSessionIdentity(next);

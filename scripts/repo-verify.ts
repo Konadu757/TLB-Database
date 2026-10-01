@@ -37,7 +37,9 @@ const row = customerToRow({
 
 assert.equal(row.id, "cus-test");
 assert.equal(row.code, "C-TEST");
-assert.ok(!("deleted_at" in row), "soft-delete stays out of core row payload");
+assert.equal(row.deleted_at, "2026-09-09T12:00:00.000Z");
+assert.equal(row.deleted_by, "Owner");
+assert.equal(row.deleted_reason ?? null, null);
 
 const overlay = buildSoftDeleteOverlay({
   warehouses: [],
