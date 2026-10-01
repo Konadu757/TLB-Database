@@ -25,6 +25,7 @@ import {
   createSystemRoles,
   hasPermission,
   isAssignableSystemRole,
+  OWNER_USER_ID,
   resolveRole,
   systemRoleKeyForDbCode,
 } from "../domain/permissions";
@@ -1633,8 +1634,16 @@ export function upsertAppUser(
     if (lastOwner) return { ok: false, error: lastOwner };
     const user = next.users.find((u) => u.id === input.id);
     if (!user) return { ok: false, error: "User not found." };
-    if (next.users.some((u) => u.id !== user.id && u.email === email)) {
-      return { ok: false, error: "A user with this email already exists." };
+    if (
+      next.users.some(
+        (u) => u.id !== user.id && u.email.trim().toLowerCase() === email,
+      )
+    ) {
+      return {
+        ok: false,
+        error:
+          "A user with this email already exists. Each staff member needs a unique email (one email = one login).",
+      };
     }
     const prevRole = next.roles.find((r) => r.id === user.roleId);
     const prevActive = user.active;
@@ -1669,8 +1678,25 @@ export function upsertAppUser(
     return { ok: true, data: { state: next, data: user } };
   }
 
-  if (next.users.some((u) => u.email === email)) {
-    return { ok: false, error: "A user with this email already exists." };
+  const ownerEmailTaken = next.users.some((u) => {
+    if (u.email.trim().toLowerCase() !== email) return false;
+    if (u.id === OWNER_USER_ID) return true;
+    const ownerRole = next.roles.find((r) => r.id === u.roleId);
+    return ownerRole?.systemKey === "Owner";
+  });
+  if (ownerEmailTaken && role.systemKey !== "Owner") {
+    return {
+      ok: false,
+      error:
+        "That email belongs to the Owner account. Invite this staff member with a different email — one email can only be one person.",
+    };
+  }
+  if (next.users.some((u) => u.email.trim().toLowerCase() === email)) {
+    return {
+      ok: false,
+      error:
+        "A user with this email already exists. Each staff member needs a unique email (one email = one login).",
+    };
   }
   let created: AppUser = {
     id: uid("user"),
@@ -1885,7 +1911,34 @@ export function applyHostedInviteAcceptance(
 
   const roleId = role.id;
   const at = new Date().toISOString();
-  let user = next.users.find((candidate) => candidate.email.toLowerCase() === email);
+
+  const isOwnerStaffRow = (candidate: AppUser): boolean => {
+    if (candidate.id === OWNER_USER_ID) return true;
+    const candidateRole = next.roles.find((r) => r.id === candidate.roleId);
+    return candidateRole?.systemKey === "Owner";
+  };
+
+  let user = next.users.find((candidate) => candidate.id === profileId);
+  if (!user) {
+    const byEmail = next.users.find((candidate) => candidate.email.toLowerCase() === email);
+    if (byEmail) {
+      if (isOwnerStaffRow(byEmail) && roleKey !== "Owner") {
+        return {
+          ok: false,
+          error:
+            "This invite email belongs to the Owner account. Ask an Owner to invite a different email for this staff member.",
+        };
+      }
+      // Remap local invite row onto Auth profile id so bindSession prefers UUID.
+      if (byEmail.id !== profileId) {
+        const previousId = byEmail.id;
+        byEmail.id = profileId;
+        if (next.currentUserId === previousId) next.currentUserId = profileId;
+      }
+      user = byEmail;
+    }
+  }
+
   if (!user) {
     user = {
       id: profileId,
@@ -1899,8 +1952,15 @@ export function applyHostedInviteAcceptance(
     next.users.push(user);
   } else if (!user.active) {
     return { ok: false, error: "User account is inactive." };
+  } else if (isOwnerStaffRow(user) && roleKey !== "Owner") {
+    return {
+      ok: false,
+      error:
+        "This invite email belongs to the Owner account. Ask an Owner to invite a different email for this staff member.",
+    };
   } else {
     user.name = name;
+    user.email = email;
     user.roleId = roleId;
     user.invitePending = false;
     user.inviteAcceptedAt = user.inviteAcceptedAt ?? at;

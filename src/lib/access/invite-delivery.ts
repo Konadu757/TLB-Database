@@ -87,6 +87,14 @@ export function formatCloudInviteFailureNote(error: string): string {
   if (needsManage) {
     return "Cloud copy not saved: Owner Auth account is missing users.manage on the database. Access code and link below still work on this browser — apply Owner bootstrap SQL, then Re-issue.";
   }
+  const emailTaken =
+    /already belongs to the Owner account/i.test(trimmed) ||
+    /already has a sign-in account/i.test(trimmed) ||
+    /already registered to a staff account/i.test(trimmed) ||
+    /use a (different|unique) email/i.test(trimmed);
+  if (emailTaken) {
+    return "Cloud invite blocked: that email is already used by Owner or another login. Edit the staff row to a unique email, then Re-issue. One email = one person.";
+  }
   return `Cloud copy not saved: ${trimmed} Access code and link below still work on this browser.`;
 }
 

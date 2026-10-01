@@ -210,7 +210,8 @@ export function syncSessionIdentity(state: TlbState): void {
 }
 
 /**
- * Bind the local workspace session to the Auth user (email / profile id).
+ * Bind the local workspace session to the Auth user (profile id / email).
+ * Prefer Auth UUID over email so same-email collisions cannot steal Owner.
  * Returns the same state reference when already aligned.
  */
 export function bindSessionToAuthIdentity(
@@ -221,11 +222,14 @@ export function bindSessionToAuthIdentity(
   const authUserId = input.authUserId?.trim() ?? "";
   if (!email && !authUserId) return state;
 
-  const user =
-    (email
-      ? state.users.find((u) => u.active && u.email.trim().toLowerCase() === email)
-      : undefined) ??
-    (authUserId ? state.users.find((u) => u.active && u.id === authUserId) : undefined);
+  const byId = authUserId
+    ? state.users.find((u) => u.active && u.id === authUserId)
+    : undefined;
+  const byEmail = email
+    ? state.users.find((u) => u.active && u.email.trim().toLowerCase() === email)
+    : undefined;
+  // Auth UUID wins. Email is only a fallback when the profile id is not in local users yet.
+  const user = byId ?? byEmail;
   if (!user) return state;
 
   const role = state.roles.find((r) => r.id === user.roleId);

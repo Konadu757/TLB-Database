@@ -811,6 +811,23 @@ export function useTlbStore() {
           }
           return { ok: false as const, data: null };
         }
+        // Never fall back to local accept when the cloud refused a same-email / Owner collision —
+        // that path would leave the browser signed in as invitee while Auth is still Owner.
+        const emailCollision =
+          /already belongs to the Owner account/i.test(hosted.error) ||
+          /already registered/i.test(hosted.error) ||
+          /already has a sign-in account/i.test(hosted.error) ||
+          /use a (different|unique) email/i.test(hosted.error) ||
+          /cannot accept invite for an existing account/i.test(hosted.error);
+        if (emailCollision) {
+          setError(
+            /Owner account/i.test(hosted.error)
+              ? "This invite email belongs to the Owner account. Ask an Owner to invite you with a different email — one email can only be one login."
+              : "This invite email is already registered to another account. Ask an Owner to invite you with a unique email.",
+          );
+          setNotice(null);
+          return { ok: false as const, data: null };
+        }
         // Hosted RPC missing, unreachable, or cloud row never saved (create_invite failed):
         // fall back to local invite acceptance when this browser still holds the pending invite.
         // SMS recipients on other devices need a Re-issue after cloud create_invite works.
