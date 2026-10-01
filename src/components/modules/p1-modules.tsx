@@ -39,6 +39,46 @@ function StatusBadge({ children, tone }: { children: React.ReactNode; tone: stri
   return <span className={`status-badge status-${tone}`}>{children}</span>;
 }
 
+function inviteDeliveryTone(
+  status: string,
+): "success" | "warning" | "danger" | "info" | "pending" {
+  if (status === "ok" || status === "sent") return "success";
+  if (status === "failed") return "danger";
+  if (status === "not_configured" || status === "skipped" || status === "local_only") {
+    return "warning";
+  }
+  if (status === "pending") return "pending";
+  return "info";
+}
+
+function InviteDeliveryLine({
+  label,
+  status,
+  note,
+}: {
+  label: string;
+  status: string;
+  note: string;
+}) {
+  const tone = inviteDeliveryTone(status);
+  const color =
+    tone === "success"
+      ? "var(--success)"
+      : tone === "danger"
+        ? "var(--danger)"
+        : tone === "warning"
+          ? "var(--warning-foreground)"
+          : "inherit";
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-start" }}>
+      <StatusBadge tone={tone}>{label}</StatusBadge>
+      <span style={{ flex: "1 1 12rem", color, fontWeight: tone === "danger" ? 600 : 500 }}>
+        {note}
+      </span>
+    </div>
+  );
+}
+
 function EmptyState({ title, detail }: { title: string; detail: string }) {
   return (
     <div className="tlb-empty-state">
@@ -216,7 +256,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
 
   useEffect(() => {
     if (!store.lastInvite) return;
-    invitePanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    invitePanelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [store.lastInvite?.userId, store.lastInvite?.inviteCode]);
 
   const copyInviteValue = async (key: string, value: string) => {
@@ -564,18 +604,38 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
             {store.lastInvite ? (
               <div
                 ref={invitePanelRef}
-                className="tlb-flash tlb-flash-ok"
+                className={
+                  store.lastInvite.delivery.email === "failed" ||
+                  store.lastInvite.delivery.sms === "failed"
+                    ? "tlb-flash tlb-flash-error"
+                    : "tlb-flash tlb-flash-ok"
+                }
                 style={{
                   margin: "12px",
                   flexDirection: "column",
                   alignItems: "stretch",
                   gap: 10,
+                  borderWidth: 2,
                 }}
                 role="status"
+                aria-live="polite"
               >
-                <strong style={{ fontSize: "0.9375rem" }}>
-                  Invitation ready for {store.lastInvite.name}
-                </strong>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                  }}
+                >
+                  <strong style={{ fontSize: "1.05rem" }}>
+                    Invitation ready for {store.lastInvite.name}
+                  </strong>
+                  <span className="tlb-muted-line" style={{ fontSize: "0.75rem", margin: 0 }}>
+                    Share the code or link — email/SMS status updates below
+                  </span>
+                </div>
                 <p className="tlb-muted-line" style={{ margin: 0 }}>
                   {store.lastInvite.email}
                   {store.lastInvite.contact ? ` · ${store.lastInvite.contact}` : ""}
@@ -589,7 +649,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                   </span>
                   <p
                     className="tlb-mono"
-                    style={{ margin: 0, fontSize: "1.0625rem", fontWeight: 700, letterSpacing: "0.04em" }}
+                    style={{ margin: 0, fontSize: "1.125rem", fontWeight: 700, letterSpacing: "0.04em" }}
                   >
                     {store.lastInvite.inviteCode}
                   </p>
@@ -645,20 +705,35 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                     Dismiss
                   </button>
                 </div>
-                <ul
-                  className="tlb-muted-line"
-                  style={{ margin: 0, paddingLeft: 18, fontSize: "0.75rem", lineHeight: 1.5 }}
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 8,
+                    marginTop: 2,
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    background: "color-mix(in oklab, var(--surface) 88%, transparent)",
+                    border: "1px solid var(--border)",
+                    fontSize: "0.8125rem",
+                    lineHeight: 1.45,
+                  }}
                 >
-                  <li>
-                    Cloud: {store.lastInvite.delivery.cloudNote}
-                  </li>
-                  <li>
-                    Email: {store.lastInvite.delivery.emailNote}
-                  </li>
-                  <li>
-                    SMS: {store.lastInvite.delivery.smsNote}
-                  </li>
-                </ul>
+                  <InviteDeliveryLine
+                    label="Cloud"
+                    status={store.lastInvite.delivery.cloud}
+                    note={store.lastInvite.delivery.cloudNote}
+                  />
+                  <InviteDeliveryLine
+                    label="Email"
+                    status={store.lastInvite.delivery.email}
+                    note={store.lastInvite.delivery.emailNote}
+                  />
+                  <InviteDeliveryLine
+                    label="SMS"
+                    status={store.lastInvite.delivery.sms}
+                    note={store.lastInvite.delivery.smsNote}
+                  />
+                </div>
               </div>
             ) : null}
             <TrashConfirmDialog
