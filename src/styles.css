@@ -387,7 +387,8 @@ table.tlb-table,
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: color-mix(in oklab, #ffffff 94%, transparent);
+  /* Topics: muted gold so they read as section kickers, not page links */
+  color: var(--tlb-gold);
   font-size: 10.5px;
   font-weight: 700;
   line-height: 1.2;
@@ -398,12 +399,12 @@ table.tlb-table,
 }
 .tlb-nav-group-toggle:hover {
   background: color-mix(in oklab, #ffffff 8%, transparent);
-  color: #ffffff;
+  color: color-mix(in oklab, var(--tlb-gold) 88%, #ffffff);
 }
 .tlb-nav-label {
   margin: 0;
   flex: 1;
-  color: inherit;
+  color: var(--tlb-gold);
   /* Section kicker: smaller and tracked, so it does not read as a nav option. */
   font-size: 10.5px;
   font-weight: 700;
