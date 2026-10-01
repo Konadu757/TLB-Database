@@ -96,16 +96,30 @@ function CatalogModule({
     return new Set([...catalogDeletionSet(store.state), ...catalogPurgedSet(store.state)]);
   }, [store]);
 
-  const rows = useMemo(
-    () =>
-      recordsForModule(module, range, {
-        ...(hideIds ? { hideIds } : {}),
-        ...(userQuotations ? { userQuotations } : {}),
-      }),
+  const catalogOpts = useMemo(
+    () => ({
+      ...(hideIds ? { hideIds } : {}),
+      ...(userQuotations ? { userQuotations } : {}),
+    }),
+    [hideIds, userQuotations],
+  );
+
+  const { rows, periodFallback, baseCount } = useMemo(() => {
+    const base = recordsForModule(module, null, catalogOpts);
+    const activeRange = range?.from && range?.to ? range : null;
+    const inPeriod = activeRange ? recordsForModule(module, activeRange, catalogOpts) : base;
+    // Period bar defaults to "This Month" while sandbox/legacy rows often sit earlier.
+    // If the period alone empties the register, show the same non-trashed base set the
+    // sidebar badge counts so the module is never blank while the badge says N > 0.
+    const periodAloneEmpty =
+      Boolean(activeRange) && inPeriod.length === 0 && base.length > 0;
+    if (periodAloneEmpty) {
+      return { rows: base, periodFallback: true, baseCount: base.length };
+    }
+    return { rows: inPeriod, periodFallback: false, baseCount: base.length };
     // Depend on range bounds so period chip changes always refilter lists.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- range object identity is unstable
-    [module, range?.from, range?.to, hideIds, userQuotations],
-  );
+  }, [module, range?.from, range?.to, catalogOpts]);
   const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null);
   const selectedId = controlledSelectedId !== undefined ? controlledSelectedId : internalSelectedId;
   const onSelect = useCallback(
@@ -162,6 +176,8 @@ function CatalogModule({
       detailSubtitle={(row) => row.secondary}
       detailCode={(row) => row.primary}
       {...(periodLabel ? { periodLabel } : {})}
+      periodFallback={periodFallback}
+      baseCount={baseCount}
       {...(toolbarExtra !== undefined ? { toolbarExtra } : {})}
       {...(listExtra !== undefined ? { listExtra } : {})}
       {...(store

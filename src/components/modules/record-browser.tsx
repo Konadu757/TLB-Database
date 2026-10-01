@@ -256,6 +256,8 @@ export function RecordBrowser<T extends { id: string }>({
   detailSummary,
   historyGroups,
   periodLabel,
+  periodFallback = false,
+  baseCount,
   toolbarExtra,
   listExtra,
   detailActions,
@@ -283,6 +285,10 @@ export function RecordBrowser<T extends { id: string }>({
   detailSummary?: (row: T) => DetailSummaryItem[];
   historyGroups?: (row: T) => BrowserHistoryGroup[];
   periodLabel?: string;
+  /** When true, rows are the non-period base set after an empty period filter. */
+  periodFallback?: boolean;
+  /** Non-trashed base-set size (matches sidebar badge). */
+  baseCount?: number;
   toolbarExtra?: ReactNode;
   listExtra?: ReactNode;
   detailActions?: (row: T) => ReactNode;
@@ -511,14 +517,21 @@ export function RecordBrowser<T extends { id: string }>({
             </table>
           )}
         </div>
-        {hasSearch && filtered.length > 0 ? (
+        {periodFallback && filtered.length > 0 ? (
+          <div className="tlb-list-meta">
+            No records in {periodLabel ?? "this period"} — showing all{" "}
+            {baseCount ?? rows.length} active record
+            {(baseCount ?? rows.length) === 1 ? "" : "s"}
+            {selection.count > 0 ? ` · ${selection.count} selected` : ""}
+          </div>
+        ) : hasSearch && filtered.length > 0 ? (
           <div className="tlb-list-meta">
             Showing {filtered.length} of {rows.length} records
             {selection.count > 0 ? ` · ${selection.count} selected` : ""}
           </div>
-        ) : periodLabel && rows.length > 0 ? (
+        ) : periodLabel && !periodFallback && rows.length > 0 ? (
           <div className="tlb-list-meta">
-            {rows.length} record{rows.length === 1 ? "" : "s"} in period
+            {rows.length} record{rows.length === 1 ? "" : "s"} in {periodLabel}
             {selection.count > 0 ? ` · ${selection.count} selected` : ""}
           </div>
         ) : selection.count > 0 ? (

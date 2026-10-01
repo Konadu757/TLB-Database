@@ -131,7 +131,13 @@ import {
   resolveRole,
   userInitials,
 } from "@/lib/domain/permissions";
-import { listTrashItems, notSoftDeleted } from "@/lib/domain/trash";
+import { recordsForModule } from "@/lib/domain/list-catalog";
+import {
+  catalogDeletionSet,
+  catalogPurgedSet,
+  listTrashItems,
+  notSoftDeleted,
+} from "@/lib/domain/trash";
 import { cn } from "@/lib/utils";
 
 function countBadgeLabel(count: number): string | undefined {
@@ -222,11 +228,11 @@ const navGroups: NavGroup[] = [
   {
     label: "Operations",
     items: [
-      { label: "Procurement", icon: ClipboardCheck, badge: "5" },
+      { label: "Procurement", icon: ClipboardCheck },
       { label: "Non-PO Purchases", icon: ClipboardCheck },
-      { label: "Import & Export", icon: Ship, badge: "3" },
+      { label: "Import & Export", icon: Ship },
       { label: "Factory", icon: Factory },
-      { label: "Quality Control", icon: ShieldCheck, badge: "8" },
+      { label: "Quality Control", icon: ShieldCheck },
       { label: "Deliveries", icon: Truck },
     ],
   },
@@ -397,6 +403,29 @@ function TLBDashboardInner() {
   // Match Outstanding Supplies module base set: non-trashed outstanding lines (not period-scoped).
   const outstandingBadge = store.outstanding.length;
   const trashBadge = listTrashItems(store.state).length;
+  const catalogHideIds = useMemo(
+    () => new Set([...catalogDeletionSet(store.state), ...catalogPurgedSet(store.state)]),
+    [store.state.catalogDeletions, store.state.catalogPurgedIds],
+  );
+  // Catalog sandbox modules: badge = non-trashed base set (not period-scoped).
+  const procurementBadge = useMemo(
+    () => recordsForModule("Procurement", null, { hideIds: catalogHideIds }).length,
+    [catalogHideIds],
+  );
+  const qualityControlBadge = useMemo(
+    () => recordsForModule("Quality Control", null, { hideIds: catalogHideIds }).length,
+    [catalogHideIds],
+  );
+  const factoryBadge = useMemo(
+    () => recordsForModule("Factory", null, { hideIds: catalogHideIds }).length,
+    [catalogHideIds],
+  );
+  // Live Import & Export: badge = all non-trashed shipments (imports + exports).
+  const importExportBadge = useMemo(() => {
+    const imports = notSoftDeleted(store.state.importShipments ?? []);
+    const exports = notSoftDeleted(store.state.exportShipments ?? []);
+    return imports.length + exports.length;
+  }, [store.state.importShipments, store.state.exportShipments]);
   const role = resolveRole(store.state);
   const manageAllNotifications = canManageAllNotifications(store.state);
   const visibleNotifications = useMemo(() => {
@@ -437,6 +466,30 @@ function TLBDashboardInner() {
                 const count = notSoftDeleted(store.state.orders).length;
                 return { ...item, badge: count > 0 ? String(count) : undefined };
               }
+              if (item.label === "Procurement") {
+                return {
+                  ...item,
+                  badge: countBadgeLabel(procurementBadge),
+                };
+              }
+              if (item.label === "Quality Control") {
+                return {
+                  ...item,
+                  badge: countBadgeLabel(qualityControlBadge),
+                };
+              }
+              if (item.label === "Factory") {
+                return {
+                  ...item,
+                  badge: countBadgeLabel(factoryBadge),
+                };
+              }
+              if (item.label === "Import & Export") {
+                return {
+                  ...item,
+                  badge: countBadgeLabel(importExportBadge),
+                };
+              }
               if (item.label === "Notifications") {
                 return { ...item, badge: countBadgeLabel(unreadNotifications) };
               }
@@ -447,7 +500,16 @@ function TLBDashboardInner() {
             }),
         }))
         .filter((group) => group.items.length > 0),
-    [outstandingBadge, trashBadge, unreadNotifications, store.state],
+    [
+      outstandingBadge,
+      trashBadge,
+      procurementBadge,
+      qualityControlBadge,
+      factoryBadge,
+      importExportBadge,
+      unreadNotifications,
+      store.state,
+    ],
   );
 
   useEffect(() => {

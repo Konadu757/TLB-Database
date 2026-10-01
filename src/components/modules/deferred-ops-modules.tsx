@@ -899,7 +899,7 @@ export function LiveImportExportModule({
   onFocusConsumed?: () => void;
   onOpenGrn?: (id: string) => void;
 }) {
-  const [tab, setTab] = useState<"import" | "export">("import");
+  const [tab, setTab] = useState<"all" | "import" | "export">("all");
   const [detailId, setDetailId] = useState<string | null>(focusId ?? null);
   const [open, setOpen] = useState(false);
 
@@ -925,6 +925,16 @@ export function LiveImportExportModule({
 
   const imports = (store.state.importShipments ?? []).filter((s) => !isSoftDeleted(s));
   const exports = (store.state.exportShipments ?? []).filter((s) => !isSoftDeleted(s));
+  const shipmentTotal = imports.length + exports.length;
+  const listRows =
+    tab === "all"
+      ? [
+          ...imports.map((s) => ({ kind: "import" as const, row: s })),
+          ...exports.map((s) => ({ kind: "export" as const, row: s })),
+        ]
+      : tab === "import"
+        ? imports.map((s) => ({ kind: "import" as const, row: s }))
+        : exports.map((s) => ({ kind: "export" as const, row: s }));
   const impDetail = imports.find((s) => s.id === detailId);
   const expDetail = exports.find((s) => s.id === detailId);
 
@@ -1180,30 +1190,43 @@ export function LiveImportExportModule({
           <p className="tlb-muted-line">Shipment tracking with GRN / goods-out links</p>
         </div>
         <Button type="button" onClick={() => setOpen((v) => !v)}>
-          {open ? "Close form" : tab === "import" ? "New import" : "New export"}
+          {open
+            ? "Close form"
+            : tab === "export"
+              ? "New export"
+              : tab === "import"
+                ? "New import"
+                : "New import"}
         </Button>
       </div>
       <section className="tlb-filter-bar tlb-module-filters">
         <div className="tlb-periods">
           <button
             type="button"
+            className={tab === "all" ? "active" : ""}
+            onClick={() => setTab("all")}
+          >
+            All ({shipmentTotal})
+          </button>
+          <button
+            type="button"
             className={tab === "import" ? "active" : ""}
             onClick={() => setTab("import")}
           >
-            Imports
+            Imports ({imports.length})
           </button>
           <button
             type="button"
             className={tab === "export" ? "active" : ""}
             onClick={() => setTab("export")}
           >
-            Exports
+            Exports ({exports.length})
           </button>
         </div>
       </section>
       {open ? (
         <article className="tlb-panel" style={{ padding: 16, display: "grid", gap: 12 }}>
-          {tab === "import" ? (
+          {tab !== "export" ? (
             <>
               <div className="tlb-form-grid">
                 <label>
@@ -1377,7 +1400,7 @@ export function LiveImportExportModule({
         </article>
       ) : null}
       <article className="tlb-panel tlb-orders-panel">
-        {(tab === "import" ? imports : exports).length === 0 ? (
+        {listRows.length === 0 ? (
           <EmptyState
             title="No shipments"
             detail="Create an import or export shipment to track status."
@@ -1388,21 +1411,27 @@ export function LiveImportExportModule({
               <thead>
                 <tr>
                   <th>Number</th>
-                  <th>{tab === "import" ? "Origin" : "Destination"}</th>
+                  <th>Type</th>
+                  <th>Lane</th>
                   <th>Party</th>
                   <th>Status</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
-                {(tab === "import" ? imports : exports).map((s) => (
+                {listRows.map(({ kind, row: s }) => (
                   <tr key={s.id}>
                     <td>
                       <strong>{s.number}</strong>
                     </td>
-                    <td>{"originCountry" in s ? s.originCountry : s.destinationCountry}</td>
+                    <td>{kind === "import" ? "Import" : "Export"}</td>
                     <td>
-                      {"supplierId" in s
+                      {kind === "import"
+                        ? `${s.originCountry} → Ghana`
+                        : `Ghana → ${s.destinationCountry}`}
+                    </td>
+                    <td>
+                      {kind === "import"
                         ? store.state.suppliers.find((x) => x.id === s.supplierId)?.name
                         : store.state.customers.find((x) => x.id === s.customerId)?.name}
                     </td>
@@ -1424,6 +1453,15 @@ export function LiveImportExportModule({
             </table>
           </div>
         )}
+        {shipmentTotal > 0 ? (
+          <div className="tlb-list-meta">
+            {tab === "all"
+              ? `${shipmentTotal} shipment${shipmentTotal === 1 ? "" : "s"}`
+              : tab === "import"
+                ? `${imports.length} import${imports.length === 1 ? "" : "s"} · ${shipmentTotal} total`
+                : `${exports.length} export${exports.length === 1 ? "" : "s"} · ${shipmentTotal} total`}
+          </div>
+        ) : null}
       </article>
     </div>
   );
