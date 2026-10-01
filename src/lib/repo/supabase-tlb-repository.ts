@@ -652,19 +652,21 @@ export class SupabaseTlbRepository implements TlbRepository {
       // mutations do not re-upsert warehouses (and other unchanged P0 tables).
       const roleSnapshot = JSON.stringify({
         roles: merged.roles.map((role) => role.id).sort(),
-        users: merged.users.map((user) => [user.id, user.roleId, user.active]),
+        users: merged.users.map((user) => [user.id, user.roleId, user.active, user.name, user.email]),
         currentRoleId: merged.currentRoleId,
         currentUserId: merged.currentUserId,
         currentRole: merged.currentRole,
+        currentUser: merged.currentUser,
       });
       this.rememberRemoteFingerprints(merged);
       lockWorkspaceToOwner(merged);
       const roleSnapshotAfter = JSON.stringify({
         roles: merged.roles.map((role) => role.id).sort(),
-        users: merged.users.map((user) => [user.id, user.roleId, user.active]),
+        users: merged.users.map((user) => [user.id, user.roleId, user.active, user.name, user.email]),
         currentRoleId: merged.currentRoleId,
         currentUserId: merged.currentUserId,
         currentRole: merged.currentRole,
+        currentUser: merged.currentUser,
       });
       if (roleSnapshot !== roleSnapshotAfter) {
         try {

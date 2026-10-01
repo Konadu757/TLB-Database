@@ -236,6 +236,28 @@ export function dbRoleCodeForRoleId(roleId: string): string | null {
 
 export const OWNER_USER_ID = "user-owner";
 
+/** Canonical portal Owner display name shown in the header / profile. */
+export const OWNER_DISPLAY_NAME = "TLB Owner";
+
+/**
+ * Live portal Owner Auth identity (Supabase Auth UUID + email).
+ * Bind/heal must always map this Auth session to Owner staff + OWNER role,
+ * never a leftover Finance (or other invitee) name/role.
+ */
+export const PORTAL_OWNER_AUTH_USER_ID = "aa9ba161-56b9-49fc-9ca5-c46070fa3d87";
+export const PORTAL_OWNER_AUTH_EMAIL = "mccaesartechsolutions@gmail.com";
+
+export function isPortalOwnerAuth(input: {
+  authUserId?: string;
+  email?: string;
+}): boolean {
+  const id = input.authUserId?.trim() ?? "";
+  const email = input.email?.trim().toLowerCase() ?? "";
+  if (id && id === PORTAL_OWNER_AUTH_USER_ID) return true;
+  if (email && email === PORTAL_OWNER_AUTH_EMAIL) return true;
+  return false;
+}
+
 export function createSystemRoles(): RoleDefinition[] {
   const descriptions: Record<SystemRoleKey, string> = {
     Owner: "Full access — create roles, assign users, and manage the workspace.",

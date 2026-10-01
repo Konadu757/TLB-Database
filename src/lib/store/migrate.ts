@@ -1,7 +1,11 @@
 import {
   ALL_PERMISSIONS,
   createSystemRoles,
+  isPortalOwnerAuth,
+  OWNER_DISPLAY_NAME,
   OWNER_USER_ID,
+  PORTAL_OWNER_AUTH_EMAIL,
+  PORTAL_OWNER_AUTH_USER_ID,
   SYSTEM_ROLE_IDS,
   SYSTEM_ROLE_PERMISSIONS,
 } from "../domain/permissions";
@@ -72,8 +76,8 @@ function defaultUsers(roles: RoleDefinition[]): AppUser[] {
   return [
     {
       id: OWNER_USER_ID,
-      name: "TLB Owner",
-      email: "owner@tlb.gh",
+      name: OWNER_DISPLAY_NAME,
+      email: PORTAL_OWNER_AUTH_EMAIL,
       roleId: ownerId,
       active: true,
     },
@@ -176,6 +180,7 @@ export function lockWorkspaceToOwner(state: TlbState): void {
     if (!liveRoleIds.has(user.roleId)) user.roleId = owner.id;
   }
   ensureDeletableSystemRoles(state);
+  ensurePortalOwnerStaffDirectory(state);
   const ownerUser = state.users.find((u) => u.id === OWNER_USER_ID);
   if (ownerUser) {
     ownerUser.active = true;
@@ -183,7 +188,7 @@ export function lockWorkspaceToOwner(state: TlbState): void {
   }
   const sessionUser = state.users.find((u) => u.id === state.currentUserId && u.active);
   if (!sessionUser) {
-    state.currentUserId = ownerUser?.id ?? OWNER_USER_ID;
+    state.currentUserId = PORTAL_OWNER_AUTH_USER_ID;
   }
   state.version = Math.max(state.version, 14);
   syncSessionIdentity(state);
@@ -210,76 +215,178 @@ export function syncSessionIdentity(state: TlbState): void {
 }
 
 /**
+ * Same-email Finance (etc.) invite acceptance could demote the Auth Owner
+ * profile in local/cloud staff while Auth UUID stayed the same — and could
+ * leave the Owner display name as the Finance invitee. Always restore Owner
+ * identity for the portal Owner Auth account; also restore when heuristics
+ * show this Auth row is the workspace Owner.
+ */
+function shouldHealAuthOwner(
+  state: TlbState,
+  authUserId: string,
+  authEmail: string,
+): boolean {
+  if (!authUserId) return false;
+  if (isPortalOwnerAuth({ authUserId, email: authEmail })) return true;
+
+  const authUser =
+    state.users.find((user) => user.id === authUserId && user.active) ??
+    state.users.find((user) => user.id === authUserId);
+  const email = (authEmail || authUser?.email || "").trim().toLowerCase();
+  if (!email) return false;
+
+  const seedOwnerSameEmail = state.users.some(
+    (user) =>
+      user.id === OWNER_USER_ID &&
+      user.email.trim().toLowerCase() === email &&
+      state.roles.find((role) => role.id === user.roleId)?.systemKey === "Owner",
+  );
+  if (seedOwnerSameEmail) return true;
+
+  const otherOwners = state.users.filter(
+    (user) =>
+      user.id !== authUserId &&
+      user.active &&
+      state.roles.find((role) => role.id === user.roleId)?.systemKey === "Owner",
+  );
+  if (otherOwners.some((user) => user.email.trim().toLowerCase() === email)) return true;
+  // Seed Owner often keeps owner@tlb.gh while Auth uses the real Owner email —
+  // still heal when this Auth UUID is the only non-seed Owner candidate.
+  if (otherOwners.every((user) => user.id === OWNER_USER_ID)) return true;
+  if (otherOwners.length === 0) return true;
+  return false;
+}
+
+/**
+ * Keep the portal Owner Auth staff row as TLB Owner / OWNER forever, and drop
+ * same-email Finance leftovers from the directory. Does not steal the session
+ * unless currentUserId pointed at a purged row.
+ */
+export function ensurePortalOwnerStaffDirectory(state: TlbState): void {
+  const ownerRole =
+    state.roles.find((role) => role.systemKey === "Owner" && role.active && !role.deletedAt) ??
+    state.roles.find((role) => role.id === SYSTEM_ROLE_IDS.Owner);
+  if (!ownerRole) return;
+
+  let authUser = state.users.find((user) => user.id === PORTAL_OWNER_AUTH_USER_ID);
+  if (!authUser) {
+    authUser = {
+      id: PORTAL_OWNER_AUTH_USER_ID,
+      name: OWNER_DISPLAY_NAME,
+      email: PORTAL_OWNER_AUTH_EMAIL,
+      roleId: ownerRole.id,
+      active: true,
+    };
+    state.users.push(authUser);
+  } else {
+    authUser.active = true;
+    authUser.roleId = ownerRole.id;
+    authUser.name = OWNER_DISPLAY_NAME;
+    authUser.email = PORTAL_OWNER_AUTH_EMAIL;
+  }
+
+  const seedOwner = state.users.find((user) => user.id === OWNER_USER_ID);
+  if (seedOwner) {
+    seedOwner.active = true;
+    seedOwner.roleId = ownerRole.id;
+    seedOwner.name = OWNER_DISPLAY_NAME;
+    seedOwner.email = PORTAL_OWNER_AUTH_EMAIL;
+  }
+
+  const keepIds = new Set<string>([PORTAL_OWNER_AUTH_USER_ID, OWNER_USER_ID]);
+  state.users = state.users.filter((user) => {
+    if (keepIds.has(user.id)) return true;
+    const userEmail = user.email.trim().toLowerCase();
+    if (userEmail === PORTAL_OWNER_AUTH_EMAIL) return false;
+    return true;
+  });
+
+  if (!state.users.some((user) => user.id === state.currentUserId && user.active)) {
+    state.currentUserId = PORTAL_OWNER_AUTH_USER_ID;
+  }
+}
+
+/**
+ * Force Auth Owner staff row onto OWNER role + TLB Owner name, align seed
+ * Owner email, and drop leftover Finance (etc.) staff that share the Owner
+ * email so hydrate cannot resurrect the wrong "Signed in as" label.
+ */
+function healAuthOwnerIdentity(
+  state: TlbState,
+  authUserId: string,
+  authEmail: string,
+): boolean {
+  if (!authUserId) return false;
+  if (!shouldHealAuthOwner(state, authUserId, authEmail)) return false;
+
+  const before = JSON.stringify({
+    users: state.users.map((u) => [u.id, u.name, u.email, u.roleId, u.active]),
+    currentUserId: state.currentUserId,
+  });
+
+  ensurePortalOwnerStaffDirectory(state);
+
+  // Prefer the live Auth UUID as the signed-in staff row.
+  if (state.users.some((user) => user.id === authUserId)) {
+    state.currentUserId = authUserId;
+  } else {
+    state.currentUserId = PORTAL_OWNER_AUTH_USER_ID;
+  }
+
+  const email = (authEmail || PORTAL_OWNER_AUTH_EMAIL).trim().toLowerCase();
+  const bound = state.users.find((user) => user.id === state.currentUserId);
+  if (bound && email && bound.email.trim().toLowerCase() !== email) {
+    bound.email = email;
+  }
+
+  const after = JSON.stringify({
+    users: state.users.map((u) => [u.id, u.name, u.email, u.roleId, u.active]),
+    currentUserId: state.currentUserId,
+  });
+  return before !== after;
+}
+
+function authOwnerNeedsHeal(
+  state: TlbState,
+  authUserId: string,
+  authEmail: string,
+): boolean {
+  if (!shouldHealAuthOwner(state, authUserId, authEmail)) return false;
+  const ownerRole =
+    state.roles.find((role) => role.systemKey === "Owner" && role.active && !role.deletedAt) ??
+    state.roles.find((role) => role.id === SYSTEM_ROLE_IDS.Owner);
+  if (!ownerRole) return false;
+
+  const authUser = state.users.find((user) => user.id === authUserId);
+  if (!authUser) return true;
+  if (!authUser.active) return true;
+  if (authUser.roleId !== ownerRole.id) return true;
+  if (authUser.name !== OWNER_DISPLAY_NAME) return true;
+  const email = (authEmail || authUser.email || "").trim().toLowerCase();
+  if (email && authUser.email.trim().toLowerCase() !== email) return true;
+  if (state.currentUserId !== authUserId) return true;
+
+  const seedOwner = state.users.find((user) => user.id === OWNER_USER_ID);
+  if (seedOwner) {
+    if (seedOwner.name !== OWNER_DISPLAY_NAME) return true;
+    if (seedOwner.roleId !== ownerRole.id) return true;
+    if (email && seedOwner.email.trim().toLowerCase() !== email) return true;
+  }
+
+  const colliding = state.users.some((user) => {
+    if (user.id === authUserId || user.id === OWNER_USER_ID) return false;
+    const userEmail = user.email.trim().toLowerCase();
+    return Boolean(email && userEmail === email);
+  });
+  return colliding;
+}
+
+/**
  * Bind the local workspace session to the Auth user (profile id / email).
  * Prefer Auth UUID over email so same-email collisions cannot steal Owner.
+ * Owner Auth always binds to Owner staff + OWNER role + TLB Owner name.
  * Returns the same state reference when already aligned.
  */
-/**
- * Same-email Finance (etc.) invite acceptance could demote the Auth Owner
- * profile in local users while Auth UUID stayed the same. Restore Owner when
- * this Auth row is clearly the workspace Owner account.
- */
-function healAuthOwnerRole(state: TlbState, authUserId: string): boolean {
-  const ownerRole = state.roles.find(
-    (role) => role.systemKey === "Owner" && role.active && !role.deletedAt,
-  );
-  if (!ownerRole || !authUserId) return false;
-  const authUser = state.users.find((user) => user.id === authUserId && user.active);
-  if (!authUser) return false;
-  const current = state.roles.find((role) => role.id === authUser.roleId);
-  if (current?.systemKey === "Owner") return false;
-
-  const email = authUser.email.trim().toLowerCase();
-  const seedOwnerSameEmail = state.users.some(
-    (user) =>
-      user.id === OWNER_USER_ID &&
-      user.email.trim().toLowerCase() === email &&
-      state.roles.find((role) => role.id === user.roleId)?.systemKey === "Owner",
-  );
-  const otherOwners = state.users.filter(
-    (user) =>
-      user.id !== authUserId &&
-      user.active &&
-      state.roles.find((role) => role.id === user.roleId)?.systemKey === "Owner",
-  );
-  const shouldRestore =
-    seedOwnerSameEmail ||
-    otherOwners.some((user) => user.email.trim().toLowerCase() === email) ||
-    otherOwners.length === 0;
-  if (!shouldRestore) return false;
-  authUser.roleId = ownerRole.id;
-  return true;
-}
-
-function authOwnerNeedsHeal(state: TlbState, authUserId: string): boolean {
-  const ownerRole = state.roles.find(
-    (role) => role.systemKey === "Owner" && role.active && !role.deletedAt,
-  );
-  if (!ownerRole || !authUserId) return false;
-  const authUser = state.users.find((user) => user.id === authUserId && user.active);
-  if (!authUser) return false;
-  const current = state.roles.find((role) => role.id === authUser.roleId);
-  if (current?.systemKey === "Owner") return false;
-  const email = authUser.email.trim().toLowerCase();
-  const seedOwnerSameEmail = state.users.some(
-    (user) =>
-      user.id === OWNER_USER_ID &&
-      user.email.trim().toLowerCase() === email &&
-      state.roles.find((role) => role.id === user.roleId)?.systemKey === "Owner",
-  );
-  const otherOwners = state.users.filter(
-    (user) =>
-      user.id !== authUserId &&
-      user.active &&
-      state.roles.find((role) => role.id === user.roleId)?.systemKey === "Owner",
-  );
-  return (
-    seedOwnerSameEmail ||
-    otherOwners.some((user) => user.email.trim().toLowerCase() === email) ||
-    otherOwners.length === 0
-  );
-}
-
 export function bindSessionToAuthIdentity(
   state: TlbState,
   input: { email?: string; authUserId?: string },
@@ -288,32 +395,51 @@ export function bindSessionToAuthIdentity(
   const authUserId = input.authUserId?.trim() ?? "";
   if (!email && !authUserId) return state;
 
+  const portalOwner = isPortalOwnerAuth({ authUserId, email });
+  const needsHeal = authUserId ? authOwnerNeedsHeal(state, authUserId, email) : false;
+
   const byId = authUserId
-    ? state.users.find((u) => u.active && u.id === authUserId)
+    ? state.users.find((u) => u.active && u.id === authUserId) ??
+      state.users.find((u) => u.id === authUserId)
     : undefined;
   const byEmail = email
     ? state.users.find((u) => u.active && u.email.trim().toLowerCase() === email)
     : undefined;
   // Auth UUID wins. Email is only a fallback when the profile id is not in local users yet.
-  const user = byId ?? byEmail;
-  if (!user) return state;
+  // For portal Owner Auth, never bind to a leftover Finance staff row found by email alone.
+  let user = byId ?? (portalOwner || needsHeal ? undefined : byEmail);
+  if (!user && (portalOwner || needsHeal) && authUserId) {
+    // Ensure heal can create/repair the Auth Owner row below.
+    user = byId;
+  }
+  if (!user && !portalOwner && !needsHeal) return state;
+  if (!user && !authUserId) return state;
 
-  const needsHeal = authUserId ? authOwnerNeedsHeal(state, authUserId) : false;
-  const role = state.roles.find((r) => r.id === user.roleId);
+  const sessionUserId = authUserId || user?.id || "";
+  const role = user ? state.roles.find((r) => r.id === user.roleId) : undefined;
   const roleLabel = (role?.systemKey ?? role?.name ?? state.currentRole) as TlbState["currentRole"];
   if (
     !needsHeal &&
+    user &&
     state.currentUserId === user.id &&
     state.currentUser === user.name &&
     state.currentRoleId === user.roleId &&
-    state.currentRole === roleLabel
+    state.currentRole === roleLabel &&
+    (!portalOwner ||
+      (user.name === OWNER_DISPLAY_NAME &&
+        role?.systemKey === "Owner" &&
+        state.currentRole === "Owner"))
   ) {
     return state;
   }
 
   const next = JSON.parse(JSON.stringify(state)) as TlbState;
-  if (authUserId) healAuthOwnerRole(next, authUserId);
-  next.currentUserId = user.id;
+  if (authUserId) healAuthOwnerIdentity(next, authUserId, email);
+  const boundId =
+    (authUserId && next.users.some((u) => u.id === authUserId) ? authUserId : undefined) ??
+    sessionUserId ??
+    user?.id;
+  if (boundId) next.currentUserId = boundId;
   syncSessionIdentity(next);
   return next;
 }
@@ -578,12 +704,19 @@ export function migrateState(raw: unknown): TlbState {
     users,
     currentUserId: parsed.currentUserId ?? OWNER_USER_ID,
     currentRoleId: parsed.currentRoleId ?? SYSTEM_ROLE_IDS.Owner,
-    currentUser: parsed.currentUser ?? "TLB Owner",
+    currentUser: parsed.currentUser ?? OWNER_DISPLAY_NAME,
     currentRole: parsed.currentRole ?? "Owner",
   };
 
   // Fix wrong demo identity: Kwame Asare / Manager → Owner session.
-  const legacyDemoNames = new Set(["Kwame Asare", "John Doe", "Mary Smith", "John", "Mary"]);
+  const legacyDemoNames = new Set([
+    "Kwame Asare",
+    "John Doe",
+    "Mary Smith",
+    "John",
+    "Mary",
+    "Efua Addo",
+  ]);
   if (
     priorVersion < 5 ||
     legacyDemoNames.has(next.currentUser) ||
@@ -593,8 +726,9 @@ export function migrateState(raw: unknown): TlbState {
     next.currentUserId = OWNER_USER_ID;
     const owner = next.users.find((u) => u.id === OWNER_USER_ID);
     if (owner) {
-      owner.name = "TLB Owner";
+      owner.name = OWNER_DISPLAY_NAME;
       owner.roleId = SYSTEM_ROLE_IDS.Owner;
+      owner.email = PORTAL_OWNER_AUTH_EMAIL;
     }
   }
 

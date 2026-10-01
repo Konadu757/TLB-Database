@@ -1,4 +1,4 @@
-import { createSystemRoles, OWNER_USER_ID, SYSTEM_ROLE_IDS } from "../domain/permissions";
+import { createSystemRoles, OWNER_DISPLAY_NAME, OWNER_USER_ID, PORTAL_OWNER_AUTH_EMAIL, SYSTEM_ROLE_IDS } from "../domain/permissions";
 import { DEFAULT_INVENTORY_SETTINGS } from "../domain/inventory";
 import { defaultOpsApprovalRules } from "../domain/ops-hub";
 import type { TlbState } from "../domain/types";
@@ -19,15 +19,15 @@ export function createSeedState(): TlbState {
   return {
     version: 14,
     currentUserId: OWNER_USER_ID,
-    currentUser: "TLB Owner",
+    currentUser: OWNER_DISPLAY_NAME,
     currentRoleId: SYSTEM_ROLE_IDS.Owner,
     currentRole: "Owner",
     roles,
     users: [
       {
         id: OWNER_USER_ID,
-        name: "TLB Owner",
-        email: "owner@tlb.gh",
+        name: OWNER_DISPLAY_NAME,
+        email: PORTAL_OWNER_AUTH_EMAIL,
         roleId: SYSTEM_ROLE_IDS.Owner,
         active: true,
       },

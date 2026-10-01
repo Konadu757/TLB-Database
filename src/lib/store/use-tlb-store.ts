@@ -165,7 +165,9 @@ export function useTlbStore() {
               authUserId: session.userId,
             })
           : loaded;
-        skipNextPersist.current = true;
+        // Persist Owner-identity heal so cloud auth_directory cannot keep
+        // resurrecting a Finance invitee name on the next hydrate.
+        skipNextPersist.current = bound === loaded;
         setState(bound);
         setHydrated(true);
       } catch (err) {
