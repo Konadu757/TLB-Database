@@ -2193,19 +2193,25 @@ function TLBDashboardInner() {
 
       <Dialog open={signOutConfirmOpen} onOpenChange={setSignOutConfirmOpen}>
         <DialogContent className="tlb-sign-out-dialog">
-          <DialogHeader>
+          <DialogHeader className="tlb-sign-out-dialog-header">
             <DialogTitle>Sign out?</DialogTitle>
             <DialogDescription>
               You will need to sign in again to open the portal. Cancel keeps you signed in.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setSignOutConfirmOpen(false)}>
+          <DialogFooter className="tlb-sign-out-actions">
+            <Button
+              type="button"
+              variant="secondary"
+              className="tlb-sign-out-cancel"
+              onClick={() => setSignOutConfirmOpen(false)}
+            >
               Cancel
             </Button>
             <Button
               type="button"
               variant="destructive"
+              className="tlb-sign-out-confirm"
               onClick={() => {
                 setSignOutConfirmOpen(false);
                 void signOut();
