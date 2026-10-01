@@ -9,11 +9,33 @@ import type { HostedInviteAcceptance } from "@/lib/store/tlb-store";
 
 type RpcResult = { data: unknown; error: { message: string } | null };
 
+const CLOUD_INVITE_TIMEOUT_MS = 10_000;
+
 async function rpc(fn: string, args: Record<string, unknown>): Promise<RpcResult> {
   const client = supabase as unknown as {
     rpc: (name: string, params: Record<string, unknown>) => Promise<RpcResult>;
   };
   return client.rpc(fn, args);
+}
+
+async function rpcWithTimeout(
+  fn: string,
+  args: Record<string, unknown>,
+  timeoutMs = CLOUD_INVITE_TIMEOUT_MS,
+): Promise<RpcResult> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      rpc(fn, args),
+      new Promise<RpcResult>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error(`Timed out after ${Math.round(timeoutMs / 1000)}s waiting for ${fn}.`));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 export async function createInviteOnSupabase(input: {
@@ -25,7 +47,7 @@ export async function createInviteOnSupabase(input: {
   replacesToken?: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const { data, error } = await rpc("create_invite", {
+    const { data, error } = await rpcWithTimeout("create_invite", {
       p_email: input.email,
       p_full_name: input.fullName,
       p_role_code: input.roleCode,
@@ -48,7 +70,7 @@ export async function acceptInviteOnSupabase(input: {
   code?: string;
 }): Promise<{ ok: true; data: HostedInviteAcceptance } | { ok: false; error: string }> {
   try {
-    const { data, error } = await rpc("accept_invite", {
+    const { data, error } = await rpcWithTimeout("accept_invite", {
       p_token: input.token ?? null,
       p_access_code: input.code ?? null,
     });

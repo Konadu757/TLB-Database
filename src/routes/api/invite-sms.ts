@@ -48,7 +48,11 @@ export const Route = createFileRoute("/api/invite-sms")({
         });
 
         if (result.ok) {
-          return Response.json({ ok: true });
+          return Response.json({
+            ok: true,
+            ...(result.messageId ? { messageId: result.messageId } : {}),
+            ...(result.provider ? { provider: result.provider } : {}),
+          });
         }
         if (result.notConfigured) {
           return Response.json(
@@ -56,7 +60,15 @@ export const Route = createFileRoute("/api/invite-sms")({
             { status: 503 },
           );
         }
-        return Response.json({ ok: false, error: result.error }, { status: 502 });
+        return Response.json(
+          {
+            ok: false,
+            error: result.error,
+            ...(result.messageId ? { messageId: result.messageId } : {}),
+            ...(result.provider ? { provider: result.provider } : {}),
+          },
+          { status: 502 },
+        );
       },
     },
   },

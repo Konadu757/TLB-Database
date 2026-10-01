@@ -96,7 +96,9 @@ function InviteDeliveryLine({
             : status === "skipped"
               ? "Skipped"
               : status === "pending"
-                ? "Sending…"
+                ? label === "Cloud"
+                  ? "Saving…"
+                  : "Sending…"
                 : status;
   return (
     <div
@@ -298,12 +300,8 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
   useEffect(() => {
     if (!store.lastInvite) return;
     invitePanelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [
-    store.lastInvite?.userId,
-    store.lastInvite?.inviteCode,
-    store.lastInvite?.delivery.email,
-    store.lastInvite?.delivery.sms,
-  ]);
+    // Scroll only when a new invite code appears — not on every email/SMS status tick.
+  }, [store.lastInvite?.userId, store.lastInvite?.inviteCode]);
 
   const copyInviteValue = async (key: string, value: string) => {
     const ok = await copyToClipboard(value);
@@ -445,7 +443,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                     Invitation ready for {store.lastInvite.name}
                   </strong>
                   <span className="tlb-muted-line" style={{ fontSize: "0.75rem", margin: 0 }}>
-                    Check Email and SMS status below — do not leave until both update
+                    Code and link are ready to copy. Email/SMS status updates below.
                   </span>
                 </div>
                 <p className="tlb-muted-line" style={{ margin: 0 }}>

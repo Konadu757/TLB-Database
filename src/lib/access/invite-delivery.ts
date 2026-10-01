@@ -46,7 +46,8 @@ export const BUILTIN_INVITE_MAIL_PATH = "/api/invite-email";
 /** Built-in same-origin SMS route (Arkesel preferred; Termii then Twilio fallback on the server). */
 export const BUILTIN_INVITE_SMS_PATH = "/api/invite-sms";
 
-const INVITE_FETCH_TIMEOUT_MS = 25_000;
+/** Client budget for /api/invite-email and /api/invite-sms — keep Re-issue snappy. */
+const INVITE_FETCH_TIMEOUT_MS = 12_000;
 
 /**
  * Optional POST URL override that accepts { to, name, inviteCode, inviteLink, role? }.

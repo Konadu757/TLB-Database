@@ -286,8 +286,10 @@ export function useTlbStore() {
     });
     const snap = inviteSnapshot(user, delivery);
     if (snap) setLastInvite(snap);
-    // Replace any prior “User saved” / “Role assigned” flash immediately.
-    setNotice("Invitation ready below — sending email and SMS…");
+    // Show code/link immediately — never block the UI on email/SMS/cloud finishing.
+    setNotice(
+      "Invitation ready below — copy the code or link now. Email and SMS are sending in the background.",
+    );
     setError(null);
 
     if (willPublishCloud) {
@@ -448,18 +450,9 @@ export function useTlbStore() {
       }
 
       const summary = `Invitation ready below. ${lines.join(" · ")}`;
-      // Any channel that did not succeed is a hard fail — never leave only “user saved”.
-      const emailOk = emailResult.ok === true;
-      const smsOk = smsResult.ok === true || (smsSkipped && !phone);
-      const hardFail = !emailOk || !smsOk || emailNotConfigured || smsNotConfigured;
-
-      if (hardFail) {
-        setError(summary);
-        setNotice(null);
-      } else {
-        setNotice(summary);
-        setError(null);
-      }
+      // Code/link stay usable regardless of channel outcome; panel shows per-channel status.
+      setNotice(summary);
+      setError(null);
     });
   };
 
@@ -640,7 +633,7 @@ export function useTlbStore() {
         (s) => upsertAppUser(s, input),
         input.id
           ? "Staff details saved. Email/SMS were NOT sent — click Re-issue on the staff row to deliver the invite."
-          : "Role assigned — preparing invitation…",
+          : "Role assigned — invitation ready below; sending email/SMS in background…",
       );
       if (result.ok && !input.id && result.data) {
         deliverStaffInvite(result.data as AppUser);
@@ -651,7 +644,7 @@ export function useTlbStore() {
       const previousToken = state.users.find((user) => user.id === userId)?.inviteToken;
       const result = applyCapture(
         (s) => issueUserInvite(s, userId),
-        "Invite re-issued — preparing email/SMS…",
+        "Invite re-issued — code ready below; sending email/SMS in background…",
       );
       if (result.ok && result.data) {
         deliverStaffInvite(result.data as AppUser, previousToken);

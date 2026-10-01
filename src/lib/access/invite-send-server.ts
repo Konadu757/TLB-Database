@@ -5,26 +5,53 @@
  */
 
 import {
+  isNormalizedGhanaMsisdn,
   looksLikePhoneNumber,
   normalizePhoneDigits,
   normalizePhoneForSms,
 } from "@/lib/access/invite-phone";
 
 export type InviteSendResult =
-  | { ok: true }
+  | { ok: true; messageId?: string; provider?: string }
   | { ok: false; notConfigured: true; error: string }
-  | { ok: false; notConfigured?: false; error: string };
+  | { ok: false; notConfigured?: false; error: string; messageId?: string; provider?: string };
 
 export { looksLikePhoneNumber, normalizePhoneDigits, normalizePhoneForSms };
 
 const DEFAULT_ARKESEL_BASE_URL = "https://sms.arkesel.com";
 const DEFAULT_TERMII_BASE_URL = "https://api.ng.termii.com";
+/** Per-provider HTTP budget — one hung gateway must not freeze Re-issue. */
+const PROVIDER_FETCH_TIMEOUT_MS = 8_000;
+/** Cap Arkesel → Termii → Twilio waterfall so SMS cannot run longer than ~12s. */
+const SMS_TOTAL_BUDGET_MS = 12_000;
 const SMS_NOT_CONFIGURED_MESSAGE =
   "SMS is not configured. Set ARKESEL_API_KEY and ARKESEL_SENDER_ID on the host (Vercel), then redeploy. TERMII_* and TWILIO_* remain supported as fallbacks.";
 
 function env(name: string): string {
   if (typeof process === "undefined" || !process.env) return "";
   return String(process.env[name] ?? "").trim();
+}
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs = PROVIDER_FETCH_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (
+      (err instanceof DOMException && err.name === "AbortError") ||
+      (err instanceof Error && err.name === "AbortError")
+    ) {
+      throw new Error(`Timed out after ${Math.round(timeoutMs / 1000)}s`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function basicAuthHeader(user: string, pass: string): string {
@@ -49,12 +76,29 @@ function twilioConfigured(): boolean {
   );
 }
 
+function rewriteResendError(raw: string): string {
+  const lower = raw.toLowerCase();
+  if (
+    lower.includes("testing email") ||
+    lower.includes("only send testing") ||
+    lower.includes("verify a domain") ||
+    (lower.includes("domain") && lower.includes("not verified"))
+  ) {
+    return `${raw} — Resend is limited until you verify the domain used in RESEND_FROM_EMAIL (Resend → Domains). Until then only the account owner address works. After a successful send, check Resend → Logs for delivery/bounce.`;
+  }
+  if (lower.includes("not delivered") || lower.includes("bounced") || lower.includes("suppressed")) {
+    return `${raw} — Open Resend → Logs for this message id / recipient.`;
+  }
+  return raw;
+}
+
 export async function sendInviteEmailWithResend(input: {
   to: string;
   name: string;
   inviteCode: string;
   inviteLink: string;
   role?: string;
+  timeoutMs?: number;
 }): Promise<InviteSendResult> {
   const apiKey = env("RESEND_API_KEY");
   const from = env("RESEND_FROM_EMAIL");
@@ -99,44 +143,65 @@ export async function sendInviteEmailWithResend(input: {
     <p>— TLB</p>
   `.trim();
 
+  const timeoutMs = input.timeoutMs ?? PROVIDER_FETCH_TIMEOUT_MS;
   try {
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
+    const response = await fetchWithTimeout(
+      "https://api.resend.com/emails",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from,
+          to: [to],
+          subject: "Your TLB portal access invite",
+          text,
+          html,
+        }),
       },
-      body: JSON.stringify({
-        from,
-        to: [to],
-        subject: "Your TLB portal access invite",
-        text,
-        html,
-      }),
-    });
+      timeoutMs,
+    );
 
+    const bodyText = await response.text().catch(() => "");
     if (!response.ok) {
-      const body = await response.text().catch(() => "");
       return {
         ok: false,
-        error: summarizeProviderError("Resend", response.status, body),
+        provider: "resend",
+        error: rewriteResendError(summarizeProviderError("Resend", response.status, bodyText)),
       };
     }
-    return { ok: true };
+
+    let messageId: string | undefined;
+    if (bodyText.trim()) {
+      try {
+        const parsed = JSON.parse(bodyText) as { id?: unknown };
+        if (typeof parsed.id === "string" && parsed.id.trim()) {
+          messageId = parsed.id.trim();
+        }
+      } catch {
+        // ignore non-JSON success body
+      }
+    }
+
+    return { ok: true, provider: "resend", ...(messageId ? { messageId } : {}) };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: message };
+    return { ok: false, provider: "resend", error: message };
   }
 }
 
 /**
  * Arkesel SMS v2 — POST {base}/api/v2/sms/send
  * Auth: `api-key` header. Body: { sender, message, recipients[] }.
+ * Recipients: digits-only Ghana MSISDN `233XXXXXXXXX` (no leading +).
  * Docs: https://developers.arkesel.com/
  */
 export async function sendInviteSmsWithArkesel(input: {
   to: string;
   body: string;
+  timeoutMs?: number;
 }): Promise<InviteSendResult> {
   const apiKey = env("ARKESEL_API_KEY");
   const senderId = env("ARKESEL_SENDER_ID");
@@ -153,10 +218,16 @@ export async function sendInviteSmsWithArkesel(input: {
   }
 
   const to = normalizePhoneDigits(input.to);
-  if (!to || to.startsWith("0")) {
+  if (!to || to.startsWith("0") || !/^\d{10,15}$/.test(to)) {
     return {
       ok: false,
-      error: `Phone “${input.to.trim()}” could not be normalized to international format (e.g. 23324…).`,
+      error: `Phone “${input.to.trim()}” could not be normalized to international digits (e.g. 23324…).`,
+    };
+  }
+  if (to.startsWith("233") && !isNormalizedGhanaMsisdn(to)) {
+    return {
+      ok: false,
+      error: `Phone “${input.to.trim()}” normalized to “${to}” but Ghana MSISDN must be 233 + 9 digits.`,
     };
   }
   const message = input.body.trim();
@@ -166,60 +237,106 @@ export async function sendInviteSmsWithArkesel(input: {
 
   const baseUrl = (env("ARKESEL_BASE_URL") || DEFAULT_ARKESEL_BASE_URL).replace(/\/+$/, "");
   const url = `${baseUrl}/api/v2/sms/send`;
+  const timeoutMs = input.timeoutMs ?? PROVIDER_FETCH_TIMEOUT_MS;
 
   try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "api-key": apiKey,
+    const response = await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "api-key": apiKey,
+        },
+        body: JSON.stringify({
+          sender: senderId,
+          message,
+          // Official Arkesel send examples use digits-only 233… (no +).
+          recipients: [to],
+        }),
       },
-      body: JSON.stringify({
-        sender: senderId,
-        message,
-        recipients: [to],
-      }),
-    });
+      timeoutMs,
+    );
 
     const text = await response.text().catch(() => "");
     if (!response.ok) {
       return {
         ok: false,
+        provider: "arkesel",
         error: summarizeProviderError("Arkesel", response.status, text),
       };
     }
 
-    // Arkesel returns HTTP 200 with { status: "success" | ... } for many outcomes.
-    if (text.trim()) {
-      try {
-        const parsed = JSON.parse(text) as {
-          status?: unknown;
-          message?: unknown;
-          data?: unknown;
-        };
-        const status = typeof parsed.status === "string" ? parsed.status.trim().toLowerCase() : "";
-        if (status && status !== "success") {
-          const msg =
-            typeof parsed.message === "string" && parsed.message.trim()
-              ? parsed.message.trim()
-              : status;
-          return { ok: false, error: `Arkesel: ${msg}` };
-        }
-      } catch {
-        // Non-JSON success body is fine.
-      }
+    // Arkesel returns HTTP 200 with { status: "success" | "error", message?, data? }.
+    // Never treat a bare 200 as success — parse JSON and require status === "success".
+    if (!text.trim()) {
+      return {
+        ok: false,
+        provider: "arkesel",
+        error: "Arkesel returned HTTP 200 with an empty body — treating as failure.",
+      };
     }
 
-    return { ok: true };
+    let parsed: {
+      status?: unknown;
+      message?: unknown;
+      code?: unknown;
+      data?: unknown;
+    };
+    try {
+      parsed = JSON.parse(text) as typeof parsed;
+    } catch {
+      return {
+        ok: false,
+        provider: "arkesel",
+        error: `Arkesel returned non-JSON body: ${text.trim().slice(0, 200)}`,
+      };
+    }
+
+    const status =
+      typeof parsed.status === "string"
+        ? parsed.status.trim().toLowerCase()
+        : typeof parsed.status === "number"
+          ? String(parsed.status)
+          : "";
+    if (status !== "success") {
+      const msg =
+        (typeof parsed.message === "string" && parsed.message.trim()) ||
+        (typeof parsed.code === "string" && parsed.code.trim()) ||
+        status ||
+        "unknown error";
+      return {
+        ok: false,
+        provider: "arkesel",
+        error: `Arkesel: ${msg} (HTTP 200, status=${status || "missing"})`,
+      };
+    }
+
+    let messageId: string | undefined;
+    const data = parsed.data;
+    if (data && typeof data === "object" && !Array.isArray(data)) {
+      const row = data as Record<string, unknown>;
+      const id =
+        (typeof row.id === "string" && row.id) ||
+        (typeof row.ID === "string" && row.ID) ||
+        (typeof row.message_id === "string" && row.message_id) ||
+        "";
+      if (id.trim()) messageId = id.trim();
+    } else if (typeof data === "string" && data.trim()) {
+      messageId = data.trim();
+    }
+
+    return { ok: true, provider: "arkesel", ...(messageId ? { messageId } : {}) };
   } catch (err) {
     const messageErr = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: messageErr };
+    return { ok: false, provider: "arkesel", error: messageErr };
   }
 }
 
 export async function sendInviteSmsWithTermii(input: {
   to: string;
   body: string;
+  timeoutMs?: number;
 }): Promise<InviteSendResult> {
   const apiKey = env("TERMII_API_KEY");
   const senderId = env("TERMII_SENDER_ID");
@@ -252,27 +369,33 @@ export async function sendInviteSmsWithTermii(input: {
   const channelRaw = env("TERMII_CHANNEL").toLowerCase();
   const channel = channelRaw === "generic" ? "generic" : "dnd";
   const url = `${baseUrl}/api/sms/send`;
+  const timeoutMs = input.timeoutMs ?? PROVIDER_FETCH_TIMEOUT_MS;
 
   try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+    const response = await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          api_key: apiKey,
+          to,
+          from: senderId,
+          sms,
+          type: "plain",
+          channel,
+        }),
       },
-      body: JSON.stringify({
-        api_key: apiKey,
-        to,
-        from: senderId,
-        sms,
-        type: "plain",
-        channel,
-      }),
-    });
+      timeoutMs,
+    );
 
     const text = await response.text().catch(() => "");
     if (!response.ok) {
       return {
         ok: false,
+        provider: "termii",
         error: summarizeProviderError("Termii", response.status, text),
       };
     }
@@ -291,23 +414,29 @@ export async function sendInviteSmsWithTermii(input: {
             typeof parsed.message === "string" && parsed.message.trim()
               ? parsed.message.trim()
               : code;
-          return { ok: false, error: `Termii: ${msg}` };
+          return { ok: false, provider: "termii", error: `Termii: ${msg}` };
         }
+        const messageId =
+          typeof parsed.message_id === "string" && parsed.message_id.trim()
+            ? parsed.message_id.trim()
+            : undefined;
+        return { ok: true, provider: "termii", ...(messageId ? { messageId } : {}) };
       } catch {
         // Non-JSON success body is fine.
       }
     }
 
-    return { ok: true };
+    return { ok: true, provider: "termii" };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: message };
+    return { ok: false, provider: "termii", error: message };
   }
 }
 
 export async function sendInviteSmsWithTwilio(input: {
   to: string;
   body: string;
+  timeoutMs?: number;
 }): Promise<InviteSendResult> {
   const accountSid = env("TWILIO_ACCOUNT_SID");
   const authToken = env("TWILIO_AUTH_TOKEN");
@@ -336,49 +465,114 @@ export async function sendInviteSmsWithTwilio(input: {
     From: from,
     Body: body,
   });
+  const timeoutMs = input.timeoutMs ?? PROVIDER_FETCH_TIMEOUT_MS;
 
   try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: basicAuthHeader(accountSid, authToken),
-        "Content-Type": "application/x-www-form-urlencoded",
+    const response = await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+        headers: {
+          Authorization: basicAuthHeader(accountSid, authToken),
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: form.toString(),
       },
-      body: form.toString(),
-    });
+      timeoutMs,
+    );
 
+    const text = await response.text().catch(() => "");
     if (!response.ok) {
-      const text = await response.text().catch(() => "");
       return {
         ok: false,
+        provider: "twilio",
         error: summarizeProviderError("Twilio", response.status, text),
       };
     }
-    return { ok: true };
+    let messageId: string | undefined;
+    if (text.trim()) {
+      try {
+        const parsed = JSON.parse(text) as { sid?: unknown };
+        if (typeof parsed.sid === "string" && parsed.sid.trim()) {
+          messageId = parsed.sid.trim();
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return { ok: true, provider: "twilio", ...(messageId ? { messageId } : {}) };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: message };
+    return { ok: false, provider: "twilio", error: message };
   }
 }
 
-/** Prefer Arkesel when configured; then Termii; then Twilio; otherwise notConfigured. */
+/**
+ * Prefer Arkesel when configured; on failure/timeout fall through to Termii then Twilio.
+ * Total SMS wall time is capped by SMS_TOTAL_BUDGET_MS so Re-issue stays responsive.
+ */
 export async function sendInviteSms(input: {
   to: string;
   body: string;
 }): Promise<InviteSendResult> {
-  if (arkeselConfigured()) {
-    return sendInviteSmsWithArkesel(input);
+  type Attempt = {
+    label: string;
+    configured: boolean;
+    send: (timeoutMs: number) => Promise<InviteSendResult>;
+  };
+
+  const attempts: Attempt[] = [
+    {
+      label: "Arkesel",
+      configured: arkeselConfigured(),
+      send: (timeoutMs) => sendInviteSmsWithArkesel({ ...input, timeoutMs }),
+    },
+    {
+      label: "Termii",
+      configured: termiiConfigured(),
+      send: (timeoutMs) => sendInviteSmsWithTermii({ ...input, timeoutMs }),
+    },
+    {
+      label: "Twilio",
+      configured: twilioConfigured(),
+      send: (timeoutMs) => sendInviteSmsWithTwilio({ ...input, timeoutMs }),
+    },
+  ];
+
+  const configured = attempts.filter((a) => a.configured);
+  if (configured.length === 0) {
+    return {
+      ok: false,
+      notConfigured: true,
+      error: SMS_NOT_CONFIGURED_MESSAGE,
+    };
   }
-  if (termiiConfigured()) {
-    return sendInviteSmsWithTermii(input);
+
+  const started = Date.now();
+  const errors: string[] = [];
+
+  for (const attempt of configured) {
+    const remaining = SMS_TOTAL_BUDGET_MS - (Date.now() - started);
+    if (remaining < 1_500) {
+      errors.push(`${attempt.label} skipped (SMS time budget exhausted)`);
+      break;
+    }
+    const timeoutMs = Math.min(PROVIDER_FETCH_TIMEOUT_MS, remaining);
+    const result = await attempt.send(timeoutMs);
+    if (result.ok) return result;
+    if ("notConfigured" in result && result.notConfigured) {
+      // Should not happen when filtered by configured(), but skip cleanly.
+      continue;
+    }
+    errors.push(result.error);
   }
-  if (twilioConfigured()) {
-    return sendInviteSmsWithTwilio(input);
-  }
+
   return {
     ok: false,
-    notConfigured: true,
-    error: SMS_NOT_CONFIGURED_MESSAGE,
+    error:
+      errors.length > 0
+        ? errors.join(" → ")
+        : "All configured SMS providers failed.",
   };
 }
 
