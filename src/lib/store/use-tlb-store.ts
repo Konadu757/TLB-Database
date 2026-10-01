@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   initialInviteDelivery,
+  looksLikePhoneNumber,
   trySendInviteEmail,
+  trySendInviteSms,
   type InviteDeliveryStatus,
 } from "@/lib/access/invite-delivery";
 import { acceptInviteOnSupabase, createInviteOnSupabase } from "@/lib/access/supabase-invites";
@@ -265,6 +267,9 @@ export function useTlbStore() {
     if (!user.inviteToken || !user.inviteCode) return;
     const inviteLink = buildInviteLink(user.inviteToken);
     const willPublishCloud = repo.backend === "supabase";
+    const roleName =
+      state.roles.find((role) => role.id === user.roleId && !role.deletedAt)?.name ??
+      undefined;
     const delivery = initialInviteDelivery({
       name: user.name,
       inviteCode: user.inviteCode,
@@ -312,6 +317,7 @@ export function useTlbStore() {
       name: user.name,
       inviteCode: user.inviteCode,
       inviteLink,
+      ...(roleName ? { role: roleName } : {}),
     }).then((result) => {
       if (result.ok) {
         patchLastInviteDelivery(user.id, {
@@ -323,7 +329,8 @@ export function useTlbStore() {
       if (result.notConfigured) {
         patchLastInviteDelivery(user.id, {
           email: "not_configured",
-          emailNote: delivery.emailNote,
+          emailNote:
+            "Email was not sent — Resend is not configured. Copy the link or code below. On Vercel set RESEND_API_KEY and RESEND_FROM_EMAIL (server only, never VITE_*), then redeploy.",
         });
         return;
       }
@@ -332,6 +339,36 @@ export function useTlbStore() {
         emailNote: `Email was not sent: ${result.error}. Copy the invite below.`,
       });
     });
+
+    const phone = user.contact?.trim();
+    if (phone && looksLikePhoneNumber(phone)) {
+      void trySendInviteSms({
+        to: phone,
+        name: user.name,
+        inviteCode: user.inviteCode,
+        inviteLink,
+        body: delivery.smsBody,
+      }).then((result) => {
+        if (result.ok) {
+          patchLastInviteDelivery(user.id, {
+            sms: "sent",
+            smsNote: `SMS sent to ${phone}.`,
+          });
+          return;
+        }
+        if (result.notConfigured) {
+          patchLastInviteDelivery(user.id, {
+            sms: "not_configured",
+            smsNote: `SMS was not sent — Twilio is not configured. Contact on file: ${phone}. Copy the SMS text below. On Vercel set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_NUMBER (server only, never VITE_*), then redeploy.`,
+          });
+          return;
+        }
+        patchLastInviteDelivery(user.id, {
+          sms: "failed",
+          smsNote: `SMS was not sent: ${result.error}. Copy the SMS text below.`,
+        });
+      });
+    }
   };
 
   const outstanding = useMemo(() => getOutstandingRows(state), [state]);

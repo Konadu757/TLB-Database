@@ -197,7 +197,7 @@ Stop. Leave the SQL Editor as it is.
 
 ## How a second person signs in
 
-Invites are access codes inside the portal. When the Supabase environment is set, Settings also calls `public.create_invite`, and the access page calls `public.accept_invite`. Email is only attempted when `VITE_TLB_INVITE_MAIL_ENDPOINT` is set; otherwise the Owner copies the code/link from Settings. `accept_invite` stores a profile and a role. It does not create a password the person can type into Supabase Authentication, and it does not open a GoTrue session.
+Invites are access codes inside the portal. When the Supabase environment is set, Settings also calls `public.create_invite`, and the access page calls `public.accept_invite`. After assign, the portal POSTs to same-origin `/api/invite-email` (Resend) and, when contact looks like a phone, `/api/invite-sms` (Twilio). Those routes read server env only. If the keys are missing, the **Invitation ready** panel still shows the code/link and says email/SMS were not sent. `accept_invite` stores a profile and a role. It does not create a password the person can type into Supabase Authentication, and it does not open a GoTrue session.
 
 ### Invite bootstrap (anon execute stays)
 
@@ -212,20 +212,45 @@ The steps:
 1. An administrator opens [https://portal.tlbgh.com](https://portal.tlbgh.com) and goes to **Settings → Users & role assignment**.
 2. Enter name, contact, email, and role, then choose **Assign role** (or **Re-issue** on a pending row).
 3. Directly under the form, the green **Invitation ready** panel shows the access code (`TLB-XXXX-XXXX`) and the full `/access?invite=…` link. Use **Copy access code**, **Copy invite link**, or **Copy SMS text**. The panel stays until you dismiss it.
-4. Email and SMS are not sent by the portal unless mail is configured (see below). Share the copied link or code yourself. Treat them like a password.
+4. The panel lists cloud / email / SMS status honestly (sent, not configured, or failed). Copy buttons stay available either way. Treat the code and link like a password.
 5. The other person opens the link (`https://portal.tlbgh.com/access?invite=...`) or opens [https://portal.tlbgh.com/access](https://portal.tlbgh.com/access), types the code, and chooses **Sign in**.
 6. Wait until the button says **Sign in** rather than **Loading**. They should land on the dashboard as that person.
 7. If the page says the invite is invalid or expired, the administrator refreshes the portal once (so the user list can finish saving) and sends the code again. A brand-new code from **Re-issue** replaces the old one.
 
-### Email and SMS (optional)
+### Email and SMS (Resend + Twilio on Vercel)
 
-The portal never puts Resend, Twilio, or the Supabase **service_role** key in a `VITE_` variable.
+The portal never puts Resend, Twilio, or the Supabase **service_role** key in a `VITE_` variable. Delivery runs only on the server routes `/api/invite-email` and `/api/invite-sms`.
 
-- **Today:** after assign, the Owner copies the code/link (or SMS text) and sends it manually. Contact stays on the person record.
-- **Email later (smallest paths):**
-  1. Host a small server (or Vercel serverless) that sends mail with **Resend**. Set `VITE_TLB_INVITE_MAIL_ENDPOINT` on the portal host to that URL. The portal POSTs `{ to, name, inviteCode, inviteLink }`. Keep the Resend API key only on that server.
-  2. Or call Supabase Auth `inviteUserByEmail` from a server that has `SUPABASE_SERVICE_ROLE_KEY` (never in the browser). That emails a Supabase Auth invite, which is separate from the portal access code flow.
-- **SMS:** no SMS provider is in this repo. Do not invent Twilio keys. Use **Copy SMS text** and send from your phone, or add a provider later on a server.
+**Required Production env vars** on Vercel project `tlb-management-system` (Production + Preview if you test previews):
+
+| Name | Purpose |
+|------|---------|
+| `RESEND_API_KEY` | Resend API key (Dashboard → API Keys) |
+| `RESEND_FROM_EMAIL` | Verified from address, e.g. `TLB Portal <invites@yourdomain.com>` |
+| `TWILIO_ACCOUNT_SID` | Twilio Account SID |
+| `TWILIO_AUTH_TOKEN` | Twilio Auth Token |
+| `TWILIO_FROM_NUMBER` | Twilio SMS-capable from number (E.164, e.g. `+15551234567`) |
+
+Optional client override (usually leave unset): `VITE_TLB_INVITE_MAIL_ENDPOINT` — if set, the browser POSTs mail there instead of `/api/invite-email`.
+
+**Owner setup steps**
+
+1. Create a [Resend](https://resend.com) account. Verify your sending domain (or use Resend’s onboarding from-address only for tests). Create an API key. Note the from address you will use.
+2. Create a [Twilio](https://www.twilio.com) account. Buy or enable an SMS number. Copy Account SID, Auth Token, and the From number.
+3. In Vercel → **tlb-management-system** → **Settings** → **Environment Variables**, add the five names above for **Production** (and Preview if needed). Paste the real values there — do not put them in the repo or in any `VITE_*` name.
+4. Redeploy Production (Deployments → … → Redeploy, or push a commit). Without a redeploy, server routes will not see new env.
+5. Assign a role again. The panel should say **Email sent to …** and **SMS sent to …** when keys are valid. If a key is missing, it still says not configured and Copy still works.
+
+CLI (names only; do not print secrets):
+
+```text
+npx vercel env add RESEND_API_KEY production
+npx vercel env add RESEND_FROM_EMAIL production
+npx vercel env add TWILIO_ACCOUNT_SID production
+npx vercel env add TWILIO_AUTH_TOKEN production
+npx vercel env add TWILIO_FROM_NUMBER production
+npx vercel env ls
+```
 
 Signing in this way switches the portal session. It does not create a password in Supabase Authentication, and it does not grant them the Supabase dashboard.
 

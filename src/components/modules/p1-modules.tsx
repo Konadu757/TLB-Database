@@ -649,9 +649,15 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                   className="tlb-muted-line"
                   style={{ margin: 0, paddingLeft: 18, fontSize: "0.75rem", lineHeight: 1.5 }}
                 >
-                  <li>{store.lastInvite.delivery.cloudNote}</li>
-                  <li>{store.lastInvite.delivery.emailNote}</li>
-                  <li>{store.lastInvite.delivery.smsNote}</li>
+                  <li>
+                    Cloud: {store.lastInvite.delivery.cloudNote}
+                  </li>
+                  <li>
+                    Email: {store.lastInvite.delivery.emailNote}
+                  </li>
+                  <li>
+                    SMS: {store.lastInvite.delivery.smsNote}
+                  </li>
                 </ul>
               </div>
             ) : null}

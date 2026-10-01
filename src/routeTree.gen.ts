@@ -13,6 +13,8 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as AccessRouteImport } from './routes/access'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppProfileRouteImport } from './routes/_app/profile'
+import { Route as ApiInviteEmailRouteImport } from './routes/api/invite-email'
+import { Route as ApiInviteSmsRouteImport } from './routes/api/invite-sms'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -33,15 +35,29 @@ const AppProfileRoute = AppProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => AppRoute,
 } as any)
+const ApiInviteEmailRoute = ApiInviteEmailRouteImport.update({
+  id: '/api/invite-email',
+  path: '/api/invite-email',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiInviteSmsRoute = ApiInviteSmsRouteImport.update({
+  id: '/api/invite-sms',
+  path: '/api/invite-sms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/access': typeof AccessRoute
   '/profile': typeof AppProfileRoute
+  '/api/invite-email': typeof ApiInviteEmailRoute
+  '/api/invite-sms': typeof ApiInviteSmsRoute
 }
 export interface FileRoutesByTo {
   '/access': typeof AccessRoute
   '/profile': typeof AppProfileRoute
+  '/api/invite-email': typeof ApiInviteEmailRoute
+  '/api/invite-sms': typeof ApiInviteSmsRoute
   '/': typeof AppIndexRoute
 }
 export interface FileRoutesById {
@@ -49,19 +65,31 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/access': typeof AccessRoute
   '/_app/profile': typeof AppProfileRoute
+  '/api/invite-email': typeof ApiInviteEmailRoute
+  '/api/invite-sms': typeof ApiInviteSmsRoute
   '/_app/': typeof AppIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/access' | '/profile'
+  fullPaths:
+    '/' | '/access' | '/profile' | '/api/invite-email' | '/api/invite-sms'
   fileRoutesByTo: FileRoutesByTo
-  to: '/access' | '/profile' | '/'
-  id: '__root__' | '/_app' | '/access' | '/_app/profile' | '/_app/'
+  to: '/access' | '/profile' | '/api/invite-email' | '/api/invite-sms' | '/'
+  id:
+    | '__root__'
+    | '/_app'
+    | '/access'
+    | '/_app/profile'
+    | '/api/invite-email'
+    | '/api/invite-sms'
+    | '/_app/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   AccessRoute: typeof AccessRoute
+  ApiInviteEmailRoute: typeof ApiInviteEmailRoute
+  ApiInviteSmsRoute: typeof ApiInviteSmsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -94,6 +122,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProfileRouteImport
       parentRoute: typeof AppRoute
     }
+    '/api/invite-email': {
+      id: '/api/invite-email'
+      path: '/api/invite-email'
+      fullPath: '/api/invite-email'
+      preLoaderRoute: typeof ApiInviteEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/invite-sms': {
+      id: '/api/invite-sms'
+      path: '/api/invite-sms'
+      fullPath: '/api/invite-sms'
+      preLoaderRoute: typeof ApiInviteSmsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -112,6 +154,8 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   AccessRoute: AccessRoute,
+  ApiInviteEmailRoute: ApiInviteEmailRoute,
+  ApiInviteSmsRoute: ApiInviteSmsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
