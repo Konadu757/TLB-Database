@@ -30,10 +30,20 @@ export function usePortalSignOut(): () => Promise<void> {
   );
 }
 
+/** Neutral shell while tab auth is still resolving — never the login form. */
+function PortalAuthResolving() {
+  return (
+    <div className="tlb-portal-resolving" aria-busy="true" aria-live="polite">
+      <span className="tlb-portal-resolving-label">Loading portal…</span>
+    </div>
+  );
+}
+
 /**
  * Withholds the dashboard until a Supabase Auth session exists for this tab.
  * A cold URL visit (no tab sign-in marker) clears any restored token and shows
- * the login screen. Refresh after a successful sign-in stays open.
+ * the login screen. Refresh after a successful sign-in stays open without
+ * flashing the login form while session state resolves.
  */
 export function PortalGate({ children }: { children: ReactNode }) {
   const [phase, setPhase] = useState<"checking" | "closed" | "open">("checking");
@@ -45,26 +55,39 @@ export function PortalGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     let stop = () => {};
+    let initialResolved = false;
 
     void (async () => {
       await discardRestoredSessionIfColdVisit();
       if (cancelled) return;
 
-      if (!hasTabAuthSession()) {
-        setPhase("closed");
-      }
+      const tabMarked = hasTabAuthSession();
 
-      let authEventSeen = false;
       stop = subscribePortalAuth((session) => {
         if (cancelled) return;
-        authEventSeen = true;
+        // While the first resolve is in flight, ignore null events from
+        // onAuthStateChange (e.g. INITIAL_SESSION before storage hydrate).
+        // A positive session may open early; closing waits for readPortalSession
+        // (or post-resolve sign-out / expiry).
+        if (!initialResolved) {
+          if (dashboardAllowed(session)) {
+            initialResolved = true;
+            setPhase("open");
+          }
+          return;
+        }
         setPhase(dashboardAllowed(session) ? "open" : "closed");
       });
 
-      if (!hasTabAuthSession()) return;
+      if (!tabMarked) {
+        initialResolved = true;
+        setPhase("closed");
+        return;
+      }
 
       const session = await readPortalSession();
-      if (cancelled || authEventSeen) return;
+      if (cancelled) return;
+      initialResolved = true;
       setPhase(dashboardAllowed(session) ? "open" : "closed");
     })();
 
@@ -75,19 +98,23 @@ export function PortalGate({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (phase === "checking") return;
     document.title =
-      phase !== "open"
+      phase === "closed"
         ? "Sign in | TLB Enterprise"
         : pathname === "/profile"
           ? "Profile | TLB Enterprise"
           : "Executive Dashboard | TLB Enterprise";
   }, [phase, pathname]);
 
-  if (phase !== "open") {
+  if (phase === "checking") {
+    return <PortalAuthResolving />;
+  }
+
+  if (phase === "closed") {
     return (
       <PortalLogin
         configured={configured}
-        checking={phase === "checking"}
         pending={pending}
         error={error}
         onSubmit={(email, password) => {

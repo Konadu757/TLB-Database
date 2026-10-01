@@ -5,13 +5,12 @@ import { SIGN_IN_REQUIRED } from "@/lib/auth/portal-auth";
 
 type PortalLoginProps = {
   configured: boolean;
-  checking: boolean;
   pending: boolean;
   error: string | null;
   onSubmit: (email: string, password: string) => void;
 };
 
-export function PortalLogin({ configured, checking, pending, error, onSubmit }: PortalLoginProps) {
+export function PortalLogin({ configured, pending, error, onSubmit }: PortalLoginProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -31,65 +30,61 @@ export function PortalLogin({ configured, checking, pending, error, onSubmit }: 
         </div>
         <div className="tlb-login-body">
           <div className="tlb-login-heading">
-            <strong>{checking ? "Checking session" : "Sign in"}</strong>
+            <strong>Sign in</strong>
           </div>
-          {checking ? (
-            <p className="tlb-login-status">Checking your session…</p>
-          ) : (
-            <form
-              className="tlb-form-grid tlb-login-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                onSubmit(email, password);
-              }}
-            >
-              {!configured ? (
-                <p className="tlb-login-error tlb-span-2">{SIGN_IN_REQUIRED}</p>
-              ) : null}
-              <label className="tlb-span-2">
-                Email
+          <form
+            className="tlb-form-grid tlb-login-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onSubmit(email, password);
+            }}
+          >
+            {!configured ? (
+              <p className="tlb-login-error tlb-span-2">{SIGN_IN_REQUIRED}</p>
+            ) : null}
+            <label className="tlb-span-2">
+              Email
+              <input
+                type="email"
+                name="email"
+                autoComplete="username"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+                disabled={pending}
+              />
+            </label>
+            <label className="tlb-span-2">
+              Password
+              <span className="tlb-login-password">
                 <input
-                  type="email"
-                  name="email"
-                  autoComplete="username"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
                   required
                   disabled={pending}
                 />
-              </label>
-              <label className="tlb-span-2">
-                Password
-                <span className="tlb-login-password">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    name="password"
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    required
-                    disabled={pending}
-                  />
-                  <button
-                    type="button"
-                    className="tlb-login-reveal"
-                    aria-pressed={showPassword}
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                    onClick={() => setShowPassword((visible) => !visible)}
-                    disabled={pending}
-                  >
-                    {showPassword ? "Hide" : "Show"}
-                  </button>
-                </span>
-              </label>
-              {error ? <p className="tlb-login-error tlb-span-2">{error}</p> : null}
-              <div className="tlb-form-actions tlb-span-2">
-                <button className="tlb-login-submit" type="submit" disabled={pending}>
-                  {pending ? "Checking…" : "Sign in"}
+                <button
+                  type="button"
+                  className="tlb-login-reveal"
+                  aria-pressed={showPassword}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  disabled={pending}
+                >
+                  {showPassword ? "Hide" : "Show"}
                 </button>
-              </div>
-            </form>
-          )}
+              </span>
+            </label>
+            {error ? <p className="tlb-login-error tlb-span-2">{error}</p> : null}
+            <div className="tlb-form-actions tlb-span-2">
+              <button className="tlb-login-submit" type="submit" disabled={pending}>
+                {pending ? "Checking…" : "Sign in"}
+              </button>
+            </div>
+          </form>
         </div>
       </section>
     </div>

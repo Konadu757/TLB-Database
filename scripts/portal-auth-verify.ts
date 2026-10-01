@@ -57,9 +57,13 @@ assert.match(styles, /\.tlb-login-form input[\s\S]*border-radius:\s*999px/);
 
 assert.match(layout, /<PortalGate>[\s\S]*<TLBDashboard \/>[\s\S]*<\/PortalGate>/);
 assert.match(gate, /useState<"checking" \| "closed" \| "open">\("checking"\)/);
-assert.match(gate, /if \(phase !== "open"\)/);
+assert.match(gate, /if \(phase === "checking"\)/);
+assert.match(gate, /PortalAuthResolving/);
+assert.match(gate, /if \(phase === "closed"\)/);
 assert.match(gate, /sessionFromSignIn\(result\)/);
 assert.match(gate, /!result\.ok \|\| !dashboardAllowed\(session\)/);
+assert.match(styles, /\.tlb-portal-resolving/);
+assert.doesNotMatch(gate, /checking=\{/);
 assert.match(auth, /signInWithPassword/);
 assert.match(auth, /discardRestoredSessionIfColdVisit/);
 assert.match(auth, /hasTabAuthSession/);
@@ -72,4 +76,6 @@ assert.doesNotMatch(
 );
 assert.doesNotMatch(gate, /lockWorkspaceToOwner|currentUserId/);
 
-console.log("portal auth gate: cold visit requires login; failed sign-in stays closed");
+console.log(
+  "portal auth gate: checking shows neutral shell; cold visit requires login; failed sign-in stays closed",
+);

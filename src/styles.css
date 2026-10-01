@@ -2142,18 +2142,80 @@ button.tlb-user-action:focus-visible {
   font-size: 11px;
   line-height: 1.4;
 }
+/* Sign-out confirm — same floating-panel family as quick actions / trash dialogs */
 .tlb-sign-out-dialog {
-  max-width: 420px;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  background: var(--popover);
-  box-shadow: 0 18px 48px color-mix(in oklab, var(--foreground) 16%, transparent);
+  max-width: 400px;
+  width: calc(100vw - 40px);
+  gap: 18px;
+  padding: 22px 22px 18px;
+  border: 0;
+  border-radius: 20px;
+  background: #ffffff;
+  color: #1f1630;
   font-family: var(--font-sans);
+  box-shadow:
+    0 18px 42px color-mix(in oklab, var(--tlb-purple) 16%, transparent),
+    0 2px 8px color-mix(in oklab, #1f1630 6%, transparent);
 }
 .tlb-sign-out-dialog [data-slot="dialog-title"],
 .tlb-sign-out-dialog h2 {
-  color: var(--foreground);
+  color: #6420D0;
+  font-size: 1.125rem;
   font-weight: 650;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+}
+.tlb-sign-out-dialog [data-slot="dialog-description"],
+.tlb-sign-out-dialog p {
+  margin: 0;
+  color: color-mix(in oklab, #1f1630 64%, transparent);
+  font-size: 0.875rem;
+  font-weight: 450;
+  line-height: 1.5;
+}
+.tlb-sign-out-dialog [data-slot="dialog-close"],
+.tlb-sign-out-dialog > button:last-child {
+  right: 14px;
+  top: 14px;
+  border-radius: 8px;
+  color: color-mix(in oklab, #1f1630 55%, transparent);
+}
+.tlb-sign-out-dialog [data-slot="dialog-close"]:hover,
+.tlb-sign-out-dialog > button:last-child:hover {
+  background: color-mix(in oklab, var(--tlb-purple) 8%, white);
+  color: #6420D0;
+  opacity: 1;
+}
+.tlb-sign-out-dialog .tlb-sign-out-actions {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+.tlb-sign-out-dialog .tlb-sign-out-cancel {
+  border: 0;
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--tlb-purple) 7%, #f6f4fc);
+  color: color-mix(in oklab, #1f1630 72%, var(--tlb-purple));
+  box-shadow: none;
+  font-weight: 600;
+}
+.tlb-sign-out-dialog .tlb-sign-out-cancel:hover {
+  background: color-mix(in oklab, var(--tlb-purple) 12%, #f6f4fc);
+  color: #6420D0;
+}
+.tlb-sign-out-dialog .tlb-sign-out-confirm {
+  border: 0;
+  border-radius: 10px;
+  background: var(--danger);
+  color: #fff;
+  box-shadow: 0 6px 16px color-mix(in oklab, var(--danger) 28%, transparent);
+  font-weight: 650;
+}
+.tlb-sign-out-dialog .tlb-sign-out-confirm:hover {
+  background: color-mix(in oklab, var(--danger) 86%, black);
+  color: #fff;
 }
 .tlb-cancel-grid { display: grid; gap: 8px; padding: 0 17px 16px; }
 .tlb-cancel-row { display: grid; grid-template-columns: minmax(140px, .8fr) minmax(0, 1.2fr) auto; gap: 8px; align-items: center; }
@@ -2964,6 +3026,18 @@ button.tlb-user-action:focus-visible {
 }
 
 /* Sign-in gate. Scoped so dashboard chrome, menus, and cards stay as they are. */
+.tlb-portal-resolving {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  background: #f6f4fc;
+  font-family: var(--font-sans);
+  color: color-mix(in oklab, #1a1228 55%, transparent);
+}
+.tlb-portal-resolving-label {
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+}
 .tlb-login {
   min-height: 100dvh;
   display: grid;
