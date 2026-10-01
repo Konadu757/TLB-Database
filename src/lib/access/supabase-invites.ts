@@ -9,7 +9,7 @@ import type { HostedInviteAcceptance } from "@/lib/store/tlb-store";
 
 type RpcResult = { data: unknown; error: { message: string } | null };
 
-const CLOUD_INVITE_TIMEOUT_MS = 10_000;
+const CLOUD_INVITE_TIMEOUT_MS = 6_000;
 
 export type HostedInvitePreview = {
   email: string;

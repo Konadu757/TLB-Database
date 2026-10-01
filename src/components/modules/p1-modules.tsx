@@ -70,10 +70,12 @@ function InviteDeliveryLine({
   label,
   status,
   note,
+  onRetry,
 }: {
   label: string;
   status: string;
   note: string;
+  onRetry?: () => void;
 }) {
   const tone = inviteDeliveryTone(status, label);
   const color =
@@ -100,6 +102,8 @@ function InviteDeliveryLine({
                   ? "Saving…"
                   : "Sending…"
                 : status;
+  const showRetry =
+    Boolean(onRetry) && (status === "failed" || status === "not_configured");
   return (
     <div className="tlb-invite-status-row">
       <strong style={{ fontSize: "0.8125rem", letterSpacing: "0.04em", textTransform: "uppercase" }}>
@@ -117,6 +121,16 @@ function InviteDeliveryLine({
       >
         {note}
       </span>
+      {showRetry ? (
+        <button
+          type="button"
+          className="tlb-user-action tlb-user-action--copy"
+          style={{ justifySelf: "start", height: 28, padding: "0 10px", fontSize: "0.75rem" }}
+          onClick={onRetry}
+        >
+          Retry
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -470,12 +484,22 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                     label="Email"
                     status={store.lastInvite.delivery.email}
                     note={store.lastInvite.delivery.emailNote}
+                    onRetry={() => store.retryInviteChannel("email")}
                   />
-                  <InviteDeliveryLine
-                    label="SMS"
-                    status={store.lastInvite.delivery.sms}
-                    note={store.lastInvite.delivery.smsNote}
-                  />
+                  {store.lastInvite.delivery.sms === "skipped" ? (
+                    <InviteDeliveryLine
+                      label="SMS"
+                      status={store.lastInvite.delivery.sms}
+                      note={store.lastInvite.delivery.smsNote}
+                    />
+                  ) : (
+                    <InviteDeliveryLine
+                      label="SMS"
+                      status={store.lastInvite.delivery.sms}
+                      note={store.lastInvite.delivery.smsNote}
+                      onRetry={() => store.retryInviteChannel("sms")}
+                    />
+                  )}
                   <InviteDeliveryLine
                     label="Cloud"
                     status={store.lastInvite.delivery.cloud}

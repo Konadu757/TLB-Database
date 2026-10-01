@@ -4,9 +4,11 @@ import {
   formatCloudInviteFailureNote,
   initialInviteDelivery,
   looksLikePhoneNumber,
+  tryDeliverInvite,
   trySendInviteEmail,
   trySendInviteSms,
   type InviteDeliveryStatus,
+  type SendClientResult,
 } from "@/lib/access/invite-delivery";
 import {
   acceptInviteOnSupabase,
@@ -360,132 +362,188 @@ export function useTlbStore() {
     const phone = user.contact?.trim();
     const willTrySms = Boolean(phone && looksLikePhoneNumber(phone));
 
-    const emailTask = trySendInviteEmail({
+    const applyEmailResult = (result: SendClientResult) => {
+      if (result.ok) {
+        patchLastInviteDelivery(user.id, {
+          email: "sent",
+          emailNote: `Email sent to ${user.email}.`,
+        });
+        return;
+      }
+      if (result.notConfigured) {
+        patchLastInviteDelivery(user.id, {
+          email: "not_configured",
+          emailNote:
+            "Email was not sent — Resend is not configured. Copy the link or code below. On Vercel set RESEND_API_KEY and RESEND_FROM_EMAIL (server only, never VITE_*), then redeploy.",
+        });
+        return;
+      }
+      patchLastInviteDelivery(user.id, {
+        email: "failed",
+        emailNote: `Email was not sent: ${result.error}. Copy the invite below.`,
+      });
+    };
+
+    const applySmsResult = (result: SendClientResult) => {
+      if (result.ok) {
+        patchLastInviteDelivery(user.id, {
+          sms: "sent",
+          smsNote: `SMS sent to ${phone}.`,
+        });
+        return;
+      }
+      if (result.notConfigured) {
+        patchLastInviteDelivery(user.id, {
+          sms: "not_configured",
+          smsNote: `SMS was not sent — SMS is not configured. Contact on file: ${phone}. Copy the SMS text below. On Vercel set ARKESEL_API_KEY and ARKESEL_SENDER_ID (Termii TERMII_* or Twilio TWILIO_* as fallback; server only, never VITE_*), then redeploy.`,
+        });
+        return;
+      }
+      patchLastInviteDelivery(user.id, {
+        sms: "failed",
+        smsNote: `SMS was not sent: ${result.error}. Copy the SMS text below.`,
+      });
+    };
+
+    // One serverless round-trip; email+SMS fan out in parallel on the server.
+    // Never awaited by Assign/Re-issue — panel + buttons stay interactive.
+    void tryDeliverInvite({
       to: user.email,
       name: user.name,
       inviteCode: user.inviteCode,
       inviteLink,
       ...(roleName ? { role: roleName } : {}),
+      ...(willTrySms && phone
+        ? { smsTo: phone, smsBody: delivery.smsBody }
+        : {}),
     })
-      .then((result) => {
-        if (result.ok) {
-          patchLastInviteDelivery(user.id, {
-            email: "sent",
-            emailNote: `Email sent to ${user.email}.`,
-          });
-          return { channel: "email" as const, ...result };
+      .then(({ email, sms }) => {
+        applyEmailResult(email);
+        if (willTrySms && sms) {
+          applySmsResult(sms);
         }
-        if (result.notConfigured) {
-          patchLastInviteDelivery(user.id, {
-            email: "not_configured",
-            emailNote:
-              "Email was not sent — Resend is not configured. Copy the link or code below. On Vercel set RESEND_API_KEY and RESEND_FROM_EMAIL (server only, never VITE_*), then redeploy.",
-          });
-          return { channel: "email" as const, ...result };
+
+        const lines: string[] = [];
+        if (email.ok) {
+          lines.push(`Email sent to ${user.email}`);
+        } else if (email.notConfigured) {
+          lines.push("Email not configured (set RESEND_* on Vercel)");
+        } else {
+          lines.push(`Email failed: ${email.error}`);
         }
-        patchLastInviteDelivery(user.id, {
-          email: "failed",
-          emailNote: `Email was not sent: ${result.error}. Copy the invite below.`,
-        });
-        return { channel: "email" as const, ...result };
+        if (!willTrySms) {
+          lines.push(delivery.smsNote);
+        } else if (sms?.ok) {
+          lines.push(`SMS sent to ${phone}`);
+        } else if (sms?.notConfigured) {
+          lines.push("SMS not configured (set ARKESEL_* on Vercel)");
+        } else {
+          lines.push(`SMS failed: ${sms?.error ?? "unknown error"}`);
+        }
+
+        setNotice(`Invitation ready below. ${lines.join(" · ")}`);
+        setError(null);
       })
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : String(err);
         patchLastInviteDelivery(user.id, {
           email: "failed",
           emailNote: `Email was not sent: ${message}. Copy the invite below.`,
+          ...(willTrySms
+            ? {
+                sms: "failed" as const,
+                smsNote: `SMS was not sent: ${message}. Copy the SMS text below.`,
+              }
+            : {}),
         });
-        return {
-          channel: "email" as const,
-          ok: false as const,
-          error: message,
-        };
+        setNotice(
+          `Invitation ready below. Delivery failed: ${message}. Use Retry on Email/SMS or copy the code/link.`,
+        );
+        setError(null);
       });
+  };
 
-    const smsTask = willTrySms
-      ? trySendInviteSms({
-          to: phone!,
-          name: user.name,
-          inviteCode: user.inviteCode,
-          inviteLink,
-          body: delivery.smsBody,
-        })
-          .then((result) => {
-            if (result.ok) {
-              patchLastInviteDelivery(user.id, {
-                sms: "sent",
-                smsNote: `SMS sent to ${phone}.`,
-              });
-              return { channel: "sms" as const, ...result };
-            }
-            if (result.notConfigured) {
-              patchLastInviteDelivery(user.id, {
-                sms: "not_configured",
-                smsNote: `SMS was not sent — SMS is not configured. Contact on file: ${phone}. Copy the SMS text below. On Vercel set ARKESEL_API_KEY and ARKESEL_SENDER_ID (Termii TERMII_* or Twilio TWILIO_* as fallback; server only, never VITE_*), then redeploy.`,
-              });
-              return { channel: "sms" as const, ...result };
-            }
-            patchLastInviteDelivery(user.id, {
-              sms: "failed",
-              smsNote: `SMS was not sent: ${result.error}. Copy the SMS text below.`,
-            });
-            return { channel: "sms" as const, ...result };
-          })
-          .catch((err: unknown) => {
-            const message = err instanceof Error ? err.message : String(err);
-            patchLastInviteDelivery(user.id, {
-              sms: "failed",
-              smsNote: `SMS was not sent: ${message}. Copy the SMS text below.`,
-            });
-            return {
-              channel: "sms" as const,
-              ok: false as const,
-              error: message,
-            };
-          })
-      : Promise.resolve({
-          channel: "sms" as const,
-          ok: false as const,
-          skipped: true as const,
-          error: delivery.smsNote,
+  const retryInviteChannel = (channel: "email" | "sms") => {
+    const invite = lastInvite;
+    if (!invite?.inviteCode || !invite.inviteToken) return;
+
+    const staff = state.users.find((u) => u.id === invite.userId);
+    const roleName = staff
+      ? state.roles.find((role) => role.id === staff.roleId && !role.deletedAt)?.name
+      : undefined;
+
+    if (channel === "email") {
+      patchLastInviteDelivery(invite.userId, {
+        email: "pending",
+        emailNote: "Retrying email…",
+      });
+      void trySendInviteEmail({
+        to: invite.email,
+        name: invite.name,
+        inviteCode: invite.inviteCode,
+        inviteLink: invite.inviteLink,
+        ...(roleName ? { role: roleName } : {}),
+      }).then((result) => {
+        if (result.ok) {
+          patchLastInviteDelivery(invite.userId, {
+            email: "sent",
+            emailNote: `Email sent to ${invite.email}.`,
+          });
+          return;
+        }
+        if (result.notConfigured) {
+          patchLastInviteDelivery(invite.userId, {
+            email: "not_configured",
+            emailNote:
+              "Email was not sent — Resend is not configured. Copy the link or code below. On Vercel set RESEND_API_KEY and RESEND_FROM_EMAIL (server only, never VITE_*), then redeploy.",
+          });
+          return;
+        }
+        patchLastInviteDelivery(invite.userId, {
+          email: "failed",
+          emailNote: `Email was not sent: ${result.error}. Copy the invite below.`,
         });
+      });
+      return;
+    }
 
-    void Promise.all([emailTask, smsTask]).then(([emailResult, smsResult]) => {
-      const emailNotConfigured =
-        !emailResult.ok && "notConfigured" in emailResult && emailResult.notConfigured === true;
-      const smsSkipped = "skipped" in smsResult && smsResult.skipped === true;
-      const smsNotConfigured =
-        !smsResult.ok &&
-        !smsSkipped &&
-        "notConfigured" in smsResult &&
-        smsResult.notConfigured === true;
-
-      const lines: string[] = [];
-      if (emailResult.ok) {
-        lines.push(`Email sent to ${user.email}`);
-      } else {
-        lines.push(
-          emailNotConfigured
-            ? "Email not configured (set RESEND_* on Vercel)"
-            : `Email failed: ${"error" in emailResult ? emailResult.error : "unknown error"}`,
-        );
+    const phone = invite.contact?.trim();
+    if (!phone || !looksLikePhoneNumber(phone)) {
+      patchLastInviteDelivery(invite.userId, {
+        sms: "skipped",
+        smsNote: invite.delivery.smsNote,
+      });
+      return;
+    }
+    patchLastInviteDelivery(invite.userId, {
+      sms: "pending",
+      smsNote: `Retrying SMS to ${phone}…`,
+    });
+    void trySendInviteSms({
+      to: phone,
+      name: invite.name,
+      inviteCode: invite.inviteCode,
+      inviteLink: invite.inviteLink,
+      body: invite.delivery.smsBody,
+    }).then((result) => {
+      if (result.ok) {
+        patchLastInviteDelivery(invite.userId, {
+          sms: "sent",
+          smsNote: `SMS sent to ${phone}.`,
+        });
+        return;
       }
-      if (smsSkipped) {
-        lines.push(delivery.smsNote);
-      } else if (smsResult.ok) {
-        lines.push(`SMS sent to ${phone}`);
-      } else {
-        lines.push(
-          smsNotConfigured
-            ? "SMS not configured (set ARKESEL_* on Vercel)"
-            : `SMS failed: ${"error" in smsResult ? smsResult.error : "unknown error"}`,
-        );
+      if (result.notConfigured) {
+        patchLastInviteDelivery(invite.userId, {
+          sms: "not_configured",
+          smsNote: `SMS was not sent — SMS is not configured. Contact on file: ${phone}. Copy the SMS text below. On Vercel set ARKESEL_API_KEY and ARKESEL_SENDER_ID (Termii TERMII_* or Twilio TWILIO_* as fallback; server only, never VITE_*), then redeploy.`,
+        });
+        return;
       }
-
-      const summary = `Invitation ready below. ${lines.join(" · ")}`;
-      // Code/link stay usable regardless of channel outcome; panel shows per-channel status.
-      setNotice(summary);
-      setError(null);
+      patchLastInviteDelivery(invite.userId, {
+        sms: "failed",
+        smsNote: `SMS was not sent: ${result.error}. Copy the SMS text below.`,
+      });
     });
   };
 
@@ -506,6 +564,7 @@ export function useTlbStore() {
       setNotice(null);
       setPersistError(null);
     },
+    retryInviteChannel,
     outstanding,
     can: (permission: Permission) => canPerm(state, permission),
     saveCustomer: (input: Parameters<typeof upsertCustomer>[1]) =>

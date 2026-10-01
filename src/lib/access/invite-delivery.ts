@@ -1,7 +1,8 @@
 /**
  * Staff invite delivery helpers (browser-safe).
  * Browser never holds Resend / Arkesel / Termii / Twilio / service-role secrets.
- * POSTs to same-origin /api/invite-email and /api/invite-sms (server reads env).
+ * Prefers same-origin /api/invite-deliver (email+SMS in parallel, one cold start).
+ * Fallback/retry: /api/invite-email and /api/invite-sms.
  * Optional override: VITE_TLB_INVITE_MAIL_ENDPOINT for a custom mail URL.
  */
 
@@ -45,9 +46,11 @@ function envFlag(name: string): string {
 export const BUILTIN_INVITE_MAIL_PATH = "/api/invite-email";
 /** Built-in same-origin SMS route (Arkesel preferred; Termii then Twilio fallback on the server). */
 export const BUILTIN_INVITE_SMS_PATH = "/api/invite-sms";
+/** Combined email+SMS fan-out (preferred — one serverless cold start). */
+export const BUILTIN_INVITE_DELIVER_PATH = "/api/invite-deliver";
 
-/** Client budget for /api/invite-email and /api/invite-sms — keep Re-issue snappy. */
-const INVITE_FETCH_TIMEOUT_MS = 12_000;
+/** Client budget for invite API routes — fail fast so UI never feels stuck. */
+const INVITE_FETCH_TIMEOUT_MS = 7_000;
 
 /**
  * Optional POST URL override that accepts { to, name, inviteCode, inviteLink, role? }.
@@ -59,6 +62,10 @@ export function inviteMailEndpoint(): string {
 
 export function inviteSmsEndpoint(): string {
   return BUILTIN_INVITE_SMS_PATH;
+}
+
+export function inviteDeliverEndpoint(): string {
+  return BUILTIN_INVITE_DELIVER_PATH;
 }
 
 export { looksLikePhoneNumber, normalizePhoneDigits, normalizePhoneForSms };
@@ -125,9 +132,40 @@ export function initialInviteDelivery(input: {
   };
 }
 
-type SendClientResult =
+export type SendClientResult =
   | { ok: true; messageId?: string; provider?: string }
   | { ok: false; error: string; notConfigured?: boolean; messageId?: string; provider?: string };
+
+function parseSendClientResult(data: unknown, fallbackError: string): SendClientResult {
+  if (!data || typeof data !== "object") {
+    return { ok: false, error: fallbackError };
+  }
+  const row = data as Record<string, unknown>;
+  const messageIdRaw = row["messageId"];
+  const providerRaw = row["provider"];
+  const messageId =
+    typeof messageIdRaw === "string" && messageIdRaw.trim() ? messageIdRaw.trim() : undefined;
+  const provider =
+    typeof providerRaw === "string" && providerRaw.trim() ? providerRaw.trim() : undefined;
+  if (row["ok"] === true) {
+    return {
+      ok: true,
+      ...(messageId ? { messageId } : {}),
+      ...(provider ? { provider } : {}),
+    };
+  }
+  const notConfigured = row["notConfigured"] === true;
+  const errorRaw = row["error"];
+  const error =
+    typeof errorRaw === "string" && errorRaw.trim() ? errorRaw.trim() : fallbackError;
+  return {
+    ok: false,
+    error,
+    ...(notConfigured ? { notConfigured: true } : {}),
+    ...(messageId ? { messageId } : {}),
+    ...(provider ? { provider } : {}),
+  };
+}
 
 async function postInviteJson(
   endpoint: string,
@@ -182,7 +220,7 @@ async function postInviteJson(
     const error =
       (typeof data?.error === "string" && data.error.trim()) ||
       (response.status === 404
-        ? `Invite API route missing (${endpoint}). Redeploy the portal so /api/invite-email and /api/invite-sms exist.`
+        ? `Invite API route missing (${endpoint}). Redeploy the portal so /api/invite-deliver (or /api/invite-email and /api/invite-sms) exist.`
         : `Endpoint returned ${response.status}.`);
 
     return {
@@ -244,4 +282,125 @@ export async function trySendInviteSms(input: {
     inviteLink: input.inviteLink,
     body: input.body,
   });
+}
+
+/**
+ * Preferred path: one POST → server fans out email + SMS in parallel.
+ * Falls back to dual client posts if /api/invite-deliver is missing (404).
+ */
+export async function tryDeliverInvite(input: {
+  to: string;
+  name: string;
+  inviteCode: string;
+  inviteLink: string;
+  role?: string;
+  smsTo?: string;
+  smsBody?: string;
+}): Promise<{ email: SendClientResult; sms: SendClientResult | null }> {
+  const customMail = Boolean(envFlag("VITE_TLB_INVITE_MAIL_ENDPOINT"));
+  // Custom mail endpoint cannot use the combined route — still fan out in parallel.
+  if (customMail) {
+    const [email, sms] = await Promise.all([
+      trySendInviteEmail({
+        to: input.to,
+        name: input.name,
+        inviteCode: input.inviteCode,
+        inviteLink: input.inviteLink,
+        ...(input.role ? { role: input.role } : {}),
+      }),
+      input.smsTo && looksLikePhoneNumber(input.smsTo)
+        ? trySendInviteSms({
+            to: input.smsTo,
+            name: input.name,
+            inviteCode: input.inviteCode,
+            inviteLink: input.inviteLink,
+            body: input.smsBody || "",
+          })
+        : Promise.resolve(null),
+    ]);
+    return { email, sms };
+  }
+
+  const payload: Record<string, string> = {
+    to: input.to,
+    name: input.name,
+    inviteCode: input.inviteCode,
+    inviteLink: input.inviteLink,
+  };
+  if (input.role?.trim()) payload["role"] = input.role.trim();
+  if (input.smsTo?.trim()) payload["smsTo"] = input.smsTo.trim();
+  if (input.smsBody?.trim()) payload["smsBody"] = input.smsBody.trim();
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), INVITE_FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(inviteDeliverEndpoint(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    if (response.status === 404) {
+      // Older deploy without combined route — parallel client posts.
+      const [email, sms] = await Promise.all([
+        trySendInviteEmail({
+          to: input.to,
+          name: input.name,
+          inviteCode: input.inviteCode,
+          inviteLink: input.inviteLink,
+          ...(input.role ? { role: input.role } : {}),
+        }),
+        input.smsTo && looksLikePhoneNumber(input.smsTo)
+          ? trySendInviteSms({
+              to: input.smsTo,
+              name: input.name,
+              inviteCode: input.inviteCode,
+              inviteLink: input.inviteLink,
+              body: input.smsBody || "",
+            })
+          : Promise.resolve(null),
+      ]);
+      return { email, sms };
+    }
+
+    let data: { email?: unknown; sms?: unknown; error?: unknown } | null = null;
+    try {
+      data = (await response.json()) as { email?: unknown; sms?: unknown; error?: unknown };
+    } catch {
+      data = null;
+    }
+
+    if (!data?.email) {
+      const error =
+        (typeof data?.error === "string" && data.error.trim()) ||
+        `Invite deliver returned ${response.status}.`;
+      return {
+        email: { ok: false, error },
+        sms: input.smsTo
+          ? { ok: false, error: "Combined deliver response missing channel results." }
+          : null,
+      };
+    }
+
+    return {
+      email: parseSendClientResult(data.email, "Email delivery failed."),
+      sms: data.sms == null ? null : parseSendClientResult(data.sms, "SMS delivery failed."),
+    };
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      const error = `Timed out after ${Math.round(INVITE_FETCH_TIMEOUT_MS / 1000)}s waiting for ${inviteDeliverEndpoint()}.`;
+      return {
+        email: { ok: false, error },
+        sms: input.smsTo ? { ok: false, error } : null,
+      };
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      email: { ok: false, error: message },
+      sms: input.smsTo ? { ok: false, error: message } : null,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
 }

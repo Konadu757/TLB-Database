@@ -20,10 +20,10 @@ export { looksLikePhoneNumber, normalizePhoneDigits, normalizePhoneForSms };
 
 const DEFAULT_ARKESEL_BASE_URL = "https://sms.arkesel.com";
 const DEFAULT_TERMII_BASE_URL = "https://api.ng.termii.com";
-/** Per-provider HTTP budget — one hung gateway must not freeze Re-issue. */
-const PROVIDER_FETCH_TIMEOUT_MS = 8_000;
-/** Cap Arkesel → Termii → Twilio waterfall so SMS cannot run longer than ~12s. */
-const SMS_TOTAL_BUDGET_MS = 12_000;
+/** Per-provider HTTP budget — fail fast so status chips leave “Sending…” quickly. */
+const PROVIDER_FETCH_TIMEOUT_MS = 5_000;
+/** Cap Arkesel → Termii → Twilio waterfall under a tight wall-clock budget. */
+const SMS_TOTAL_BUDGET_MS = 6_000;
 const SMS_NOT_CONFIGURED_MESSAGE =
   "SMS is not configured. Set ARKESEL_API_KEY and ARKESEL_SENDER_ID on the host (Vercel), then redeploy. TERMII_* and TWILIO_* remain supported as fallbacks.";
 
@@ -553,7 +553,7 @@ export async function sendInviteSms(input: {
 
   for (const attempt of configured) {
     const remaining = SMS_TOTAL_BUDGET_MS - (Date.now() - started);
-    if (remaining < 1_500) {
+    if (remaining < 1_000) {
       errors.push(`${attempt.label} skipped (SMS time budget exhausted)`);
       break;
     }
@@ -647,4 +647,81 @@ export function parseInviteSmsBody(raw: unknown): {
   const body = typeof data["body"] === "string" ? data["body"].trim() : undefined;
   if (!to || !name || !inviteCode || !inviteLink) return null;
   return { to, name, inviteCode, inviteLink, ...(body ? { body } : {}) };
+}
+
+/** Combined email+SMS body for /api/invite-deliver (single cold start, parallel fan-out). */
+export function parseInviteDeliverBody(raw: unknown): {
+  to: string;
+  name: string;
+  inviteCode: string;
+  inviteLink: string;
+  role?: string;
+  smsTo?: string;
+  smsBody?: string;
+} | null {
+  const email = parseInviteEmailBody(raw);
+  if (!email) return null;
+  if (!raw || typeof raw !== "object") return email;
+  const data = raw as Record<string, unknown>;
+  const smsTo =
+    (typeof data["smsTo"] === "string" && data["smsTo"].trim()) ||
+    (typeof data["phone"] === "string" && data["phone"].trim()) ||
+    "";
+  const smsBody = typeof data["smsBody"] === "string" ? data["smsBody"].trim() : undefined;
+  return {
+    ...email,
+    ...(smsTo ? { smsTo } : {}),
+    ...(smsBody ? { smsBody } : {}),
+  };
+}
+
+export function inviteSendResultToJson(result: InviteSendResult): Record<string, unknown> {
+  if (result.ok) {
+    return {
+      ok: true,
+      ...(result.messageId ? { messageId: result.messageId } : {}),
+      ...(result.provider ? { provider: result.provider } : {}),
+    };
+  }
+  return {
+    ok: false,
+    error: result.error,
+    ...("notConfigured" in result && result.notConfigured ? { notConfigured: true } : {}),
+    ...("messageId" in result && result.messageId ? { messageId: result.messageId } : {}),
+    ...("provider" in result && result.provider ? { provider: result.provider } : {}),
+  };
+}
+
+/**
+ * Fan out email + optional SMS in parallel on the server (one serverless cold start).
+ */
+export async function deliverInviteChannels(input: {
+  to: string;
+  name: string;
+  inviteCode: string;
+  inviteLink: string;
+  role?: string;
+  smsTo?: string;
+  smsBody?: string;
+}): Promise<{ email: InviteSendResult; sms: InviteSendResult | null }> {
+  const emailPromise = sendInviteEmailWithResend({
+    to: input.to,
+    name: input.name,
+    inviteCode: input.inviteCode,
+    inviteLink: input.inviteLink,
+    ...(input.role ? { role: input.role } : {}),
+  });
+
+  const smsTo = input.smsTo?.trim();
+  const smsPromise = smsTo
+    ? sendInviteSms({
+        to: smsTo,
+        body:
+          input.smsBody?.trim() ||
+          `TLB access for ${input.name}: code ${input.inviteCode}. Open ${input.inviteLink}`,
+      })
+    : Promise.resolve(null);
+
+  const [email, sms] = await Promise.all([emailPromise, smsPromise]);
+  return { email, sms };
 }
