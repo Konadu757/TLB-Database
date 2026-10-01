@@ -197,7 +197,7 @@ Stop. Leave the SQL Editor as it is.
 
 ## How a second person signs in
 
-Invites are access codes inside the portal. When the Supabase environment is set, Settings also calls `public.create_invite`, and the access page calls `public.accept_invite`. After assign, the portal POSTs to same-origin `/api/invite-email` (Resend) and, when contact looks like a phone, `/api/invite-sms` (Termii preferred; Twilio fallback). Those routes read server env only. If the keys are missing, the **Invitation ready** panel still shows the code/link and says email/SMS were not sent. `accept_invite` stores a profile and a role. It does not create a password the person can type into Supabase Authentication, and it does not open a GoTrue session.
+Invites are access codes inside the portal. When the Supabase environment is set, Settings also calls `public.create_invite`, and the access page calls `public.accept_invite`. After assign, the portal POSTs to same-origin `/api/invite-email` (Resend) and, when contact looks like a phone, `/api/invite-sms` (Arkesel preferred; Termii then Twilio fallback). Those routes read server env only. If the keys are missing, the **Invitation ready** panel still shows the code/link and says email/SMS were not sent. `accept_invite` stores a profile and a role. It does not create a password the person can type into Supabase Authentication, and it does not open a GoTrue session.
 
 ### Invite bootstrap (anon execute stays)
 
@@ -217,9 +217,9 @@ The steps:
 6. Wait until the button says **Sign in** rather than **Loading**. They should land on the dashboard as that person.
 7. If the page says the invite is invalid or expired, the administrator refreshes the portal once (so the user list can finish saving) and sends the code again. A brand-new code from **Re-issue** replaces the old one.
 
-### Email and SMS (Resend + Termii on Vercel)
+### Email and SMS (Resend + Arkesel on Vercel)
 
-The portal never puts Resend, Termii, Twilio, or the Supabase **service_role** key in a `VITE_` variable. Delivery runs only on the server routes `/api/invite-email` and `/api/invite-sms`. SMS prefers Termii when `TERMII_API_KEY` and `TERMII_SENDER_ID` are set; otherwise it falls back to Twilio if `TWILIO_*` is set.
+The portal never puts Resend, Arkesel, Termii, Twilio, or the Supabase **service_role** key in a `VITE_` variable. Delivery runs only on the server routes `/api/invite-email` and `/api/invite-sms`. SMS prefers Arkesel when `ARKESEL_API_KEY` and `ARKESEL_SENDER_ID` are set; otherwise it falls back to Termii if `TERMII_*` is set, then Twilio if `TWILIO_*` is set.
 
 **Required Production env vars** on Vercel project `tlb-management-system` (Production + Preview if you test previews):
 
@@ -227,17 +227,25 @@ The portal never puts Resend, Termii, Twilio, or the Supabase **service_role** k
 |------|---------|
 | `RESEND_API_KEY` | Resend API key (Dashboard → API Keys) |
 | `RESEND_FROM_EMAIL` | Verified from address, e.g. `TLB Portal <invites@yourdomain.com>` |
-| `TERMII_API_KEY` | Termii API key (Dashboard → API key / Settings → API Key) |
-| `TERMII_SENDER_ID` | Approved Termii sender ID / from name (Dashboard → Sender ID) |
+| `ARKESEL_API_KEY` | Arkesel API key (Dashboard → API Keys / Developer settings) |
+| `ARKESEL_SENDER_ID` | Approved Arkesel sender ID / brand name, max 11 characters (Dashboard → Sender ID) |
 
-Optional Termii:
+Optional Arkesel:
 
 | Name | Purpose |
 |------|---------|
-| `TERMII_BASE_URL` | Default `https://api.ng.termii.com` (use the host shown in your Termii dashboard if different) |
+| `ARKESEL_BASE_URL` | Default `https://sms.arkesel.com` (override only if Arkesel gives you a different host) |
+
+Termii fallback (only used when Arkesel is **not** configured):
+
+| Name | Purpose |
+|------|---------|
+| `TERMII_API_KEY` | Termii API key (Dashboard → API key / Settings → API Key) |
+| `TERMII_SENDER_ID` | Approved Termii sender ID / from name (Dashboard → Sender ID) |
+| `TERMII_BASE_URL` | Default `https://api.ng.termii.com` |
 | `TERMII_CHANNEL` | Default `dnd` (transactional). Set to `generic` only for promotional routing |
 
-Twilio fallback (only used when Termii is **not** configured):
+Twilio fallback (only used when Arkesel and Termii are **not** configured):
 
 | Name | Purpose |
 |------|---------|
@@ -250,8 +258,8 @@ Optional client override (usually leave unset): `VITE_TLB_INVITE_MAIL_ENDPOINT` 
 **Owner setup steps**
 
 1. Create a [Resend](https://resend.com) account. Verify your sending domain (or use Resend’s onboarding from-address only for tests). Create an API key. Note the from address you will use.
-2. Open your [Termii](https://accounts.termii.com) dashboard. Copy the **API key**. Ensure you have an **approved Sender ID**. For invite/OTP-style SMS, keep the DND (transactional) route active on the account (Termii support can enable it if needed).
-3. In Vercel → **tlb-management-system** → **Settings** → **Environment Variables**, add `RESEND_*` and `TERMII_API_KEY` + `TERMII_SENDER_ID` for **Production** (and Preview if needed). Paste the real values there — do not put them in the repo or in any `VITE_*` name. Optionally add `TERMII_BASE_URL` / `TERMII_CHANNEL`.
+2. Open your [Arkesel](https://sms.arkesel.com) dashboard (or [arkesel.com](https://arkesel.com) → login). Copy the **API key** from API / Developer settings. Register and wait for an **approved Sender ID** (alphanumeric brand name, max 11 characters). Ensure the account has SMS credit.
+3. In Vercel → **tlb-management-system** → **Settings** → **Environment Variables**, add `RESEND_*` and `ARKESEL_API_KEY` + `ARKESEL_SENDER_ID` for **Production** (and Preview if needed). Paste the real values there — do not put them in the repo or in any `VITE_*` name. Optionally add `ARKESEL_BASE_URL` if Arkesel gave you a non-default host.
 4. Redeploy Production (Deployments → … → Redeploy, or push a commit). Without a redeploy, server routes will not see new env.
 5. Assign a role again. The panel should say **Email sent to …** and **SMS sent to …** when keys are valid. If a key is missing, it still says not configured and Copy still works.
 
@@ -260,8 +268,8 @@ CLI (names only; do not print secrets):
 ```text
 npx vercel env add RESEND_API_KEY production
 npx vercel env add RESEND_FROM_EMAIL production
-npx vercel env add TERMII_API_KEY production
-npx vercel env add TERMII_SENDER_ID production
+npx vercel env add ARKESEL_API_KEY production
+npx vercel env add ARKESEL_SENDER_ID production
 npx vercel env ls
 ```
 

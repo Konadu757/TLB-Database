@@ -376,7 +376,7 @@ export function useTlbStore() {
             if (result.notConfigured) {
               patchLastInviteDelivery(user.id, {
                 sms: "not_configured",
-                smsNote: `SMS was not sent — SMS is not configured. Contact on file: ${phone}. Copy the SMS text below. On Vercel set TERMII_API_KEY and TERMII_SENDER_ID (or Twilio TWILIO_* as fallback; server only, never VITE_*), then redeploy.`,
+                smsNote: `SMS was not sent — SMS is not configured. Contact on file: ${phone}. Copy the SMS text below. On Vercel set ARKESEL_API_KEY and ARKESEL_SENDER_ID (Termii TERMII_* or Twilio TWILIO_* as fallback; server only, never VITE_*), then redeploy.`,
               });
               return { channel: "sms" as const, ...result };
             }
@@ -432,7 +432,7 @@ export function useTlbStore() {
       } else {
         lines.push(
           smsNotConfigured
-            ? "SMS not configured (set TERMII_* on Vercel)"
+            ? "SMS not configured (set ARKESEL_* on Vercel)"
             : `SMS failed: ${smsResult.error}`,
         );
       }

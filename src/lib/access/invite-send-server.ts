@@ -1,6 +1,6 @@
 /**
- * Server-only invite delivery via Resend (email) and Termii / Twilio (SMS).
- * Prefer Termii when TERMII_* is set; Twilio remains a fallback.
+ * Server-only invite delivery via Resend (email) and Arkesel / Termii / Twilio (SMS).
+ * Prefer Arkesel when ARKESEL_* is set; Termii then Twilio remain fallbacks.
  * Secrets stay in process.env — never import this from browser code.
  */
 
@@ -13,9 +13,10 @@ export type InviteSendResult =
 
 export { looksLikePhoneNumber, normalizePhoneForSms };
 
+const DEFAULT_ARKESEL_BASE_URL = "https://sms.arkesel.com";
 const DEFAULT_TERMII_BASE_URL = "https://api.ng.termii.com";
 const SMS_NOT_CONFIGURED_MESSAGE =
-  "SMS is not configured. Set TERMII_API_KEY and TERMII_SENDER_ID on the host (Vercel), then redeploy. Twilio (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER) remains supported as a fallback.";
+  "SMS is not configured. Set ARKESEL_API_KEY and ARKESEL_SENDER_ID on the host (Vercel), then redeploy. TERMII_* and TWILIO_* remain supported as fallbacks.";
 
 function env(name: string): string {
   if (typeof process === "undefined" || !process.env) return "";
@@ -30,9 +31,13 @@ function basicAuthHeader(user: string, pass: string): string {
   return `Basic ${btoa(raw)}`;
 }
 
-/** Termii expects international digits without a leading +. */
-function normalizePhoneForTermii(raw: string): string {
+/** Arkesel / Termii expect international digits without a leading +. */
+function normalizePhoneDigits(raw: string): string {
   return normalizePhoneForSms(raw).replace(/^\+/, "");
+}
+
+function arkeselConfigured(): boolean {
+  return Boolean(env("ARKESEL_API_KEY") && env("ARKESEL_SENDER_ID"));
 }
 
 function termiiConfigured(): boolean {
@@ -124,6 +129,88 @@ export async function sendInviteEmailWithResend(input: {
   }
 }
 
+/**
+ * Arkesel SMS v2 — POST {base}/api/v2/sms/send
+ * Auth: `api-key` header. Body: { sender, message, recipients[] }.
+ * Docs: https://developers.arkesel.com/
+ */
+export async function sendInviteSmsWithArkesel(input: {
+  to: string;
+  body: string;
+}): Promise<InviteSendResult> {
+  const apiKey = env("ARKESEL_API_KEY");
+  const senderId = env("ARKESEL_SENDER_ID");
+  if (!apiKey || !senderId) {
+    return {
+      ok: false,
+      notConfigured: true,
+      error: SMS_NOT_CONFIGURED_MESSAGE,
+    };
+  }
+
+  if (!looksLikePhoneNumber(input.to)) {
+    return { ok: false, error: "Contact does not look like a phone number." };
+  }
+
+  const to = normalizePhoneDigits(input.to);
+  const message = input.body.trim();
+  if (!message) {
+    return { ok: false, error: "SMS body is required." };
+  }
+
+  const baseUrl = (env("ARKESEL_BASE_URL") || DEFAULT_ARKESEL_BASE_URL).replace(/\/+$/, "");
+  const url = `${baseUrl}/api/v2/sms/send`;
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": apiKey,
+      },
+      body: JSON.stringify({
+        sender: senderId,
+        message,
+        recipients: [to],
+      }),
+    });
+
+    const text = await response.text().catch(() => "");
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: summarizeProviderError("Arkesel", response.status, text),
+      };
+    }
+
+    // Arkesel returns HTTP 200 with { status: "success" | ... } for many outcomes.
+    if (text.trim()) {
+      try {
+        const parsed = JSON.parse(text) as {
+          status?: unknown;
+          message?: unknown;
+          data?: unknown;
+        };
+        const status = typeof parsed.status === "string" ? parsed.status.trim().toLowerCase() : "";
+        if (status && status !== "success") {
+          const msg =
+            typeof parsed.message === "string" && parsed.message.trim()
+              ? parsed.message.trim()
+              : status;
+          return { ok: false, error: `Arkesel: ${msg}` };
+        }
+      } catch {
+        // Non-JSON success body is fine.
+      }
+    }
+
+    return { ok: true };
+  } catch (err) {
+    const messageErr = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: messageErr };
+  }
+}
+
 export async function sendInviteSmsWithTermii(input: {
   to: string;
   body: string;
@@ -142,7 +229,7 @@ export async function sendInviteSmsWithTermii(input: {
     return { ok: false, error: "Contact does not look like a phone number." };
   }
 
-  const to = normalizePhoneForTermii(input.to);
+  const to = normalizePhoneDigits(input.to);
   const sms = input.body.trim();
   if (!sms) {
     return { ok: false, error: "SMS body is required." };
@@ -262,11 +349,14 @@ export async function sendInviteSmsWithTwilio(input: {
   }
 }
 
-/** Prefer Termii when configured; otherwise Twilio; otherwise notConfigured. */
+/** Prefer Arkesel when configured; then Termii; then Twilio; otherwise notConfigured. */
 export async function sendInviteSms(input: {
   to: string;
   body: string;
 }): Promise<InviteSendResult> {
+  if (arkeselConfigured()) {
+    return sendInviteSmsWithArkesel(input);
+  }
   if (termiiConfigured()) {
     return sendInviteSmsWithTermii(input);
   }

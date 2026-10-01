@@ -1,6 +1,6 @@
 /**
  * Staff invite delivery helpers (browser-safe).
- * Browser never holds Resend / Termii / Twilio / service-role secrets.
+ * Browser never holds Resend / Arkesel / Termii / Twilio / service-role secrets.
  * POSTs to same-origin /api/invite-email and /api/invite-sms (server reads env).
  * Optional override: VITE_TLB_INVITE_MAIL_ENDPOINT for a custom mail URL.
  */
@@ -39,7 +39,7 @@ function envFlag(name: string): string {
 
 /** Built-in same-origin mail route (Resend on the server). */
 export const BUILTIN_INVITE_MAIL_PATH = "/api/invite-email";
-/** Built-in same-origin SMS route (Termii preferred, Twilio fallback on the server). */
+/** Built-in same-origin SMS route (Arkesel preferred; Termii then Twilio fallback on the server). */
 export const BUILTIN_INVITE_SMS_PATH = "/api/invite-sms";
 
 /**
