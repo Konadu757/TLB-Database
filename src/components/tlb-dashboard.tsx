@@ -53,6 +53,14 @@ import { DetailBackProvider, useDetailBack } from "@/components/modules/detail-b
 import { usePortalSignOut } from "@/components/portal-gate";
 import { RecordBackLink } from "@/components/modules/record-browser";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   CustomersModule,
   LiveSearchResults,
   openSearchHit,
@@ -341,6 +349,7 @@ function TLBDashboardInner() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
+  const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
   const [activeNav, setActiveNav] = useState("Dashboard");
   const [inspector, setInspector] = useState<Inspector | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -1241,7 +1250,7 @@ function TLBDashboardInner() {
                     role="menuitem"
                     onClick={() => {
                       setUserOpen(false);
-                      void signOut();
+                      setSignOutConfirmOpen(true);
                     }}
                   >
                     <LogOut aria-hidden="true" />
@@ -2181,6 +2190,32 @@ function TLBDashboardInner() {
           </div>
         </div>
       )}
+
+      <Dialog open={signOutConfirmOpen} onOpenChange={setSignOutConfirmOpen}>
+        <DialogContent className="tlb-sign-out-dialog">
+          <DialogHeader>
+            <DialogTitle>Sign out?</DialogTitle>
+            <DialogDescription>
+              You will need to sign in again to open the portal. Cancel keeps you signed in.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setSignOutConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                setSignOutConfirmOpen(false);
+                void signOut();
+              }}
+            >
+              Sign out
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
