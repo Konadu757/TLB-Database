@@ -3,7 +3,7 @@
  * Stock movements may be soft-hidden but never permanently purged (ledger integrity).
  * Audit events and system Owner role are never trashable.
  */
-import { hasPermission, OWNER_USER_ID } from "../domain/permissions";
+import { hasPermission, isSoleOwnerUserId, OWNER_USER_ID, SYSTEM_ROLE_IDS } from "../domain/permissions";
 import { syncSessionIdentity } from "./migrate";
 import {
   buildCatalogDeletion,
@@ -556,14 +556,21 @@ export function softDeleteRecord(
         err = "Owner role is missing — cannot reassign users.";
         break;
       }
+      const fallbackRole =
+        next.roles.find((r) => r.id === SYSTEM_ROLE_IDS.Admin && r.active && !isSoftDeleted(r)) ??
+        next.roles.find((r) => r.systemKey === "Admin" && r.active && !isSoftDeleted(r)) ??
+        ownerRole;
       const affected = next.users.filter((u) => u.roleId === role.id);
-      for (const user of affected) user.roleId = ownerRole.id;
+      for (const user of affected) {
+        // Sole Owner account stays Owner; everyone else falls back to Admin.
+        user.roleId = isSoleOwnerUserId(user.id) ? ownerRole.id : fallbackRole.id;
+      }
       applySoftDeleteMeta(role, actor, reason);
       role.active = false;
       syncSessionIdentity(next);
       summary =
         affected.length > 0
-          ? `Moved role ${role.name} to trash; reassigned ${affected.length} user(s) to Owner.`
+          ? `Moved role ${role.name} to trash; reassigned ${affected.length} user(s) to ${fallbackRole.name}.`
           : `Moved role ${role.name} to trash.`;
       pushAudit(next, {
         action: "role.deleted",
@@ -572,7 +579,7 @@ export function softDeleteRecord(
         summary,
         meta: {
           reassignedCount: affected.length,
-          reassignedToRoleId: ownerRole.id,
+          reassignedToRoleId: fallbackRole.id,
         },
       });
       break;

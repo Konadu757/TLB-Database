@@ -2,6 +2,8 @@ import {
   ALL_PERMISSIONS,
   createSystemRoles,
   isPortalOwnerAuth,
+  isSoleOwnerUserId,
+  LEGACY_SEED_OWNER_USER_ID,
   OWNER_DISPLAY_NAME,
   OWNER_USER_ID,
   PORTAL_OWNER_AUTH_EMAIL,
@@ -71,6 +73,28 @@ const DEFAULT_COUNTERS: DocumentCounters = {
   opsRequest: MATURE_SEQUENCE_FLOOR,
 };
 
+/** Map legacy demo emails onto non-Owner system roles so seed never mints a second Owner. */
+function demoRoleIdForEmail(email: string, roles: RoleDefinition[]): string {
+  const byKey = (key: (typeof SYSTEM_ROLE_IDS)[keyof typeof SYSTEM_ROLE_IDS]) =>
+    roles.find((r) => r.id === key)?.id ?? key;
+  switch (email.trim().toLowerCase()) {
+    case "sales@tlb.gh":
+      return byKey(SYSTEM_ROLE_IDS.Sales);
+    case "warehouse@tlb.gh":
+      return byKey(SYSTEM_ROLE_IDS.Warehouse);
+    case "finance@tlb.gh":
+      return byKey(SYSTEM_ROLE_IDS.Finance);
+    case "manager@tlb.gh":
+      return byKey(SYSTEM_ROLE_IDS.Manager);
+    case "driver@tlb.gh":
+      return byKey(SYSTEM_ROLE_IDS.Driver);
+    case "factory@tlb.gh":
+      return byKey(SYSTEM_ROLE_IDS.Requester);
+    default:
+      return byKey(SYSTEM_ROLE_IDS.Admin);
+  }
+}
+
 function defaultUsers(roles: RoleDefinition[]): AppUser[] {
   const ownerId = roles.find((r) => r.systemKey === "Owner")?.id ?? SYSTEM_ROLE_IDS.Owner;
   return [
@@ -85,42 +109,42 @@ function defaultUsers(roles: RoleDefinition[]): AppUser[] {
       id: "user-sales",
       name: "Ama Mensah",
       email: "sales@tlb.gh",
-      roleId: ownerId,
+      roleId: demoRoleIdForEmail("sales@tlb.gh", roles),
       active: true,
     },
     {
       id: "user-warehouse",
       name: "Kofi Boateng",
       email: "warehouse@tlb.gh",
-      roleId: ownerId,
+      roleId: demoRoleIdForEmail("warehouse@tlb.gh", roles),
       active: true,
     },
     {
       id: "user-finance",
       name: "Efua Addo",
       email: "finance@tlb.gh",
-      roleId: ownerId,
+      roleId: demoRoleIdForEmail("finance@tlb.gh", roles),
       active: true,
     },
     {
       id: "user-manager",
       name: "Yaw Mensah",
       email: "manager@tlb.gh",
-      roleId: ownerId,
+      roleId: demoRoleIdForEmail("manager@tlb.gh", roles),
       active: true,
     },
     {
       id: "user-driver",
       name: "Kwesi Owusu",
       email: "driver@tlb.gh",
-      roleId: ownerId,
+      roleId: demoRoleIdForEmail("driver@tlb.gh", roles),
       active: true,
     },
     {
       id: "user-requester",
       name: "Abena Factory",
       email: "factory@tlb.gh",
-      roleId: ownerId,
+      roleId: demoRoleIdForEmail("factory@tlb.gh", roles),
       active: true,
     },
   ];
@@ -177,7 +201,9 @@ export function lockWorkspaceToOwner(state: TlbState): void {
     state.roles.filter((role) => role.active && !role.deletedAt).map((role) => role.id),
   );
   for (const user of state.users) {
-    if (!liveRoleIds.has(user.roleId)) user.roleId = owner.id;
+    if (!liveRoleIds.has(user.roleId)) {
+      user.roleId = isSoleOwnerUserId(user.id) ? owner.id : SYSTEM_ROLE_IDS.Admin;
+    }
   }
   ensureDeletableSystemRoles(state);
   ensurePortalOwnerStaffDirectory(state);
@@ -235,13 +261,12 @@ function shouldHealAuthOwner(
   const email = (authEmail || authUser?.email || "").trim().toLowerCase();
   if (!email) return false;
 
-  const seedOwnerSameEmail = state.users.some(
+  const legacySeedOwner = state.users.some(
     (user) =>
-      user.id === OWNER_USER_ID &&
-      user.email.trim().toLowerCase() === email &&
+      user.id === LEGACY_SEED_OWNER_USER_ID &&
       state.roles.find((role) => role.id === user.roleId)?.systemKey === "Owner",
   );
-  if (seedOwnerSameEmail) return true;
+  if (legacySeedOwner) return true;
 
   const otherOwners = state.users.filter(
     (user) =>
@@ -250,17 +275,16 @@ function shouldHealAuthOwner(
       state.roles.find((role) => role.id === user.roleId)?.systemKey === "Owner",
   );
   if (otherOwners.some((user) => user.email.trim().toLowerCase() === email)) return true;
-  // Seed Owner often keeps owner@tlb.gh while Auth uses the real Owner email —
-  // still heal when this Auth UUID is the only non-seed Owner candidate.
-  if (otherOwners.every((user) => user.id === OWNER_USER_ID)) return true;
+  // Legacy seed Owner (user-owner / owner@tlb.gh) still means this Auth UUID is Owner.
+  if (otherOwners.every((user) => user.id === LEGACY_SEED_OWNER_USER_ID)) return true;
   if (otherOwners.length === 0) return true;
   return false;
 }
 
 /**
- * Keep the portal Owner Auth staff row as TLB Owner / OWNER forever, and drop
- * same-email Finance leftovers from the directory. Does not steal the session
- * unless currentUserId pointed at a purged row.
+ * Keep exactly one Owner staff row — the portal Auth UUID — as TLB Owner / OWNER.
+ * Drops legacy `user-owner`, same-email leftovers, and demotes any other Owner
+ * role assignments so Settings / role switcher cannot show two Owners.
  */
 export function ensurePortalOwnerStaffDirectory(state: TlbState): void {
   const ownerRole =
@@ -285,31 +309,36 @@ export function ensurePortalOwnerStaffDirectory(state: TlbState): void {
     authUser.email = PORTAL_OWNER_AUTH_EMAIL;
   }
 
-  const seedOwner = state.users.find((user) => user.id === OWNER_USER_ID);
-  if (seedOwner) {
-    seedOwner.active = true;
-    seedOwner.roleId = ownerRole.id;
-    seedOwner.name = OWNER_DISPLAY_NAME;
-    seedOwner.email = PORTAL_OWNER_AUTH_EMAIL;
-  }
-
-  const keepIds = new Set<string>([PORTAL_OWNER_AUTH_USER_ID, OWNER_USER_ID]);
   state.users = state.users.filter((user) => {
-    if (keepIds.has(user.id)) return true;
+    if (isSoleOwnerUserId(user.id)) return true;
+    // Legacy local seed Owner must never coexist with Auth Owner.
+    if (user.id === LEGACY_SEED_OWNER_USER_ID) return false;
     const userEmail = user.email.trim().toLowerCase();
     if (userEmail === PORTAL_OWNER_AUTH_EMAIL) return false;
+    if (userEmail === "owner@tlb.gh") return false;
     return true;
   });
 
-  if (!state.users.some((user) => user.id === state.currentUserId && user.active)) {
+  for (const user of state.users) {
+    if (isSoleOwnerUserId(user.id)) continue;
+    const role = state.roles.find((r) => r.id === user.roleId);
+    if (role?.systemKey === "Owner") {
+      user.roleId = demoRoleIdForEmail(user.email, state.roles);
+    }
+  }
+
+  if (
+    state.currentUserId === LEGACY_SEED_OWNER_USER_ID ||
+    !state.users.some((user) => user.id === state.currentUserId && user.active)
+  ) {
     state.currentUserId = PORTAL_OWNER_AUTH_USER_ID;
   }
 }
 
 /**
- * Force Auth Owner staff row onto OWNER role + TLB Owner name, align seed
- * Owner email, and drop leftover Finance (etc.) staff that share the Owner
- * email so hydrate cannot resurrect the wrong "Signed in as" label.
+ * Force Auth Owner staff row onto OWNER role + TLB Owner name, drop legacy
+ * seed Owner, and drop leftover Finance (etc.) staff that share the Owner
+ * email so hydrate cannot resurrect a second Owner or wrong "Signed in as".
  */
 function healAuthOwnerIdentity(
   state: TlbState,
@@ -366,15 +395,16 @@ function authOwnerNeedsHeal(
   if (email && authUser.email.trim().toLowerCase() !== email) return true;
   if (state.currentUserId !== authUserId) return true;
 
-  const seedOwner = state.users.find((user) => user.id === OWNER_USER_ID);
-  if (seedOwner) {
-    if (seedOwner.name !== OWNER_DISPLAY_NAME) return true;
-    if (seedOwner.roleId !== ownerRole.id) return true;
-    if (email && seedOwner.email.trim().toLowerCase() !== email) return true;
-  }
+  if (state.users.some((user) => user.id === LEGACY_SEED_OWNER_USER_ID)) return true;
+
+  const extraOwners = state.users.some((user) => {
+    if (isSoleOwnerUserId(user.id)) return false;
+    return state.roles.find((role) => role.id === user.roleId)?.systemKey === "Owner";
+  });
+  if (extraOwners) return true;
 
   const colliding = state.users.some((user) => {
-    if (user.id === authUserId || user.id === OWNER_USER_ID) return false;
+    if (isSoleOwnerUserId(user.id) || user.id === authUserId) return false;
     const userEmail = user.email.trim().toLowerCase();
     return Boolean(email && userEmail === email);
   });

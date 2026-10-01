@@ -1,8 +1,9 @@
 -- =============================================================================
--- TLB (mfyvhpwjrpjcxdlsqgit) — repair Owner Auth identity after Finance overlap
+-- TLB (mfyvhpwjrpjcxdlsqgit) — sole Owner identity (Auth UUID only)
 -- =============================================================================
 -- Owner Auth: aa9ba161-56b9-49fc-9ca5-c46070fa3d87 / mccaesartechsolutions@gmail.com
 -- Safe to re-run. Does not print secrets.
+-- Removes duplicate OWNER role rows and never recreates legacy user-owner.
 -- =============================================================================
 
 do $$
@@ -18,7 +19,7 @@ declare
   v_email text;
   v_kept jsonb := '[]'::jsonb;
   v_has_auth boolean := false;
-  v_has_seed boolean := false;
+  v_dup_owner int := 0;
 begin
   select r.id into v_owner_role_id
   from tlb.roles r
@@ -45,14 +46,33 @@ begin
   where ur.user_id = v_owner_id
     and ur.role_id <> v_owner_role_id;
 
+  -- Strip OWNER from every other profile (sole Owner rule).
+  delete from tlb.user_roles ur
+  using tlb.roles r
+  where ur.role_id = r.id
+    and r.code = 'OWNER'
+    and ur.user_id <> v_owner_id;
+
+  get diagnostics v_dup_owner = row_count;
+
+  -- Soft-deactivate stray Owner-named profiles that are not the Auth UUID.
+  update tlb.profiles p
+     set active = false,
+         updated_at = now()
+   where p.id <> v_owner_id
+     and p.active
+     and (
+       lower(btrim(p.email)) in (v_owner_email, 'owner@tlb.gh')
+       or lower(btrim(coalesce(p.full_name, ''))) in ('tlb owner', 'owner')
+     );
+
   -- Consume leftover invites that reused the Owner email.
   update tlb.invites
      set consumed_at = coalesce(consumed_at, now())
-   where lower(btrim(email)) = v_owner_email
+   where lower(btrim(email)) in (v_owner_email, 'owner@tlb.gh')
      and consumed_at is null;
 
   -- app_settings / auth_directory may be absent on canonical-only DBs.
-  -- Staff directory then lives in browser localStorage; client heal covers it.
   if to_regclass('public.app_settings') is not null then
     select s.value into v_dir
     from public.app_settings s
@@ -82,18 +102,15 @@ begin
           )
         );
       elsif v_id = 'user-owner' then
-        v_has_seed := true;
-        v_kept := v_kept || jsonb_build_array(
-          jsonb_build_object(
-            'id', v_id,
-            'name', v_owner_name,
-            'email', v_owner_email,
-            'roleId', 'role-owner',
-            'active', true
-          )
-        );
-      elsif v_email = v_owner_email then
+        continue; -- never keep legacy seed Owner
+      elsif v_email in (v_owner_email, 'owner@tlb.gh') then
         continue;
+      elsif lower(coalesce(v_user->>'roleId', '')) = 'role-owner'
+         or lower(coalesce(v_user->>'role', '')) = 'owner' then
+        -- Demote other Owner-labeled staff rows out of the directory Owner slot.
+        v_kept := v_kept || jsonb_build_array(
+          (v_user - 'roleId') || jsonb_build_object('roleId', 'role-admin', 'active', coalesce((v_user->>'active')::boolean, true))
+        );
       else
         v_kept := v_kept || jsonb_build_array(v_user);
       end if;
@@ -110,17 +127,6 @@ begin
         )
       );
     end if;
-    if not v_has_seed then
-      v_kept := v_kept || jsonb_build_array(
-        jsonb_build_object(
-          'id', 'user-owner',
-          'name', v_owner_name,
-          'email', v_owner_email,
-          'roleId', 'role-owner',
-          'active', true
-        )
-      );
-    end if;
 
     v_dir := jsonb_set(v_dir, '{users}', v_kept, true);
 
@@ -130,7 +136,7 @@ begin
       set value = excluded.value;
   end if;
 
-  raise notice 'repair_owner_identity: profile+OWNER role repaired';
+  raise notice 'repair_owner_identity: sole Owner repaired (stripped % extra OWNER roles)', v_dup_owner;
 end;
 $$;
 
@@ -138,4 +144,5 @@ select p.id, p.email, p.full_name, r.code as role_code
 from tlb.profiles p
 left join tlb.user_roles ur on ur.user_id = p.id
 left join tlb.roles r on r.id = ur.role_id
-where p.id = 'aa9ba161-56b9-49fc-9ca5-c46070fa3d87';
+where r.code = 'OWNER' or p.id = 'aa9ba161-56b9-49fc-9ca5-c46070fa3d87'
+order by p.email;

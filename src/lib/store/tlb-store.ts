@@ -25,6 +25,7 @@ import {
   createSystemRoles,
   hasPermission,
   isAssignableSystemRole,
+  isSoleOwnerUserId,
   OWNER_USER_ID,
   resolveRole,
   systemRoleKeyForDbCode,
@@ -1587,6 +1588,9 @@ export function assignUserRole(
   if (!isAssignableSystemRole(role)) {
     return { ok: false, error: "Select a predefined role." };
   }
+  if (role.systemKey === "Owner" && !isSoleOwnerUserId(userId)) {
+    return { ok: false, error: "Only one Owner account is allowed on this system." };
+  }
   if (userId === state.currentUserId && role.systemKey !== "Owner") {
     return { ok: false, error: "The signed-in account stays on the Owner role." };
   }
@@ -1622,6 +1626,9 @@ export function upsertAppUser(
   const next = cloneState(state);
   const role = next.roles.find((r) => r.id === input.roleId);
   if (!isAssignableSystemRole(role)) return { ok: false, error: "Select a predefined role." };
+  if (role.systemKey === "Owner" && !isSoleOwnerUserId(input.id)) {
+    return { ok: false, error: "Only one Owner account is allowed on this system." };
+  }
   if (input.id && input.id === state.currentUserId && role.systemKey !== "Owner") {
     return { ok: false, error: "The signed-in account stays on the Owner role." };
   }

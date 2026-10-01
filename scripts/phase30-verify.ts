@@ -220,7 +220,8 @@ function testPermissions() {
       "Receiver",
     ],
   );
-  assert.ok(state.users.every((user) => user.roleId === SYSTEM_ROLE_IDS.Owner));
+  assert.ok(state.users.filter((user) => user.roleId === SYSTEM_ROLE_IDS.Owner).length === 1);
+  assert.equal(state.users.find((user) => user.id === OWNER_USER_ID)?.roleId, SYSTEM_ROLE_IDS.Owner);
   const switched = switchRole(state, "Sales");
   assert.equal(switched.ok, false);
   assert.equal(state.currentRole, "Owner");
@@ -240,14 +241,14 @@ function testPermissions() {
   assert.equal(assigned.data.state.currentRole, "Owner");
   assert.equal(assigned.data.state.currentUserId, state.currentUserId);
 
-  // Owner can still move a system role to trash; assigned users return to Owner.
+  // Owner can still move a system role to trash; assigned users fall back to Admin (sole Owner rule).
   const deleted = deleteRole(assigned.data.state, SYSTEM_ROLE_IDS.Warehouse);
   assert.equal(deleted.ok, true);
   if (!deleted.ok) return;
   const warehouseGone = deleted.data.state.roles.find((r) => r.id === SYSTEM_ROLE_IDS.Warehouse);
   assert.equal(warehouseGone?.active, false);
   const salesUser = deleted.data.state.users.find((u) => u.id === "user-sales");
-  assert.equal(salesUser?.roleId, SYSTEM_ROLE_IDS.Owner);
+  assert.equal(salesUser?.roleId, SYSTEM_ROLE_IDS.Admin);
   assert.ok(deleted.data.state.audit.some((a) => a.action === "role.deleted"));
 
   // Owner role itself cannot be deleted.
@@ -264,18 +265,22 @@ function testPermissions() {
   const deactivateLast = upsertAppUser(soleOwner, {
     id: OWNER_USER_ID,
     name: "TLB Owner",
-    email: "owner@tlb.gh",
+    email: "mccaesartechsolutions@gmail.com",
     roleId: SYSTEM_ROLE_IDS.Owner,
     active: false,
   });
   assert.equal(deactivateLast.ok, false);
+
+  // Second Owner assignment is blocked.
+  const blockSecondOwner = assignUserRole(structuredClone(state), "user-sales", SYSTEM_ROLE_IDS.Owner);
+  assert.equal(blockSecondOwner.ok, false);
 
   // Editing other staff profile fields succeeds and is audited.
   const edited = upsertAppUser(structuredClone(state), {
     id: "user-sales",
     name: "Ama Mensah Updated",
     email: "ama.updated@tlb.gh",
-    roleId: SYSTEM_ROLE_IDS.Owner,
+    roleId: SYSTEM_ROLE_IDS.Sales,
     active: true,
   });
   assert.equal(edited.ok, true);
@@ -292,7 +297,7 @@ function testInvites() {
   const created = upsertAppUser(state, {
     name: "Invite Test User",
     email: "invite.test@tlb.gh",
-    roleId: SYSTEM_ROLE_IDS.Owner,
+    roleId: SYSTEM_ROLE_IDS.Sales,
   });
   assert.equal(created.ok, true);
   if (!created.ok) return;
@@ -301,7 +306,10 @@ function testInvites() {
   assert.ok(user.inviteCode);
   assert.equal(user.invitePending, true);
 
-  const accepted = acceptInvite(created.data.state, { code: user.inviteCode! });
+  const accepted = acceptInvite(created.data.state, {
+    code: user.inviteCode!,
+    password: "InvitePass1",
+  });
   assert.equal(accepted.ok, true);
   if (!accepted.ok) return;
   assert.equal(accepted.data.state.currentUserId, user.id);
@@ -327,9 +335,9 @@ function testInvites() {
   });
   assert.equal(mirrored.ok, true);
   if (!mirrored.ok) return;
-  assert.equal(mirrored.data.state.currentUserId, user.id);
+  assert.equal(mirrored.data.state.currentUserId, "11111111-1111-1111-1111-111111111111");
   assert.equal(mirrored.data.data.invitePending, false);
-  assert.equal(mirrored.data.state.currentRole, "Owner");
+  assert.equal(mirrored.data.state.currentRole, "Warehouse");
 
   const createdRemote = applyHostedInviteAcceptance(state, {
     profileId: "22222222-2222-2222-2222-222222222222",
@@ -340,7 +348,7 @@ function testInvites() {
   assert.equal(createdRemote.ok, true);
   if (!createdRemote.ok) return;
   assert.equal(createdRemote.data.state.currentUserId, "22222222-2222-2222-2222-222222222222");
-  assert.equal(createdRemote.data.state.currentRole, "Owner");
+  assert.equal(createdRemote.data.state.currentRole, "Sales");
 
   const badRole = applyHostedInviteAcceptance(state, {
     profileId: "33333333-3333-3333-3333-333333333333",

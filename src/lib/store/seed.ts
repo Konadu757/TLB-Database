@@ -1,4 +1,10 @@
-import { createSystemRoles, OWNER_DISPLAY_NAME, OWNER_USER_ID, PORTAL_OWNER_AUTH_EMAIL, SYSTEM_ROLE_IDS } from "../domain/permissions";
+import {
+  createSystemRoles,
+  OWNER_DISPLAY_NAME,
+  OWNER_USER_ID,
+  PORTAL_OWNER_AUTH_EMAIL,
+  SYSTEM_ROLE_IDS,
+} from "../domain/permissions";
 import { DEFAULT_INVENTORY_SETTINGS } from "../domain/inventory";
 import { defaultOpsApprovalRules } from "../domain/ops-hub";
 import type { TlbState } from "../domain/types";
@@ -35,42 +41,42 @@ export function createSeedState(): TlbState {
         id: "user-sales",
         name: "Ama Mensah",
         email: "sales@tlb.gh",
-        roleId: SYSTEM_ROLE_IDS.Owner,
+        roleId: SYSTEM_ROLE_IDS.Sales,
         active: true,
       },
       {
         id: "user-warehouse",
         name: "Kofi Boateng",
         email: "warehouse@tlb.gh",
-        roleId: SYSTEM_ROLE_IDS.Owner,
+        roleId: SYSTEM_ROLE_IDS.Warehouse,
         active: true,
       },
       {
         id: "user-finance",
         name: "Efua Addo",
         email: "finance@tlb.gh",
-        roleId: SYSTEM_ROLE_IDS.Owner,
+        roleId: SYSTEM_ROLE_IDS.Finance,
         active: true,
       },
       {
         id: "user-manager",
         name: "Yaw Mensah",
         email: "manager@tlb.gh",
-        roleId: SYSTEM_ROLE_IDS.Owner,
+        roleId: SYSTEM_ROLE_IDS.Manager,
         active: true,
       },
       {
         id: "user-driver",
         name: "Kwesi Owusu",
         email: "driver@tlb.gh",
-        roleId: SYSTEM_ROLE_IDS.Owner,
+        roleId: SYSTEM_ROLE_IDS.Driver,
         active: true,
       },
       {
         id: "user-requester",
         name: "Abena Factory",
         email: "factory@tlb.gh",
-        roleId: SYSTEM_ROLE_IDS.Owner,
+        roleId: SYSTEM_ROLE_IDS.Requester,
         active: true,
       },
     ],

@@ -311,6 +311,10 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
   };
 
   const activeRoles = useMemo(() => listAssignableRoles(store.state.roles), [store.state.roles]);
+  const editRoles = useMemo(
+    () => listAssignableRoles(store.state.roles, { forUserId: editingUserId ?? undefined }),
+    [store.state.roles, editingUserId],
+  );
   const assignedUsers = useMemo(
     () => notSoftDeleted(store.state.users),
     [store.state.users],
@@ -717,7 +721,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                   />
                 </label>
                 <RoleMenu
-                  roles={activeRoles}
+                  roles={editRoles}
                   value={editUser.roleId}
                   onChange={(roleId) => setEditUser({ ...editUser, roleId })}
                 />

@@ -234,8 +234,6 @@ export function dbRoleCodeForRoleId(roleId: string): string | null {
   return key ? SYSTEM_ROLE_DB_CODE[key] : null;
 }
 
-export const OWNER_USER_ID = "user-owner";
-
 /** Canonical portal Owner display name shown in the header / profile. */
 export const OWNER_DISPLAY_NAME = "TLB Owner";
 
@@ -247,6 +245,15 @@ export const OWNER_DISPLAY_NAME = "TLB Owner";
 export const PORTAL_OWNER_AUTH_USER_ID = "aa9ba161-56b9-49fc-9ca5-c46070fa3d87";
 export const PORTAL_OWNER_AUTH_EMAIL = "mccaesartechsolutions@gmail.com";
 
+/**
+ * Sole Owner staff id — identical to the live portal Auth UUID.
+ * Legacy local seed id `user-owner` is purged on hydrate and must never reappear.
+ */
+export const OWNER_USER_ID = PORTAL_OWNER_AUTH_USER_ID;
+
+/** @deprecated Local-only seed id from early demos — never keep as a second Owner. */
+export const LEGACY_SEED_OWNER_USER_ID = "user-owner";
+
 export function isPortalOwnerAuth(input: {
   authUserId?: string;
   email?: string;
@@ -256,6 +263,12 @@ export function isPortalOwnerAuth(input: {
   if (id && id === PORTAL_OWNER_AUTH_USER_ID) return true;
   if (email && email === PORTAL_OWNER_AUTH_EMAIL) return true;
   return false;
+}
+
+/** True when this staff row is the one permitted Owner account. */
+export function isSoleOwnerUserId(userId: string | undefined | null): boolean {
+  const id = userId?.trim() ?? "";
+  return id === PORTAL_OWNER_AUTH_USER_ID;
 }
 
 export function createSystemRoles(): RoleDefinition[] {
@@ -412,11 +425,19 @@ export function isAssignableSystemRole(role: RoleDefinition | undefined): role i
   return Object.prototype.hasOwnProperty.call(SYSTEM_ROLE_PERMISSIONS, role.systemKey);
 }
 
-/** Active predefined roles, in catalog order. Soft-deleted roles stay out of the menu. */
-export function listAssignableRoles(roles: RoleDefinition[]): RoleDefinition[] {
+/** Active predefined roles, in catalog order. Soft-deleted roles stay out of the menu.
+ * Owner is only listed when editing the sole Owner Auth account — it cannot be assigned
+ * to anyone else from Settings.
+ */
+export function listAssignableRoles(
+  roles: RoleDefinition[],
+  opts?: { forUserId?: string },
+): RoleDefinition[] {
   const order = ALL_ROLES;
+  const allowOwner = isSoleOwnerUserId(opts?.forUserId);
   return roles
     .filter(isAssignableSystemRole)
+    .filter((role) => allowOwner || role.systemKey !== "Owner")
     .sort(
       (a, b) =>
         order.indexOf(a.systemKey as SystemRoleKey) - order.indexOf(b.systemKey as SystemRoleKey),

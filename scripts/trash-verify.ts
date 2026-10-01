@@ -290,7 +290,7 @@ function testRoleDeleteWithUsersAndTasks() {
   const trashedRole = state.roles.find((role) => role.id === SYSTEM_ROLE_IDS.Warehouse);
   assert.equal(trashedRole?.active, false);
   assert.ok(trashedRole && isSoftDeleted(trashedRole));
-  assert.equal(state.users.find((user) => user.id === "user-sales")?.roleId, SYSTEM_ROLE_IDS.Owner);
+  assert.equal(state.users.find((user) => user.id === "user-sales")?.roleId, SYSTEM_ROLE_IDS.Admin);
   assert.ok(listTrashItems(state).some((item) => item.entityType === "role" && item.label === "Warehouse"));
   assert.ok(state.notifications.some((note) => note.id === "ntf-warehouse-task" && !note.deletedAt));
   assert.ok(state.audit.some((event) => event.action === "role.deleted"));
@@ -308,7 +308,7 @@ function testRoleDeleteWithUsersAndTasks() {
   const back = state.roles.find((role) => role.id === SYSTEM_ROLE_IDS.Warehouse);
   assert.equal(back?.active, true);
   assert.ok(back && !isSoftDeleted(back));
-  assert.equal(state.users.find((user) => user.id === "user-sales")?.roleId, SYSTEM_ROLE_IDS.Owner);
+  assert.equal(state.users.find((user) => user.id === "user-sales")?.roleId, SYSTEM_ROLE_IDS.Admin);
   assert.ok(!listTrashItems(state).some((item) => item.entityType === "role"));
 
   const deletedAgain = deleteRole(state, SYSTEM_ROLE_IDS.Warehouse);
@@ -323,7 +323,7 @@ function testRoleDeleteWithUsersAndTasks() {
   if (!purged.ok) return;
   state = purged.data.state;
   assert.ok(!state.roles.some((role) => role.id === SYSTEM_ROLE_IDS.Warehouse));
-  assert.equal(state.users.find((user) => user.id === "user-sales")?.roleId, SYSTEM_ROLE_IDS.Owner);
+  assert.equal(state.users.find((user) => user.id === "user-sales")?.roleId, SYSTEM_ROLE_IDS.Admin);
   lockWorkspaceToOwner(state);
   assert.ok(!state.roles.some((role) => role.id === SYSTEM_ROLE_IDS.Warehouse));
 
