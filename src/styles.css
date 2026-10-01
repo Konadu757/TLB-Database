@@ -3717,11 +3717,24 @@ button.tlb-user-action:focus-visible {
   line-height: 1.45;
   text-transform: none;
 }
-.tlb-login-invite a {
+.tlb-login-invite a,
+.tlb-login-text-link {
   color: inherit;
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+.tlb-login-text-link {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.tlb-login-text-link:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 .tlb-login-submit {
   min-height: 44px;

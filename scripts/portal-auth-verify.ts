@@ -53,7 +53,12 @@ assert.equal(dashboardAllowed(sessionFromSignIn({ ok: false, error: SIGN_IN_UNRE
 assert.doesNotMatch(login, /The workspace opens only after this sign-in is accepted/);
 assert.doesNotMatch(login, /Nothing in the portal is available until this/);
 assert.match(login, /Show password/);
+assert.match(login, /Forgot password\?/);
+assert.match(login, /Send reset link/);
+assert.match(auth, /resetPasswordForEmail/);
+assert.match(auth, /updateUser/);
 assert.match(styles, /\.tlb-login-form input[\s\S]*border-radius:\s*999px/);
+assert.match(styles, /\.tlb-login-text-link/);
 
 assert.match(layout, /<PortalGate>[\s\S]*<TLBDashboard \/>[\s\S]*<\/PortalGate>/);
 assert.match(gate, /useState<"checking" \| "closed" \| "open">\("checking"\)/);

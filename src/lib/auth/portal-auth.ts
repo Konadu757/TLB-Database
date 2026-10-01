@@ -114,16 +114,31 @@ async function authClient() {
 /**
  * On a cold visit (no tab sign-in marker), clear any restored localStorage
  * session so typing the portal URL cannot bypass the login screen.
+ * Preserve Auth recovery / invite callback sessions from email links.
  */
 export async function discardRestoredSessionIfColdVisit(): Promise<void> {
   if (!publishableAuthConfigured() || typeof window === "undefined") return;
   if (hasTabAuthSession()) return;
+  if (authCallbackInUrl()) {
+    markTabAuthSession();
+    return;
+  }
   try {
     const supabase = await authClient();
     await supabase.auth.signOut({ scope: "local" });
   } catch {
     /* stay closed; gate will show sign-in */
   }
+}
+
+/** True when the URL carries an Auth callback (recovery / magic / OAuth code). */
+function authCallbackInUrl(): boolean {
+  if (typeof window === "undefined") return false;
+  const { hash, search } = window.location;
+  if (/type=(recovery|signup|magiclink|invite)/i.test(hash)) return true;
+  if (/access_token=/i.test(hash)) return true;
+  if (/[?&]code=/.test(search)) return true;
+  return false;
 }
 
 export async function readPortalSession(): Promise<PortalSession | null> {
@@ -181,6 +196,54 @@ export async function signOutPortal(): Promise<void> {
   if (!publishableAuthConfigured() || typeof window === "undefined") return;
   const supabase = await authClient();
   await supabase.auth.signOut();
+}
+
+export type PasswordResetResult = { ok: true } | { ok: false; error: string };
+
+/** Sends Supabase Auth recovery email when project mailer/SMTP is configured. */
+export async function requestPasswordReset(email: string): Promise<PasswordResetResult> {
+  const trimmed = email.trim();
+  if (!trimmed) return { ok: false, error: "Enter your email to reset the password." };
+  if (!publishableAuthConfigured()) {
+    return { ok: false, error: SIGN_IN_REQUIRED };
+  }
+  try {
+    const supabase = await authClient();
+    const redirectTo =
+      typeof window !== "undefined" ? `${window.location.origin}/profile` : undefined;
+    const { error } = await supabase.auth.resetPasswordForEmail(trimmed, {
+      redirectTo,
+    });
+    if (error) {
+      return { ok: false, error: signInFailureMessage(error as { message?: string; name?: string; status?: number }) };
+    }
+    return { ok: true };
+  } catch (err) {
+    const named = err instanceof Error ? err : null;
+    return { ok: false, error: signInFailureMessage(named) };
+  }
+}
+
+/** Updates the signed-in Auth user's password (after login or recovery link). */
+export async function updatePortalPassword(password: string): Promise<PasswordResetResult> {
+  const next = password.trim();
+  if (next.length < 8) {
+    return { ok: false, error: "Use a password with at least 8 characters." };
+  }
+  if (!publishableAuthConfigured()) {
+    return { ok: false, error: SIGN_IN_REQUIRED };
+  }
+  try {
+    const supabase = await authClient();
+    const { error } = await supabase.auth.updateUser({ password: next });
+    if (error) {
+      return { ok: false, error: signInFailureMessage(error as { message?: string; name?: string; status?: number }) };
+    }
+    return { ok: true };
+  } catch (err) {
+    const named = err instanceof Error ? err : null;
+    return { ok: false, error: signInFailureMessage(named) };
+  }
 }
 
 export function subscribePortalAuth(onChange: (session: PortalSession | null) => void): () => void {

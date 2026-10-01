@@ -214,6 +214,72 @@ export function syncSessionIdentity(state: TlbState): void {
  * Prefer Auth UUID over email so same-email collisions cannot steal Owner.
  * Returns the same state reference when already aligned.
  */
+/**
+ * Same-email Finance (etc.) invite acceptance could demote the Auth Owner
+ * profile in local users while Auth UUID stayed the same. Restore Owner when
+ * this Auth row is clearly the workspace Owner account.
+ */
+function healAuthOwnerRole(state: TlbState, authUserId: string): boolean {
+  const ownerRole = state.roles.find(
+    (role) => role.systemKey === "Owner" && role.active && !role.deletedAt,
+  );
+  if (!ownerRole || !authUserId) return false;
+  const authUser = state.users.find((user) => user.id === authUserId && user.active);
+  if (!authUser) return false;
+  const current = state.roles.find((role) => role.id === authUser.roleId);
+  if (current?.systemKey === "Owner") return false;
+
+  const email = authUser.email.trim().toLowerCase();
+  const seedOwnerSameEmail = state.users.some(
+    (user) =>
+      user.id === OWNER_USER_ID &&
+      user.email.trim().toLowerCase() === email &&
+      state.roles.find((role) => role.id === user.roleId)?.systemKey === "Owner",
+  );
+  const otherOwners = state.users.filter(
+    (user) =>
+      user.id !== authUserId &&
+      user.active &&
+      state.roles.find((role) => role.id === user.roleId)?.systemKey === "Owner",
+  );
+  const shouldRestore =
+    seedOwnerSameEmail ||
+    otherOwners.some((user) => user.email.trim().toLowerCase() === email) ||
+    otherOwners.length === 0;
+  if (!shouldRestore) return false;
+  authUser.roleId = ownerRole.id;
+  return true;
+}
+
+function authOwnerNeedsHeal(state: TlbState, authUserId: string): boolean {
+  const ownerRole = state.roles.find(
+    (role) => role.systemKey === "Owner" && role.active && !role.deletedAt,
+  );
+  if (!ownerRole || !authUserId) return false;
+  const authUser = state.users.find((user) => user.id === authUserId && user.active);
+  if (!authUser) return false;
+  const current = state.roles.find((role) => role.id === authUser.roleId);
+  if (current?.systemKey === "Owner") return false;
+  const email = authUser.email.trim().toLowerCase();
+  const seedOwnerSameEmail = state.users.some(
+    (user) =>
+      user.id === OWNER_USER_ID &&
+      user.email.trim().toLowerCase() === email &&
+      state.roles.find((role) => role.id === user.roleId)?.systemKey === "Owner",
+  );
+  const otherOwners = state.users.filter(
+    (user) =>
+      user.id !== authUserId &&
+      user.active &&
+      state.roles.find((role) => role.id === user.roleId)?.systemKey === "Owner",
+  );
+  return (
+    seedOwnerSameEmail ||
+    otherOwners.some((user) => user.email.trim().toLowerCase() === email) ||
+    otherOwners.length === 0
+  );
+}
+
 export function bindSessionToAuthIdentity(
   state: TlbState,
   input: { email?: string; authUserId?: string },
@@ -232,9 +298,11 @@ export function bindSessionToAuthIdentity(
   const user = byId ?? byEmail;
   if (!user) return state;
 
+  const needsHeal = authUserId ? authOwnerNeedsHeal(state, authUserId) : false;
   const role = state.roles.find((r) => r.id === user.roleId);
   const roleLabel = (role?.systemKey ?? role?.name ?? state.currentRole) as TlbState["currentRole"];
   if (
+    !needsHeal &&
     state.currentUserId === user.id &&
     state.currentUser === user.name &&
     state.currentRoleId === user.roleId &&
@@ -244,6 +312,7 @@ export function bindSessionToAuthIdentity(
   }
 
   const next = JSON.parse(JSON.stringify(state)) as TlbState;
+  if (authUserId) healAuthOwnerRole(next, authUserId);
   next.currentUserId = user.id;
   syncSessionIdentity(next);
   return next;
