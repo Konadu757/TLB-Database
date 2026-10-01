@@ -711,14 +711,14 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   position: static;
   top: auto;
   z-index: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--cream);
-  background-color: var(--cream);
-  box-shadow: var(--tlb-shadow);
+  border: 1px solid color-mix(in oklab, #6420d0 10%, #e8e6ef);
+  border-radius: 22px;
+  background: #ffffff;
+  background-color: #ffffff;
+  box-shadow: 0 6px 22px color-mix(in oklab, #6420d0 7%, transparent);
 }
 .tlb-module-filters:hover {
-  box-shadow: var(--tlb-shadow-hover);
+  box-shadow: 0 10px 28px color-mix(in oklab, #6420d0 11%, transparent);
 }
 .tlb-periods { display: flex; gap: 6px; flex-wrap: wrap; }
 .tlb-periods button {
@@ -1241,32 +1241,42 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
 /* Commerce / fulfilment modules ? extend existing tlb patterns */
 .status-danger { background: var(--danger-muted); color: var(--danger); }
 
-/* Sales Orders list */
+/* Sales Orders list — portal white surfaces (no cream gradient bands) */
 .tlb-sales-orders-module .tlb-module-toolbar {
   padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background:
-    linear-gradient(180deg, var(--cream) 0%, var(--cream-light) 72%, #fff 100%);
-  box-shadow: var(--tlb-shadow);
+  border: 0;
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 6px 22px color-mix(in oklab, #6420d0 7%, transparent);
 }
-.tlb-sales-orders-module .tlb-module-toolbar strong { color: var(--foreground); }
+.tlb-sales-orders-module .tlb-module-toolbar .tlb-eyebrow { color: #6420d0; }
+.tlb-sales-orders-module .tlb-module-toolbar strong {
+  color: #1f1630;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
 .tlb-sales-orders-list-panel .tlb-panel-heading,
 .tlb-sales-orders-list-panel > .tlb-table-scroll > table thead th {
-  background: color-mix(in oklab, var(--info-muted) 45%, var(--muted));
-  color: var(--primary);
-  font-weight: 800;
-  letter-spacing: 0.03em;
+  background: #ffffff;
+  color: #6420d0;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid color-mix(in oklab, #6420d0 10%, #e8e6ef);
+}
+.tlb-sales-orders-list-panel .tlb-panel-heading strong {
+  color: #1f1630;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 .tlb-sales-orders-list-panel tbody tr.tlb-row-clickable:hover {
-  background: color-mix(in oklab, var(--brand-gold-muted) 40%, white);
+  background: color-mix(in oklab, #6420d0 6%, white);
 }
 .tlb-sales-orders-list-panel tbody tr.tlb-row-active {
-  background: color-mix(in oklab, var(--info-muted) 55%, white);
-  box-shadow: inset 3px 0 0 var(--primary);
+  background: color-mix(in oklab, #6420d0 10%, #f6f4fc);
+  box-shadow: inset 3px 0 0 #6420d0;
 }
 .tlb-sales-orders-list-panel tbody tr.tlb-row-active:hover {
-  background: color-mix(in oklab, var(--info-muted) 65%, white);
+  background: color-mix(in oklab, #6420d0 14%, #f6f4fc);
 }
 .tlb-fulfilment-cell {
   font-variant-numeric: tabular-nums;
@@ -1286,8 +1296,9 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
 .tlb-related-doc-list { list-style: none; margin: 0; padding: 8px 17px 16px; display: grid; gap: 8px; }
 .tlb-related-doc-list li {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
-  background: color-mix(in oklab, var(--cream-light) 60%, white);
+  padding: 8px 10px; border: 1px solid color-mix(in oklab, #6420d0 10%, #e8e6ef);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
 }
 .tlb-related-doc-list .tlb-text-link { flex: 1; min-width: 140px; }
 .tlb-module { margin-top: 14px; display: grid; gap: 14px; }
