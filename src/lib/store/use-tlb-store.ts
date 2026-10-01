@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  initialInviteDelivery,
+  trySendInviteEmail,
+  type InviteDeliveryStatus,
+} from "@/lib/access/invite-delivery";
 import { acceptInviteOnSupabase, createInviteOnSupabase } from "@/lib/access/supabase-invites";
-import { normalizeAccessCode } from "@/lib/domain/invites";
+import { buildInviteLink, normalizeAccessCode } from "@/lib/domain/invites";
 import { dbRoleCodeForRoleId } from "@/lib/domain/permissions";
 import type { AppUser, DeliveryStatus, Permission, TlbState } from "@/lib/domain/types";
 import { createTlbRepository } from "@/lib/repo/tlb-repository";
@@ -96,20 +101,29 @@ export type LastStaffInvite = {
   userId: string;
   name: string;
   email: string;
+  contact?: string;
   inviteToken: string;
   inviteCode: string;
+  inviteLink: string;
+  delivery: InviteDeliveryStatus;
 };
 
 const SAVE_DEBOUNCE_MS = 450;
 
-function inviteSnapshot(user: AppUser): LastStaffInvite | null {
+function inviteSnapshot(
+  user: AppUser,
+  delivery: InviteDeliveryStatus,
+): LastStaffInvite | null {
   if (!user.inviteToken || !user.inviteCode) return null;
   return {
     userId: user.id,
     name: user.name,
     email: user.email,
+    ...(user.contact ? { contact: user.contact } : {}),
     inviteToken: user.inviteToken,
     inviteCode: user.inviteCode,
+    inviteLink: buildInviteLink(user.inviteToken),
+    delivery,
   };
 }
 
@@ -237,22 +251,86 @@ export function useTlbStore() {
     return { ok: true as const, data: captured };
   }, []);
 
-  const publishHostedInvite = (user: AppUser, replacesToken?: string) => {
-    if (repo.backend !== "supabase") return;
-    const roleCode = dbRoleCodeForRoleId(user.roleId);
-    if (!roleCode || !user.inviteToken || !user.inviteCode) {
-      setError("Supabase invite was not stored: predefined system roles only.");
-      return;
+  const patchLastInviteDelivery = (
+    userId: string,
+    patch: Partial<InviteDeliveryStatus>,
+  ) => {
+    setLastInvite((prev) => {
+      if (!prev || prev.userId !== userId) return prev;
+      return { ...prev, delivery: { ...prev.delivery, ...patch } };
+    });
+  };
+
+  const deliverStaffInvite = (user: AppUser, replacesToken?: string) => {
+    if (!user.inviteToken || !user.inviteCode) return;
+    const inviteLink = buildInviteLink(user.inviteToken);
+    const willPublishCloud = repo.backend === "supabase";
+    const delivery = initialInviteDelivery({
+      name: user.name,
+      inviteCode: user.inviteCode,
+      inviteToken: user.inviteToken,
+      ...(user.contact ? { contact: user.contact } : {}),
+      willPublishCloud,
+    });
+    const snap = inviteSnapshot(user, delivery);
+    if (snap) setLastInvite(snap);
+
+    if (willPublishCloud) {
+      const roleCode = dbRoleCodeForRoleId(user.roleId);
+      if (!roleCode) {
+        patchLastInviteDelivery(user.id, {
+          cloud: "failed",
+          cloudNote:
+            "Cloud invite failed: predefined system roles only. Local code and link below still work on this browser.",
+        });
+      } else {
+        void createInviteOnSupabase({
+          email: user.email,
+          fullName: user.name,
+          roleCode,
+          token: user.inviteToken,
+          accessCode: user.inviteCode,
+          ...(replacesToken ? { replacesToken } : {}),
+        }).then((result) => {
+          if (result.ok) {
+            patchLastInviteDelivery(user.id, {
+              cloud: "ok",
+              cloudNote: "Cloud invite saved. Share the code or link below.",
+            });
+            return;
+          }
+          patchLastInviteDelivery(user.id, {
+            cloud: "failed",
+            cloudNote: `${result.error} Local code and link below still work on this browser.`,
+          });
+        });
+      }
     }
-    void createInviteOnSupabase({
-      email: user.email,
-      fullName: user.name,
-      roleCode,
-      token: user.inviteToken,
-      accessCode: user.inviteCode,
-      replacesToken,
+
+    void trySendInviteEmail({
+      to: user.email,
+      name: user.name,
+      inviteCode: user.inviteCode,
+      inviteLink,
     }).then((result) => {
-      if (!result.ok) setError(result.error);
+      if (result.ok) {
+        patchLastInviteDelivery(user.id, {
+          email: "sent",
+          emailNote: `Email sent to ${user.email}.`,
+        });
+        return;
+      }
+      if (result.notConfigured) {
+        patchLastInviteDelivery(user.id, {
+          email: "not_configured",
+          emailNote: delivery.emailNote,
+        });
+        return;
+      }
+      patchLastInviteDelivery(user.id, {
+        email: "failed",
+        emailNote: `Email was not sent: ${result.error}. Copy the invite below.`,
+      });
     });
   };
 
@@ -429,23 +507,20 @@ export function useTlbStore() {
     assignUserRole: (userId: string, roleId: string) =>
       apply((s) => assignUserRole(s, userId, roleId), "User role assigned."),
     saveUser: (input: Parameters<typeof upsertAppUser>[1]) => {
-      const result = applyCapture((s) => upsertAppUser(s, input), "User saved.");
+      const result = applyCapture(
+        (s) => upsertAppUser(s, input),
+        input.id ? "User saved." : "Role assigned — invitation ready below.",
+      );
       if (result.ok && !input.id && result.data) {
-        const user = result.data as AppUser;
-        const snap = inviteSnapshot(user);
-        if (snap) setLastInvite(snap);
-        publishHostedInvite(user);
+        deliverStaffInvite(result.data as AppUser);
       }
       return result.ok;
     },
     issueUserInvite: (userId: string) => {
       const previousToken = state.users.find((user) => user.id === userId)?.inviteToken;
-      const result = applyCapture((s) => issueUserInvite(s, userId), "Invite re-issued.");
+      const result = applyCapture((s) => issueUserInvite(s, userId), "Invite re-issued — copy below.");
       if (result.ok && result.data) {
-        const user = result.data as AppUser;
-        const snap = inviteSnapshot(user);
-        if (snap) setLastInvite(snap);
-        publishHostedInvite(user, previousToken);
+        deliverStaffInvite(result.data as AppUser, previousToken);
       }
       return result.ok;
     },

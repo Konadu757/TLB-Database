@@ -207,10 +207,25 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
     active: true,
   });
   const [pendingDelete, setPendingDelete] = useState<AppUser | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const invitePanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setTaxDraft(ensureTaxCatalog(store.state.vatRates));
   }, [store.state.vatRates]);
+
+  useEffect(() => {
+    if (!store.lastInvite) return;
+    invitePanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [store.lastInvite?.userId, store.lastInvite?.inviteCode]);
+
+  const copyInviteValue = async (key: string, value: string) => {
+    const ok = await copyToClipboard(value);
+    if (ok) {
+      setCopiedKey(key);
+      window.setTimeout(() => setCopiedKey((current) => (current === key ? null : current)), 2000);
+    }
+  };
 
   const activeRoles = useMemo(() => listAssignableRoles(store.state.roles), [store.state.roles]);
   const assignedUsers = useMemo(
@@ -304,53 +319,12 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                 <span>Staff</span>
                 <strong>Users &amp; role assignment</strong>
                 <p className="tlb-muted-line">
-                  Enter the person’s name, contact, and email, then choose a predefined role.
+                  Enter the person’s name, contact, and email, then choose a predefined role. After
+                  you assign, the invitation code and shareable link stay on this page so you can
+                  copy them.
                 </p>
               </div>
             </div>
-            {store.lastInvite ? (
-              <div
-                className="tlb-flash tlb-flash-ok"
-                style={{ margin: "12px 12px 0", flexDirection: "column", alignItems: "stretch" }}
-                role="status"
-              >
-                <strong style={{ fontSize: "0.875rem" }}>
-                  Invite ready for {store.lastInvite.name} ({store.lastInvite.email})
-                </strong>
-                <p className="tlb-muted-line" style={{ margin: "6px 0 0" }}>
-                  Send manually — email is not sent. Treat the link and access code as credentials.
-                </p>
-                <p
-                  className="tlb-mono"
-                  style={{ margin: "8px 0 0", fontSize: "0.9375rem", fontWeight: 600 }}
-                >
-                  {store.lastInvite.inviteCode}
-                </p>
-                <div className="tlb-inline-actions" style={{ marginTop: 10, flexWrap: "wrap" }}>
-                  <button
-                    type="button"
-                    className="tlb-link-btn"
-                    onClick={() => {
-                      void copyToClipboard(buildInviteLink(store.lastInvite!.inviteToken));
-                    }}
-                  >
-                    Copy invite link
-                  </button>
-                  <button
-                    type="button"
-                    className="tlb-link-btn"
-                    onClick={() => {
-                      void copyToClipboard(store.lastInvite!.inviteCode);
-                    }}
-                  >
-                    Copy access code
-                  </button>
-                  <button type="button" className="tlb-link-btn" onClick={store.clearLastInvite}>
-                    Dismiss
-                  </button>
-                </div>
-              </div>
-            ) : null}
             {assignedUsers.length === 0 ? (
               <EmptyState title="No users" detail="Create a user to assign roles." />
             ) : (
@@ -402,11 +376,29 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                                 type="button"
                                 className="tlb-link-btn"
                                 onClick={() => {
-                                  void copyToClipboard(buildInviteLink(user.inviteToken!));
+                                  void copyInviteValue(
+                                    `row-link-${user.id}`,
+                                    buildInviteLink(user.inviteToken!),
+                                  );
                                 }}
                               >
-                                Copy invite
+                                {copiedKey === `row-link-${user.id}` ? "Copied link" : "Copy invite"}
                               </button>{" "}
+                              {user.inviteCode ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="tlb-link-btn"
+                                    onClick={() => {
+                                      void copyInviteValue(`row-code-${user.id}`, user.inviteCode!);
+                                    }}
+                                  >
+                                    {copiedKey === `row-code-${user.id}`
+                                      ? "Copied code"
+                                      : "Copy code"}
+                                  </button>{" "}
+                                </>
+                              ) : null}
                               <button
                                 type="button"
                                 className="tlb-link-btn"
@@ -569,6 +561,100 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                 </div>
               </form>
             )}
+            {store.lastInvite ? (
+              <div
+                ref={invitePanelRef}
+                className="tlb-flash tlb-flash-ok"
+                style={{
+                  margin: "12px",
+                  flexDirection: "column",
+                  alignItems: "stretch",
+                  gap: 10,
+                }}
+                role="status"
+              >
+                <strong style={{ fontSize: "0.9375rem" }}>
+                  Invitation ready for {store.lastInvite.name}
+                </strong>
+                <p className="tlb-muted-line" style={{ margin: 0 }}>
+                  {store.lastInvite.email}
+                  {store.lastInvite.contact ? ` · ${store.lastInvite.contact}` : ""}
+                </p>
+                <div>
+                  <span
+                    className="tlb-muted-line"
+                    style={{ display: "block", marginBottom: 4, fontSize: "0.6875rem" }}
+                  >
+                    Access code
+                  </span>
+                  <p
+                    className="tlb-mono"
+                    style={{ margin: 0, fontSize: "1.0625rem", fontWeight: 700, letterSpacing: "0.04em" }}
+                  >
+                    {store.lastInvite.inviteCode}
+                  </p>
+                </div>
+                <div>
+                  <span
+                    className="tlb-muted-line"
+                    style={{ display: "block", marginBottom: 4, fontSize: "0.6875rem" }}
+                  >
+                    Shareable link
+                  </span>
+                  <p
+                    className="tlb-mono"
+                    style={{
+                      margin: 0,
+                      fontSize: "0.75rem",
+                      wordBreak: "break-all",
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    {store.lastInvite.inviteLink}
+                  </p>
+                </div>
+                <div className="tlb-inline-actions" style={{ flexWrap: "wrap", gap: 12 }}>
+                  <button
+                    type="button"
+                    className="tlb-link-btn"
+                    onClick={() => {
+                      void copyInviteValue("code", store.lastInvite!.inviteCode);
+                    }}
+                  >
+                    {copiedKey === "code" ? "Copied code" : "Copy access code"}
+                  </button>
+                  <button
+                    type="button"
+                    className="tlb-link-btn"
+                    onClick={() => {
+                      void copyInviteValue("link", store.lastInvite!.inviteLink);
+                    }}
+                  >
+                    {copiedKey === "link" ? "Copied link" : "Copy invite link"}
+                  </button>
+                  <button
+                    type="button"
+                    className="tlb-link-btn"
+                    onClick={() => {
+                      void copyInviteValue("sms", store.lastInvite!.delivery.smsBody);
+                    }}
+                  >
+                    {copiedKey === "sms" ? "Copied SMS text" : "Copy SMS text"}
+                  </button>
+                  <button type="button" className="tlb-link-btn" onClick={store.clearLastInvite}>
+                    Dismiss
+                  </button>
+                </div>
+                <ul
+                  className="tlb-muted-line"
+                  style={{ margin: 0, paddingLeft: 18, fontSize: "0.75rem", lineHeight: 1.5 }}
+                >
+                  <li>{store.lastInvite.delivery.cloudNote}</li>
+                  <li>{store.lastInvite.delivery.emailNote}</li>
+                  <li>{store.lastInvite.delivery.smsNote}</li>
+                </ul>
+              </div>
+            ) : null}
             <TrashConfirmDialog
               open={pendingDelete !== null}
               mode="trash"

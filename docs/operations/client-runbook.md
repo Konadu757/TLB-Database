@@ -197,7 +197,7 @@ Stop. Leave the SQL Editor as it is.
 
 ## How a second person signs in
 
-Invites are access codes inside the portal. When the Supabase environment is set, Settings also calls `public.create_invite`, and the access page calls `public.accept_invite`. The portal does not email them. `accept_invite` stores a profile and a role. It does not create a password the person can type into Supabase Authentication, and it does not open a GoTrue session.
+Invites are access codes inside the portal. When the Supabase environment is set, Settings also calls `public.create_invite`, and the access page calls `public.accept_invite`. Email is only attempted when `VITE_TLB_INVITE_MAIL_ENDPOINT` is set; otherwise the Owner copies the code/link from Settings. `accept_invite` stores a profile and a role. It does not create a password the person can type into Supabase Authentication, and it does not open a GoTrue session.
 
 ### Invite bootstrap (anon execute stays)
 
@@ -210,11 +210,22 @@ Leave the anon grant in place until a later change sends Settings a real Auth se
 The steps:
 
 1. An administrator opens [https://portal.tlbgh.com](https://portal.tlbgh.com) and goes to **Settings → Users & role assignment**.
-2. Create the person, or choose **Re-issue** on their row.
-3. When the green “Invite ready” box appears, choose **Copy invite link** or **Copy access code**. The code looks like `TLB-XXXX-XXXX`. Send it yourself through a channel you trust. Treat the link and the code like a password.
-4. The other person opens the link. It looks like `https://portal.tlbgh.com/access?invite=...`. Or they open [https://portal.tlbgh.com/access](https://portal.tlbgh.com/access), type the code, and choose **Sign in**.
-5. Wait until the button says **Sign in** rather than **Loading**. They should land on the dashboard as that person.
-6. If the page says the invite is invalid or expired, the administrator refreshes the portal once (so the user list can finish saving) and sends the code again. A brand-new code from **Re-issue** replaces the old one.
+2. Enter name, contact, email, and role, then choose **Assign role** (or **Re-issue** on a pending row).
+3. Directly under the form, the green **Invitation ready** panel shows the access code (`TLB-XXXX-XXXX`) and the full `/access?invite=…` link. Use **Copy access code**, **Copy invite link**, or **Copy SMS text**. The panel stays until you dismiss it.
+4. Email and SMS are not sent by the portal unless mail is configured (see below). Share the copied link or code yourself. Treat them like a password.
+5. The other person opens the link (`https://portal.tlbgh.com/access?invite=...`) or opens [https://portal.tlbgh.com/access](https://portal.tlbgh.com/access), types the code, and chooses **Sign in**.
+6. Wait until the button says **Sign in** rather than **Loading**. They should land on the dashboard as that person.
+7. If the page says the invite is invalid or expired, the administrator refreshes the portal once (so the user list can finish saving) and sends the code again. A brand-new code from **Re-issue** replaces the old one.
+
+### Email and SMS (optional)
+
+The portal never puts Resend, Twilio, or the Supabase **service_role** key in a `VITE_` variable.
+
+- **Today:** after assign, the Owner copies the code/link (or SMS text) and sends it manually. Contact stays on the person record.
+- **Email later (smallest paths):**
+  1. Host a small server (or Vercel serverless) that sends mail with **Resend**. Set `VITE_TLB_INVITE_MAIL_ENDPOINT` on the portal host to that URL. The portal POSTs `{ to, name, inviteCode, inviteLink }`. Keep the Resend API key only on that server.
+  2. Or call Supabase Auth `inviteUserByEmail` from a server that has `SUPABASE_SERVICE_ROLE_KEY` (never in the browser). That emails a Supabase Auth invite, which is separate from the portal access code flow.
+- **SMS:** no SMS provider is in this repo. Do not invent Twilio keys. Use **Copy SMS text** and send from your phone, or add a provider later on a server.
 
 Signing in this way switches the portal session. It does not create a password in Supabase Authentication, and it does not grant them the Supabase dashboard.
 

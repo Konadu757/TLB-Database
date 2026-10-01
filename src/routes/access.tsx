@@ -64,8 +64,8 @@ function AccessPage() {
           }}
         >
           <p className="tlb-muted-line tlb-span-2" style={{ margin: 0 }}>
-            Enter the access code your administrator sent you, or open the invite link they shared.
-            Email is not sent automatically — treat the code like a password.
+            Enter the access code your administrator shared with you, or open the invite link they
+            sent. Treat the code like a password.
           </p>
           {inviteToken ? (
             <p className="tlb-muted-line tlb-span-2" style={{ margin: 0 }}>
