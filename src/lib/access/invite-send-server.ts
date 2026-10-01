@@ -124,9 +124,9 @@ export async function sendInviteEmailWithResend(input: {
     "You have been invited to the TLB portal.",
     roleLine.trimEnd(),
     `Access code: ${input.inviteCode}`,
-    `Sign-in link: ${input.inviteLink}`,
+    `Onboarding link: ${input.inviteLink}`,
     "",
-    "Treat this access code like a secret. Open the link, enter the code, then create your own password. Do not forward it.",
+    "Open the link. Confirm your email, access code, contact number, and position, then create your own password for future sign-in. Do not forward the code.",
     "",
     "— TLB",
   ]
@@ -138,8 +138,8 @@ export async function sendInviteEmailWithResend(input: {
     <p>You have been invited to the TLB portal.</p>
     ${input.role?.trim() ? `<p><strong>Role:</strong> ${escapeHtml(input.role.trim())}</p>` : ""}
     <p><strong>Access code:</strong> <code>${escapeHtml(input.inviteCode)}</code></p>
-    <p><a href="${escapeAttr(input.inviteLink)}">Open invite link</a></p>
-    <p style="color:#555;font-size:13px">Enter the access code (not a password). After it is accepted you will create your own password for future sign-in. Do not forward the code.</p>
+    <p><a href="${escapeAttr(input.inviteLink)}">Open invite onboarding</a></p>
+    <p style="color:#555;font-size:13px">Confirm your email, access code, contact number, and position, then create your own password for future sign-in. Do not forward the code.</p>
     <p>— TLB</p>
   `.trim();
 

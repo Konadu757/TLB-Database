@@ -145,10 +145,9 @@ export function ensureDeletableSystemRoles(state: TlbState): void {
 }
 
 /**
- * The signed-in session stays Owner. Other predefined roles stay available
- * for assignment. Users whose role is missing or already in Trash are
- * reassigned to Owner before missing system roles are restored. Soft-deleted
- * roles are kept so Trash survives reload.
+ * Ensure the Owner catalog role exists and orphaned users get a live role.
+ * Does NOT force the browser session onto the Owner staff user — invited
+ * Finance/Sales/etc. sessions must survive load and refresh.
  */
 export function lockWorkspaceToOwner(state: TlbState): void {
   const catalogOwner = createSystemRoles().find((r) => r.systemKey === "Owner");
@@ -181,34 +180,69 @@ export function lockWorkspaceToOwner(state: TlbState): void {
   if (ownerUser) {
     ownerUser.active = true;
     ownerUser.roleId = owner.id;
-    state.currentUserId = ownerUser.id;
+  }
+  const sessionUser = state.users.find((u) => u.id === state.currentUserId && u.active);
+  if (!sessionUser) {
+    state.currentUserId = ownerUser?.id ?? OWNER_USER_ID;
   }
   state.version = Math.max(state.version, 14);
   syncSessionIdentity(state);
 }
 
-/** Keep denormalized session fields aligned with users/roles. */
+/** Keep denormalized session fields aligned with the signed-in user's assigned role. */
 export function syncSessionIdentity(state: TlbState): void {
   const user =
+    state.users.find((u) => u.id === state.currentUserId && u.active) ??
     state.users.find((u) => u.id === state.currentUserId) ??
     state.users.find((u) => u.id === OWNER_USER_ID) ??
     state.users[0];
   if (!user) return;
   const role =
+    state.roles.find((r) => r.id === user.roleId && r.active && !r.deletedAt) ??
     state.roles.find((r) => r.id === user.roleId) ??
-    state.roles.find((r) => r.id === state.currentRoleId) ??
-    state.roles.find((r) => r.systemKey === "Owner");
-  const owner =
-    state.roles.find((r) => r.systemKey === "Owner" && r.active) ??
-    state.roles.find((r) => r.id === SYSTEM_ROLE_IDS.Owner) ??
-    role;
+    state.roles.find((r) => r.systemKey === "Owner" && r.active);
   state.currentUserId = user.id;
   state.currentUser = user.name;
-  if (owner) {
-    user.roleId = owner.id;
-    state.currentRoleId = owner.id;
-    state.currentRole = owner.name;
+  if (role) {
+    state.currentRoleId = role.id;
+    state.currentRole = (role.systemKey ?? role.name) as TlbState["currentRole"];
   }
+}
+
+/**
+ * Bind the local workspace session to the Auth user (email / profile id).
+ * Returns the same state reference when already aligned.
+ */
+export function bindSessionToAuthIdentity(
+  state: TlbState,
+  input: { email?: string; authUserId?: string },
+): TlbState {
+  const email = input.email?.trim().toLowerCase() ?? "";
+  const authUserId = input.authUserId?.trim() ?? "";
+  if (!email && !authUserId) return state;
+
+  const user =
+    (email
+      ? state.users.find((u) => u.active && u.email.trim().toLowerCase() === email)
+      : undefined) ??
+    (authUserId ? state.users.find((u) => u.active && u.id === authUserId) : undefined);
+  if (!user) return state;
+
+  const role = state.roles.find((r) => r.id === user.roleId);
+  const roleLabel = (role?.systemKey ?? role?.name ?? state.currentRole) as TlbState["currentRole"];
+  if (
+    state.currentUserId === user.id &&
+    state.currentUser === user.name &&
+    state.currentRoleId === user.roleId &&
+    state.currentRole === roleLabel
+  ) {
+    return state;
+  }
+
+  const next = JSON.parse(JSON.stringify(state)) as TlbState;
+  next.currentUserId = user.id;
+  syncSessionIdentity(next);
+  return next;
 }
 
 function mergeById<T extends { id: string }>(existing: T[], extras: T[]): T[] {

@@ -21,6 +21,8 @@ import {
   normalizeAccessCode,
 } from "../domain/invites";
 import {
+  dbRoleCodeForRoleId,
+  createSystemRoles,
   hasPermission,
   isAssignableSystemRole,
   resolveRole,
@@ -1717,7 +1719,13 @@ export function issueUserInvite(state: TlbState, userId: string): MutResult<AppU
 export function previewLocalInvite(
   state: TlbState,
   input: { token?: string; code?: string },
-): MutResult<{ email: string; fullName: string; accessCode?: string }> {
+): MutResult<{
+  email: string;
+  fullName: string;
+  accessCode?: string;
+  contact?: string;
+  roleCode?: string;
+}> {
   const token = input.token?.trim();
   const code = input.code?.trim();
   if (!token && !code) {
@@ -1753,6 +1761,8 @@ export function previewLocalInvite(
     return { ok: false, error: "Invalid or expired invite." };
   }
 
+  const roleCode = dbRoleCodeForRoleId(user.roleId) ?? undefined;
+
   return {
     ok: true,
     data: {
@@ -1761,6 +1771,8 @@ export function previewLocalInvite(
         email: user.email,
         fullName: user.name,
         ...(user.inviteCode ? { accessCode: user.inviteCode } : {}),
+        ...(user.contact?.trim() ? { contact: user.contact.trim() } : {}),
+        ...(roleCode ? { roleCode } : {}),
       },
     },
   };
@@ -1823,12 +1835,7 @@ export function acceptInvite(
     });
   }
 
-  const owner = next.roles.find((role) => role.systemKey === "Owner" && role.active);
-  if (owner && updated.roleId !== owner.id) {
-    updated = { ...updated, roleId: owner.id };
-    next.users[idx] = updated;
-  }
-
+  // Keep the Owner-assigned predefined role (Finance, Sales, …) — never elevate to Owner.
   next.currentUserId = updated.id;
   syncSessionIdentity(next);
   pushAudit(next, {
@@ -1850,6 +1857,7 @@ export type HostedInviteAcceptance = {
 /**
  * Mirror a profile that tlb.accept_invite already accepted.
  * Does not validate the raw token — the database call is the gate.
+ * Binds session to the invited staff user and their predefined role (never Owner unless invited as Owner).
  */
 export function applyHostedInviteAcceptance(
   state: TlbState,
@@ -1857,9 +1865,7 @@ export function applyHostedInviteAcceptance(
 ): MutResult<AppUser> {
   const roleKey = systemRoleKeyForDbCode(input.roleCode);
   if (!roleKey) return { ok: false, error: "Invite role is not a system role." };
-  const owner = state.roles.find((role) => role.systemKey === "Owner" && role.active);
-  if (!owner) return { ok: false, error: "Owner role is missing." };
-  const roleId = owner.id;
+
   const email = input.email.trim().toLowerCase();
   const name = input.fullName.trim();
   if (!email || !name) return { ok: false, error: "Invite profile is incomplete." };
@@ -1867,6 +1873,17 @@ export function applyHostedInviteAcceptance(
   if (!profileId) return { ok: false, error: "Invite profile is incomplete." };
 
   const next = cloneState(state);
+  let role = next.roles.find(
+    (candidate) => candidate.systemKey === roleKey && candidate.active && !candidate.deletedAt,
+  );
+  if (!role) {
+    const catalog = createSystemRoles().find((candidate) => candidate.systemKey === roleKey);
+    if (!catalog) return { ok: false, error: `Role ${roleKey} is missing.` };
+    next.roles.push(catalog);
+    role = catalog;
+  }
+
+  const roleId = role.id;
   const at = new Date().toISOString();
   let user = next.users.find((candidate) => candidate.email.toLowerCase() === email);
   if (!user) {
@@ -1887,6 +1904,8 @@ export function applyHostedInviteAcceptance(
     user.roleId = roleId;
     user.invitePending = false;
     user.inviteAcceptedAt = user.inviteAcceptedAt ?? at;
+    delete user.inviteToken;
+    delete user.inviteCode;
   }
 
   next.currentUserId = user.id;
@@ -1895,7 +1914,7 @@ export function applyHostedInviteAcceptance(
     action: "user.invite_accepted",
     entityType: "user",
     entityId: user.id,
-    summary: `${user.name} activated invite and signed in.`,
+    summary: `${user.name} activated invite as ${next.currentRole}.`,
   });
   pushAudit(next, {
     action: "session.user_switched",

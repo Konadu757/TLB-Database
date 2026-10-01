@@ -16,6 +16,8 @@ export type HostedInvitePreview = {
   fullName: string;
   roleCode: string;
   accessCode?: string;
+  /** Phone/contact when present on the invite row (optional column). */
+  contact?: string;
 };
 
 async function rpc(fn: string, args: Record<string, unknown>): Promise<RpcResult> {
@@ -63,8 +65,19 @@ function parseInvitePreview(data: unknown): HostedInvitePreview | null {
   const fullName = typeof row["full_name"] === "string" ? row["full_name"] : "";
   const roleCode = typeof row["role_code"] === "string" ? row["role_code"] : "";
   const accessCode = typeof row["access_code"] === "string" ? row["access_code"] : undefined;
+  const contactRaw =
+    (typeof row["phone"] === "string" && row["phone"]) ||
+    (typeof row["contact"] === "string" && row["contact"]) ||
+    "";
+  const contact = contactRaw.trim() || undefined;
   if (!email || !fullName || !roleCode) return null;
-  return { email, fullName, roleCode, ...(accessCode ? { accessCode } : {}) };
+  return {
+    email,
+    fullName,
+    roleCode,
+    ...(accessCode ? { accessCode } : {}),
+    ...(contact ? { contact } : {}),
+  };
 }
 
 export async function createInviteOnSupabase(input: {
@@ -74,20 +87,41 @@ export async function createInviteOnSupabase(input: {
   token: string;
   accessCode: string;
   replacesToken?: string;
+  phone?: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
+  const baseArgs: Record<string, unknown> = {
+    p_email: input.email,
+    p_full_name: input.fullName,
+    p_role_code: input.roleCode,
+    p_token: input.token,
+    p_access_code: input.accessCode,
+    p_expires_at: null,
+    p_replaces_token: input.replacesToken ?? null,
+  };
+  const phone = input.phone?.trim();
+
+  const attempt = async (args: Record<string, unknown>) => {
+    const { data, error } = await rpcWithTimeout("create_invite", args);
+    if (error) return { ok: false as const, error: `Supabase invite was not stored: ${error.message}` };
+    if (!data) return { ok: false as const, error: "Supabase invite was not stored." };
+    return { ok: true as const };
+  };
+
   try {
-    const { data, error } = await rpcWithTimeout("create_invite", {
-      p_email: input.email,
-      p_full_name: input.fullName,
-      p_role_code: input.roleCode,
-      p_token: input.token,
-      p_access_code: input.accessCode,
-      p_expires_at: null,
-      p_replaces_token: input.replacesToken ?? null,
-    });
-    if (error) return { ok: false, error: `Supabase invite was not stored: ${error.message}` };
-    if (!data) return { ok: false, error: "Supabase invite was not stored." };
-    return { ok: true };
+    if (phone) {
+      const withPhone = await attempt({ ...baseArgs, p_phone: phone });
+      if (withPhone.ok) return withPhone;
+      // Older create_invite (no p_phone) — retry without phone so Re-issue still works.
+      const missingPhoneArg =
+        /Could not find the function public\.create_invite/i.test(withPhone.error) ||
+        /p_phone/i.test(withPhone.error) ||
+        /schema cache/i.test(withPhone.error);
+      if (missingPhoneArg) {
+        return attempt(baseArgs);
+      }
+      return withPhone;
+    }
+    return attempt(baseArgs);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, error: `Supabase invite was not stored: ${message}` };

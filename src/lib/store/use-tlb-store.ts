@@ -18,6 +18,11 @@ import { dbRoleCodeForRoleId } from "@/lib/domain/permissions";
 import type { AppUser, DeliveryStatus, Permission, TlbState } from "@/lib/domain/types";
 import { createTlbRepository } from "@/lib/repo/tlb-repository";
 import { can as canPerm } from "@/lib/store/tlb-store";
+import { bindSessionToAuthIdentity } from "@/lib/store/migrate";
+import {
+  readPortalSession,
+  subscribePortalAuth,
+} from "@/lib/auth/portal-auth";
 import {
   assignUserRole,
   cancelOrderLine,
@@ -153,8 +158,15 @@ export function useTlbStore() {
       try {
         const loaded = await repo.load();
         if (cancelled) return;
+        const session = await readPortalSession();
+        const bound = session?.email
+          ? bindSessionToAuthIdentity(loaded, {
+              email: session.email,
+              authUserId: session.userId,
+            })
+          : loaded;
         skipNextPersist.current = true;
-        setState(loaded);
+        setState(bound);
         setHydrated(true);
       } catch (err) {
         if (cancelled) return;
@@ -168,6 +180,19 @@ export function useTlbStore() {
       cancelled = true;
     };
   }, [repo]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    return subscribePortalAuth((session) => {
+      if (!session?.email) return;
+      setState((prev) =>
+        bindSessionToAuthIdentity(prev, {
+          email: session.email,
+          authUserId: session.userId,
+        }),
+      );
+    });
+  }, [hydrated]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -313,6 +338,7 @@ export function useTlbStore() {
           token: user.inviteToken,
           accessCode: user.inviteCode,
           ...(replacesToken ? { replacesToken } : {}),
+          ...(user.contact?.trim() ? { phone: user.contact.trim() } : {}),
         }).then((result) => {
           if (result.ok) {
             patchLastInviteDelivery(user.id, {
@@ -702,10 +728,11 @@ export function useTlbStore() {
               data: {
                 email: local.data.data.email,
                 fullName: local.data.data.fullName,
-                roleCode: "local",
+                roleCode: local.data.data.roleCode ?? "local",
                 ...(local.data.data.accessCode
                   ? { accessCode: local.data.data.accessCode }
                   : {}),
+                ...(local.data.data.contact ? { contact: local.data.data.contact } : {}),
               },
             };
           }
@@ -734,8 +761,9 @@ export function useTlbStore() {
         data: {
           email: local.data.data.email,
           fullName: local.data.data.fullName,
-          roleCode: "local",
+          roleCode: local.data.data.roleCode ?? "local",
           ...(local.data.data.accessCode ? { accessCode: local.data.data.accessCode } : {}),
+          ...(local.data.data.contact ? { contact: local.data.data.contact } : {}),
         },
       };
     },

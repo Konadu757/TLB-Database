@@ -70,7 +70,7 @@ export function buildInviteSmsBody(input: {
   origin?: string;
 }): string {
   const link = buildInviteLink(input.inviteToken, input.origin);
-  return `TLB access for ${input.name}: code ${input.inviteCode}. Open ${link}`;
+  return `TLB invite for ${input.name}: code ${input.inviteCode}. Open ${link} — confirm details, then create your password.`;
 }
 
 /**
