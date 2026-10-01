@@ -1216,7 +1216,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-orders-panel table { width: 100%; border-collapse: collapse; font-size: var(--tlb-type-table); }
 .tlb-orders-panel th,
 .tlb-table-scroll > table th { padding: 9px 15px; background: var(--muted); color: var(--muted-foreground); font-size: 0.6875rem; text-align: left; text-transform: uppercase; }
-.tlb-orders-panel td { padding: 12px 15px; border-top: 1px solid var(--border); white-space: nowrap; }.tlb-orders-panel tbody tr:hover { background: color-mix(in oklab, var(--muted) 60%, transparent); }.tlb-orders-panel td:nth-child(3) { font-variant-numeric: tabular-nums; }.tlb-orders-panel td:last-child button { border: 0; background: transparent; color: var(--muted-foreground); }.tlb-orders-panel td:last-child svg { width: 14px; }
+.tlb-orders-panel td { padding: 12px 15px; border-top: 1px solid var(--border); white-space: nowrap; }.tlb-orders-panel tbody tr:hover { background: color-mix(in oklab, var(--muted) 60%, transparent); }.tlb-orders-panel td:nth-child(3) { font-variant-numeric: tabular-nums; }.tlb-orders-panel td:last-child button:not(.tlb-user-action) { border: 0; background: transparent; color: var(--muted-foreground); }.tlb-orders-panel td:last-child svg { width: 14px; }
 /* Subtle zebra striping: odd rows stay white; even rows get a light cream/purple tint.
    Skips hover, selected/active, and status-tinted line rows so those stay clearly stronger. */
 .tlb-orders-panel tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.tlb-row-selected):not(.tlb-order-line--outstanding):not(.tlb-order-line--supplied):not(.tlb-order-line--cancelled),
@@ -1660,15 +1660,37 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
 .tlb-inline-select { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 8px; font-size: 0.75rem; background: #fff; max-width: 160px; }
 .tlb-link-btn { border: 0; background: transparent; color: var(--primary); font-size: 0.75rem; font-weight: 700; cursor: pointer; padding: 0; }
 .tlb-user-row-actions { display: inline-flex; align-items: center; gap: 10px; vertical-align: middle; }
-.tlb-user-action {
+/* Beat .tlb-orders-panel td:last-child button so Settings Edit/Delete keep brand colors */
+.tlb-orders-panel td:last-child button.tlb-user-action,
+button.tlb-user-action {
   border: 0; border-radius: 4px; padding: 4px 10px; font-size: 0.75rem; font-weight: 700;
   line-height: 1.2; cursor: pointer; color: #fff;
 }
-.tlb-user-action--edit { background: #6420D0; }
-.tlb-user-action--edit:hover { background: #5419b3; }
-.tlb-user-action--delete { background: var(--danger); }
-.tlb-user-action--delete:hover { background: color-mix(in oklab, var(--danger) 86%, black); }
-.tlb-user-action:focus-visible { outline: 2px solid #2a1f12; outline-offset: 2px; }
+.tlb-orders-panel td:last-child button.tlb-user-action--edit,
+button.tlb-user-action--edit {
+  background: #6420D0;
+  color: #fff;
+}
+.tlb-orders-panel td:last-child button.tlb-user-action--edit:hover,
+button.tlb-user-action--edit:hover {
+  background: #5419b3;
+  color: #fff;
+}
+.tlb-orders-panel td:last-child button.tlb-user-action--delete,
+button.tlb-user-action--delete {
+  background: var(--danger);
+  color: #fff;
+}
+.tlb-orders-panel td:last-child button.tlb-user-action--delete:hover,
+button.tlb-user-action--delete:hover {
+  background: color-mix(in oklab, var(--danger) 86%, black);
+  color: #fff;
+}
+.tlb-orders-panel td:last-child button.tlb-user-action:focus-visible,
+button.tlb-user-action:focus-visible {
+  outline: 2px solid #2a1f12;
+  outline-offset: 2px;
+}
 @media (max-width: 900px) {
   .tlb-roles-layout { grid-template-columns: 1fr; }
 }
