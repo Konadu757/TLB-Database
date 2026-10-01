@@ -887,12 +887,21 @@ function TLBDashboardInner() {
           size="icon"
           className="tlb-collapse"
           onClick={() => {
-            if (isNavMobile) return;
+            if (isNavMobile) {
+              setMobileOpen(false);
+              return;
+            }
             setSidebarOpen((value) => !value);
           }}
-          aria-label={sidebarIsOpen ? "Collapse sidebar" : "Expand sidebar"}
+          aria-label={
+            isNavMobile
+              ? "Close navigation"
+              : sidebarIsOpen
+                ? "Collapse sidebar"
+                : "Expand sidebar"
+          }
         >
-          {sidebarIsOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
+          {isNavMobile ? <X /> : sidebarIsOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
         </Button>
       </div>
       <nav className="tlb-nav">
@@ -961,7 +970,11 @@ function TLBDashboardInner() {
           aria-hidden="true"
         />
       )}
-      <div className={cn("tlb-mobile-sidebar", mobileOpen && "tlb-mobile-sidebar-open")}>
+      <div
+        className={cn("tlb-mobile-sidebar", mobileOpen && "tlb-mobile-sidebar-open")}
+        aria-hidden={!mobileOpen}
+        inert={!mobileOpen ? true : undefined}
+      >
         {sidebar}
       </div>
 
