@@ -1,5 +1,6 @@
 /**
- * Server-only invite delivery via Resend (email) and Twilio (SMS).
+ * Server-only invite delivery via Resend (email) and Termii / Twilio (SMS).
+ * Prefer Termii when TERMII_* is set; Twilio remains a fallback.
  * Secrets stay in process.env — never import this from browser code.
  */
 
@@ -12,6 +13,10 @@ export type InviteSendResult =
 
 export { looksLikePhoneNumber, normalizePhoneForSms };
 
+const DEFAULT_TERMII_BASE_URL = "https://api.ng.termii.com";
+const SMS_NOT_CONFIGURED_MESSAGE =
+  "SMS is not configured. Set TERMII_API_KEY and TERMII_SENDER_ID on the host (Vercel), then redeploy. Twilio (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER) remains supported as a fallback.";
+
 function env(name: string): string {
   if (typeof process === "undefined" || !process.env) return "";
   return String(process.env[name] ?? "").trim();
@@ -23,6 +28,21 @@ function basicAuthHeader(user: string, pass: string): string {
     return `Basic ${Buffer.from(raw).toString("base64")}`;
   }
   return `Basic ${btoa(raw)}`;
+}
+
+/** Termii expects international digits without a leading +. */
+function normalizePhoneForTermii(raw: string): string {
+  return normalizePhoneForSms(raw).replace(/^\+/, "");
+}
+
+function termiiConfigured(): boolean {
+  return Boolean(env("TERMII_API_KEY") && env("TERMII_SENDER_ID"));
+}
+
+function twilioConfigured(): boolean {
+  return Boolean(
+    env("TWILIO_ACCOUNT_SID") && env("TWILIO_AUTH_TOKEN") && env("TWILIO_FROM_NUMBER"),
+  );
 }
 
 export async function sendInviteEmailWithResend(input: {
@@ -104,6 +124,88 @@ export async function sendInviteEmailWithResend(input: {
   }
 }
 
+export async function sendInviteSmsWithTermii(input: {
+  to: string;
+  body: string;
+}): Promise<InviteSendResult> {
+  const apiKey = env("TERMII_API_KEY");
+  const senderId = env("TERMII_SENDER_ID");
+  if (!apiKey || !senderId) {
+    return {
+      ok: false,
+      notConfigured: true,
+      error: SMS_NOT_CONFIGURED_MESSAGE,
+    };
+  }
+
+  if (!looksLikePhoneNumber(input.to)) {
+    return { ok: false, error: "Contact does not look like a phone number." };
+  }
+
+  const to = normalizePhoneForTermii(input.to);
+  const sms = input.body.trim();
+  if (!sms) {
+    return { ok: false, error: "SMS body is required." };
+  }
+
+  const baseUrl = (env("TERMII_BASE_URL") || DEFAULT_TERMII_BASE_URL).replace(/\/+$/, "");
+  // Transactional invite codes: prefer dnd (docs); allow override via TERMII_CHANNEL.
+  const channelRaw = env("TERMII_CHANNEL").toLowerCase();
+  const channel = channelRaw === "generic" ? "generic" : "dnd";
+  const url = `${baseUrl}/api/sms/send`;
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        api_key: apiKey,
+        to,
+        from: senderId,
+        sms,
+        type: "plain",
+        channel,
+      }),
+    });
+
+    const text = await response.text().catch(() => "");
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: summarizeProviderError("Termii", response.status, text),
+      };
+    }
+
+    // Termii often returns HTTP 200 with a business error payload.
+    if (text.trim()) {
+      try {
+        const parsed = JSON.parse(text) as {
+          code?: unknown;
+          message?: unknown;
+          message_id?: unknown;
+        };
+        const code = typeof parsed.code === "string" ? parsed.code.trim() : "";
+        if (code && code !== "ok") {
+          const msg =
+            typeof parsed.message === "string" && parsed.message.trim()
+              ? parsed.message.trim()
+              : code;
+          return { ok: false, error: `Termii: ${msg}` };
+        }
+      } catch {
+        // Non-JSON success body is fine.
+      }
+    }
+
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message };
+  }
+}
+
 export async function sendInviteSmsWithTwilio(input: {
   to: string;
   body: string;
@@ -115,8 +217,7 @@ export async function sendInviteSmsWithTwilio(input: {
     return {
       ok: false,
       notConfigured: true,
-      error:
-        "SMS is not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_NUMBER on the host (Vercel), then redeploy.",
+      error: SMS_NOT_CONFIGURED_MESSAGE,
     };
   }
 
@@ -159,6 +260,24 @@ export async function sendInviteSmsWithTwilio(input: {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, error: message };
   }
+}
+
+/** Prefer Termii when configured; otherwise Twilio; otherwise notConfigured. */
+export async function sendInviteSms(input: {
+  to: string;
+  body: string;
+}): Promise<InviteSendResult> {
+  if (termiiConfigured()) {
+    return sendInviteSmsWithTermii(input);
+  }
+  if (twilioConfigured()) {
+    return sendInviteSmsWithTwilio(input);
+  }
+  return {
+    ok: false,
+    notConfigured: true,
+    error: SMS_NOT_CONFIGURED_MESSAGE,
+  };
 }
 
 function escapeHtml(value: string): string {

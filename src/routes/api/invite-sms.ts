@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { looksLikePhoneNumber } from "@/lib/access/invite-phone";
 import {
   parseInviteSmsBody,
-  sendInviteSmsWithTwilio,
+  sendInviteSms,
 } from "@/lib/access/invite-send-server";
 
 export const Route = createFileRoute("/api/invite-sms")({
@@ -42,7 +42,7 @@ export const Route = createFileRoute("/api/invite-sms")({
           parsed.body?.trim() ||
           `TLB access for ${parsed.name}: code ${parsed.inviteCode}. Open ${parsed.inviteLink}`;
 
-        const result = await sendInviteSmsWithTwilio({
+        const result = await sendInviteSms({
           to: parsed.to,
           body: smsBody,
         });
