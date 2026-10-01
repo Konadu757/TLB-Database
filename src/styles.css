@@ -1395,11 +1395,12 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
   background: color-mix(in oklab, #6420d0 4%, #ffffff);
 }
 .tlb-notifications-item--active {
-  background: color-mix(in oklab, #6420d0 9%, #f6f4fc);
-  box-shadow: inset 3px 0 0 #6420d0;
+  background: color-mix(in oklab, #6420d0 10%, #f6f4fc);
+  box-shadow: 0 4px 14px color-mix(in oklab, #6420d0 8%, transparent);
 }
 .tlb-notifications-item--active:hover {
-  background: color-mix(in oklab, #6420d0 12%, #f6f4fc);
+  background: color-mix(in oklab, #6420d0 13%, #f6f4fc);
+  box-shadow: 0 4px 16px color-mix(in oklab, #6420d0 10%, transparent);
 }
 .tlb-notifications-item-select {
   padding-top: 4px;
