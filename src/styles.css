@@ -1465,6 +1465,10 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
 .tlb-customers-search {
   border-radius: 999px;
 }
+/* Customers page “New customer” toolbar button only — match search pill */
+.tlb-customers-new-btn {
+  border-radius: 999px;
+}
 .tlb-module-search svg { width: 15px; color: var(--primary); flex: none; }
 .tlb-module-search input {
   min-width: 0; flex: 1; border: 0; outline: 0; background: transparent;

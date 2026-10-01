@@ -354,6 +354,7 @@ export function CustomersModule({
           ) : null}
           <Button
             type="button"
+            className="tlb-customers-new-btn"
             onClick={() => {
               setForm(emptyCustomerForm());
               setCreating(true);
