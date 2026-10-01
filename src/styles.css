@@ -1278,6 +1278,44 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
 .tlb-sales-orders-list-panel tbody tr.tlb-row-active:hover {
   background: color-mix(in oklab, #6420d0 14%, #f6f4fc);
 }
+
+/* Outstanding Supplies — same portal white / deep violet labels (no cream bands) */
+.tlb-outstanding-supplies-module .tlb-module-toolbar {
+  padding: 14px 16px;
+  border: 0;
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 6px 22px color-mix(in oklab, #6420d0 7%, transparent);
+}
+.tlb-outstanding-supplies-module .tlb-module-toolbar .tlb-eyebrow { color: #6420d0; }
+.tlb-outstanding-supplies-module .tlb-module-toolbar strong {
+  color: #1f1630;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.tlb-outstanding-supplies-module .tlb-module-toolbar .tlb-muted-line {
+  color: color-mix(in oklab, #1f1630 55%, #6420d0);
+}
+.tlb-outstanding-supplies-list-panel > .tlb-table-scroll > table thead th {
+  background: #ffffff;
+  color: #6420d0;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid color-mix(in oklab, #6420d0 10%, #e8e6ef);
+}
+.tlb-outstanding-supplies-list-panel tbody tr.tlb-row-clickable:hover {
+  background: color-mix(in oklab, #6420d0 6%, white);
+}
+.tlb-outstanding-supplies-list-panel tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.tlb-row-selected) {
+  background: #ffffff;
+}
+.tlb-outstanding-supplies-list-panel .tlb-list-meta {
+  padding: 10px 15px 14px;
+  color: color-mix(in oklab, #1f1630 60%, #6420d0);
+  font-size: 0.8125rem;
+  border-top: 1px solid color-mix(in oklab, #6420d0 10%, #e8e6ef);
+  background: #ffffff;
+}
 .tlb-fulfilment-cell {
   font-variant-numeric: tabular-nums;
   font-weight: 700;

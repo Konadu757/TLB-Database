@@ -394,6 +394,7 @@ function TLBDashboardInner() {
     return isMac ? "⌘ K" : "Ctrl K";
   }, []);
 
+  // Match Outstanding Supplies module base set: non-trashed outstanding lines (not period-scoped).
   const outstandingBadge = store.outstanding.length;
   const trashBadge = listTrashItems(store.state).length;
   const role = resolveRole(store.state);

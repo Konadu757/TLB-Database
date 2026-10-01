@@ -2231,13 +2231,34 @@ export function OutstandingSuppliesModule({
     if (productFilterId) setProductId(productFilterId);
   }, [productFilterId]);
 
-  const rows = store.outstanding.filter((r) => {
-    if (range && !isoInRange(r.orderDate, range)) return false;
-    if (band !== "All" && r.ageingBand !== band) return false;
-    if (warehouseId !== "all" && r.warehouseId !== warehouseId) return false;
-    if (productId !== "all" && r.productId !== productId) return false;
-    return true;
-  });
+  const rangeFrom = range?.from;
+  const rangeTo = range?.to;
+  const baseRows = store.outstanding;
+  const baseCount = baseRows.length;
+
+  const { rows, periodFallback } = useMemo(() => {
+    const activeRange = rangeFrom && rangeTo ? { from: rangeFrom, to: rangeTo } : null;
+    const matchesLocal = (r: (typeof baseRows)[number]) => {
+      if (band !== "All" && r.ageingBand !== band) return false;
+      if (warehouseId !== "all" && r.warehouseId !== warehouseId) return false;
+      if (productId !== "all" && r.productId !== productId) return false;
+      return true;
+    };
+    const inPeriod = baseRows.filter((r) => {
+      if (activeRange && !isoInRange(r.orderDate, activeRange)) return false;
+      return matchesLocal(r);
+    });
+    // Period bar defaults to "This Month" while seed/legacy outstanding often sits earlier.
+    // If the period alone empties the register, show the same non-trashed base set the
+    // sidebar badge counts so the module is never blank while the badge says N > 0.
+    const localFiltersIdle = band === "All" && warehouseId === "all" && productId === "all";
+    const periodAloneEmpty =
+      Boolean(activeRange) && localFiltersIdle && inPeriod.length === 0 && baseRows.length > 0;
+    if (periodAloneEmpty) {
+      return { rows: baseRows.filter(matchesLocal), periodFallback: true };
+    }
+    return { rows: inPeriod, periodFallback: false };
+  }, [baseRows, rangeFrom, rangeTo, band, warehouseId, productId]);
 
   const sorted = [...rows].sort((a, b) => {
     if (sort === "qty") return b.outstandingQty - a.outstandingQty;
@@ -2246,7 +2267,7 @@ export function OutstandingSuppliesModule({
   });
 
   return (
-    <div className="tlb-module">
+    <div className="tlb-module tlb-outstanding-supplies-module">
       <Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />
       <div className="tlb-module-toolbar">
         <div>
@@ -2256,7 +2277,11 @@ export function OutstandingSuppliesModule({
             Ageing: 0–{store.state.ageing.normalMaxDays} Normal ·{" "}
             {store.state.ageing.normalMaxDays + 1}–{store.state.ageing.attentionMaxDays} Attention ·{" "}
             {store.state.ageing.attentionMaxDays + 1}+ Overdue
-            {periodLabel ? ` · Order dates scoped to ${periodLabel}` : ""}
+            {periodFallback
+              ? ""
+              : periodLabel
+                ? ` · Order dates scoped to ${periodLabel}`
+                : ""}
           </p>
         </div>
         <div className="tlb-inline-actions">
@@ -2343,7 +2368,7 @@ export function OutstandingSuppliesModule({
         </label>
       </section>
 
-      <article className="tlb-panel tlb-orders-panel">
+      <article className="tlb-panel tlb-orders-panel tlb-outstanding-supplies-list-panel">
         <div className="tlb-table-scroll">
           {sorted.length === 0 ? (
             <EmptyState
@@ -2420,6 +2445,16 @@ export function OutstandingSuppliesModule({
             </table>
           )}
         </div>
+        {periodFallback && sorted.length > 0 ? (
+          <div className="tlb-list-meta">
+            No outstanding lines in {periodLabel ?? "this period"} — showing all {baseCount} open
+            line{baseCount === 1 ? "" : "s"}
+          </div>
+        ) : periodLabel && !periodFallback && sorted.length > 0 ? (
+          <div className="tlb-list-meta">
+            {sorted.length} line{sorted.length === 1 ? "" : "s"} in {periodLabel}
+          </div>
+        ) : null}
       </article>
     </div>
   );

@@ -198,7 +198,9 @@ export function getOutstandingRows(
     const customer = state.customers.find((c) => c.id === order.customerId);
     if (customer && isSoftDeleted(customer)) continue;
     const product = state.products.find((p) => p.id === line.productId);
+    if (product && isSoftDeleted(product)) continue;
     const warehouse = state.warehouses.find((w) => w.id === line.warehouseId);
+    if (warehouse && isSoftDeleted(warehouse)) continue;
     const bal = stockMap.get(stockKey(line.productId, line.warehouseId));
     const available = bal ? calcAvailable(bal) : 0;
     const ageDays = daysBetween(order.confirmedAt ?? order.orderDate, asOf);
@@ -257,6 +259,10 @@ export function countOutstandingOrdersForProduct(state: TlbState, productId: str
     const order = state.orders.find((o) => o.id === line.orderId);
     if (!order || isSoftDeleted(order) || order.status === "Draft" || order.status === "Cancelled")
       continue;
+    const product = state.products.find((p) => p.id === line.productId);
+    if (product && isSoftDeleted(product)) continue;
+    const warehouse = state.warehouses.find((w) => w.id === line.warehouseId);
+    if (warehouse && isSoftDeleted(warehouse)) continue;
     orderIds.add(order.id);
   }
   return orderIds.size;
