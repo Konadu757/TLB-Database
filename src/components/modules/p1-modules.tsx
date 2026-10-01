@@ -41,8 +41,11 @@ function StatusBadge({ children, tone }: { children: React.ReactNode; tone: stri
 
 function inviteDeliveryTone(
   status: string,
+  label?: string,
 ): "success" | "warning" | "danger" | "info" | "pending" {
   if (status === "ok" || status === "sent") return "success";
+  // Cloud-only failure is secondary: local code/link still work on this browser.
+  if (label === "Cloud" && status === "failed") return "warning";
   if (status === "failed" || status === "not_configured") return "danger";
   if (status === "skipped" || status === "local_only") return "warning";
   if (status === "pending") return "pending";
@@ -51,9 +54,10 @@ function inviteDeliveryTone(
 
 function invitePanelIsError(invite: {
   contact?: string;
-  delivery: { email: string; sms: string };
+  delivery: { email: string; sms: string; cloud?: string };
 }): boolean {
   const { email, sms } = invite.delivery;
+  // Cloud sync failure alone must not paint the whole Invitation ready panel red.
   if (email === "failed" || email === "not_configured") return true;
   if (email === "pending") return false;
   if (sms === "failed" || sms === "not_configured") return true;
@@ -71,7 +75,7 @@ function InviteDeliveryLine({
   status: string;
   note: string;
 }) {
-  const tone = inviteDeliveryTone(status);
+  const tone = inviteDeliveryTone(status, label);
   const color =
     tone === "success"
       ? "var(--success)"
@@ -83,15 +87,17 @@ function InviteDeliveryLine({
   const statusWord =
     status === "sent" || status === "ok"
       ? "Sent"
-      : status === "failed"
-        ? "Failed"
-        : status === "not_configured"
-          ? "Not configured"
-          : status === "skipped"
-            ? "Skipped"
-            : status === "pending"
-              ? "Sending…"
-              : status;
+      : status === "failed" && label === "Cloud"
+        ? "Not synced"
+        : status === "failed"
+          ? "Failed"
+          : status === "not_configured"
+            ? "Not configured"
+            : status === "skipped"
+              ? "Skipped"
+              : status === "pending"
+                ? "Sending…"
+                : status;
   return (
     <div
       style={{

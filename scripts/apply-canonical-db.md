@@ -2,7 +2,7 @@
 
 Use this with [the client runbook](../docs/operations/client-runbook.md). This page is the ordered list. It does not repeat the SQL inside the migration files.
 
-The Supabase project the portal has used is `myjwrhimhkakiczjfzeo`. In the dashboard, open **Project Settings → General** and confirm the reference matches before you run anything. SQL Editor runs as the database owner. You do not paste an API key into it.
+The Supabase project the portal uses is `mfyvhpwjrpjcxdlsqgit` (TLB Database). In the dashboard, open **Project Settings → General** and confirm the reference matches before you run anything. SQL Editor runs as the database owner. You do not paste an API key into it. Do not apply these files to the dead project `myjwrhimhkakiczjfzeo`.
 
 As of this page, `supabase/migrations` contains the historical files and `20260928_100001` through `20260928_100007`. Apply those seven canonical files in filename order after the historical check below. Skip `supabase/migrations/_archive/`. That folder is not part of this apply.
 

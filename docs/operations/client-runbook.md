@@ -4,7 +4,7 @@ This is for the person who runs [https://portal.tlbgh.com](https://portal.tlbgh.
 
 Applying these scripts does not rebuild the website. After `20260928_100001` through `20260928_100007`, two parts of the portal call schema `tlb` when the hosted project is configured: stock movements and document numbers (only with a Supabase Auth session), and staff invites (`public.create_invite` / `public.accept_invite`). Orders, invoices, and the communication hub stay on the browser and on schema `public`.
 
-The Supabase project the portal has used is `myjwrhimhkakiczjfzeo`. Open that project in the Supabase dashboard and confirm **Project Settings → General** shows the same reference. If it does not, stop.
+The Supabase project the portal has used is `mfyvhpwjrpjcxdlsqgit` (TLB Database). Open that project in the Supabase dashboard and confirm **Project Settings → General** shows the same reference. If it does not, stop. Older docs may still mention `myjwrhimhkakiczjfzeo`; that project is dead — do not apply SQL there.
 
 Whether those files have been applied on the hosted project is recorded at the end of a handover, in [handover-checklist.md](handover-checklist.md). Do not assume a git push applied the SQL.
 

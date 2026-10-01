@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  formatCloudInviteFailureNote,
   initialInviteDelivery,
   looksLikePhoneNumber,
   trySendInviteEmail,
@@ -315,7 +316,7 @@ export function useTlbStore() {
           }
           patchLastInviteDelivery(user.id, {
             cloud: "failed",
-            cloudNote: `${result.error} Local code and link below still work on this browser.`,
+            cloudNote: formatCloudInviteFailureNote(result.error),
           });
         });
       }
@@ -680,12 +681,31 @@ export function useTlbStore() {
           return { ok: false as const, data: null };
         }
         const hosted = await acceptInviteOnSupabase({ token, code });
-        if (!hosted.ok) {
-          setError(hosted.error);
-          setNotice(null);
-          return { ok: false as const, data: null };
+        if (hosted.ok) {
+          return applyCapture((s) => applyHostedInviteAcceptance(s, hosted.data), "Signed in.");
         }
-        return applyCapture((s) => applyHostedInviteAcceptance(s, hosted.data), "Signed in.");
+        // Hosted RPC missing or unreachable: fall back to local invite acceptance so
+        // SMS/code from this browser still works until create_invite/accept_invite exist.
+        const missingRpc =
+          /Could not find the function public\.accept_invite/i.test(hosted.error) ||
+          /schema cache/i.test(hosted.error);
+        if (missingRpc) {
+          const local = applyCapture((s) => acceptInvite(s, input), "Signed in (this browser).");
+          if (local.ok) {
+            setNotice(
+              "Signed in on this browser. Cloud invite sync is not ready yet — ask an Owner to apply the invite SQL on Supabase.",
+            );
+            setError(null);
+            return local;
+          }
+        }
+        setError(
+          missingRpc
+            ? "Cloud invite is not set up on the database yet. If the code was issued on this same browser, try again after the Owner applies invite SQL. Otherwise ask them to Re-issue."
+            : hosted.error,
+        );
+        setNotice(null);
+        return { ok: false as const, data: null };
       }
       return applyCapture((s) => acceptInvite(s, input), "Signed in.");
     },
