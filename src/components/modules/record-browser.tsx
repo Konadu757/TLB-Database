@@ -404,7 +404,6 @@ export function RecordBrowser<T extends { id: string }>({
         <div>
           <span className="tlb-eyebrow">{kicker}</span>
           <strong>{title}</strong>
-          {periodLabel ? <p className="tlb-muted-line">Scoped to {periodLabel}</p> : null}
         </div>
         <div className="tlb-toolbar-actions">
           <label className="tlb-module-search">

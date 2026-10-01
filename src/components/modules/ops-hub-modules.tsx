@@ -1259,7 +1259,6 @@ export function OpsRequestsModule({
   focusId,
   onFocusConsumed,
   range,
-  periodLabel,
 }: ModuleProps) {
   const [detailId, setDetailId] = useState<string | null>(focusId ?? null);
   const [search, setSearch] = useState("");
@@ -1326,10 +1325,7 @@ export function OpsRequestsModule({
         <div>
           <span className="tlb-eyebrow">Communication Hub</span>
           <strong>Requests</strong>
-          <p className="tlb-muted-line">
-            Create and track ops requests end-to-end
-            {periodLabel ? ` · ${periodLabel}` : ""}
-          </p>
+          <p className="tlb-muted-line">Create and track ops requests end-to-end</p>
         </div>
         <div className="tlb-toolbar-actions">
           <ModuleSearch

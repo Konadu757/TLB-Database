@@ -71,7 +71,6 @@ function Flash({
 export function LiveStockMovementsModule({
   store,
   range,
-  periodLabel,
 }: {
   store: TlbStoreApi;
   range?: { from: string; to: string } | null;
@@ -93,7 +92,6 @@ export function LiveStockMovementsModule({
           <strong>Stock Movements</strong>
           <p className="tlb-muted-line">
             Immutable ledger · {rows.length} movement{rows.length === 1 ? "" : "s"}
-            {periodLabel ? ` · ${periodLabel}` : ""}
           </p>
         </div>
       </div>

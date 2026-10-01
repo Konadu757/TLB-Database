@@ -32,7 +32,6 @@ function downloadCsv(filename: string, csv: string) {
 export function ReportsModule({
   store,
   range,
-  periodLabel,
 }: {
   store: TlbStoreApi;
   range?: { from: string; to: string } | null;
@@ -97,13 +96,9 @@ export function ReportsModule({
         <div>
           <span className="tlb-eyebrow">Control</span>
           <strong>Deep reports</strong>
-          {periodLabel && !from && !to ? (
-            <p className="tlb-muted-line">Using timeline · {periodLabel} (override with From/To)</p>
-          ) : (
-            <p className="tlb-muted-line">
-              Filters + CSV export across inventory, commerce, finance, and ops
-            </p>
-          )}
+          <p className="tlb-muted-line">
+            Filters + CSV export across inventory, commerce, finance, and ops
+          </p>
         </div>
         <div className="tlb-inline-actions">
           <label className="tlb-select">

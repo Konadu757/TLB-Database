@@ -2277,11 +2277,6 @@ export function OutstandingSuppliesModule({
             Ageing: 0–{store.state.ageing.normalMaxDays} Normal ·{" "}
             {store.state.ageing.normalMaxDays + 1}–{store.state.ageing.attentionMaxDays} Attention ·{" "}
             {store.state.ageing.attentionMaxDays + 1}+ Overdue
-            {periodFallback
-              ? ""
-              : periodLabel
-                ? ` · Order dates scoped to ${periodLabel}`
-                : ""}
           </p>
         </div>
         <div className="tlb-inline-actions">

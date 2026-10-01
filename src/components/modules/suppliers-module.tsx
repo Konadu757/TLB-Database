@@ -305,7 +305,6 @@ export function SuppliersModule({
         <div>
           <span className="tlb-eyebrow">Business</span>
           <strong>Suppliers</strong>
-          <p className="tlb-muted-line">Activity scoped to {periodLabel}</p>
         </div>
         <div className="tlb-toolbar-actions">
           <label className="tlb-module-search">

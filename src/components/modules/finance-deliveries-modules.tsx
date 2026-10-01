@@ -261,7 +261,6 @@ export function FinanceModule({
   focusId,
   onFocusConsumed,
   range,
-  periodLabel,
   initialTab,
 }: {
   store: TlbStoreApi;
@@ -855,9 +854,6 @@ export function FinanceModule({
         <div>
           <span className="tlb-eyebrow">Control · Finance</span>
           <strong>Invoices, receipts & payments</strong>
-          {periodLabel ? (
-            <p className="tlb-muted-line">Document dates scoped to {periodLabel}</p>
-          ) : null}
         </div>
         <div className="tlb-periods">
           {(["invoices", "receipts", "payments"] as const).map((t) => (
@@ -1576,7 +1572,6 @@ export function DeliveriesModule({
   focusId,
   onFocusConsumed,
   range,
-  periodLabel,
 }: {
   store: TlbStoreApi;
   onOpenOrder: (orderId: string) => void;
@@ -1810,7 +1805,6 @@ export function DeliveriesModule({
           <strong>Deliveries</strong>
           <p className="tlb-muted-line">
             Linked to supplies — order stays open while outstanding remains
-            {periodLabel ? ` · Delivery dates scoped to ${periodLabel}` : ""}
           </p>
         </div>
         <div className="tlb-toolbar-actions">
