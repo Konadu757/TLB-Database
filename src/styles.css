@@ -2147,30 +2147,32 @@ button.tlb-user-action:focus-visible {
   max-width: 400px;
   width: calc(100vw - 40px);
   gap: 18px;
-  padding: 22px 22px 18px;
+  padding: 24px 24px 20px;
   border: 0;
   border-radius: 20px;
   background: #ffffff;
   color: #1f1630;
   font-family: var(--font-sans);
   box-shadow:
-    0 18px 42px color-mix(in oklab, var(--tlb-purple) 16%, transparent),
+    0 18px 42px color-mix(in oklab, #6420d0 16%, transparent),
     0 2px 8px color-mix(in oklab, #1f1630 6%, transparent);
 }
 .tlb-sign-out-dialog [data-slot="dialog-title"],
 .tlb-sign-out-dialog h2 {
-  color: #6420D0;
+  color: #6420d0;
+  font-family: var(--font-sans);
   font-size: 1.125rem;
-  font-weight: 650;
-  letter-spacing: -0.015em;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   line-height: 1.25;
 }
 .tlb-sign-out-dialog [data-slot="dialog-description"],
 .tlb-sign-out-dialog p {
   margin: 0;
-  color: color-mix(in oklab, #1f1630 64%, transparent);
+  color: color-mix(in oklab, #1f1630 62%, transparent);
+  font-family: var(--font-sans);
   font-size: 0.875rem;
-  font-weight: 450;
+  font-weight: 500;
   line-height: 1.5;
 }
 .tlb-sign-out-dialog [data-slot="dialog-close"],
@@ -2182,8 +2184,8 @@ button.tlb-user-action:focus-visible {
 }
 .tlb-sign-out-dialog [data-slot="dialog-close"]:hover,
 .tlb-sign-out-dialog > button:last-child:hover {
-  background: color-mix(in oklab, var(--tlb-purple) 8%, white);
-  color: #6420D0;
+  background: color-mix(in oklab, #6420d0 8%, white);
+  color: #6420d0;
   opacity: 1;
 }
 .tlb-sign-out-dialog .tlb-sign-out-actions {
@@ -2193,25 +2195,32 @@ button.tlb-user-action:focus-visible {
   gap: 10px;
   margin-top: 4px;
 }
+.tlb-sign-out-dialog-header {
+  gap: 8px;
+  padding-right: 22px;
+  text-align: left;
+}
 .tlb-sign-out-dialog .tlb-sign-out-cancel {
   border: 0;
-  border-radius: 10px;
-  background: color-mix(in oklab, var(--tlb-purple) 7%, #f6f4fc);
-  color: color-mix(in oklab, #1f1630 72%, var(--tlb-purple));
+  border-radius: 12px;
+  background: color-mix(in oklab, #6420d0 7%, #f6f4fc);
+  color: color-mix(in oklab, #1f1630 72%, #6420d0);
   box-shadow: none;
+  font-family: var(--font-sans);
   font-weight: 600;
 }
 .tlb-sign-out-dialog .tlb-sign-out-cancel:hover {
-  background: color-mix(in oklab, var(--tlb-purple) 12%, #f6f4fc);
-  color: #6420D0;
+  background: color-mix(in oklab, #6420d0 12%, #f6f4fc);
+  color: #6420d0;
 }
 .tlb-sign-out-dialog .tlb-sign-out-confirm {
   border: 0;
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--danger);
   color: #fff;
-  box-shadow: 0 6px 16px color-mix(in oklab, var(--danger) 28%, transparent);
-  font-weight: 650;
+  box-shadow: 0 1px 2px color-mix(in oklab, #1f1630 10%, transparent);
+  font-family: var(--font-sans);
+  font-weight: 700;
 }
 .tlb-sign-out-dialog .tlb-sign-out-confirm:hover {
   background: color-mix(in oklab, var(--danger) 86%, black);
