@@ -101,7 +101,44 @@ declare
   v_expires_at timestamptz;
   v_invite_id uuid;
   v_can_replace boolean := false;
+  v_owner_role_id uuid;
 begin
+  -- First Auth Owner: if signed in with a profile and nobody holds users.manage yet,
+  -- grant OWNER so invite issue can proceed (see scripts/bootstrap-owner-users-manage-mfyv.sql).
+  if auth.uid() is not null
+     and not tlb.has_permission('users.manage')
+     and exists (select 1 from tlb.profiles p where p.id = auth.uid() and p.active)
+     and not exists (
+       select 1
+       from tlb.user_roles ur
+       join tlb.role_permissions rp on rp.role_id = ur.role_id
+       where rp.permission_code = 'users.manage'
+     )
+  then
+    select r.id
+      into v_owner_role_id
+    from tlb.roles r
+    where r.code = 'OWNER'
+      and r.is_system
+      and r.active
+      and r.deleted_at is null;
+
+    if v_owner_role_id is not null then
+      insert into tlb.role_permissions (role_id, permission_code)
+      select v_owner_role_id, 'users.manage'
+      where not exists (
+        select 1
+        from tlb.role_permissions rp
+        where rp.role_id = v_owner_role_id
+          and rp.permission_code = 'users.manage'
+      );
+
+      insert into tlb.user_roles (user_id, role_id)
+      values (auth.uid(), v_owner_role_id)
+      on conflict do nothing;
+    end if;
+  end if;
+
   if auth.uid() is not null and not tlb.has_permission('users.manage') then
     raise exception 'users.manage required to issue an invite'
       using errcode = '42501';

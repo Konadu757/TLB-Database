@@ -199,13 +199,15 @@ Stop. Leave the SQL Editor as it is.
 
 Invites are access codes inside the portal. When the Supabase environment is set, Settings also calls `public.create_invite`, and the access page calls `public.accept_invite`. After assign, the portal POSTs to same-origin `/api/invite-email` (Resend) and, when contact looks like a phone, `/api/invite-sms` (Arkesel preferred; Termii then Twilio fallback). Those routes read server env only. If the keys are missing, the **Invitation ready** panel still shows the code/link and says email/SMS were not sent. `accept_invite` stores a profile and a role. It does not create a password the person can type into Supabase Authentication, and it does not open a GoTrue session.
 
-### Invite bootstrap (anon execute stays)
+### Invite bootstrap (Owner Auth + anon execute)
 
-`public.create_invite` is still executable by `anon`, and so is `public.accept_invite`. That is deliberate.
+`public.create_invite` is still executable by `anon`, and so is `public.accept_invite`. That is deliberate for the first invite before a GoTrue session exists.
 
-The person already using the portal is a local Owner in the browser. Creating an invite requires `users.manage` only after `auth.uid()` is set. This portal does not sign that Owner into GoTrue, and `accept_invite` does not return a session. If `anon` lost `EXECUTE` on `public.create_invite`, Settings could not store the first invite. There is no `20260928_100007_invite_execute.sql` for that reason. `100007` is the product and warehouse catalog only.
+The portal Owner now signs in with Supabase Auth. When `auth.uid()` is set, `create_invite` requires `users.manage` via `tlb.user_roles`. If the Owner Auth user was created in the dashboard without an Owner role row, Settings shows **Not synced** / `users.manage required`, and `/access` returns **invalid invite** because nothing was stored in `tlb.invites`.
 
-Leave the anon grant in place until a later change sends Settings a real Auth session for a profile that holds `users.manage`. Do not put the service-role key in the browser to paper over that gap. Anyone with the anon key can create the first live invite for an email. Treat the anon key as a public site key, and send invite codes only through a channel you trust.
+Fix (applied on `mfyvhpwjrpjcxdlsqgit`): run `scripts/bootstrap-owner-users-manage-mfyv.sql` (and optionally `scripts/patch-create-invite-owner-selfheal-mfyv.sql`). Then **Re-issue** from Settings so a fresh code is written to the cloud. Old codes from a failed cloud save will not work on other devices.
+
+Leave the anon execute grant until you are ready to revoke it for callers that always send a `users.manage` session. Do not put the service-role key in the browser.
 
 The steps:
 

@@ -684,16 +684,23 @@ export function useTlbStore() {
         if (hosted.ok) {
           return applyCapture((s) => applyHostedInviteAcceptance(s, hosted.data), "Signed in.");
         }
-        // Hosted RPC missing or unreachable: fall back to local invite acceptance so
-        // SMS/code from this browser still works until create_invite/accept_invite exist.
+        // Hosted RPC missing, unreachable, or cloud row never saved (create_invite failed):
+        // fall back to local invite acceptance when this browser still holds the pending invite.
+        // SMS recipients on other devices need a Re-issue after cloud create_invite works.
         const missingRpc =
           /Could not find the function public\.accept_invite/i.test(hosted.error) ||
           /schema cache/i.test(hosted.error);
-        if (missingRpc) {
+        const cloudMiss =
+          /invalid invite/i.test(hosted.error) ||
+          /invite expired/i.test(hosted.error) ||
+          /Invalid or expired invite/i.test(hosted.error);
+        if ((missingRpc || cloudMiss) && localUser) {
           const local = applyCapture((s) => acceptInvite(s, input), "Signed in (this browser).");
           if (local.ok) {
             setNotice(
-              "Signed in on this browser. Cloud invite sync is not ready yet — ask an Owner to apply the invite SQL on Supabase.",
+              missingRpc
+                ? "Signed in on this browser. Cloud invite sync is not ready yet — ask an Owner to apply the invite SQL on Supabase."
+                : "Signed in on this browser. Cloud invite was missing — ask an Owner to Re-issue so other devices can use the code.",
             );
             setError(null);
             return local;
@@ -702,7 +709,9 @@ export function useTlbStore() {
         setError(
           missingRpc
             ? "Cloud invite is not set up on the database yet. If the code was issued on this same browser, try again after the Owner applies invite SQL. Otherwise ask them to Re-issue."
-            : hosted.error,
+            : cloudMiss && !localUser
+              ? "Invalid or expired invite. Ask an Owner to Re-issue a fresh code (cloud sync must succeed first)."
+              : hosted.error,
         );
         setNotice(null);
         return { ok: false as const, data: null };

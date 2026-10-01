@@ -77,10 +77,14 @@ export function buildInviteSmsBody(input: {
  * Keep the wording secondary so the Invitation ready panel does not read as a total failure.
  */
 export function formatCloudInviteFailureNote(error: string): string {
-  const trimmed = error.trim();
+  const trimmed = error.trim().replace(/\bSupbase\b/gi, "Supabase");
   const missingRpc = /Could not find the function public\.create_invite/i.test(trimmed);
   if (missingRpc) {
     return "Cloud copy not saved yet (invite SQL missing on database). Access code and link below still work on this browser — share them, then ask an Owner to apply invite SQL and Re-issue.";
+  }
+  const needsManage = /users\.manage required/i.test(trimmed);
+  if (needsManage) {
+    return "Cloud copy not saved: Owner Auth account is missing users.manage on the database. Access code and link below still work on this browser — apply Owner bootstrap SQL, then Re-issue.";
   }
   return `Cloud copy not saved: ${trimmed} Access code and link below still work on this browser.`;
 }
