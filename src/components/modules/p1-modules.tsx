@@ -517,7 +517,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                 <div className="tlb-inline-actions" style={{ flexWrap: "wrap", gap: 12 }}>
                   <button
                     type="button"
-                    className="tlb-link-btn"
+                    className="tlb-user-action tlb-user-action--copy"
                     onClick={() => {
                       void copyInviteValue("code", store.lastInvite!.inviteCode);
                     }}
@@ -526,7 +526,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                   </button>
                   <button
                     type="button"
-                    className="tlb-link-btn"
+                    className="tlb-user-action tlb-user-action--copy"
                     onClick={() => {
                       void copyInviteValue("link", store.lastInvite!.inviteLink);
                     }}
@@ -594,10 +594,10 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                         </td>
                         <td>
                           {isInvitePending(user) && user.inviteToken ? (
-                            <>
+                            <span className="tlb-invite-row-actions">
                               <button
                                 type="button"
-                                className="tlb-link-btn"
+                                className="tlb-user-action tlb-user-action--copy"
                                 onClick={() => {
                                   void copyInviteValue(
                                     `row-link-${user.id}`,
@@ -606,30 +606,28 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                                 }}
                               >
                                 {copiedKey === `row-link-${user.id}` ? "Copied link" : "Copy invite"}
-                              </button>{" "}
+                              </button>
                               {user.inviteCode ? (
-                                <>
-                                  <button
-                                    type="button"
-                                    className="tlb-link-btn"
-                                    onClick={() => {
-                                      void copyInviteValue(`row-code-${user.id}`, user.inviteCode!);
-                                    }}
-                                  >
-                                    {copiedKey === `row-code-${user.id}`
-                                      ? "Copied code"
-                                      : "Copy code"}
-                                  </button>{" "}
-                                </>
+                                <button
+                                  type="button"
+                                  className="tlb-user-action tlb-user-action--copy"
+                                  onClick={() => {
+                                    void copyInviteValue(`row-code-${user.id}`, user.inviteCode!);
+                                  }}
+                                >
+                                  {copiedKey === `row-code-${user.id}`
+                                    ? "Copied code"
+                                    : "Copy code"}
+                                </button>
                               ) : null}
                               <button
                                 type="button"
-                                className="tlb-link-btn"
+                                className="tlb-user-action tlb-user-action--reissue"
                                 onClick={() => store.issueUserInvite(user.id)}
                               >
                                 Re-issue
-                              </button>{" "}
-                            </>
+                              </button>
+                            </span>
                           ) : null}
                           <span className="tlb-user-row-actions">
                             <button
