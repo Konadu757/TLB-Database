@@ -1,12 +1,11 @@
 /**
- * Notifications center — full list, mark read, delete, open related records.
+ * Notifications center — readable inbox list, mark read, delete, open related.
  */
 import { useMemo, useState } from "react";
 import { Bell, CheckCheck, Trash2, X } from "lucide-react";
 
 import {
-  SelectAllHeader,
-  SelectRowCell,
+  SelectionCheckbox,
   useListSelection,
 } from "@/components/modules/list-bulk-trash";
 import { TrashConfirmDialog } from "@/components/modules/trash-confirm-dialog";
@@ -22,6 +21,10 @@ function formatWhen(iso: string): string {
   } catch {
     return iso.slice(0, 19).replace("T", " ");
   }
+}
+
+function typeLabel(type: string): string {
+  return type.replace(/_/g, " ");
 }
 
 function EmptyState({ title, detail }: { title: string; detail: string }) {
@@ -57,15 +60,26 @@ function relatedLabel(n: AppNotification): string {
   if (n.opsRequestId) return `Ops request · ${n.opsRequestId}`;
   if (n.orderId) return `Order · ${n.orderId}`;
   if (n.productId) return `Product · ${n.productId}`;
-  return "—";
+  return "None";
 }
 
-function alertTone(type: string): string {
+function hasRelated(n: AppNotification): boolean {
+  return Boolean(n.opsRequestId || n.orderId || n.productId);
+}
+
+function alertTone(type: string): "danger" | "warning" | "info" {
   if (type.includes("overdue") || type.includes("extended") || type.includes("exception"))
     return "danger";
   if (type.includes("approaching") || type.includes("partial") || type.includes("shortage"))
     return "warning";
   return "info";
+}
+
+function statusChipClass(tone: "danger" | "warning" | "info", unread: boolean): string {
+  if (!unread) return "status-badge status-neutral";
+  if (tone === "warning") return "status-badge status-gold";
+  if (tone === "danger") return "status-badge status-danger";
+  return "status-badge status-info";
 }
 
 export function NotificationsModule({
@@ -102,16 +116,16 @@ export function NotificationsModule({
   };
 
   return (
-    <div className="tlb-module">
+    <div className="tlb-module tlb-notifications-module">
       <Flash error={store.error} notice={store.notice} onClear={store.clearMessages} />
       <div className="tlb-module-toolbar">
         <div>
-          <span className="tlb-eyebrow">Communication Hub</span>
+          <span className="tlb-eyebrow">Operations</span>
           <strong>Notifications</strong>
-          <p className="tlb-muted" style={{ margin: "0.35rem 0 0" }}>
+          <p className="tlb-muted-line">
             {manageAll
-              ? "Owner/Admin view — all workspace notifications."
-              : "Your relevant notifications (broadcast, role, and assigned to you)."}
+              ? "All workspace alerts — open one to review or jump to the related record."
+              : "Alerts for you — open one to review or jump to the related record."}
           </p>
         </div>
         <div className="tlb-toolbar-actions">
@@ -146,108 +160,118 @@ export function NotificationsModule({
         </div>
       </div>
 
-      <div
-        className="tlb-split-panels"
-        style={{
-          display: "grid",
-          gap: "1rem",
-          gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)",
-        }}
-      >
-        <article className="tlb-panel tlb-orders-panel">
-          <div className="tlb-table-scroll">
-            {visible.length === 0 ? (
-              <EmptyState
-                title="No notifications"
-                detail="Operational and outstanding alerts will appear here as work happens."
-              />
-            ) : (
-              <table>
-                <thead>
-                  <tr>
-                    {canTrash ? (
-                      <SelectAllHeader
-                        allSelected={selection.allVisibleSelected}
-                        someSelected={selection.someVisibleSelected}
-                        onToggle={selection.toggleAllVisible}
-                      />
-                    ) : null}
-                    <th>Status</th>
-                    <th>Title</th>
-                    <th>Type</th>
-                    <th>When</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {visible.map((n) => (
-                    <tr
-                      key={n.id}
-                      className={!n.readAt ? "tlb-row-unread" : undefined}
-                      data-selected={selectedId === n.id ? "true" : undefined}
-                    >
-                      {canTrash ? (
-                        <SelectRowCell
-                          id={n.id}
-                          checked={selection.isSelected(n.id)}
-                          onToggle={selection.toggle}
-                          label={`Select ${n.title}`}
-                        />
-                      ) : null}
-                      <td>
-                        <span className={`status-badge status-${n.readAt ? "neutral" : "info"}`}>
-                          {n.readAt ? "Read" : "Unread"}
-                        </span>
-                      </td>
-                      <td>
-                        <button type="button" className="tlb-linkish" onClick={() => openRow(n)}>
-                          <strong>{n.title}</strong>
+      <div className="tlb-notifications-layout">
+        <article className="tlb-panel tlb-notifications-list-panel">
+          {visible.length === 0 ? (
+            <EmptyState
+              title="No notifications"
+              detail="Operational and outstanding alerts will appear here as work happens."
+            />
+          ) : (
+            <>
+              <div className="tlb-notifications-list-head">
+                {canTrash ? (
+                  <SelectionCheckbox
+                    checked={selection.allVisibleSelected}
+                    indeterminate={selection.someVisibleSelected}
+                    onChange={selection.toggleAllVisible}
+                    ariaLabel="Select all notifications"
+                  />
+                ) : null}
+                <span>
+                  {visible.length} {visible.length === 1 ? "notification" : "notifications"}
+                  {unreadIds.length > 0 ? ` · ${unreadIds.length} unread` : ""}
+                </span>
+              </div>
+              <ul
+                className={`tlb-notifications-list${canTrash ? " tlb-notifications-list--selectable" : ""}`}
+                role="list"
+              >
+                {visible.map((n) => {
+                  const unread = !n.readAt;
+                  const tone = alertTone(n.type);
+                  const active = selectedId === n.id;
+                  return (
+                    <li key={n.id}>
+                      <div
+                        className={[
+                          "tlb-notifications-item",
+                          unread ? "tlb-notifications-item--unread" : "",
+                          active ? "tlb-notifications-item--active" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
+                      >
+                        {canTrash ? (
+                          <div className="tlb-notifications-item-select">
+                            <SelectionCheckbox
+                              checked={selection.isSelected(n.id)}
+                              onChange={() => selection.toggle(n.id)}
+                              ariaLabel={`Select ${n.title}`}
+                            />
+                          </div>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="tlb-notifications-item-main"
+                          onClick={() => openRow(n)}
+                          aria-current={active ? "true" : undefined}
+                        >
+                          <span className="tlb-notifications-item-top">
+                            <strong>{n.title}</strong>
+                            <span className={statusChipClass(tone, unread)}>
+                              {unread ? "Unread" : "Read"}
+                            </span>
+                          </span>
+                          <span className="tlb-notifications-item-body">{n.body}</span>
+                          <span className="tlb-notifications-item-meta">
+                            <span
+                              className={`tlb-notifications-tone tlb-notifications-tone--${tone}`}
+                            >
+                              {typeLabel(n.type)}
+                            </span>
+                            <span>{formatWhen(n.createdAt)}</span>
+                          </span>
                         </button>
-                        <div className="tlb-muted">{n.body}</div>
-                      </td>
-                      <td>
-                        <span
-                          className={`tlb-alert-dot tlb-alert-${alertTone(n.type)}`}
-                          aria-hidden
-                        />{" "}
-                        {n.type}
-                      </td>
-                      <td>{formatWhen(n.createdAt)}</td>
-                      <td>
                         {canTrash ? (
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
+                            className="tlb-notifications-item-trash"
                             aria-label={`Move ${n.title} to trash`}
                             onClick={() => setDeleteIds([n.id])}
                           >
                             <Trash2 />
                           </Button>
                         ) : null}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
         </article>
 
-        <article className="tlb-panel">
+        <article className="tlb-panel tlb-notifications-detail-panel">
           {selected ? (
-            <>
-              <div className="tlb-module-toolbar" style={{ marginBottom: "0.75rem" }}>
+            <div className="tlb-notifications-detail">
+              <header className="tlb-notifications-detail-header">
                 <div>
-                  <span className="tlb-eyebrow">{selected.type}</span>
+                  <span className="tlb-eyebrow">{typeLabel(selected.type)}</span>
                   <strong>{selected.title}</strong>
                 </div>
-              </div>
-              <dl className="tlb-detail-grid">
-                <div>
-                  <dt>Body</dt>
-                  <dd>{selected.body}</dd>
-                </div>
+                <span
+                  className={statusChipClass(alertTone(selected.type), !selected.readAt)}
+                >
+                  {selected.readAt ? "Read" : "Unread"}
+                </span>
+              </header>
+
+              <p className="tlb-notifications-detail-body">{selected.body}</p>
+
+              <dl className="tlb-notifications-meta">
                 <div>
                   <dt>Created</dt>
                   <dd>{formatWhen(selected.createdAt)}</dd>
@@ -260,29 +284,9 @@ export function NotificationsModule({
                   <dt>Related</dt>
                   <dd>{relatedLabel(selected)}</dd>
                 </div>
-                {selected.targetUserId ? (
-                  <div>
-                    <dt>Target user</dt>
-                    <dd>{selected.targetUserId}</dd>
-                  </div>
-                ) : null}
-                {selected.targetRole ? (
-                  <div>
-                    <dt>Target role</dt>
-                    <dd>{selected.targetRole}</dd>
-                  </div>
-                ) : null}
-                <div>
-                  <dt>Dedupe key</dt>
-                  <dd>
-                    <code>{selected.dedupeKey}</code>
-                  </dd>
-                </div>
               </dl>
-              <div
-                className="tlb-toolbar-actions"
-                style={{ marginTop: "1rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}
-              >
+
+              <div className="tlb-notifications-detail-actions">
                 {!selected.readAt ? (
                   <Button
                     type="button"
@@ -292,14 +296,16 @@ export function NotificationsModule({
                     Mark as read
                   </Button>
                 ) : null}
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => onOpenRelated(selected)}
-                >
-                  Open related
-                </Button>
+                {hasRelated(selected) ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onOpenRelated(selected)}
+                  >
+                    Open related
+                  </Button>
+                ) : null}
                 {canTrash ? (
                   <Button
                     type="button"
@@ -311,11 +317,11 @@ export function NotificationsModule({
                   </Button>
                 ) : null}
               </div>
-            </>
+            </div>
           ) : (
             <EmptyState
               title="Select a notification"
-              detail="Click a row to see full detail and actions."
+              detail="Pick an item from the list to read the full message and open the related record."
             />
           )}
         </article>
