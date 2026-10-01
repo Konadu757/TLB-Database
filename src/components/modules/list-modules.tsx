@@ -287,6 +287,7 @@ export function QuotationsModule(props: CatalogModuleProps) {
   const [paymentTerms, setPaymentTerms] = useState("Net 30");
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState<"Draft" | "Sent">("Draft");
+  const [taxExempt, setTaxExempt] = useState(false);
   const [previewNumber, setPreviewNumber] = useState<string | null>(null);
   const canEdit = Boolean(store && (store.can("quotations.view") || store.can("records.edit")));
   const editingQuote =
@@ -354,6 +355,7 @@ export function QuotationsModule(props: CatalogModuleProps) {
                 unitPrice: Number(unitPrice),
                 paymentTerms,
                 status,
+                taxExempt,
                 ...(customerId ? { customerId } : {}),
                 ...(contact.trim() ? { contact: contact.trim() } : {}),
                 ...(notes.trim() ? { notes: notes.trim() } : {}),
@@ -417,6 +419,16 @@ export function QuotationsModule(props: CatalogModuleProps) {
               >
                 <option value="Draft">Draft</option>
                 <option value="Sent">Sent</option>
+              </select>
+            </label>
+            <label>
+              Tax exempt
+              <select
+                value={taxExempt ? "yes" : "no"}
+                onChange={(e) => setTaxExempt(e.target.value === "yes")}
+              >
+                <option value="no">No — follow Settings</option>
+                <option value="yes">Yes — quote ex-tax</option>
               </select>
             </label>
             <label className="tlb-span-2">
@@ -487,6 +499,7 @@ export function QuotationsModule(props: CatalogModuleProps) {
                         setPaymentTerms(live.paymentTerms);
                         setNotes(live.notes ?? "");
                         setStatus(live.status);
+                        setTaxExempt(Boolean(live.taxExempt));
                         setEditing(true);
                       }}
                     >
@@ -537,6 +550,7 @@ export function QuotationsModule(props: CatalogModuleProps) {
                   qty: Number(qty),
                   unitPrice: Number(unitPrice),
                   paymentTerms,
+                  taxExempt,
                   ...(customerId ? { customerId } : {}),
                   ...(contact.trim() ? { contact: contact.trim() } : {}),
                   ...(notes.trim() ? { notes: notes.trim() } : {}),
@@ -546,6 +560,7 @@ export function QuotationsModule(props: CatalogModuleProps) {
                   setQty("1");
                   setUnitPrice("0");
                   setNotes("");
+                  setTaxExempt(false);
                   closeCreate();
                 }
               }}
@@ -571,8 +586,10 @@ export function QuotationsModule(props: CatalogModuleProps) {
                       setCustomerName(c.name);
                       setContact([c.contactName, c.email].filter(Boolean).join(" · "));
                       setPaymentTerms(c.paymentTerms || "Net 30");
+                      setTaxExempt(Boolean(c.taxExempt));
                     } else {
                       setCustomerName("");
+                      setTaxExempt(false);
                     }
                   }}
                 >
@@ -635,6 +652,16 @@ export function QuotationsModule(props: CatalogModuleProps) {
                   value={unitPrice}
                   onChange={(e) => setUnitPrice(e.target.value)}
                 />
+              </label>
+              <label>
+                Tax exempt
+                <select
+                  value={taxExempt ? "yes" : "no"}
+                  onChange={(e) => setTaxExempt(e.target.value === "yes")}
+                >
+                  <option value="no">No — follow Settings</option>
+                  <option value="yes">Yes — quote ex-tax</option>
+                </select>
               </label>
               <label className="tlb-span-2">
                 Notes

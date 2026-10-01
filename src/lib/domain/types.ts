@@ -561,6 +561,8 @@ export interface Customer extends SoftDeleteFields {
   email: string;
   address: string;
   tin?: string;
+  /** When true, invoices/quotations skip all company taxes for this customer. */
+  taxExempt?: boolean;
   creditLimit: number;
   paymentTerms: PaymentTerms;
   notes?: string;
@@ -686,13 +688,34 @@ export interface SupplyLine {
   batchCode?: string;
 }
 
+/** Company-wide tax application mode (Settings). */
+export type TaxMode = "active" | "exempt" | "off";
+
+/** VAT is primary; levies (NHIL / GETFund / COVID) stay optional and Off by default. */
+export type TaxKind = "vat" | "levy";
+
 export interface VatRate {
   id: string;
   code: string;
   label: string;
   /** Percent e.g. 12.5 — configured in settings; never invent jurisdiction defaults. */
   ratePercent: number;
+  /** Derived from mode for legacy DB sync (`active` ⇔ mode === "active"). */
   active: boolean;
+  /** Active = apply; Exempt = never; Off = ignored. Defaults from `active` when missing. */
+  mode?: TaxMode;
+  kind?: TaxKind;
+  sortOrder?: number;
+}
+
+/** Snapshot of a tax line applied on an invoice (only when amount > 0). */
+export interface AppliedTaxLine {
+  taxId: string;
+  code: string;
+  label: string;
+  ratePercent: number;
+  amount: number;
+  kind: TaxKind;
 }
 
 export interface CompanyProfile {
@@ -732,7 +755,14 @@ export interface Invoice extends SoftDeleteFields {
   billingAddress: string;
   vatRateId: string;
   subtotal: number;
+  /** VAT portion only (levies live in taxBreakdown / otherTaxAmount). */
   vatAmount: number;
+  /** Sum of non-VAT levies when those taxes were Active at invoice time. */
+  otherTaxAmount?: number;
+  /** Per-line tax snapshot — only taxes that were actually applied. */
+  taxBreakdown?: AppliedTaxLine[];
+  /** Document-level exemption (also honour customer.taxExempt at create time). */
+  taxExempt?: boolean;
   total: number;
   paymentStatus: InvoicePaymentStatus;
   amountPaid: number;
@@ -1299,9 +1329,12 @@ export interface Quotation extends SoftDeleteFields {
   itemLabel: string;
   qty: number;
   unitPrice: number;
+  /** Base amount (ex-tax). Estimated tax uses Settings when displayed. */
   amount: number;
   paymentTerms: string;
   notes?: string;
+  /** Skip estimated tax for this quotation when Settings would otherwise apply. */
+  taxExempt?: boolean;
   status: "Draft" | "Sent";
   quoteDate: string;
   validUntil: string;

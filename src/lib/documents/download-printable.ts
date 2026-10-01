@@ -346,14 +346,31 @@ export type InvoiceDownloadContext = {
   customerName: string;
   vatRatePercent: number;
   orderNumber?: string;
+  taxBreakdown?: Invoice["taxBreakdown"];
 };
 
 export function buildInvoiceHtml(ctx: InvoiceDownloadContext, letterheadSrc: string): string {
   const { invoice, lines, company, customerName, vatRatePercent, orderNumber } = ctx;
   const balance = Math.max(0, invoice.total - invoice.amountPaid);
+  const appliedTaxes =
+    (ctx.taxBreakdown ?? invoice.taxBreakdown)?.filter((t) => t.amount > 0) ??
+    (invoice.vatAmount > 0
+      ? [
+          {
+            code: "VAT",
+            label: "VAT",
+            ratePercent: vatRatePercent,
+            amount: invoice.vatAmount,
+            kind: "vat" as const,
+            taxId: invoice.vatRateId,
+          },
+        ]
+      : []);
+  const showVatCol = lines.some((l) => l.vatAmount > 0) || appliedTaxes.some((t) => t.kind === "vat");
+  const colCount = showVatCol ? 6 : 5;
   const lineRows =
     lines.length === 0
-      ? `<tr><td colspan="6" class="muted">No line items</td></tr>`
+      ? `<tr><td colspan="${colCount}" class="muted">No line items</td></tr>`
       : lines
           .map(
             (l) => `<tr>
@@ -361,11 +378,18 @@ export function buildInvoiceHtml(ctx: InvoiceDownloadContext, letterheadSrc: str
         <td class="num">${l.quantity}</td>
         <td class="num">${escapeHtml(formatMoney(l.unitPrice))}</td>
         <td class="num">${escapeHtml(formatMoney(l.lineSubtotal))}</td>
-        <td class="num">${escapeHtml(formatMoney(l.vatAmount))}</td>
+        ${showVatCol ? `<td class="num">${escapeHtml(formatMoney(l.vatAmount))}</td>` : ""}
         <td class="num">${escapeHtml(formatMoney(l.lineTotal))}</td>
       </tr>`,
           )
           .join("");
+
+  const taxTotalRows = appliedTaxes
+    .map(
+      (t) =>
+        `<div class="row"><span>${escapeHtml(t.code)} (${t.ratePercent}%)</span><span>${escapeHtml(formatMoney(t.amount))}</span></div>`,
+    )
+    .join("");
 
   const partyHtml = `
       <div>
@@ -379,6 +403,7 @@ export function buildInvoiceHtml(ctx: InvoiceDownloadContext, letterheadSrc: str
           ${orderNumber ? `<div><dt>Order</dt><dd>${escapeHtml(orderNumber)}</dd></div>` : ""}
           <div><dt>Payment</dt><dd><span class="status">${escapeHtml(invoice.paymentStatus)}</span></dd></div>
           <div><dt>Prepared by</dt><dd>${escapeHtml(invoice.preparedBy || "—")}</dd></div>
+          ${invoice.taxExempt ? `<div><dt>Tax</dt><dd>Exempt</dd></div>` : ""}
         </dl>
       </div>`;
 
@@ -392,7 +417,7 @@ export function buildInvoiceHtml(ctx: InvoiceDownloadContext, letterheadSrc: str
             <th class="num">Qty</th>
             <th class="num">Price</th>
             <th class="num">Subtotal</th>
-            <th class="num">VAT</th>
+            ${showVatCol ? `<th class="num">VAT</th>` : ""}
             <th class="num">Total</th>
           </tr>
         </thead>
@@ -400,7 +425,7 @@ export function buildInvoiceHtml(ctx: InvoiceDownloadContext, letterheadSrc: str
       </table>
       <div class="totals">
         <div class="row"><span>Subtotal</span><span>${escapeHtml(formatMoney(invoice.subtotal))}</span></div>
-        <div class="row"><span>VAT (${vatRatePercent}%)</span><span>${escapeHtml(formatMoney(invoice.vatAmount))}</span></div>
+        ${taxTotalRows}
         <div class="row grand"><span>Total</span><span>${escapeHtml(formatMoney(invoice.total))}</span></div>
         <div class="row"><span>Amount paid</span><span>${escapeHtml(formatMoney(invoice.amountPaid))}</span></div>
         <div class="row"><span>Balance</span><span>${escapeHtml(formatMoney(balance))}</span></div>
@@ -414,7 +439,7 @@ export function buildInvoiceHtml(ctx: InvoiceDownloadContext, letterheadSrc: str
 
   return wrapDocument({
     title: `Invoice ${invoice.number}`,
-    docLabel: "VAT Invoice",
+    docLabel: appliedTaxes.length ? "Tax Invoice" : "Invoice",
     docNumber: invoice.number,
     company,
     partyHtml,

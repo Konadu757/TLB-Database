@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { listAssignableRoles, OWNER_USER_ID } from "@/lib/domain/permissions";
 import { buildInviteLink, isInvitePending } from "@/lib/domain/invites";
 import { notSoftDeleted } from "@/lib/domain/trash";
-import type { AppUser, RoleDefinition } from "@/lib/domain/types";
+import type { AppUser, RoleDefinition, TaxMode, VatRate } from "@/lib/domain/types";
+import { ensureTaxCatalog, normalizeTaxMode, TAX_MODE_LABELS, taxKindOf } from "@/lib/domain/tax";
 import { formatMoney } from "@/lib/store/tlb-store";
 import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
 
@@ -189,13 +190,7 @@ export function AuditModule({ store }: { store: TlbStoreApi }) {
 
 export function SettingsModule({ store }: { store: TlbStoreApi }) {
   const [company, setCompany] = useState(store.state.company);
-  const [vat, setVat] = useState({
-    id: store.state.vatRates[0]?.id,
-    code: store.state.vatRates[0]?.code ?? "CFG",
-    label: store.state.vatRates[0]?.label ?? "Configured VAT",
-    ratePercent: store.state.vatRates[0]?.ratePercent ?? 0,
-    active: true,
-  });
+  const [taxDraft, setTaxDraft] = useState<VatRate[]>(() => ensureTaxCatalog(store.state.vatRates));
   const [ageing, setAgeing] = useState(store.state.ageing);
   const [newUser, setNewUser] = useState({
     name: "",
@@ -213,6 +208,10 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
   });
   const [pendingDelete, setPendingDelete] = useState<AppUser | null>(null);
 
+  useEffect(() => {
+    setTaxDraft(ensureTaxCatalog(store.state.vatRates));
+  }, [store.state.vatRates]);
+
   const activeRoles = useMemo(() => listAssignableRoles(store.state.roles), [store.state.roles]);
   const assignedUsers = useMemo(
     () => notSoftDeleted(store.state.users),
@@ -222,6 +221,40 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
   const canManageUsers = store.can("users.manage");
   const canManageSettings = store.can("settings.manage");
   const canDeleteAssignment = store.can("records.delete");
+
+  const activeTaxPreview = useMemo(
+    () =>
+      taxDraft.filter(
+        (t) => normalizeTaxMode(t) === "active" && Number(t.ratePercent) > 0,
+      ),
+    [taxDraft],
+  );
+
+  const updateTaxDraft = (id: string, patch: Partial<VatRate>) => {
+    setTaxDraft((prev) =>
+      prev.map((t) => {
+        if (t.id !== id) return t;
+        const next = { ...t, ...patch };
+        if (patch.mode) next.active = patch.mode === "active";
+        return next;
+      }),
+    );
+  };
+
+  const saveAllTaxes = () => {
+    store.saveTaxRates(
+      taxDraft.map((t) => ({
+        id: t.id,
+        code: t.code,
+        label: t.label,
+        ratePercent: Number(t.ratePercent) || 0,
+        mode: normalizeTaxMode(t),
+        kind: taxKindOf(t),
+        active: normalizeTaxMode(t) === "active",
+        sortOrder: t.sortOrder ?? (taxKindOf(t) === "vat" ? 0 : 10),
+      })),
+    );
+  };
 
   const startEditUser = (user: (typeof store.state.users)[number]) => {
     setEditingUserId(user.id);
@@ -577,7 +610,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
       {!canManageSettings ? (
         <EmptyState
           title="Settings restricted"
-          detail="Manager, Owner, or Admin required to edit company, VAT, and ageing."
+          detail="Manager, Owner, or Admin required to edit company, taxes, and ageing."
         />
       ) : (
         <>
@@ -654,49 +687,98 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
           <article className="tlb-panel" style={{ marginBottom: 14 }}>
             <div className="tlb-panel-heading">
               <div>
-                <span>VAT rates</span>
-                <strong>Configurable — do not hard-code jurisdiction %</strong>
+                <span>Taxes</span>
+                <strong>Smart tax controls — minimal by default</strong>
+                <p className="tlb-muted-line">
+                  VAT is the primary Ghana tax. Optional levies (NHIL, GETFund, COVID) stay Off
+                  unless you turn them on — so the company is not stacked with every levy by
+                  default. Exempt never applies; Off ignores the tax entirely.
+                </p>
               </div>
+            </div>
+            <div style={{ padding: "0 12px 4px" }}>
+              <p className="tlb-muted-line" style={{ marginBottom: 10 }}>
+                Currently applying:{" "}
+                {activeTaxPreview.length === 0 ? (
+                  <strong>none (ex-tax totals)</strong>
+                ) : (
+                  <strong>
+                    {activeTaxPreview.map((t) => `${t.code} ${t.ratePercent}%`).join(" + ")}
+                  </strong>
+                )}
+              </p>
             </div>
             <form
               className="tlb-form-grid"
               onSubmit={(e) => {
                 e.preventDefault();
-                store.saveVatRate({
-                  code: vat.code,
-                  label: vat.label,
-                  ratePercent: vat.ratePercent,
-                  active: vat.active,
-                  ...(vat.id ? { id: vat.id } : {}),
-                });
+                saveAllTaxes();
               }}
             >
-              <label>
-                Code
-                <input
-                  value={vat.code}
-                  onChange={(e) => setVat({ ...vat, code: e.target.value })}
-                />
-              </label>
-              <label>
-                Label
-                <input
-                  value={vat.label}
-                  onChange={(e) => setVat({ ...vat, label: e.target.value })}
-                />
-              </label>
-              <label>
-                Rate %
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={vat.ratePercent}
-                  onChange={(e) => setVat({ ...vat, ratePercent: Number(e.target.value) })}
-                />
-              </label>
-              <div className="tlb-form-actions tlb-span-2">
-                <Button type="submit">Save VAT rate</Button>
+              {taxDraft.map((tax) => {
+                const mode = normalizeTaxMode(tax);
+                const kind = taxKindOf(tax);
+                return (
+                  <div
+                    key={tax.id}
+                    className="tlb-span-2"
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 0.7fr) minmax(0, 1.4fr)",
+                      gap: 10,
+                      alignItems: "end",
+                      padding: "10px 0",
+                      borderBottom: "1px solid color-mix(in srgb, #6420D0 12%, transparent)",
+                    }}
+                  >
+                    <label>
+                      {kind === "vat" ? "VAT" : "Optional levy"}
+                      <input
+                        value={tax.label}
+                        onChange={(e) => updateTaxDraft(tax.id, { label: e.target.value })}
+                      />
+                      <span className="tlb-muted-line" style={{ fontSize: "0.75rem" }}>
+                        {tax.code}
+                        {kind === "levy" ? " · off unless activated" : " · primary"}
+                      </span>
+                    </label>
+                    <label>
+                      Rate %
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={tax.ratePercent}
+                        onChange={(e) =>
+                          updateTaxDraft(tax.id, { ratePercent: Number(e.target.value) })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Application
+                      <select
+                        value={mode}
+                        onChange={(e) =>
+                          updateTaxDraft(tax.id, { mode: e.target.value as TaxMode })
+                        }
+                      >
+                        {(Object.keys(TAX_MODE_LABELS) as TaxMode[]).map((m) => (
+                          <option key={m} value={m}>
+                            {m === "active"
+                              ? "Active"
+                              : m === "exempt"
+                                ? "Exempt"
+                                : "Off / Ignored"}
+                            {kind === "levy" && m === "off" ? " (default)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                );
+              })}
+              <div className="tlb-form-actions tlb-span-2" style={{ marginTop: 8 }}>
+                <Button type="submit">Save tax settings</Button>
               </div>
             </form>
           </article>

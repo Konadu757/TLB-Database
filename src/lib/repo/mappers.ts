@@ -385,17 +385,81 @@ export function vatFromRow(row: Tables["vat_rates"]["Row"]): VatRate {
     label: row.label,
     ratePercent: Number(row.rate_percent),
     active: row.active,
+    mode: row.active ? "active" : "off",
+    kind: row.code.toUpperCase() === "VAT" || row.code.toUpperCase() === "CFG" ? "vat" : "levy",
   };
 }
 
 export function vatToRow(v: VatRate): Tables["vat_rates"]["Insert"] {
+  const active = v.mode ? v.mode === "active" : v.active;
   return {
     id: v.id,
     code: v.code,
     label: v.label,
     rate_percent: v.ratePercent,
-    active: v.active,
+    active,
   };
+}
+
+export type DocumentTaxOverlay = {
+  customers?: Record<string, { taxExempt?: boolean }>;
+  invoices?: Record<
+    string,
+    {
+      taxExempt?: boolean;
+      otherTaxAmount?: number;
+      taxBreakdown?: Invoice["taxBreakdown"];
+    }
+  >;
+};
+
+export function emptyDocumentTaxOverlay(): DocumentTaxOverlay {
+  return { customers: {}, invoices: {} };
+}
+
+export function buildDocumentTaxOverlay(state: {
+  customers: Customer[];
+  invoices: Invoice[];
+}): DocumentTaxOverlay {
+  const customers: DocumentTaxOverlay["customers"] = {};
+  for (const c of state.customers) {
+    if (c.taxExempt) customers![c.id] = { taxExempt: true };
+  }
+  const invoices: DocumentTaxOverlay["invoices"] = {};
+  for (const inv of state.invoices) {
+    if (inv.taxExempt || inv.otherTaxAmount || inv.taxBreakdown?.length) {
+      invoices![inv.id] = {
+        ...(inv.taxExempt ? { taxExempt: true } : {}),
+        ...(inv.otherTaxAmount ? { otherTaxAmount: inv.otherTaxAmount } : {}),
+        ...(inv.taxBreakdown?.length ? { taxBreakdown: inv.taxBreakdown } : {}),
+      };
+    }
+  }
+  return { customers, invoices };
+}
+
+export function applyDocumentTaxOverlay(
+  customers: Customer[],
+  invoices: Invoice[],
+  overlay: DocumentTaxOverlay | undefined | null,
+): { customers: Customer[]; invoices: Invoice[] } {
+  if (!overlay) return { customers, invoices };
+  const nextCustomers = customers.map((c) => {
+    const flag = overlay.customers?.[c.id];
+    if (!flag?.taxExempt) return c;
+    return { ...c, taxExempt: true };
+  });
+  const nextInvoices = invoices.map((inv) => {
+    const flag = overlay.invoices?.[inv.id];
+    if (!flag) return inv;
+    return {
+      ...inv,
+      ...(flag.taxExempt ? { taxExempt: true } : {}),
+      ...(flag.otherTaxAmount != null ? { otherTaxAmount: flag.otherTaxAmount } : {}),
+      ...(flag.taxBreakdown ? { taxBreakdown: flag.taxBreakdown } : {}),
+    };
+  });
+  return { customers: nextCustomers, invoices: nextInvoices };
 }
 
 export function invoiceFromRow(

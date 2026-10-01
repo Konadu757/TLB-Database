@@ -53,11 +53,16 @@ import {
   vatToRow,
   warehouseFromRow,
   warehouseToRow,
+  buildDocumentTaxOverlay,
+  applyDocumentTaxOverlay,
   type SoftDeleteOverlay,
+  type DocumentTaxOverlay,
 } from "./mappers";
 import { mergeCanonicalBalances, mergeCanonicalMovements } from "./ledger-rpc";
 import { mergeStaffUsers, staffUsersForRemoteDirectory } from "../domain/invites";
 import type { TlbRepository } from "./tlb-repository";
+import { ensureTaxCatalog } from "../domain/tax";
+import type { VatRate } from "../domain/types";
 
 const LOCAL_ONLY_KEY = "tlb.enterprise.local-only.v1";
 const PRODUCT_EXTRAS_KEY = "tlb.enterprise.product-extras.v1";
@@ -457,6 +462,14 @@ export class SupabaseTlbRepository implements TlbRepository {
         value: buildSoftDeleteOverlay(state) as unknown as Json,
       },
       {
+        key: "tax_rates",
+        value: state.vatRates as unknown as Json,
+      },
+      {
+        key: "document_tax_overlay",
+        value: buildDocumentTaxOverlay(state) as unknown as Json,
+      },
+      {
         key: "auth_directory",
         value: {
           users: staffUsersForRemoteDirectory(state.users),
@@ -571,6 +584,8 @@ export class SupabaseTlbRepository implements TlbRepository {
       const ageing = ageingFromSettings(settingsMap.get("outstanding_ageing"), seed.ageing);
       const company = companyFromSettings(settingsMap.get("company_profile"), seed.company);
       const softOverlay = (settingsMap.get("soft_delete_overlay") ?? {}) as SoftDeleteOverlay;
+      const taxRatesSetting = settingsMap.get("tax_rates");
+      const taxOverlay = (settingsMap.get("document_tax_overlay") ?? {}) as DocumentTaxOverlay;
       const authDir = authDirectoryFromSettings(settingsMap.get("auth_directory"));
       const mergedUsers = mergeStaffUsers(authDir.users, localOnly.users);
       const mergedRoles = authDir.roles?.length
@@ -580,6 +595,15 @@ export class SupabaseTlbRepository implements TlbRepository {
       const prior = loadState();
       const ledger = await readCanonicalLedger(this.sb);
       const prototypeStock = stock.map((row) => stockFromRow(row, stockExtras[row.id]));
+      const baseCustomers = customers.map((row) => customerFromRow(row, softOverlay));
+      const baseInvoices = invoices.map(invoiceFromRow);
+      const withTax = applyDocumentTaxOverlay(baseCustomers, baseInvoices, taxOverlay);
+      const remoteVat = vatRates.length ? vatRates.map(vatFromRow) : [];
+      const settingVat = Array.isArray(taxRatesSetting)
+        ? (taxRatesSetting as unknown as VatRate[])
+        : undefined;
+      const mergedVatRates = ensureTaxCatalog(settingVat?.length ? settingVat : remoteVat);
+
       const merged: TlbState = {
         ...seed,
         ...localOnly,
@@ -591,7 +615,7 @@ export class SupabaseTlbRepository implements TlbRepository {
         stockMovements: ledger
           ? mergeCanonicalMovements(localOnly.stockMovements, ledger.movements)
           : localOnly.stockMovements,
-        customers: customers.map((row) => customerFromRow(row, softOverlay)),
+        customers: withTax.customers,
         orders: orders.map((row) => orderFromRow(row, softOverlay)),
         orderLines: orderLines.map(orderLineFromRow),
         supplies: supplies.map(supplyFromRow),
@@ -603,8 +627,8 @@ export class SupabaseTlbRepository implements TlbRepository {
         },
         ageing,
         company,
-        vatRates: vatRates.length ? vatRates.map(vatFromRow) : seed.vatRates,
-        invoices: invoices.map(invoiceFromRow),
+        vatRates: mergedVatRates,
+        invoices: withTax.invoices,
         invoiceLines: invoiceLines.map(invoiceLineFromRow),
         receipts: receipts.map(receiptFromRow),
         receiptLines: receiptLines.map(receiptLineFromRow),
@@ -737,6 +761,14 @@ export class SupabaseTlbRepository implements TlbRepository {
         {
           key: "soft_delete_overlay",
           value: buildSoftDeleteOverlay(state) as unknown as Json,
+        },
+        {
+          key: "tax_rates",
+          value: state.vatRates as unknown as Json,
+        },
+        {
+          key: "document_tax_overlay",
+          value: buildDocumentTaxOverlay(state) as unknown as Json,
         },
         {
           key: "auth_directory",

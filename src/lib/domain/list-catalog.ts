@@ -93,7 +93,7 @@ export function quotationToCatalogRecord(q: {
       ...(q.notes ? [{ label: "Notes", value: q.notes }] : []),
     ],
     summary: [
-      { label: "Total", value: money(q.amount), note: "ex-VAT" },
+      { label: "Total", value: money(q.amount), note: "ex-tax (Settings)" },
       { label: "Lines", value: "1" },
       { label: "Status", value: q.status },
       { label: "Quote #", value: q.number },

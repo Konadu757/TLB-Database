@@ -1,6 +1,12 @@
 import { calcOutstanding } from "../domain/calculations";
 import { nextDocumentNumber } from "../domain/numbering";
 import { hasPermission } from "../domain/permissions";
+import {
+  computeTaxesOnAmount,
+  lineVatAmount,
+  primaryVatRate,
+  roundMoney,
+} from "../domain/tax";
 import type {
   Delivery,
   DeliveryStatus,
@@ -53,9 +59,12 @@ export function createInvoiceFromSupply(
   input: {
     orderId: string;
     supplyId: string;
-    vatRateId: string;
+    /** Preferred VAT id when that tax is Active; otherwise Settings drive application. */
+    vatRateId?: string;
     notes?: string;
     updateCustomerTin?: string;
+    /** Document-level tax exemption (also honour customer.taxExempt). */
+    taxExempt?: boolean;
   },
 ): MutResult<Invoice> {
   const blocked = deny(state, "invoice.create");
@@ -68,8 +77,15 @@ export function createInvoiceFromSupply(
   if (!supply) return { ok: false, error: "Supply not found for this order." };
   const customer = next.customers.find((c) => c.id === order.customerId);
   if (!customer) return { ok: false, error: "Customer not found." };
-  const vat = next.vatRates.find((v) => v.id === input.vatRateId && v.active);
-  if (!vat) return { ok: false, error: "Select an active VAT rate from settings." };
+
+  const documentTaxExempt = Boolean(input.taxExempt);
+  const customerTaxExempt = Boolean(customer.taxExempt);
+  const taxOpts = { customerTaxExempt, documentTaxExempt };
+  const catalogVat = primaryVatRate(next.vatRates);
+  const preferredVat =
+    (input.vatRateId
+      ? next.vatRates.find((v) => v.id === input.vatRateId)
+      : undefined) ?? catalogVat;
 
   if (input.updateCustomerTin !== undefined) {
     const tinBlocked = deny(next, "tin.update");
@@ -92,15 +108,14 @@ export function createInvoiceFromSupply(
   const supplyLines = next.supplyLines.filter((sl) => sl.supplyId === supply.id);
 
   let subtotal = 0;
-  let vatAmount = 0;
   for (const sl of supplyLines) {
     const orderLine = next.orderLines.find((l) => l.id === sl.orderLineId);
     const product = next.products.find((p) => p.id === sl.productId);
     const unitPrice = orderLine?.unitPrice ?? 0;
     const lineSubtotal = unitPrice * sl.quantity;
-    const lineVat = Math.round(lineSubtotal * (vat.ratePercent / 100) * 100) / 100;
     subtotal += lineSubtotal;
-    vatAmount += lineVat;
+    const lineVat = lineVatAmount(lineSubtotal, next.vatRates, taxOpts);
+    const lineTax = computeTaxesOnAmount(lineSubtotal, next.vatRates, taxOpts);
     next.invoiceLines.push({
       id: uid("il"),
       invoiceId,
@@ -109,17 +124,18 @@ export function createInvoiceFromSupply(
       quantity: sl.quantity,
       unitPrice,
       lineSubtotal,
-      vatRateId: vat.id,
+      vatRateId: lineTax.vatRateId || preferredVat?.id || "",
       vatAmount: lineVat,
-      lineTotal: lineSubtotal + lineVat,
+      lineTotal: roundMoney(lineSubtotal + lineTax.totalTax),
       orderLineId: sl.orderLineId,
       supplyLineId: sl.id,
     });
   }
 
-  subtotal = Math.round(subtotal * 100) / 100;
-  vatAmount = Math.round(vatAmount * 100) / 100;
-  const total = Math.round((subtotal + vatAmount) * 100) / 100;
+  subtotal = roundMoney(subtotal);
+  const taxes = computeTaxesOnAmount(subtotal, next.vatRates, taxOpts);
+  const total = roundMoney(subtotal + taxes.totalTax);
+  const taxExempt = documentTaxExempt || customerTaxExempt;
 
   const invoice: Invoice = {
     id: invoiceId,
@@ -131,9 +147,12 @@ export function createInvoiceFromSupply(
     customerPoNumber: order.customerPoNumber,
     customerTin: customer.tin,
     billingAddress: customer.address,
-    vatRateId: vat.id,
+    vatRateId: taxes.vatRateId || preferredVat?.id || "",
     subtotal,
-    vatAmount,
+    vatAmount: taxes.vatAmount,
+    otherTaxAmount: taxes.otherTaxAmount,
+    taxBreakdown: taxes.breakdown.length ? taxes.breakdown : undefined,
+    taxExempt: taxExempt || undefined,
     total,
     paymentStatus: "Unpaid",
     amountPaid: 0,

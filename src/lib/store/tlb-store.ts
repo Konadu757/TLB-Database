@@ -46,6 +46,8 @@ import type {
   StoreResult,
   Supplier,
   SupplyRequestLine,
+  TaxKind,
+  TaxMode,
   TlbState,
   VatRate,
   Warehouse,
@@ -302,6 +304,7 @@ export function upsertCustomer(
       email: input.email,
       address: input.address,
       tin: input.tin?.trim() || undefined,
+      taxExempt: input.taxExempt ? true : undefined,
       creditLimit: input.creditLimit,
       paymentTerms: input.paymentTerms,
       notes: input.notes,
@@ -330,6 +333,7 @@ export function upsertCustomer(
     email: input.email,
     address: input.address,
     tin: input.tin?.trim() || undefined,
+    taxExempt: input.taxExempt ? true : undefined,
     creditLimit: input.creditLimit,
     paymentTerms: input.paymentTerms,
     notes: input.notes,
@@ -443,6 +447,7 @@ export function createQuotation(
     notes?: string;
     validDays?: number;
     status?: "Draft" | "Sent";
+    taxExempt?: boolean;
   },
 ): MutResult<Quotation> {
   const blocked = requirePerm(state, "quotations.view");
@@ -475,6 +480,12 @@ export function createQuotation(
   const validUntil = new Date(now.getTime() + validDays * 24 * 60 * 60 * 1000).toISOString();
   const amount = Math.round(input.qty * input.unitPrice * 100) / 100;
 
+  // Honour linked customer tax-exempt flag when creating.
+  const linkedCustomer = input.customerId
+    ? next.customers.find((c) => c.id === input.customerId)
+    : undefined;
+  const taxExempt = Boolean(input.taxExempt || linkedCustomer?.taxExempt);
+
   const quotation: Quotation = {
     id: uid("qt"),
     number: numbered.number,
@@ -492,6 +503,7 @@ export function createQuotation(
     ...(input.customerId ? { customerId: input.customerId } : {}),
     ...(input.contact?.trim() ? { contact: input.contact.trim() } : {}),
     ...(input.notes?.trim() ? { notes: input.notes.trim() } : {}),
+    ...(taxExempt ? { taxExempt: true } : {}),
   };
 
   next.quotations.unshift(quotation);
@@ -518,6 +530,7 @@ export function updateQuotation(
     notes?: string;
     status?: "Draft" | "Sent";
     validUntil?: string;
+    taxExempt?: boolean;
   },
 ): MutResult<Quotation> {
   const blocked = requireAnyPerm(state, ["quotations.view", "records.edit"]);
@@ -548,6 +561,7 @@ export function updateQuotation(
     amount,
     paymentTerms: input.paymentTerms?.trim() || existing.paymentTerms || "Net 30",
     status: input.status ?? existing.status,
+    taxExempt: input.taxExempt ? true : undefined,
     ...(input.validUntil ? { validUntil: input.validUntil } : {}),
     ...(input.customerId ? { customerId: input.customerId } : { customerId: undefined }),
     ...(input.contact?.trim() ? { contact: input.contact.trim() } : { contact: undefined }),
@@ -1333,48 +1347,87 @@ export function upsertVatRate(
 ): MutResult<VatRate> {
   const blocked = requirePerm(state, "settings.manage");
   if (blocked) return { ok: false, error: blocked };
-  if (!input.label.trim()) return { ok: false, error: "VAT rate label is required." };
+  if (!input.label.trim()) return { ok: false, error: "Tax label is required." };
   if (!Number.isFinite(input.ratePercent) || input.ratePercent < 0) {
     return {
       ok: false,
-      error: "VAT rate percent must be a non-negative number (configure in settings).",
+      error: "Tax rate percent must be a non-negative number (configure in settings).",
     };
   }
+  const mode: TaxMode =
+    input.mode === "active" || input.mode === "exempt" || input.mode === "off"
+      ? input.mode
+      : input.active
+        ? "active"
+        : "off";
+  const kind: TaxKind = input.kind === "levy" ? "levy" : "vat";
   const next = cloneState(state);
   if (input.id) {
     const idx = next.vatRates.findIndex((v) => v.id === input.id);
-    if (idx < 0) return { ok: false, error: "VAT rate not found." };
     const updated: VatRate = {
       id: input.id,
       code: input.code,
       label: input.label,
       ratePercent: input.ratePercent,
-      active: input.active,
+      mode,
+      kind,
+      active: mode === "active",
+      sortOrder:
+        input.sortOrder ??
+        (idx >= 0 ? next.vatRates[idx]?.sortOrder : undefined) ??
+        (kind === "vat" ? 0 : 40),
     };
-    next.vatRates[idx] = updated;
+    if (idx >= 0) {
+      next.vatRates[idx] = updated;
+    } else {
+      next.vatRates.push(updated);
+    }
     pushAudit(next, {
       action: "settings.updated",
       entityType: "vat_rate",
       entityId: updated.id,
-      summary: `Updated VAT rate ${updated.code} to ${updated.ratePercent}%.`,
+      summary: `Updated tax ${updated.code}: ${updated.ratePercent}% · ${mode}.`,
     });
     return { ok: true, data: { state: next, data: updated } };
   }
   const created: VatRate = {
-    id: uid("vat"),
+    id: uid("tax"),
     code: input.code,
     label: input.label,
     ratePercent: input.ratePercent,
-    active: input.active,
+    mode,
+    kind,
+    active: mode === "active",
+    sortOrder: input.sortOrder ?? (kind === "vat" ? 0 : 40),
   };
   next.vatRates.push(created);
   pushAudit(next, {
     action: "settings.updated",
     entityType: "vat_rate",
     entityId: created.id,
-    summary: `Added VAT rate ${created.code} at ${created.ratePercent}%.`,
+    summary: `Added tax ${created.code} at ${created.ratePercent}% · ${mode}.`,
   });
   return { ok: true, data: { state: next, data: created } };
+}
+
+/** Batch-save the Settings tax catalog in one mutation (avoids stale overwrites). */
+export function saveTaxRates(
+  state: TlbState,
+  rates: Array<Omit<VatRate, "id"> & { id: string }>,
+): MutResult<VatRate[]> {
+  const blocked = requirePerm(state, "settings.manage");
+  if (blocked) return { ok: false, error: blocked };
+  if (!rates.length) return { ok: false, error: "At least one tax definition is required." };
+
+  let next = cloneState(state);
+  const saved: VatRate[] = [];
+  for (const input of rates) {
+    const result = upsertVatRate(next, input);
+    if (!result.ok) return result;
+    next = result.data.state;
+    saved.push(result.data.data);
+  }
+  return { ok: true, data: { state: next, data: saved } };
 }
 
 export function switchRole(state: TlbState, _roleIdOrName: AppRole): MutResult<AppRole> {

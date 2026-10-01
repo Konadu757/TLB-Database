@@ -46,6 +46,7 @@ import {
   upsertCustomer,
   upsertSupplier,
   upsertVatRate,
+  saveTaxRates,
 } from "@/lib/store/tlb-store";
 import {
   advanceTransfer,
@@ -414,7 +415,9 @@ export function useTlbStore() {
     saveCompany: (company: Parameters<typeof updateCompanyProfile>[1]) =>
       apply((s) => updateCompanyProfile(s, company), "Company profile saved."),
     saveVatRate: (input: Parameters<typeof upsertVatRate>[1]) =>
-      apply((s) => upsertVatRate(s, input), "VAT rate saved."),
+      apply((s) => upsertVatRate(s, input), "Tax rate saved."),
+    saveTaxRates: (rates: Parameters<typeof saveTaxRates>[1]) =>
+      apply((s) => saveTaxRates(s, rates), "Tax settings saved."),
     createRole: (input: Parameters<typeof createRole>[1]) =>
       apply((s) => createRole(s, input), "Role created."),
     updateRole: (roleId: string, input: Parameters<typeof updateRole>[2]) =>

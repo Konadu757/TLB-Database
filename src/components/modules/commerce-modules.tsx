@@ -148,6 +148,7 @@ const emptyCustomerForm = () => ({
   email: "",
   address: "",
   tin: "",
+  taxExempt: false,
   creditLimit: 100000,
   paymentTerms: "Net 30" as PaymentTerms,
   notes: "",
@@ -204,6 +205,16 @@ function CustomerFormFields({
       <label>
         TIN (optional)
         <input value={form.tin} onChange={(e) => setForm({ ...form, tin: e.target.value })} />
+      </label>
+      <label>
+        Tax exempt
+        <select
+          value={form.taxExempt ? "yes" : "no"}
+          onChange={(e) => setForm({ ...form, taxExempt: e.target.value === "yes" })}
+        >
+          <option value="no">No — apply Settings taxes</option>
+          <option value="yes">Yes — never tax this customer</option>
+        </select>
       </label>
       <label className="tlb-span-2">
         Address
@@ -381,6 +392,7 @@ export function CustomersModule({
                 creditLimit: form.creditLimit,
                 paymentTerms: form.paymentTerms,
                 active: form.active,
+                taxExempt: form.taxExempt,
                 ...(form.tin.trim() ? { tin: form.tin.trim() } : {}),
                 ...(form.notes.trim() ? { notes: form.notes.trim() } : {}),
               });
@@ -560,6 +572,7 @@ function CustomerDetailModule({
       email: customer.email,
       address: customer.address,
       tin: customer.tin ?? "",
+      taxExempt: Boolean(customer.taxExempt),
       creditLimit: customer.creditLimit,
       paymentTerms: customer.paymentTerms,
       notes: customer.notes ?? "",
@@ -769,6 +782,7 @@ function CustomerDetailModule({
                 creditLimit: form.creditLimit,
                 paymentTerms: form.paymentTerms,
                 active: form.active,
+                taxExempt: form.taxExempt,
                 ...(form.tin.trim() ? { tin: form.tin.trim() } : {}),
                 ...(form.notes.trim() ? { notes: form.notes.trim() } : {}),
               });
@@ -879,6 +893,10 @@ function CustomerDetailModule({
               <div>
                 <dt>TIN</dt>
                 <dd>{selected.tin || "—"}</dd>
+              </div>
+              <div>
+                <dt>Tax</dt>
+                <dd>{selected.taxExempt ? "Exempt" : "Follow Settings"}</dd>
               </div>
               <div>
                 <dt>Credit status</dt>

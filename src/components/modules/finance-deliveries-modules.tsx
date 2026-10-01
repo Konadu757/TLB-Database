@@ -30,6 +30,12 @@ import { notSoftDeleted } from "@/lib/domain/trash";
 import type { DeliveryStatus, PaymentMethod } from "@/lib/domain/types";
 import { formatMoney, trashBlockReason } from "@/lib/store/tlb-store";
 import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
+import {
+  ensureTaxCatalog,
+  listApplicableTaxes,
+  normalizeTaxMode,
+  primaryVatRate,
+} from "@/lib/domain/tax";
 
 function invoiceDownloadCtx(store: TlbStoreApi, invoiceId: string): InvoiceDownloadContext | null {
   const invoice = store.state.invoices.find((i) => i.id === invoiceId);
@@ -43,6 +49,7 @@ function invoiceDownloadCtx(store: TlbStoreApi, invoiceId: string): InvoiceDownl
     company: store.state.company,
     customerName: customer?.name ?? "—",
     vatRatePercent: vat?.ratePercent ?? 0,
+    taxBreakdown: invoice.taxBreakdown,
     ...(order?.number ? { orderNumber: order.number } : {}),
   };
 }
@@ -292,9 +299,10 @@ export function FinanceModule({
   const [invoiceForm, setInvoiceForm] = useState({
     orderId: initialFocus?.orderId ?? state.orders[0]?.id ?? "",
     supplyId: initialFocus?.supplyId ?? "",
-    vatRateId: state.vatRates.find((v) => v.active)?.id ?? "",
+    vatRateId: primaryVatRate(state.vatRates)?.id ?? "",
     updateTin: "",
     notes: "",
+    taxExempt: false,
   });
   const [receiptForm, setReceiptForm] = useState({
     customerId: (() => {
@@ -342,7 +350,7 @@ export function FinanceModule({
         ...f,
         orderId: next.orderId ?? f.orderId,
         supplyId: next.supplyId ?? "",
-        vatRateId: state.vatRates.find((v) => v.active)?.id ?? f.vatRateId,
+        vatRateId: primaryVatRate(state.vatRates)?.id ?? f.vatRateId,
       }));
     }
     if (next.createReceipt) {
@@ -514,10 +522,32 @@ export function FinanceModule({
               <span>Subtotal</span>
               <strong>{formatMoney(selectedInvoice.subtotal)}</strong>
             </div>
-            <div className="tlb-customer-summary-tile--gold">
-              <span>VAT ({vat?.ratePercent ?? 0}%)</span>
-              <strong>{formatMoney(selectedInvoice.vatAmount)}</strong>
-            </div>
+            {(selectedInvoice.taxBreakdown?.length
+              ? selectedInvoice.taxBreakdown
+              : selectedInvoice.vatAmount > 0
+                ? [
+                    {
+                      code: "VAT",
+                      label: "VAT",
+                      ratePercent: vat?.ratePercent ?? 0,
+                      amount: selectedInvoice.vatAmount,
+                    },
+                  ]
+                : []
+            ).map((line) => (
+              <div key={`${line.code}-${line.ratePercent}`} className="tlb-customer-summary-tile--gold">
+                <span>
+                  {line.code} ({line.ratePercent}%)
+                </span>
+                <strong>{formatMoney(line.amount)}</strong>
+              </div>
+            ))}
+            {selectedInvoice.taxExempt ? (
+              <div className="tlb-customer-summary-tile--muted">
+                <span>Tax</span>
+                <strong>Exempt</strong>
+              </div>
+            ) : null}
             <div className="tlb-customer-summary-tile--success">
               <span>Total</span>
               <strong>{formatMoney(selectedInvoice.total)}</strong>
@@ -613,7 +643,7 @@ export function FinanceModule({
                   <th>Qty</th>
                   <th>Price</th>
                   <th>Subtotal</th>
-                  <th>VAT</th>
+                  {invoiceLines.some((l) => l.vatAmount > 0) ? <th>VAT</th> : null}
                   <th>Total</th>
                 </tr>
               </thead>
@@ -624,7 +654,9 @@ export function FinanceModule({
                     <td>{l.quantity}</td>
                     <td>{formatMoney(l.unitPrice)}</td>
                     <td>{formatMoney(l.lineSubtotal)}</td>
-                    <td>{formatMoney(l.vatAmount)}</td>
+                    {invoiceLines.some((l2) => l2.vatAmount > 0) ? (
+                      <td>{formatMoney(l.vatAmount)}</td>
+                    ) : null}
                     <td>{formatMoney(l.lineTotal)}</td>
                   </tr>
                 ))}
@@ -914,21 +946,28 @@ export function FinanceModule({
                   const ok = store.createInvoice({
                     orderId: invoiceForm.orderId,
                     supplyId: invoiceForm.supplyId,
-                    vatRateId: invoiceForm.vatRateId,
+                    ...(invoiceForm.vatRateId ? { vatRateId: invoiceForm.vatRateId } : {}),
+                    ...(invoiceForm.taxExempt ? { taxExempt: true } : {}),
                     ...(invoiceForm.notes.trim() ? { notes: invoiceForm.notes.trim() } : {}),
                     ...(invoiceForm.updateTin.trim()
                       ? { updateCustomerTin: invoiceForm.updateTin.trim() }
                       : {}),
                   });
                   if (ok) {
-                    setInvoiceForm((f) => ({ ...f, notes: "", updateTin: "", supplyId: "" }));
+                    setInvoiceForm((f) => ({
+                      ...f,
+                      notes: "",
+                      updateTin: "",
+                      supplyId: "",
+                      taxExempt: false,
+                    }));
                     setCreatingInvoice(false);
                   }
                 }}
               >
                 <div className="tlb-panel-heading">
                   <div>
-                    <span>VAT invoice</span>
+                    <span>Invoice</span>
                     <strong>Generate from sales supply</strong>
                   </div>
                   <button type="button" onClick={() => setCreatingInvoice(false)}>
@@ -966,15 +1005,51 @@ export function FinanceModule({
                     ))}
                   </select>
                 </label>
+                <label className="tlb-span-2">
+                  Taxes (from Settings)
+                  <div className="tlb-muted-line" style={{ marginTop: 6 }}>
+                    {(() => {
+                      const order = state.orders.find((o) => o.id === invoiceForm.orderId);
+                      const customer = order
+                        ? state.customers.find((c) => c.id === order.customerId)
+                        : undefined;
+                      if (invoiceForm.taxExempt || customer?.taxExempt) {
+                        return "Exempt — no tax will be applied on this invoice.";
+                      }
+                      const applicable = listApplicableTaxes(state.vatRates, {
+                        customerTaxExempt: Boolean(customer?.taxExempt),
+                        documentTaxExempt: Boolean(invoiceForm.taxExempt),
+                      });
+                      if (!applicable.length) {
+                        return "No active taxes with a rate above 0% (Settings). Totals stay ex-tax.";
+                      }
+                      return `Will apply: ${applicable
+                        .map((t) => `${t.code} ${t.ratePercent}%`)
+                        .join(" + ")}`;
+                    })()}
+                  </div>
+                </label>
                 <label>
-                  VAT rate (Settings)
+                  Tax exempt (this invoice)
                   <select
-                    required
+                    value={invoiceForm.taxExempt ? "yes" : "no"}
+                    onChange={(e) =>
+                      setInvoiceForm({ ...invoiceForm, taxExempt: e.target.value === "yes" })
+                    }
+                  >
+                    <option value="no">No — follow Settings</option>
+                    <option value="yes">Yes — skip all taxes</option>
+                  </select>
+                </label>
+                <label>
+                  Preferred VAT id (optional)
+                  <select
                     value={invoiceForm.vatRateId}
                     onChange={(e) => setInvoiceForm({ ...invoiceForm, vatRateId: e.target.value })}
                   >
-                    {state.vatRates
-                      .filter((v) => v.active)
+                    <option value="">Settings default</option>
+                    {ensureTaxCatalog(state.vatRates)
+                      .filter((v) => normalizeTaxMode(v) === "active")
                       .map((v) => (
                         <option key={v.id} value={v.id}>
                           {v.label} · {v.ratePercent}%

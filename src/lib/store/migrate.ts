@@ -19,6 +19,7 @@ import type {
 } from "../domain/types";
 import { DEFAULT_INVENTORY_SETTINGS } from "../domain/inventory";
 import { MATURE_SEQUENCE_FLOOR, floorMatureCommercialCounters } from "../domain/numbering";
+import { defaultTaxCatalog, ensureTaxCatalog } from "../domain/tax";
 import { createSeedState } from "./seed";
 
 const DEFAULT_COMPANY: CompanyProfile = {
@@ -30,15 +31,8 @@ const DEFAULT_COMPANY: CompanyProfile = {
   logoNote: "Use company logo from brand assets",
 };
 
-const DEFAULT_VAT: VatRate[] = [
-  {
-    id: "vat-configurable",
-    code: "CFG",
-    label: "Configured VAT (set in Settings)",
-    ratePercent: 0,
-    active: true,
-  },
-];
+/** @deprecated Prefer defaultTaxCatalog() — kept for seed import compatibility. */
+const DEFAULT_VAT: VatRate[] = defaultTaxCatalog();
 
 const DEFAULT_AGEING: AgeingSettings = {
   normalMaxDays: 2,
@@ -470,7 +464,7 @@ export function migrateState(raw: unknown): TlbState {
     }),
     ageing,
     company: parsed.company ?? DEFAULT_COMPANY,
-    vatRates: parsed.vatRates?.length ? parsed.vatRates : DEFAULT_VAT,
+    vatRates: ensureTaxCatalog(parsed.vatRates),
     catalogDeletions: parsed.catalogDeletions ?? [],
     catalogPurgedIds: parsed.catalogPurgedIds ?? [],
     roles,
