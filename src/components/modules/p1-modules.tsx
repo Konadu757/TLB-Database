@@ -414,20 +414,6 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
         </div>
       </div>
 
-      <article className="tlb-panel" style={{ marginBottom: 14 }}>
-        <div className="tlb-panel-heading">
-          <div>
-            <span>Session</span>
-            <strong>Signed-in identity (mock auth)</strong>
-          </div>
-        </div>
-        <div className="tlb-inline-actions" style={{ padding: 12 }}>
-          <span className="tlb-muted-line">
-            Signed in as {store.state.currentUser} · {store.state.currentRole}
-          </span>
-        </div>
-      </article>
-
       {canManageUsers ? (
         <>
           <article className="tlb-panel" style={{ marginBottom: 14 }}>
