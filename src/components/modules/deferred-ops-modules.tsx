@@ -16,6 +16,7 @@ import { toCsv } from "@/lib/domain/reports";
 import type {
   ExportShipmentStatus,
   ImportShipmentStatus,
+  NonPoPurchaseStatus,
   ReturnDisposition,
 } from "@/lib/domain/types";
 import { isSoftDeleted } from "@/lib/domain/trash";
@@ -592,6 +593,16 @@ export function ReturnsModule({
   );
 }
 
+const NON_PO_STATUS_FILTERS: Array<"All" | NonPoPurchaseStatus> = [
+  "All",
+  "Pending Approval",
+  "Approved",
+  "Rejected",
+  "Goods Received",
+  "Cancelled",
+  "Draft",
+];
+
 export function NonPoPurchasesModule({
   store,
   focusId,
@@ -605,11 +616,18 @@ export function NonPoPurchasesModule({
 }) {
   const [detailId, setDetailId] = useState<string | null>(focusId ?? null);
   const [open, setOpen] = useState(false);
-  const [supplierId, setSupplierId] = useState(store.state.suppliers[0]?.id ?? "");
-  const [warehouseId, setWarehouseId] = useState("wh-main");
+  const [statusFilter, setStatusFilter] = useState<"All" | NonPoPurchaseStatus>("All");
+  const [supplierId, setSupplierId] = useState(
+    () => store.state.suppliers.find((s) => !isSoftDeleted(s))?.id ?? "",
+  );
+  const [warehouseId, setWarehouseId] = useState(
+    () => store.state.warehouses.find((w) => !isSoftDeleted(w))?.id ?? "wh-main",
+  );
   const [reason, setReason] = useState("");
   const [invoiceRef, setInvoiceRef] = useState("");
-  const [productId, setProductId] = useState(store.state.products[0]?.id ?? "");
+  const [productId, setProductId] = useState(
+    () => store.state.products.find((p) => !isSoftDeleted(p))?.id ?? "",
+  );
   const [qty, setQty] = useState(1);
   const [unitPrice, setUnitPrice] = useState(100);
 
@@ -620,12 +638,29 @@ export function NonPoPurchasesModule({
     }
   }, [focusId, onFocusConsumed]);
 
-  const rows = (store.state.nonPoPurchases ?? []).filter((n) => !isSoftDeleted(n));
+  const rows = useMemo(
+    () => (store.state.nonPoPurchases ?? []).filter((n) => !isSoftDeleted(n)),
+    [store.state.nonPoPurchases],
+  );
+  const filteredRows = useMemo(
+    () => (statusFilter === "All" ? rows : rows.filter((n) => n.status === statusFilter)),
+    [rows, statusFilter],
+  );
   const detail = rows.find((n) => n.id === detailId);
 
   if (detail) {
     const lines = (store.state.nonPoPurchaseLines ?? []).filter((l) => l.nonPoId === detail.id);
     const supplier = store.state.suppliers.find((s) => s.id === detail.supplierId);
+    const warehouse = store.state.warehouses.find((w) => w.id === detail.warehouseId);
+    const grn = detail.grnId
+      ? store.state.goodsReceipts.find((g) => g.id === detail.grnId)
+      : undefined;
+    const requestedWhen = formatHandlerWhen(detail.requestedAt);
+    const approvedWhen = formatHandlerWhen(detail.approvedAt);
+    const lineTotal = lines.reduce((sum, l) => sum + l.quantity * l.unitPrice, 0);
+    const invoiceLabel =
+      [detail.invoiceRef, detail.receiptRef].filter(Boolean).join(" / ") || "—";
+
     return (
       <div className="tlb-module tlb-record-detail">
         <div className="tlb-module-toolbar">
@@ -633,58 +668,10 @@ export function NonPoPurchasesModule({
             <span className="tlb-eyebrow">Non-PO purchase</span>
             <strong>{detail.number}</strong>
             <p className="tlb-muted-line">
-              {supplier?.name} · {detail.status}
+              {supplier?.name ?? "Supplier"} · {detail.status}
             </p>
           </div>
-          <Button type="button" variant="outline" onClick={() => setDetailId(null)}>
-            Back
-          </Button>
-        </div>
-        <article className="tlb-panel">
-          <div className="tlb-kv-grid" style={{ padding: 16 }}>
-            <div>
-              <span>Reason</span>
-              <strong>{detail.reason}</strong>
-            </div>
-            <div>
-              <span>Requested by</span>
-              <strong>{detail.requestedBy}</strong>
-            </div>
-            <div>
-              <span>Approved by</span>
-              <strong>{detail.approvedBy ?? "—"}</strong>
-            </div>
-            <div>
-              <span>Invoice / receipt</span>
-              <strong>
-                {[detail.invoiceRef, detail.receiptRef].filter(Boolean).join(" / ") || "—"}
-              </strong>
-            </div>
-            <div>
-              <span>Warehouse</span>
-              <strong>
-                {store.state.warehouses.find((w) => w.id === detail.warehouseId)?.name}
-              </strong>
-            </div>
-            <div>
-              <span>GRN</span>
-              <strong>
-                {detail.grnId ? (
-                  <button
-                    type="button"
-                    className="tlb-text-link"
-                    onClick={() => onOpenGrn?.(detail.grnId!)}
-                  >
-                    {store.state.goodsReceipts.find((g) => g.id === detail.grnId)?.number ??
-                      detail.grnId}
-                  </button>
-                ) : (
-                  "—"
-                )}
-              </strong>
-            </div>
-          </div>
-          <div className="tlb-inline-actions" style={{ padding: 16 }}>
+          <div className="tlb-inline-actions">
             {detail.status === "Pending Approval" ? (
               <>
                 <Button type="button" onClick={() => store.decideNonPo(detail.id, "Approved")}>
@@ -711,9 +698,101 @@ export function NonPoPurchasesModule({
               recordLabel={detail.number}
               onTrashed={() => setDetailId(null)}
             />
+            <Button type="button" variant="outline" onClick={() => setDetailId(null)}>
+              Back
+            </Button>
           </div>
+        </div>
+
+        <article className="tlb-panel tlb-record-detail-section tlb-record-detail-section--summary tlb-ops-handler">
+          <div className="tlb-panel-heading">
+            <div>
+              <span>Request</span>
+              <strong>Status &amp; handlers</strong>
+            </div>
+            <StatusBadge tone={statusTone(detail.status)}>{detail.status}</StatusBadge>
+          </div>
+
+          <div className="tlb-ops-handler-rail" aria-label="Non-PO status and handlers">
+            <div className="tlb-ops-handler-card tlb-ops-handler-card--status">
+              <span className="tlb-ops-handler-kicker">Status</span>
+              <StatusBadge tone={statusTone(detail.status)}>{detail.status}</StatusBadge>
+              <small>Request → approval → GRN</small>
+            </div>
+
+            <div className="tlb-ops-handler-card tlb-ops-handler-card--actor">
+              <span className="tlb-ops-handler-kicker">Requested by</span>
+              <strong>{detail.requestedBy || "—"}</strong>
+              <small>{requestedWhen ?? "—"}</small>
+            </div>
+
+            <div
+              className={`tlb-ops-handler-card${detail.approvedBy ? "" : " tlb-ops-handler-card--empty"}`}
+            >
+              <span className="tlb-ops-handler-kicker">Approved by</span>
+              <strong>{detail.approvedBy || "Pending"}</strong>
+              <small>
+                {approvedWhen ?? (detail.approvedBy ? "—" : "Not approved yet")}
+              </small>
+            </div>
+
+            <div
+              className={`tlb-ops-handler-card${detail.grnId ? "" : " tlb-ops-handler-card--empty"}`}
+            >
+              <span className="tlb-ops-handler-kicker">Goods in</span>
+              <strong>
+                {detail.grnId ? (
+                  <button
+                    type="button"
+                    className="tlb-text-link"
+                    onClick={() => onOpenGrn?.(detail.grnId!)}
+                  >
+                    {grn?.number ?? detail.grnId}
+                  </button>
+                ) : (
+                  "Pending"
+                )}
+              </strong>
+              <small>{detail.grnId ? "Linked GRN" : "Not received yet"}</small>
+            </div>
+          </div>
+
+          <dl className="tlb-kv tlb-ops-handler-meta">
+            <div>
+              <dt>Supplier</dt>
+              <dd>{supplier?.name ?? detail.supplierId}</dd>
+            </div>
+            <div>
+              <dt>Warehouse</dt>
+              <dd>{warehouse?.name ?? detail.warehouseId}</dd>
+            </div>
+            <div>
+              <dt>Invoice / receipt</dt>
+              <dd>{invoiceLabel}</dd>
+            </div>
+            <div>
+              <dt>Line total</dt>
+              <dd>{formatMoney(lineTotal)}</dd>
+            </div>
+            <div className="tlb-span-2">
+              <dt>Reason</dt>
+              <dd>{detail.reason?.trim() ? detail.reason : "—"}</dd>
+            </div>
+            <div className="tlb-span-2">
+              <dt>Notes</dt>
+              <dd>{detail.notes?.trim() ? detail.notes : "—"}</dd>
+            </div>
+          </dl>
         </article>
-        <article className="tlb-panel tlb-orders-panel">
+
+        <article className="tlb-panel tlb-orders-panel tlb-record-detail-section tlb-record-detail-section--lines">
+          <div className="tlb-panel-heading">
+            <div>
+              <span>Lines</span>
+              <strong>Purchase quantities</strong>
+            </div>
+            <div className="tlb-list-meta">{lines.length} line{lines.length === 1 ? "" : "s"}</div>
+          </div>
           <div className="tlb-table-scroll">
             <table>
               <thead>
@@ -725,17 +804,37 @@ export function NonPoPurchasesModule({
                 </tr>
               </thead>
               <tbody>
-                {lines.map((l) => {
-                  const p = store.state.products.find((x) => x.id === l.productId);
-                  return (
-                    <tr key={l.id}>
-                      <td>{p?.name}</td>
-                      <td>{l.quantity}</td>
-                      <td>{formatMoney(l.unitPrice)}</td>
-                      <td>{formatMoney(l.quantity * l.unitPrice)}</td>
-                    </tr>
-                  );
-                })}
+                {lines.length === 0 ? (
+                  <tr>
+                    <td colSpan={4}>
+                      <EmptyState
+                        title="No lines"
+                        detail="This Non-PO request has no product lines."
+                      />
+                    </td>
+                  </tr>
+                ) : (
+                  lines.map((l) => {
+                    const p = store.state.products.find((x) => x.id === l.productId);
+                    return (
+                      <tr key={l.id}>
+                        <td>
+                          {p ? (
+                            <>
+                              <strong>{p.sku}</strong>
+                              <div className="tlb-muted-line">{p.name}</div>
+                            </>
+                          ) : (
+                            l.productId
+                          )}
+                        </td>
+                        <td>{l.quantity}</td>
+                        <td>{formatMoney(l.unitPrice)}</td>
+                        <td>{formatMoney(l.quantity * l.unitPrice)}</td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -753,73 +852,46 @@ export function NonPoPurchasesModule({
           <strong>Non-PO Purchases</strong>
           <p className="tlb-muted-line">Request → approval gate → GRN goods in</p>
         </div>
-        <Button type="button" onClick={() => setOpen((v) => !v)}>
-          {open ? "Close form" : "New Non-PO"}
-        </Button>
+        <div className="tlb-toolbar-actions">
+          <Button type="button" onClick={() => setOpen((v) => !v)}>
+            {open ? "Close form" : "New Non-PO"}
+          </Button>
+        </div>
       </div>
+
+      <section className="tlb-filter-bar tlb-module-filters" aria-label="Non-PO status filters">
+        <div className="tlb-periods">
+          {NON_PO_STATUS_FILTERS.map((status) => (
+            <button
+              key={status}
+              type="button"
+              className={statusFilter === status ? "active" : ""}
+              onClick={() => setStatusFilter(status)}
+            >
+              {status}
+              {status === "All"
+                ? ` (${rows.length})`
+                : ` (${rows.filter((n) => n.status === status).length})`}
+            </button>
+          ))}
+        </div>
+      </section>
+
       {open ? (
-        <article className="tlb-panel" style={{ padding: 16, display: "grid", gap: 12 }}>
-          <div className="tlb-form-grid">
-            <label>
-              Supplier
-              <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
-                {store.state.suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Warehouse
-              <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
-                {store.state.warehouses.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Product
-              <select value={productId} onChange={(e) => setProductId(e.target.value)}>
-                {store.state.products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.sku} · {p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Qty
-              <input
-                type="number"
-                min={1}
-                value={qty}
-                onChange={(e) => setQty(Number(e.target.value))}
-              />
-            </label>
-            <label>
-              Unit price
-              <input
-                type="number"
-                min={0}
-                value={unitPrice}
-                onChange={(e) => setUnitPrice(Number(e.target.value))}
-              />
-            </label>
-            <label>
-              Invoice / receipt ref
-              <input value={invoiceRef} onChange={(e) => setInvoiceRef(e.target.value)} />
-            </label>
-            <label>
-              Reason (required)
-              <input value={reason} onChange={(e) => setReason(e.target.value)} />
-            </label>
+        <article className="tlb-panel tlb-form-panel">
+          <div className="tlb-panel-heading">
+            <div>
+              <span>Procurement</span>
+              <strong>New Non-PO request</strong>
+            </div>
+            <button type="button" onClick={() => setOpen(false)}>
+              Close
+            </button>
           </div>
-          <Button
-            type="button"
-            onClick={() => {
+          <form
+            className="tlb-form-grid"
+            onSubmit={(e) => {
+              e.preventDefault();
               const ok = store.createNonPo({
                 supplierId,
                 warehouseId,
@@ -830,18 +902,122 @@ export function NonPoPurchasesModule({
               if (ok) {
                 setOpen(false);
                 setReason("");
+                setInvoiceRef("");
               }
             }}
           >
-            Submit for approval
-          </Button>
+            <label>
+              Supplier
+              <select
+                required
+                value={supplierId}
+                onChange={(e) => setSupplierId(e.target.value)}
+              >
+                {store.state.suppliers
+                  .filter((s) => !isSoftDeleted(s))
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label>
+              Warehouse
+              <select
+                required
+                value={warehouseId}
+                onChange={(e) => setWarehouseId(e.target.value)}
+              >
+                {store.state.warehouses
+                  .filter((w) => !isSoftDeleted(w))
+                  .map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label>
+              Product
+              <select required value={productId} onChange={(e) => setProductId(e.target.value)}>
+                {store.state.products
+                  .filter((p) => !isSoftDeleted(p))
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.sku} · {p.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label>
+              Qty
+              <input
+                type="number"
+                min={1}
+                required
+                value={qty}
+                onChange={(e) => setQty(Number(e.target.value))}
+              />
+            </label>
+            <label>
+              Unit price
+              <input
+                type="number"
+                min={0}
+                required
+                value={unitPrice}
+                onChange={(e) => setUnitPrice(Number(e.target.value))}
+              />
+            </label>
+            <label>
+              Invoice / receipt ref
+              <input
+                value={invoiceRef}
+                onChange={(e) => setInvoiceRef(e.target.value)}
+                placeholder="Optional"
+              />
+            </label>
+            <label className="tlb-span-2">
+              Reason (required)
+              <input
+                required
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Why this purchase has no PO"
+              />
+            </label>
+            <div className="tlb-form-actions tlb-span-2">
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">Submit for approval</Button>
+            </div>
+          </form>
         </article>
       ) : null}
+
       <article className="tlb-panel tlb-orders-panel">
+        <div className="tlb-panel-heading">
+          <div>
+            <span>Register</span>
+            <strong>Non-PO purchases</strong>
+          </div>
+          <div className="tlb-list-meta">
+            {filteredRows.length}
+            {statusFilter !== "All" ? ` · ${statusFilter}` : ""} shown
+            {rows.length !== filteredRows.length ? ` of ${rows.length}` : ""}
+          </div>
+        </div>
         {rows.length === 0 ? (
           <EmptyState
             title="No Non-PO purchases"
             detail="Submit a Non-PO request to start the approval workflow."
+          />
+        ) : filteredRows.length === 0 ? (
+          <EmptyState
+            title="No requests match this filter"
+            detail="Try another status, or switch back to All."
           />
         ) : (
           <div className="tlb-table-scroll">
@@ -857,12 +1033,23 @@ export function NonPoPurchasesModule({
                 </tr>
               </thead>
               <tbody>
-                {rows.map((n) => (
-                  <tr key={n.id}>
+                {filteredRows.map((n) => (
+                  <tr
+                    key={n.id}
+                    className="tlb-row-clickable"
+                    tabIndex={0}
+                    onClick={() => setDetailId(n.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setDetailId(n.id);
+                      }
+                    }}
+                  >
                     <td>
                       <strong>{n.number}</strong>
                     </td>
-                    <td>{store.state.suppliers.find((s) => s.id === n.supplierId)?.name}</td>
+                    <td>{store.state.suppliers.find((s) => s.id === n.supplierId)?.name ?? "—"}</td>
                     <td>{n.reason}</td>
                     <td>
                       <StatusBadge tone={statusTone(n.status)}>{n.status}</StatusBadge>
@@ -871,8 +1058,11 @@ export function NonPoPurchasesModule({
                     <td>
                       <button
                         type="button"
-                        aria-label="Open Non-PO"
-                        onClick={() => setDetailId(n.id)}
+                        aria-label={`Open ${n.number}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDetailId(n.id);
+                        }}
                       >
                         <ChevronRight />
                       </button>
