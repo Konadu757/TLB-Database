@@ -397,6 +397,21 @@ function testInvites() {
   assert.equal(cloudCleared[0]?.id, "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee");
   assert.equal(isInvitePending(cloudCleared[0]!), false);
 
+  // Profile + leftover invite_pending=true from stale RPC must still clear Pending.
+  const stalePendingFlag = applyCloudStaffAccessStatuses([user], [
+    {
+      email: user.email,
+      profileId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      invitePending: true,
+      lastSignInAt: "2026-10-02T15:30:00.000Z",
+      active: true,
+    },
+  ]);
+  assert.equal(stalePendingFlag[0]?.invitePending, false);
+  assert.equal(isInvitePending(stalePendingFlag[0]!), false);
+  assert.equal(stalePendingFlag[0]?.lastLoginAt, "2026-10-02T15:30:00.000Z");
+  assert.equal(stalePendingFlag[0]?.inviteToken, undefined);
+
   const withLogin = applyCloudStaffAccessStatuses([user], [
     {
       email: user.email,

@@ -36,9 +36,12 @@ export function normalizeAccessCode(raw: string): string {
 }
 
 export function isInvitePending(user: AppUser): boolean {
-  return Boolean(
-    user.invitePending && user.inviteToken && user.inviteCode && !user.inviteAcceptedAt,
-  );
+  // Signed-in / Auth-provisioned staff are never Pending in Owner UI.
+  if (user.lastLoginAt) return false;
+  if (user.inviteAcceptedAt) return false;
+  if (user.invitePending === false) return false;
+  if (isAuthProfileId(user.id) && !user.inviteToken && !user.inviteCode) return false;
+  return Boolean(user.invitePending && user.inviteToken && user.inviteCode);
 }
 
 export function isAuthProfileId(id: string): boolean {
@@ -103,6 +106,13 @@ export function staffUsersForRemoteDirectory(users: AppUser[]): AppUser[] {
     const copy: AppUser = { ...user };
     delete copy.inviteToken;
     delete copy.inviteCode;
+    // Never publish a stale Pending flag once acceptance / login is known.
+    if (inviteLooksAccepted(user) || user.lastLoginAt || isAuthProfileId(user.id)) {
+      copy.invitePending = false;
+      if (!copy.inviteAcceptedAt && user.lastLoginAt) {
+        copy.inviteAcceptedAt = user.lastLoginAt;
+      }
+    }
     return copy;
   });
 }
@@ -241,7 +251,11 @@ export type CloudStaffAccessStatus = {
 
 /**
  * Apply hosted invite/profile status onto the Owner staff list.
- * Consumed invites and Auth profiles clear Pending even when localStorage is stale.
+ * Consumed invites, Auth profiles, and any last_sign_in clear Pending even when
+ * localStorage / auth_directory still hold the pre-accept token row.
+ *
+ * Permanent rule: profileId or lastSignInAt always means Active (not Pending),
+ * even if a leftover live invite row still exists in tlb.invites.
  */
 export function applyCloudStaffAccessStatuses(
   users: AppUser[],
@@ -254,8 +268,15 @@ export function applyCloudStaffAccessStatuses(
     const key = (status.email ?? "").trim().toLowerCase();
     if (!key) continue;
     const prev = byEmail.get(key);
-    // Prefer rows that already have a profile / acceptance over bare pending invites.
-    if (!prev || (status.profileId && !prev.profileId) || (!status.invitePending && prev.invitePending)) {
+    // Prefer rows that already have a profile / acceptance / sign-in over bare pending invites.
+    const statusRank =
+      (status.profileId ? 4 : 0) +
+      (status.lastSignInAt ? 2 : 0) +
+      (!status.invitePending ? 1 : 0);
+    const prevRank = prev
+      ? (prev.profileId ? 4 : 0) + (prev.lastSignInAt ? 2 : 0) + (!prev.invitePending ? 1 : 0)
+      : -1;
+    if (!prev || statusRank >= prevRank) {
       byEmail.set(key, status);
     }
   }
@@ -265,24 +286,32 @@ export function applyCloudStaffAccessStatuses(
     if (!status) return user;
 
     const next: AppUser = { ...user };
-    if (status.profileId && status.profileId.trim()) {
-      next.id = status.profileId.trim();
-    }
+    const profileId = status.profileId?.trim() || "";
+    if (profileId) next.id = profileId;
     if (status.fullName?.trim()) next.name = status.fullName.trim();
     if (typeof status.active === "boolean") next.active = status.active;
 
-    if (!status.invitePending) {
-      next.invitePending = false;
-      next.inviteAcceptedAt =
-        status.inviteAcceptedAt?.trim() || next.inviteAcceptedAt || new Date().toISOString();
-      delete next.inviteToken;
-      delete next.inviteCode;
-    } else if (!next.inviteAcceptedAt) {
-      next.invitePending = true;
-    }
-
     if (status.lastSignInAt?.trim()) {
       next.lastLoginAt = status.lastSignInAt.trim();
+    }
+
+    const onboarded =
+      Boolean(profileId) ||
+      Boolean(status.lastSignInAt?.trim()) ||
+      Boolean(status.inviteAcceptedAt?.trim()) ||
+      !status.invitePending;
+
+    if (onboarded) {
+      next.invitePending = false;
+      next.inviteAcceptedAt =
+        status.inviteAcceptedAt?.trim() ||
+        next.inviteAcceptedAt ||
+        status.lastSignInAt?.trim() ||
+        new Date().toISOString();
+      delete next.inviteToken;
+      delete next.inviteCode;
+    } else if (!next.inviteAcceptedAt && !next.lastLoginAt) {
+      next.invitePending = true;
     }
 
     return next;

@@ -66,6 +66,7 @@ import {
 } from "../access/portal-activity";
 import {
   applyCloudStaffAccessStatuses,
+  isAuthProfileId,
   mergeStaffUsers,
   staffUsersForRemoteDirectory,
 } from "../domain/invites";
@@ -685,11 +686,16 @@ export class SupabaseTlbRepository implements TlbRepository {
             }
           }
           mergedUsers = mergedUsers.map((user) => {
-            if (user.lastLoginAt) return user;
             const byId = loginByActor.get(user.id);
             const byEmail = loginByActor.get((user.email ?? "").trim().toLowerCase());
-            const last = byId || byEmail;
-            return last ? { ...user, lastLoginAt: last } : user;
+            const last = user.lastLoginAt || byId || byEmail;
+            if (!last) return user;
+            // Login activity proves access — never leave Owner UI stuck on Pending.
+            const next = { ...user, lastLoginAt: last, invitePending: false as const };
+            if (!next.inviteAcceptedAt) next.inviteAcceptedAt = last;
+            delete next.inviteToken;
+            delete next.inviteCode;
+            return next;
           });
         }
       } catch (activityErr) {
@@ -698,6 +704,18 @@ export class SupabaseTlbRepository implements TlbRepository {
           activityErr instanceof Error ? activityErr.message : activityErr,
         );
       }
+      // Final pass: Auth UUID staff with no token secrets cannot be Pending.
+      mergedUsers = mergedUsers.map((user) => {
+        if (!user.invitePending) return user;
+        if (user.lastLoginAt || user.inviteAcceptedAt || (isAuthProfileId(user.id) && !user.inviteToken)) {
+          const next = { ...user, invitePending: false as const };
+          if (!next.inviteAcceptedAt && next.lastLoginAt) next.inviteAcceptedAt = next.lastLoginAt;
+          delete next.inviteToken;
+          delete next.inviteCode;
+          return next;
+        }
+        return user;
+      });
       const mergedRoles = mergeRolesPreferringSoftDelete(authDir.roles, localOnly.roles, purged);
 
       const prior = loadState();
@@ -832,7 +850,18 @@ export class SupabaseTlbRepository implements TlbRepository {
       // mutations do not re-upsert warehouses (and other unchanged P0 tables).
       const roleSnapshot = JSON.stringify({
         roles: merged.roles.map((role) => role.id).sort(),
-        users: merged.users.map((user) => [user.id, user.roleId, user.active, user.name, user.email]),
+        users: merged.users.map((user) => [
+          user.id,
+          user.roleId,
+          user.active,
+          user.name,
+          user.email,
+          user.invitePending ?? false,
+          user.inviteAcceptedAt ?? null,
+          user.lastLoginAt ?? null,
+          user.inviteToken ? 1 : 0,
+          user.inviteCode ? 1 : 0,
+        ]),
         currentRoleId: merged.currentRoleId,
         currentUserId: merged.currentUserId,
         currentRole: merged.currentRole,
@@ -842,7 +871,18 @@ export class SupabaseTlbRepository implements TlbRepository {
       lockWorkspaceToOwner(merged);
       const roleSnapshotAfter = JSON.stringify({
         roles: merged.roles.map((role) => role.id).sort(),
-        users: merged.users.map((user) => [user.id, user.roleId, user.active, user.name, user.email]),
+        users: merged.users.map((user) => [
+          user.id,
+          user.roleId,
+          user.active,
+          user.name,
+          user.email,
+          user.invitePending ?? false,
+          user.inviteAcceptedAt ?? null,
+          user.lastLoginAt ?? null,
+          user.inviteToken ? 1 : 0,
+          user.inviteCode ? 1 : 0,
+        ]),
         currentRoleId: merged.currentRoleId,
         currentUserId: merged.currentUserId,
         currentRole: merged.currentRole,
@@ -856,6 +896,40 @@ export class SupabaseTlbRepository implements TlbRepository {
             "[SupabaseTlbRepository] could not persist the role catalog:",
             persistErr,
           );
+        }
+      } else {
+        // Persist invite/login heal into auth_directory so hard refresh cannot
+        // resurrect Pending from a stale cloud settings snapshot.
+        const dirByEmail = new Map(
+          (authDir.users ?? [])
+            .map((u) => [(u.email ?? "").trim().toLowerCase(), u] as const)
+            .filter(([email]) => Boolean(email)),
+        );
+        const accessHealNeeded = merged.users.some((user) => {
+          const key = (user.email ?? "").trim().toLowerCase();
+          const fromDir = (key ? dirByEmail.get(key) : undefined) ??
+            (authDir.users ?? []).find((u) => u.id === user.id);
+          if (!fromDir) {
+            return Boolean(user.lastLoginAt || (user.inviteAcceptedAt && !user.invitePending));
+          }
+          return (
+            (Boolean(fromDir.invitePending) && !user.invitePending) ||
+            (Boolean(fromDir.inviteToken) && !user.inviteToken) ||
+            (Boolean(fromDir.inviteCode) && !user.inviteCode) ||
+            fromDir.id !== user.id ||
+            (user.lastLoginAt && user.lastLoginAt !== fromDir.lastLoginAt) ||
+            (user.inviteAcceptedAt && user.inviteAcceptedAt !== fromDir.inviteAcceptedAt)
+          );
+        });
+        if (accessHealNeeded) {
+          try {
+            await this.save(merged);
+          } catch (persistErr) {
+            console.warn(
+              "[SupabaseTlbRepository] could not persist staff access heal:",
+              persistErr,
+            );
+          }
         }
       }
       return merged;
