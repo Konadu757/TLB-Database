@@ -24,7 +24,7 @@ import {
 } from "../src/lib/domain/inventory";
 import { stockAgeBand, stockAgeingReport } from "../src/lib/domain/analytics-pack";
 import { deepReportRows, toCsv } from "../src/lib/domain/reports";
-import { mergeStaffUsers, staffUsersForRemoteDirectory } from "../src/lib/domain/invites";
+import { mergeStaffUsers, staffUsersForRemoteDirectory, applyCloudStaffAccessStatuses, isInvitePending } from "../src/lib/domain/invites";
 import { canAccessNav, dbRoleCodeForRoleId, hasPermission } from "../src/lib/domain/permissions";
 import { nextDocumentNumber } from "../src/lib/domain/numbering";
 import { getPeriodRange, isoInRange, livePeriodAsOf } from "../src/lib/domain/period-range";
@@ -365,6 +365,37 @@ function testInvites() {
   const merged = mergeStaffUsers(stripped, [user]);
   assert.equal(merged[0]?.inviteToken, user.inviteToken);
   assert.equal(merged[0]?.inviteCode, user.inviteCode);
+
+  // After accept on another device, remote has Auth UUID + accepted flags (no secrets).
+  // Owner local still has the old id + Pending secrets — merge must clear Pending.
+  const acceptedRemote: typeof user = {
+    ...user,
+    id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+    invitePending: false,
+    inviteAcceptedAt: "2026-10-02T12:00:00.000Z",
+  };
+  delete acceptedRemote.inviteToken;
+  delete acceptedRemote.inviteCode;
+  const mergedAccepted = mergeStaffUsers([acceptedRemote], [user]);
+  assert.equal(mergedAccepted.length, 1);
+  assert.equal(mergedAccepted[0]?.id, "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee");
+  assert.equal(mergedAccepted[0]?.invitePending, false);
+  assert.ok(mergedAccepted[0]?.inviteAcceptedAt);
+  assert.equal(mergedAccepted[0]?.inviteToken, undefined);
+  assert.equal(mergedAccepted[0]?.inviteCode, undefined);
+
+  const cloudCleared = applyCloudStaffAccessStatuses([user], [
+    {
+      email: user.email,
+      profileId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      invitePending: false,
+      inviteAcceptedAt: "2026-10-02T12:00:00.000Z",
+      active: true,
+    },
+  ]);
+  assert.equal(cloudCleared[0]?.invitePending, false);
+  assert.equal(cloudCleared[0]?.id, "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee");
+  assert.equal(isInvitePending(cloudCleared[0]!), false);
 }
 
 function testPhase30Scenario() {

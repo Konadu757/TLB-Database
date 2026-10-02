@@ -5,6 +5,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import type { CloudStaffAccessStatus } from "@/lib/domain/invites";
 import type { HostedInviteAcceptance } from "@/lib/store/tlb-store";
 
 type RpcResult = { data: unknown; error: { message: string } | null };
@@ -167,6 +168,56 @@ export async function acceptInviteOnSupabase(input: {
     const profile = parseInviteProfile(data);
     if (!profile) return { ok: false, error: "Invalid or expired invite." };
     return { ok: true, data: profile };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message };
+  }
+}
+
+function parseStaffAccessStatuses(data: unknown): CloudStaffAccessStatus[] {
+  if (!Array.isArray(data)) return [];
+  const out: CloudStaffAccessStatus[] = [];
+  for (const row of data) {
+    if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+    const item = row as Record<string, unknown>;
+    const email = typeof item["email"] === "string" ? item["email"].trim().toLowerCase() : "";
+    if (!email) continue;
+    const fullName = typeof item["full_name"] === "string" ? item["full_name"] : undefined;
+    const profileId =
+      typeof item["profile_id"] === "string"
+        ? item["profile_id"]
+        : item["profile_id"] == null
+          ? null
+          : undefined;
+    const roleCode = typeof item["role_code"] === "string" ? item["role_code"] : null;
+    const invitePending = Boolean(item["invite_pending"]);
+    const inviteAcceptedAt =
+      typeof item["invite_accepted_at"] === "string" ? item["invite_accepted_at"] : null;
+    const active = typeof item["active"] === "boolean" ? item["active"] : undefined;
+    out.push({
+      email,
+      ...(fullName ? { fullName } : {}),
+      profileId: profileId ?? null,
+      roleCode,
+      invitePending,
+      inviteAcceptedAt,
+      ...(active !== undefined ? { active } : {}),
+    });
+  }
+  return out;
+}
+
+/**
+ * Owner hydrate: read invite consumption + profile roster from cloud.
+ * Missing RPC is non-fatal (older DBs) — caller keeps local/auth_directory merge.
+ */
+export async function fetchStaffAccessStatusesFromSupabase(): Promise<
+  { ok: true; data: CloudStaffAccessStatus[] } | { ok: false; error: string }
+> {
+  try {
+    const { data, error } = await rpcWithTimeout("list_staff_access_status", {}, 8_000);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, data: parseStaffAccessStatuses(data) };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, error: message };

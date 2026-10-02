@@ -3,6 +3,8 @@
 import type { AppUser } from "./types";
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const AUTH_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function randomChunk(len: number): string {
   let out = "";
@@ -39,6 +41,18 @@ export function isInvitePending(user: AppUser): boolean {
   );
 }
 
+export function isAuthProfileId(id: string): boolean {
+  return AUTH_UUID_RE.test(id.trim());
+}
+
+function emailKey(user: { email?: string | null }): string {
+  return (user.email ?? "").trim().toLowerCase();
+}
+
+function inviteLooksAccepted(user: AppUser): boolean {
+  return Boolean(user.inviteAcceptedAt) || user.invitePending === false;
+}
+
 /** Build absolute invite URL for the current origin (or production fallback). */
 export function buildInviteLink(token: string, origin?: string): string {
   const base =
@@ -61,11 +75,14 @@ export function applyFreshInvite(user: AppUser, at = new Date().toISOString()): 
 }
 
 export function markInviteAccepted(user: AppUser, at = new Date().toISOString()): AppUser {
-  return {
+  const next: AppUser = {
     ...user,
     invitePending: false,
     inviteAcceptedAt: at,
   };
+  delete next.inviteToken;
+  delete next.inviteCode;
+  return next;
 }
 
 export function findUserByInviteToken(users: AppUser[], token: string): AppUser | undefined {
@@ -90,11 +107,41 @@ export function staffUsersForRemoteDirectory(users: AppUser[]): AppUser[] {
   });
 }
 
+function mergeInviteFields(remoteUser: AppUser, localUser: AppUser): Partial<AppUser> {
+  // Acceptance on either side wins. Invitee remaps to Auth UUID and clears pending;
+  // Owner's browser still holds the old token/code and invitePending:true.
+  if (inviteLooksAccepted(remoteUser) || inviteLooksAccepted(localUser)) {
+    const acceptedAt =
+      remoteUser.inviteAcceptedAt ?? localUser.inviteAcceptedAt ?? new Date().toISOString();
+    return {
+      invitePending: false,
+      inviteAcceptedAt: acceptedAt,
+      inviteCreatedAt: remoteUser.inviteCreatedAt ?? localUser.inviteCreatedAt,
+      inviteToken: undefined,
+      inviteCode: undefined,
+    };
+  }
+  return {
+    inviteToken: remoteUser.inviteToken ?? localUser.inviteToken,
+    inviteCode: remoteUser.inviteCode ?? localUser.inviteCode,
+    inviteCreatedAt: remoteUser.inviteCreatedAt ?? localUser.inviteCreatedAt,
+    inviteAcceptedAt: remoteUser.inviteAcceptedAt ?? localUser.inviteAcceptedAt,
+    invitePending: remoteUser.invitePending ?? localUser.invitePending,
+  };
+}
+
+function preferStaffId(remoteUser: AppUser, localUser: AppUser): string {
+  if (isAuthProfileId(remoteUser.id)) return remoteUser.id;
+  if (isAuthProfileId(localUser.id)) return localUser.id;
+  return remoteUser.id || localUser.id;
+}
+
 /**
  * Prefer remote staff rows, but keep invite secrets that exist only on this browser.
  * Remote auth_directory intentionally omits token and code.
  * Soft-delete on either side must survive hydrate (local tombstone wins if remote is stale).
  * Permanently purged ids never reappear from remote or local seed.
+ * Rows are matched by id OR email so Auth UUID remaps after accept_invite collapse Pending.
  */
 export function mergeStaffUsers(
   remote: AppUser[] | undefined,
@@ -108,46 +155,130 @@ export function mergeStaffUsers(
   if (!remote?.length) {
     return purged ? local.filter((user) => !isPurged(user.id)) : local;
   }
+
   const localById = new Map(local.map((user) => [user.id, user]));
-  const seen = new Set<string>();
+  const localByEmail = new Map<string, AppUser>();
+  for (const user of local) {
+    const key = emailKey(user);
+    if (key && !localByEmail.has(key)) localByEmail.set(key, user);
+  }
+
+  const seenIds = new Set<string>();
+  const seenEmails = new Set<string>();
   const merged: AppUser[] = [];
+
   for (const remoteUser of remote) {
     if (isPurged(remoteUser.id)) continue;
-    seen.add(remoteUser.id);
-    const localUser = localById.get(remoteUser.id);
+    const key = emailKey(remoteUser);
+    const localUser = localById.get(remoteUser.id) ?? (key ? localByEmail.get(key) : undefined);
+
     if (!localUser) {
+      seenIds.add(remoteUser.id);
+      if (key) seenEmails.add(key);
       merged.push(remoteUser);
       continue;
     }
+
+    seenIds.add(remoteUser.id);
+    seenIds.add(localUser.id);
+    if (key) seenEmails.add(key);
+
     const soft =
       remoteUser.deletedAt
         ? {
             deletedAt: remoteUser.deletedAt,
             deletedBy: remoteUser.deletedBy,
             deletedReason: remoteUser.deletedReason,
-            active: false,
+            active: false as const,
           }
         : localUser.deletedAt
           ? {
               deletedAt: localUser.deletedAt,
               deletedBy: localUser.deletedBy,
               deletedReason: localUser.deletedReason,
-              active: false,
+              active: false as const,
             }
           : {};
-    merged.push({
+
+    const inviteFields = mergeInviteFields(remoteUser, localUser);
+    const next: AppUser = {
       ...remoteUser,
       ...soft,
-      inviteToken: remoteUser.inviteToken ?? localUser.inviteToken,
-      inviteCode: remoteUser.inviteCode ?? localUser.inviteCode,
-      inviteCreatedAt: remoteUser.inviteCreatedAt ?? localUser.inviteCreatedAt,
-      inviteAcceptedAt: remoteUser.inviteAcceptedAt ?? localUser.inviteAcceptedAt,
-      invitePending: remoteUser.invitePending ?? localUser.invitePending,
-    });
+      id: preferStaffId(remoteUser, localUser),
+      name: remoteUser.name || localUser.name,
+      email: remoteUser.email || localUser.email,
+      contact: remoteUser.contact ?? localUser.contact,
+      roleId: remoteUser.roleId || localUser.roleId,
+      active: soft.active === false ? false : (remoteUser.active && localUser.active),
+      ...inviteFields,
+    };
+    if (inviteFields.inviteToken === undefined) delete next.inviteToken;
+    if (inviteFields.inviteCode === undefined) delete next.inviteCode;
+    merged.push(next);
   }
+
   for (const localUser of local) {
-    if (seen.has(localUser.id) || isPurged(localUser.id)) continue;
+    if (isPurged(localUser.id) || seenIds.has(localUser.id)) continue;
+    const key = emailKey(localUser);
+    if (key && seenEmails.has(key)) continue;
     merged.push(localUser);
   }
   return merged;
+}
+
+/** Cloud roster row from public.list_staff_access_status. */
+export type CloudStaffAccessStatus = {
+  email: string;
+  fullName?: string;
+  profileId?: string | null;
+  roleCode?: string | null;
+  invitePending: boolean;
+  inviteAcceptedAt?: string | null;
+  active?: boolean;
+};
+
+/**
+ * Apply hosted invite/profile status onto the Owner staff list.
+ * Consumed invites and Auth profiles clear Pending even when localStorage is stale.
+ */
+export function applyCloudStaffAccessStatuses(
+  users: AppUser[],
+  statuses: CloudStaffAccessStatus[],
+): AppUser[] {
+  if (!statuses.length) return users;
+
+  const byEmail = new Map<string, CloudStaffAccessStatus>();
+  for (const status of statuses) {
+    const key = (status.email ?? "").trim().toLowerCase();
+    if (!key) continue;
+    const prev = byEmail.get(key);
+    // Prefer rows that already have a profile / acceptance over bare pending invites.
+    if (!prev || (status.profileId && !prev.profileId) || (!status.invitePending && prev.invitePending)) {
+      byEmail.set(key, status);
+    }
+  }
+
+  return users.map((user) => {
+    const status = byEmail.get(emailKey(user));
+    if (!status) return user;
+
+    const next: AppUser = { ...user };
+    if (status.profileId && status.profileId.trim()) {
+      next.id = status.profileId.trim();
+    }
+    if (status.fullName?.trim()) next.name = status.fullName.trim();
+    if (typeof status.active === "boolean") next.active = status.active;
+
+    if (!status.invitePending) {
+      next.invitePending = false;
+      next.inviteAcceptedAt =
+        status.inviteAcceptedAt?.trim() || next.inviteAcceptedAt || new Date().toISOString();
+      delete next.inviteToken;
+      delete next.inviteCode;
+    } else if (!next.inviteAcceptedAt) {
+      next.invitePending = true;
+    }
+
+    return next;
+  });
 }

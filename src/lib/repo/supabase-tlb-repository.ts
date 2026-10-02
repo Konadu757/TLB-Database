@@ -59,7 +59,12 @@ import {
   type DocumentTaxOverlay,
 } from "./mappers";
 import { mergeCanonicalBalances, mergeCanonicalMovements } from "./ledger-rpc";
-import { mergeStaffUsers, staffUsersForRemoteDirectory } from "../domain/invites";
+import { fetchStaffAccessStatusesFromSupabase } from "../access/supabase-invites";
+import {
+  applyCloudStaffAccessStatuses,
+  mergeStaffUsers,
+  staffUsersForRemoteDirectory,
+} from "../domain/invites";
 import { omitPurgedEntities } from "../domain/trash";
 import type { TlbRepository } from "./tlb-repository";
 import { ensureTaxCatalog } from "../domain/tax";
@@ -645,7 +650,20 @@ export class SupabaseTlbRepository implements TlbRepository {
         ...remotePurged,
         ...(authDir.purgedRoleIds ?? []),
       ]);
-      const mergedUsers = mergeStaffUsers(authDir.users, localOnly.users, purged);
+      let mergedUsers = mergeStaffUsers(authDir.users, localOnly.users, purged);
+      // Authoritative invite acceptance lives in tlb.invites / profiles — not localStorage.
+      // Without this, Owner keeps seeing Pending after the invitee accepts on another device.
+      try {
+        const cloudAccess = await fetchStaffAccessStatusesFromSupabase();
+        if (cloudAccess.ok && cloudAccess.data.length) {
+          mergedUsers = applyCloudStaffAccessStatuses(mergedUsers, cloudAccess.data);
+        }
+      } catch (accessErr) {
+        console.warn(
+          "[SupabaseTlbRepository] staff access status sync skipped:",
+          accessErr instanceof Error ? accessErr.message : accessErr,
+        );
+      }
       const mergedRoles = mergeRolesPreferringSoftDelete(authDir.roles, localOnly.roles, purged);
 
       const prior = loadState();
