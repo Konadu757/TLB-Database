@@ -10,6 +10,7 @@ import {
   looksLikePhoneNumber,
   normalizePhoneDigits,
   normalizePhoneForSms,
+  validateInvitePhone,
 } from "@/lib/access/invite-phone";
 import { buildInviteLink } from "@/lib/domain/invites";
 
@@ -49,14 +50,14 @@ export const BUILTIN_INVITE_SMS_PATH = "/api/invite-sms";
 /** Combined email+SMS fan-out (preferred — one serverless cold start). */
 export const BUILTIN_INVITE_DELIVER_PATH = "/api/invite-deliver";
 
-/** Email/Resend client budget — keep snappy; SMS uses a longer budget. */
-const INVITE_EMAIL_FETCH_TIMEOUT_MS = 8_000;
+/** Email/Resend client budget — include brief bounce-verify poll after accept. */
+const INVITE_EMAIL_FETCH_TIMEOUT_MS = 12_000;
 /**
- * SMS / combined-deliver client budget — must exceed server SMS_TOTAL_BUDGET (~16s)
- * so the browser does not abort a slow-but-working Arkesel send.
+ * SMS / combined-deliver client budget — must exceed server SMS_TOTAL_BUDGET (~22s)
+ * plus delivery verify so the browser does not abort a slow-but-working Arkesel send.
  */
-const INVITE_SMS_FETCH_TIMEOUT_MS = 18_000;
-const INVITE_DELIVER_FETCH_TIMEOUT_MS = 18_000;
+const INVITE_SMS_FETCH_TIMEOUT_MS = 28_000;
+const INVITE_DELIVER_FETCH_TIMEOUT_MS = 28_000;
 
 /**
  * Optional POST URL override that accepts { to, name, inviteCode, inviteLink, role? }.
@@ -74,7 +75,7 @@ export function inviteDeliverEndpoint(): string {
   return BUILTIN_INVITE_DELIVER_PATH;
 }
 
-export { looksLikePhoneNumber, normalizePhoneDigits, normalizePhoneForSms };
+export { looksLikePhoneNumber, normalizePhoneDigits, normalizePhoneForSms, validateInvitePhone };
 
 export function buildInviteSmsBody(input: {
   name: string;
@@ -139,8 +140,15 @@ export function initialInviteDelivery(input: {
 }
 
 export type SendClientResult =
-  | { ok: true; messageId?: string; provider?: string }
-  | { ok: false; error: string; notConfigured?: boolean; messageId?: string; provider?: string };
+  | { ok: true; messageId?: string; provider?: string; delivery?: string }
+  | {
+      ok: false;
+      error: string;
+      notConfigured?: boolean;
+      messageId?: string;
+      provider?: string;
+      delivery?: string;
+    };
 
 function parseSendClientResult(data: unknown, fallbackError: string): SendClientResult {
   if (!data || typeof data !== "object") {
@@ -149,15 +157,19 @@ function parseSendClientResult(data: unknown, fallbackError: string): SendClient
   const row = data as Record<string, unknown>;
   const messageIdRaw = row["messageId"];
   const providerRaw = row["provider"];
+  const deliveryRaw = row["delivery"];
   const messageId =
     typeof messageIdRaw === "string" && messageIdRaw.trim() ? messageIdRaw.trim() : undefined;
   const provider =
     typeof providerRaw === "string" && providerRaw.trim() ? providerRaw.trim() : undefined;
+  const delivery =
+    typeof deliveryRaw === "string" && deliveryRaw.trim() ? deliveryRaw.trim() : undefined;
   if (row["ok"] === true) {
     return {
       ok: true,
       ...(messageId ? { messageId } : {}),
       ...(provider ? { provider } : {}),
+      ...(delivery ? { delivery } : {}),
     };
   }
   const notConfigured = row["notConfigured"] === true;
@@ -170,6 +182,7 @@ function parseSendClientResult(data: unknown, fallbackError: string): SendClient
     ...(notConfigured ? { notConfigured: true } : {}),
     ...(messageId ? { messageId } : {}),
     ...(provider ? { provider } : {}),
+    ...(delivery ? { delivery } : {}),
   };
 }
 
@@ -193,6 +206,7 @@ async function postInviteJson(
       notConfigured?: unknown;
       messageId?: unknown;
       provider?: unknown;
+      delivery?: unknown;
     } | null = null;
     try {
       data = (await response.json()) as {
@@ -201,6 +215,7 @@ async function postInviteJson(
         notConfigured?: unknown;
         messageId?: unknown;
         provider?: unknown;
+        delivery?: unknown;
       };
     } catch {
       data = null;
@@ -214,12 +229,17 @@ async function postInviteJson(
       typeof data?.provider === "string" && data.provider.trim()
         ? data.provider.trim()
         : undefined;
+    const delivery =
+      typeof data?.delivery === "string" && data.delivery.trim()
+        ? data.delivery.trim()
+        : undefined;
 
     if (response.ok && data?.ok === true) {
       return {
         ok: true,
         ...(messageId ? { messageId } : {}),
         ...(provider ? { provider } : {}),
+        ...(delivery ? { delivery } : {}),
       };
     }
 
@@ -242,6 +262,7 @@ async function postInviteJson(
         ...(data.notConfigured === true ? { notConfigured: true } : {}),
         ...(messageId ? { messageId } : {}),
         ...(provider ? { provider } : {}),
+        ...(delivery ? { delivery } : {}),
       };
     }
 
@@ -251,6 +272,7 @@ async function postInviteJson(
       ...(notConfigured ? { notConfigured: true } : {}),
       ...(messageId ? { messageId } : {}),
       ...(provider ? { provider } : {}),
+      ...(delivery ? { delivery } : {}),
     };
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") {
@@ -292,9 +314,12 @@ export async function trySendInviteSms(input: {
   body: string;
 }): Promise<SendClientResult> {
   if (!looksLikePhoneNumber(input.to)) {
+    const checked = validateInvitePhone(input.to);
     return {
       ok: false,
-      error: "Contact does not look like a phone number.",
+      error: checked.ok
+        ? "Contact does not look like a phone number."
+        : checked.error,
     };
   }
   return postInviteJson(

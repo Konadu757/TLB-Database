@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { looksLikePhoneNumber } from "@/lib/access/invite-phone";
+import { looksLikePhoneNumber, validateInvitePhone } from "@/lib/access/invite-phone";
 import {
   inviteSendResultToJson,
   parseInviteSmsBody,
@@ -30,13 +30,21 @@ export const Route = createFileRoute("/api/invite-sms")({
         }
 
         if (!looksLikePhoneNumber(parsed.to)) {
+          const checked = validateInvitePhone(parsed.to);
           return Response.json(
             {
               ok: false,
-              error: "Contact does not look like a phone number.",
+              error: checked.ok
+                ? "Contact does not look like a phone number."
+                : checked.error,
             },
             { status: 400 },
           );
+        }
+
+        const phoneCheck = validateInvitePhone(parsed.to);
+        if (!phoneCheck.ok) {
+          return Response.json({ ok: false, error: phoneCheck.error }, { status: 400 });
         }
 
         const smsBody =

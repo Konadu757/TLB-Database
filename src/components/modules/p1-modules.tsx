@@ -733,6 +733,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                     type="tel"
                     value={editUser.contact}
                     onChange={(e) => setEditUser({ ...editUser, contact: e.target.value })}
+                    placeholder="0544967381"
                     required
                   />
                 </label>
@@ -790,6 +791,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                     type="tel"
                     value={newUser.contact}
                     onChange={(e) => setNewUser({ ...newUser, contact: e.target.value })}
+                    placeholder="0544967381"
                     required
                   />
                 </label>

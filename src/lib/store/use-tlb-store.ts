@@ -6,6 +6,7 @@ import {
   looksLikePhoneNumber,
   trySendInviteEmail,
   trySendInviteSms,
+  validateInvitePhone,
   type InviteDeliveryStatus,
   type SendClientResult,
 } from "@/lib/access/invite-delivery";
@@ -339,8 +340,8 @@ export function useTlbStore() {
 
     const phone = user.contact?.trim();
     const willTrySms = Boolean(phone && looksLikePhoneNumber(phone));
-    /** Must exceed client SMS/deliver budget (~18s) so chips are not false-failed early. */
-    const DELIVERY_WATCHDOG_MS = 20_000;
+    /** Must exceed client SMS/deliver budget (~28s) so chips are not false-failed early. */
+    const DELIVERY_WATCHDOG_MS = 32_000;
     let emailSettled = false;
     let smsSettled = !willTrySms;
     let cloudSettled = !willPublishCloud;
@@ -374,10 +375,21 @@ export function useTlbStore() {
     const applyEmailResult = (result: SendClientResult) => {
       emailSettled = true;
       if (result.ok) {
+        const deliveryWord =
+          result.delivery === "delivered"
+            ? "delivered"
+            : result.delivery === "bounced"
+              ? "bounced"
+              : "accepted";
         const detail = [
-          `Email sent to ${user.email}`,
+          deliveryWord === "delivered"
+            ? `Email delivered to ${user.email}`
+            : `Email accepted for ${user.email}`,
           result.provider ? `via ${result.provider}` : "",
           result.messageId ? `(id ${result.messageId})` : "",
+          deliveryWord === "accepted"
+            ? "— not bounced yet; check spam if missing"
+            : "",
         ]
           .filter(Boolean)
           .join(" ");
@@ -404,10 +416,17 @@ export function useTlbStore() {
     const applySmsResult = (result: SendClientResult) => {
       smsSettled = true;
       if (result.ok) {
+        const deliveryWord =
+          result.delivery === "delivered"
+            ? "delivered"
+            : "accepted";
         const detail = [
-          `SMS sent to ${phone}`,
+          deliveryWord === "delivered"
+            ? `SMS delivered to ${phone}`
+            : `SMS accepted for ${phone}`,
           result.provider ? `via ${result.provider}` : "",
           result.messageId ? `(id ${result.messageId})` : "",
+          deliveryWord === "accepted" ? "— awaiting network delivery" : "",
         ]
           .filter(Boolean)
           .join(" ");
@@ -796,6 +815,15 @@ export function useTlbStore() {
     assignUserRole: (userId: string, roleId: string) =>
       apply((s) => assignUserRole(s, userId, roleId), "User role assigned."),
     saveUser: (input: Parameters<typeof upsertAppUser>[1]) => {
+      const contact = input.contact?.trim() ?? "";
+      if (contact) {
+        const phoneCheck = validateInvitePhone(contact);
+        if (!phoneCheck.ok) {
+          setError(phoneCheck.error);
+          setNotice(null);
+          return false;
+        }
+      }
       const result = applyCapture(
         (s) => upsertAppUser(s, input),
         input.id
@@ -808,7 +836,17 @@ export function useTlbStore() {
       return result.ok;
     },
     issueUserInvite: (userId: string) => {
-      const previousToken = state.users.find((user) => user.id === userId)?.inviteToken;
+      const staff = state.users.find((user) => user.id === userId);
+      const contact = staff?.contact?.trim() ?? "";
+      if (contact) {
+        const phoneCheck = validateInvitePhone(contact);
+        if (!phoneCheck.ok) {
+          setError(phoneCheck.error);
+          setNotice(null);
+          return false;
+        }
+      }
+      const previousToken = staff?.inviteToken;
       const result = applyCapture(
         (s) => issueUserInvite(s, userId),
         "Invite re-issued — code ready below; sending email/SMS in background…",

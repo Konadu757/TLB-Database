@@ -55,7 +55,7 @@ export function normalizePhoneForSms(raw: string): string {
 
 /**
  * Digits-only international MSISDN for Arkesel / Termii (no leading +).
- * Arkesel docs accept both `233XXXXXXXXX` and `+233XXXXXXXXX`; we send digits-only.
+ * Arkesel docs accept both `233XXXXXXXXX` and `+233XXXXXXXXX`; we send digits-only by default.
  */
 export function normalizePhoneDigits(raw: string): string {
   return normalizePhoneForSms(raw).replace(/^\+/, "");
@@ -64,4 +64,63 @@ export function normalizePhoneDigits(raw: string): string {
 /** True when digits are a plausible Ghana MSISDN after normalization. */
 export function isNormalizedGhanaMsisdn(digits: string): boolean {
   return /^233\d{9}$/.test(digits);
+}
+
+export type InvitePhoneValidation =
+  | { ok: true; e164: string; digits: string; display: string }
+  | { ok: false; error: string };
+
+/**
+ * Strict invite-SMS phone check for UI + server.
+ * Accepts Ghana local 0XX… / 9-digit / +233… and normalizes to 233XXXXXXXXX.
+ */
+export function validateInvitePhone(raw: string | undefined | null): InvitePhoneValidation {
+  const trimmed = (raw ?? "").trim();
+  if (!trimmed) {
+    return { ok: false, error: "Enter a Ghana mobile number (e.g. 0544967381)." };
+  }
+  if (trimmed.includes("@")) {
+    return {
+      ok: false,
+      error: `Contact “${trimmed}” looks like an email. Put the phone in Contact (e.g. 0544967381).`,
+    };
+  }
+  if (!looksLikePhoneNumber(trimmed)) {
+    return {
+      ok: false,
+      error: `Contact “${trimmed}” is not a valid phone. Use Ghana format 0XXXXXXXXX or +233XXXXXXXXX.`,
+    };
+  }
+
+  const e164 = normalizePhoneForSms(trimmed);
+  const digits = e164.replace(/^\+/, "");
+  if (!digits || digits.startsWith("0") || !/^\d{10,15}$/.test(digits)) {
+    return {
+      ok: false,
+      error: `Phone “${trimmed}” could not be normalized to international digits (e.g. 233544967381).`,
+    };
+  }
+  if (digits.startsWith("233") && !isNormalizedGhanaMsisdn(digits)) {
+    return {
+      ok: false,
+      error: `Phone “${trimmed}” → “${digits}” is not a valid Ghana mobile (need 233 + 9 digits, e.g. 233544967381).`,
+    };
+  }
+  // Reject landline-like / wrong Ghana prefixes after normalize.
+  if (digits.startsWith("233")) {
+    const national = digits.slice(3);
+    if (!GHANA_MOBILE_PREFIX.test(national)) {
+      return {
+        ok: false,
+        error: `Phone “${trimmed}” is not a recognized Ghana mobile prefix after normalize (${digits}).`,
+      };
+    }
+  }
+
+  return {
+    ok: true,
+    e164,
+    digits,
+    display: digits.startsWith("233") ? `0${digits.slice(3)} → +${digits}` : `+${digits}`,
+  };
 }

@@ -222,49 +222,80 @@ The steps:
 
 ### Email and SMS (Resend + Arkesel on Vercel)
 
-The portal never puts Resend, Arkesel, Termii, Twilio, or the Supabase **service_role** key in a `VITE_` variable. Delivery runs only on the server routes `/api/invite-email` and `/api/invite-sms`. SMS prefers Arkesel when `ARKESEL_API_KEY` and `ARKESEL_SENDER_ID` are set; otherwise it falls back to Termii if `TERMII_*` is set, then Twilio if `TWILIO_*` is set.
+The portal never puts Resend, Arkesel, Termii, Twilio, or the Supabase **service_role** key in a `VITE_` variable. Delivery runs only on the server routes `/api/invite-email` and `/api/invite-sms`. SMS prefers Arkesel when `ARKESEL_API_KEY` and `ARKESEL_SENDER_ID` are set; on Arkesel failure/timeout it falls through to Termii if `TERMII_*` is set, then Twilio if `TWILIO_*` is set.
+
+After Resend or Arkesel soft-accepts a message, the portal briefly checks delivery status. Immediate **bounces / FAILED** are shown as Failed (not Sent). “Sent / accepted” still means the provider took the message — check spam and provider logs if the phone/inbox never gets it.
 
 **Required Production env vars** on Vercel project `tlb-management-system` (Production + Preview if you test previews):
 
 | Name | Purpose |
 |------|---------|
 | `RESEND_API_KEY` | Resend API key (Dashboard → API Keys) |
-| `RESEND_FROM_EMAIL` | Verified from address, e.g. `TLB Portal <invites@yourdomain.com>` |
+| `RESEND_FROM_EMAIL` | Verified from address, e.g. `TLB Portal <invites@tlbgh.com>` |
 | `ARKESEL_API_KEY` | Arkesel API key (Dashboard → API Keys / Developer settings) |
 | `ARKESEL_SENDER_ID` | Approved Arkesel sender ID / brand name, max 11 characters (Dashboard → Sender ID) |
 
-Optional Arkesel:
+Optional:
 
 | Name | Purpose |
 |------|---------|
-| `ARKESEL_BASE_URL` | Default `https://sms.arkesel.com` (override only if Arkesel gives you a different host) |
-
-Termii fallback (only used when Arkesel is **not** configured):
-
-| Name | Purpose |
-|------|---------|
-| `TERMII_API_KEY` | Termii API key (Dashboard → API key / Settings → API Key) |
-| `TERMII_SENDER_ID` | Approved Termii sender ID / from name (Dashboard → Sender ID) |
+| `RESEND_REPLY_TO` | Optional reply address (must be a real mailbox) |
+| `ARKESEL_BASE_URL` | Default `https://sms.arkesel.com` |
+| `TERMII_API_KEY` / `TERMII_SENDER_ID` | Fallback SMS when Arkesel fails (recommended) |
 | `TERMII_BASE_URL` | Default `https://api.ng.termii.com` |
-| `TERMII_CHANNEL` | Default `dnd` (transactional). Set to `generic` only for promotional routing |
+| `TERMII_CHANNEL` | Default `dnd` |
+| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` | Second SMS fallback |
 
-Twilio fallback (only used when Arkesel and Termii are **not** configured):
+#### DNS that must stay correct for `invites@tlbgh.com` (Resend)
 
-| Name | Purpose |
-|------|---------|
-| `TWILIO_ACCOUNT_SID` | Twilio Account SID |
-| `TWILIO_AUTH_TOKEN` | Twilio Auth Token |
-| `TWILIO_FROM_NUMBER` | Twilio SMS-capable from number (E.164, e.g. `+15551234567`) |
+Public check on 2026-10-02 found:
 
-Optional client override (usually leave unset): `VITE_TLB_INVITE_MAIL_ENDPOINT` — if set, the browser POSTs mail there instead of `/api/invite-email`.
+- DKIM present: `resend._domainkey.tlbgh.com` TXT (good)
+- **Broken return-path:** `send.tlbgh.com` is a **CNAME → `send.forge.rmta.net`** (not Resend). That breaks SPF/bounce handling and is the permanent cause of Gmail/other bounces after Resend says accepted.
+- Root `tlbgh.com` has **no SPF** TXT (only Google site verification)
+- DMARC: `_dmarc.tlbgh.com` = `v=DMARC1; p=none;` (ok for now)
+
+**Owner must fix DNS at the registrar (Namecheap / registrar-servers) — exact records:**
+
+1. **Delete** the CNAME `send` → `send.forge.rmta.net` (conflicts with Resend; you cannot keep both on `send`).
+2. Add Resend return-path / SPF for subdomain `send` (copy region from Resend → Domains → tlbgh.com → Records if different):
+
+| Type | Host / Name | Value | Priority |
+|------|-------------|-------|----------|
+| MX | `send` | `feedback-smtp.us-east-1.amazonses.com` | 10 |
+| TXT | `send` | `v=spf1 include:amazonses.com ~all` | — |
+
+3. Keep DKIM (already present — do not delete):
+
+| Type | Host / Name | Value |
+|------|-------------|-------|
+| TXT | `resend._domainkey` | *(exact value shown in Resend Domains → Records — already live)* |
+
+4. Optional root SPF (helps alignment; do not invent IPs — if Google Workspace sends from the root too, include Google):
+
+| Type | Host / Name | Value |
+|------|-------------|-------|
+| TXT | `@` | `v=spf1 include:_spf.google.com include:amazonses.com ~all` |
+
+5. In Resend → Domains → `tlbgh.com` → **Verify DNS Records**. Status must be **Verified**.
+6. Keep `RESEND_FROM_EMAIL` = `TLB Portal <invites@tlbgh.com>` on Vercel Production, then **redeploy**.
+
+**If marketing/forge must keep `send.tlbgh.com`:** do not fight over `send`. Instead add a dedicated Resend domain `invites.tlbgh.com` (or `mail.tlbgh.com`), paste every Resend record for that subdomain, set `RESEND_FROM_EMAIL` to `TLB Portal <noreply@invites.tlbgh.com>`, verify, redeploy.
+
+#### Arkesel SMS
+
+- Sender ID `TLB` must be **Approved** in Arkesel (pending IDs cause accept-then-fail / rejects).
+- Account needs SMS credit.
+- Ghana numbers normalize `0544967381` → `+233544967381` before send.
+- Add `TERMII_*` (or Twilio) on Vercel so Arkesel failures automatically fall through.
 
 **Owner setup steps**
 
-1. Create a [Resend](https://resend.com) account. Verify your sending domain (or use Resend’s onboarding from-address only for tests). Create an API key. Note the from address you will use.
+1. Create a [Resend](https://resend.com) account. Verify your sending domain with the DNS table above (or use Resend’s onboarding from-address only for tests). Create an API key. Note the from address you will use.
 2. Open your [Arkesel](https://sms.arkesel.com) dashboard (or [arkesel.com](https://arkesel.com) → login). Copy the **API key** from API / Developer settings. Register and wait for an **approved Sender ID** (alphanumeric brand name, max 11 characters). Ensure the account has SMS credit.
-3. In Vercel → **tlb-management-system** → **Settings** → **Environment Variables**, add `RESEND_*` and `ARKESEL_API_KEY` + `ARKESEL_SENDER_ID` for **Production** (and Preview if needed). Paste the real values there — do not put them in the repo or in any `VITE_*` name. Optionally add `ARKESEL_BASE_URL` if Arkesel gave you a non-default host.
+3. In Vercel → **tlb-management-system** → **Settings** → **Environment Variables**, add `RESEND_*` and `ARKESEL_API_KEY` + `ARKESEL_SENDER_ID` for **Production** (and Preview if needed). Paste the real values there — do not put them in the repo or in any `VITE_*` name. Optionally add Termii/Twilio fallbacks.
 4. Redeploy Production (Deployments → … → Redeploy, or push a commit). Without a redeploy, server routes will not see new env.
-5. Assign a role again. The panel should say **Email sent to …** and **SMS sent to …** when keys are valid. If a key is missing, it still says not configured and Copy still works.
+5. Assign a role again. The panel should say **Email accepted/delivered…** and **SMS accepted/delivered…** when keys are valid. Immediate bounces show as **Failed** with the provider reason. If a key is missing, it still says not configured and Copy still works.
 
 CLI (names only; do not print secrets):
 

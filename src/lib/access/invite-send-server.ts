@@ -5,18 +5,30 @@
  */
 
 import {
-  isNormalizedGhanaMsisdn,
   looksLikePhoneNumber,
   normalizePhoneDigits,
   normalizePhoneForSms,
+  validateInvitePhone,
 } from "@/lib/access/invite-phone";
 
 export type InviteSendResult =
-  | { ok: true; messageId?: string; provider?: string }
+  | { ok: true; messageId?: string; provider?: string; delivery?: string }
   | { ok: false; notConfigured: true; error: string }
-  | { ok: false; notConfigured?: false; error: string; messageId?: string; provider?: string };
+  | {
+      ok: false;
+      notConfigured?: false;
+      error: string;
+      messageId?: string;
+      provider?: string;
+      delivery?: string;
+    };
 
-export { looksLikePhoneNumber, normalizePhoneDigits, normalizePhoneForSms };
+export {
+  looksLikePhoneNumber,
+  normalizePhoneDigits,
+  normalizePhoneForSms,
+  validateInvitePhone,
+};
 
 const DEFAULT_ARKESEL_BASE_URL = "https://sms.arkesel.com";
 const DEFAULT_TERMII_BASE_URL = "https://api.ng.termii.com";
@@ -27,8 +39,15 @@ const EMAIL_PROVIDER_TIMEOUT_MS = 5_000;
  * SMS-only budget — does not block Assign/Re-issue (UI is fire-and-forget).
  */
 const SMS_PROVIDER_TIMEOUT_MS = 14_000;
-/** Cap Arkesel → Termii → Twilio waterfall; prefer letting Arkesel finish. */
-const SMS_TOTAL_BUDGET_MS = 16_000;
+/**
+ * Cap Arkesel → Termii → Twilio waterfall.
+ * Reserve leftover time so a slow Arkesel failure still leaves room for Termii/Twilio.
+ */
+const SMS_TOTAL_BUDGET_MS = 22_000;
+/** Keep at least this much for the next SMS provider after Arkesel. */
+const SMS_FALLBACK_RESERVE_MS = 5_000;
+/** Brief wait after Resend/Arkesel accept to catch immediate bounce/fail events. */
+const DELIVERY_VERIFY_BUDGET_MS = 2_800;
 /** @deprecated alias — prefer EMAIL_ / SMS_ constants */
 const PROVIDER_FETCH_TIMEOUT_MS = EMAIL_PROVIDER_TIMEOUT_MS;
 const SMS_NOT_CONFIGURED_MESSAGE =
@@ -91,10 +110,153 @@ function rewriteResendError(raw: string): string {
     lower.includes("verify a domain") ||
     (lower.includes("domain") && lower.includes("not verified"))
   ) {
-    return `${raw} — Resend is limited until you verify the domain used in RESEND_FROM_EMAIL (Resend → Domains). Until then only the account owner address works. After a successful send, check Resend → Logs for delivery/bounce.`;
+    return `${raw} — Resend is limited until you verify the domain used in RESEND_FROM_EMAIL (Resend → Domains). Until then only the account owner address works. Confirm SPF on send.tlbgh.com points at Resend (not forge.rmta), then Verify DNS again.`;
   }
   if (lower.includes("not delivered") || lower.includes("bounced") || lower.includes("suppressed")) {
-    return `${raw} — Open Resend → Logs for this message id / recipient.`;
+    return `${raw} — Open Resend → Logs for this message id / recipient. Fix SPF/DKIM on tlbgh.com if bounces persist.`;
+  }
+  return raw;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Resend API accept ≠ inbox delivery. Poll last_event briefly so hard bounces
+ * are not reported as Sent.
+ */
+async function verifyResendDelivery(
+  apiKey: string,
+  messageId: string,
+  budgetMs = DELIVERY_VERIFY_BUDGET_MS,
+): Promise<{ delivery: string; bounced: boolean; detail?: string }> {
+  const deadline = Date.now() + budgetMs;
+  let lastEvent = "queued";
+  const bounceEvents = new Set(["bounced", "failed", "complained", "suppressed"]);
+
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetchWithTimeout(
+        `https://api.resend.com/emails/${encodeURIComponent(messageId)}`,
+        {
+          method: "GET",
+          headers: { Authorization: `Bearer ${apiKey}` },
+        },
+        Math.min(1_500, Math.max(400, deadline - Date.now())),
+      );
+      const text = await response.text().catch(() => "");
+      if (response.ok && text.trim()) {
+        try {
+          const parsed = JSON.parse(text) as { last_event?: unknown };
+          if (typeof parsed.last_event === "string" && parsed.last_event.trim()) {
+            lastEvent = parsed.last_event.trim().toLowerCase();
+            if (bounceEvents.has(lastEvent)) {
+              return {
+                delivery: lastEvent,
+                bounced: true,
+                detail: `Resend last_event=${lastEvent}`,
+              };
+            }
+            if (lastEvent === "delivered") {
+              return { delivery: "delivered", bounced: false };
+            }
+          }
+        } catch {
+          // ignore parse issues and keep waiting
+        }
+      }
+    } catch {
+      // ignore transient poll errors
+    }
+    await sleep(450);
+  }
+
+  // Accepted by Resend without an immediate bounce — still not a guarantee of inbox.
+  return { delivery: lastEvent || "accepted", bounced: false };
+}
+
+/**
+ * Arkesel HTTP 200 + status=success can still end FAILED at the network.
+ * Poll once or twice when we have a message id.
+ */
+async function verifyArkeselDelivery(
+  apiKey: string,
+  baseUrl: string,
+  messageId: string,
+  budgetMs = DELIVERY_VERIFY_BUDGET_MS,
+): Promise<{ delivery: string; failed: boolean; detail?: string }> {
+  const deadline = Date.now() + budgetMs;
+  let lastStatus = "accepted";
+
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetchWithTimeout(
+        `${baseUrl}/api/v2/sms/${encodeURIComponent(messageId)}`,
+        {
+          method: "GET",
+          headers: { "api-key": apiKey },
+        },
+        Math.min(1_500, Math.max(400, deadline - Date.now())),
+      );
+      const text = await response.text().catch(() => "");
+      if (response.ok && text.trim()) {
+        try {
+          const parsed = JSON.parse(text) as {
+            status?: unknown;
+            data?: { status?: unknown; Status?: unknown };
+            message?: unknown;
+          };
+          const row =
+            parsed.data && typeof parsed.data === "object"
+              ? (parsed.data as Record<string, unknown>)
+              : null;
+          const rawStatus =
+            (row && typeof row["status"] === "string" && row["status"]) ||
+            (row && typeof row["Status"] === "string" && row["Status"]) ||
+            (typeof parsed.status === "string" && parsed.status) ||
+            "";
+          if (rawStatus.trim()) {
+            lastStatus = rawStatus.trim().toUpperCase();
+            if (
+              lastStatus === "FAILED" ||
+              lastStatus === "REJECTED" ||
+              lastStatus === "UNDELIVERED" ||
+              lastStatus === "EXPIRED"
+            ) {
+              const msg =
+                typeof parsed.message === "string" && parsed.message.trim()
+                  ? parsed.message.trim()
+                  : lastStatus;
+              return { delivery: lastStatus.toLowerCase(), failed: true, detail: msg };
+            }
+            if (lastStatus === "DELIVERED" || lastStatus === "SUCCESS") {
+              return { delivery: "delivered", failed: false };
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+    } catch {
+      // ignore
+    }
+    await sleep(450);
+  }
+
+  return { delivery: lastStatus.toLowerCase() || "accepted", failed: false };
+}
+
+function rewriteArkeselError(raw: string): string {
+  const lower = raw.toLowerCase();
+  if (
+    lower.includes("sender") &&
+    (lower.includes("not") || lower.includes("invalid") || lower.includes("approv"))
+  ) {
+    return `${raw} — Register/approve sender ID “${env("ARKESEL_SENDER_ID") || "TLB"}” in Arkesel → Sender ID, then retry.`;
+  }
+  if (lower.includes("credit") || lower.includes("balance") || lower.includes("insufficient")) {
+    return `${raw} — Top up Arkesel SMS credits, then Retry.`;
   }
   return raw;
 }
@@ -152,6 +314,19 @@ export async function sendInviteEmailWithResend(input: {
 
   const timeoutMs = input.timeoutMs ?? EMAIL_PROVIDER_TIMEOUT_MS;
   try {
+    const replyTo = env("RESEND_REPLY_TO");
+    const payload: Record<string, unknown> = {
+      from,
+      to: [to],
+      subject: "Your TLB portal access invite",
+      text,
+      html,
+      tags: [{ name: "category", value: "tlb_invite" }],
+    };
+    if (replyTo && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyTo)) {
+      payload["reply_to"] = [replyTo];
+    }
+
     const response = await fetchWithTimeout(
       "https://api.resend.com/emails",
       {
@@ -160,13 +335,7 @@ export async function sendInviteEmailWithResend(input: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          from,
-          to: [to],
-          subject: "Your TLB portal access invite",
-          text,
-          html,
-        }),
+        body: JSON.stringify(payload),
       },
       timeoutMs,
     );
@@ -192,7 +361,31 @@ export async function sendInviteEmailWithResend(input: {
       }
     }
 
-    return { ok: true, provider: "resend", ...(messageId ? { messageId } : {}) };
+    if (!messageId) {
+      // Soft-accept without an id — treat as accepted but note uncertainty.
+      return { ok: true, provider: "resend", delivery: "accepted" };
+    }
+
+    const verified = await verifyResendDelivery(apiKey, messageId);
+    if (verified.bounced) {
+      return {
+        ok: false,
+        provider: "resend",
+        messageId,
+        delivery: verified.delivery,
+        error: rewriteResendError(
+          verified.detail ||
+            `Resend accepted then ${verified.delivery} for ${to}. Check Resend → Logs and DNS (SPF on send.tlbgh.com).`,
+        ),
+      };
+    }
+
+    return {
+      ok: true,
+      provider: "resend",
+      messageId,
+      delivery: verified.delivery,
+    };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, provider: "resend", error: message };
@@ -224,19 +417,12 @@ export async function sendInviteSmsWithArkesel(input: {
     return { ok: false, error: "Contact does not look like a phone number." };
   }
 
-  const to = normalizePhoneDigits(input.to);
-  if (!to || to.startsWith("0") || !/^\d{10,15}$/.test(to)) {
-    return {
-      ok: false,
-      error: `Phone “${input.to.trim()}” could not be normalized to international digits (e.g. 23324…).`,
-    };
+  const phone = validateInvitePhone(input.to);
+  if (!phone.ok) {
+    return { ok: false, error: phone.error };
   }
-  if (to.startsWith("233") && !isNormalizedGhanaMsisdn(to)) {
-    return {
-      ok: false,
-      error: `Phone “${input.to.trim()}” normalized to “${to}” but Ghana MSISDN must be 233 + 9 digits.`,
-    };
-  }
+  const toDigits = phone.digits;
+  const toPlus = phone.e164;
   const message = input.body.trim();
   if (!message) {
     return { ok: false, error: "SMS body is required." };
@@ -247,6 +433,7 @@ export async function sendInviteSmsWithArkesel(input: {
   const timeoutMs = input.timeoutMs ?? SMS_PROVIDER_TIMEOUT_MS;
 
   try {
+    // Official Arkesel examples use +233…; digits-only 233… also works — prefer E.164 with +.
     const response = await fetchWithTimeout(
       url,
       {
@@ -258,8 +445,7 @@ export async function sendInviteSmsWithArkesel(input: {
         body: JSON.stringify({
           sender: senderId,
           message,
-          // Official Arkesel send examples use digits-only 233… (no +).
-          recipients: [to],
+          recipients: [toPlus],
         }),
       },
       timeoutMs,
@@ -270,7 +456,7 @@ export async function sendInviteSmsWithArkesel(input: {
       return {
         ok: false,
         provider: "arkesel",
-        error: summarizeProviderError("Arkesel", response.status, text),
+        error: rewriteArkeselError(summarizeProviderError("Arkesel", response.status, text)),
       };
     }
 
@@ -315,7 +501,7 @@ export async function sendInviteSmsWithArkesel(input: {
       return {
         ok: false,
         provider: "arkesel",
-        error: `Arkesel: ${msg} (HTTP 200, status=${status || "missing"})`,
+        error: rewriteArkeselError(`Arkesel: ${msg} (HTTP 200, status=${status || "missing"})`),
       };
     }
 
@@ -324,16 +510,48 @@ export async function sendInviteSmsWithArkesel(input: {
     if (data && typeof data === "object" && !Array.isArray(data)) {
       const row = data as Record<string, unknown>;
       const id =
-        (typeof row.id === "string" && row.id) ||
-        (typeof row.ID === "string" && row.ID) ||
-        (typeof row.message_id === "string" && row.message_id) ||
+        (typeof row["id"] === "string" && row["id"]) ||
+        (typeof row["ID"] === "string" && row["ID"]) ||
+        (typeof row["message_id"] === "string" && row["message_id"]) ||
         "";
       if (id.trim()) messageId = id.trim();
     } else if (typeof data === "string" && data.trim()) {
       messageId = data.trim();
+    } else if (Array.isArray(data) && data.length > 0) {
+      const first = data[0];
+      if (first && typeof first === "object") {
+        const row = first as Record<string, unknown>;
+        const id =
+          (typeof row["id"] === "string" && row["id"]) ||
+          (typeof row["ID"] === "string" && row["ID"]) ||
+          (typeof row["message_id"] === "string" && row["message_id"]) ||
+          "";
+        if (id.trim()) messageId = id.trim();
+      }
     }
 
-    return { ok: true, provider: "arkesel", ...(messageId ? { messageId } : {}) };
+    if (messageId) {
+      const verified = await verifyArkeselDelivery(apiKey, baseUrl, messageId);
+      if (verified.failed) {
+        return {
+          ok: false,
+          provider: "arkesel",
+          messageId,
+          delivery: verified.delivery,
+          error: rewriteArkeselError(
+            `Arkesel accepted then ${verified.delivery} for ${toDigits}: ${verified.detail || verified.delivery}`,
+          ),
+        };
+      }
+      return {
+        ok: true,
+        provider: "arkesel",
+        messageId,
+        delivery: verified.delivery,
+      };
+    }
+
+    return { ok: true, provider: "arkesel", delivery: "accepted" };
   } catch (err) {
     const messageErr = err instanceof Error ? err.message : String(err);
     return { ok: false, provider: "arkesel", error: messageErr };
@@ -359,13 +577,11 @@ export async function sendInviteSmsWithTermii(input: {
     return { ok: false, error: "Contact does not look like a phone number." };
   }
 
-  const to = normalizePhoneDigits(input.to);
-  if (!to || to.startsWith("0")) {
-    return {
-      ok: false,
-      error: `Phone “${input.to.trim()}” could not be normalized to international format (e.g. 23324…).`,
-    };
+  const phone = validateInvitePhone(input.to);
+  if (!phone.ok) {
+    return { ok: false, error: phone.error };
   }
+  const to = phone.digits;
   const sms = input.body.trim();
   if (!sms) {
     return { ok: false, error: "SMS body is required." };
@@ -460,7 +676,11 @@ export async function sendInviteSmsWithTwilio(input: {
     return { ok: false, error: "Contact does not look like a phone number." };
   }
 
-  const to = normalizePhoneForSms(input.to);
+  const phone = validateInvitePhone(input.to);
+  if (!phone.ok) {
+    return { ok: false, error: phone.error };
+  }
+  const to = phone.e164;
   const body = input.body.trim();
   if (!body) {
     return { ok: false, error: "SMS body is required." };
@@ -557,14 +777,19 @@ export async function sendInviteSms(input: {
 
   const started = Date.now();
   const errors: string[] = [];
+  const hasFallback = configured.length > 1;
 
-  for (const attempt of configured) {
+  for (let i = 0; i < configured.length; i++) {
+    const attempt = configured[i]!;
     const remaining = SMS_TOTAL_BUDGET_MS - (Date.now() - started);
+    const laterProviders = configured.length - i - 1;
+    const reserve = hasFallback && laterProviders > 0 ? SMS_FALLBACK_RESERVE_MS : 0;
     if (remaining < 1_500) {
       errors.push(`${attempt.label} skipped (SMS time budget exhausted)`);
       break;
     }
-    const timeoutMs = Math.min(SMS_PROVIDER_TIMEOUT_MS, remaining);
+    const available = Math.max(1_500, remaining - reserve);
+    const timeoutMs = Math.min(SMS_PROVIDER_TIMEOUT_MS, available);
     const result = await attempt.send(timeoutMs);
     if (result.ok) return result;
     if ("notConfigured" in result && result.notConfigured) {
@@ -688,6 +913,7 @@ export function inviteSendResultToJson(result: InviteSendResult): Record<string,
       ok: true,
       ...(result.messageId ? { messageId: result.messageId } : {}),
       ...(result.provider ? { provider: result.provider } : {}),
+      ...(result.delivery ? { delivery: result.delivery } : {}),
     };
   }
   return {
@@ -696,6 +922,7 @@ export function inviteSendResultToJson(result: InviteSendResult): Record<string,
     ...("notConfigured" in result && result.notConfigured ? { notConfigured: true } : {}),
     ...("messageId" in result && result.messageId ? { messageId: result.messageId } : {}),
     ...("provider" in result && result.provider ? { provider: result.provider } : {}),
+    ...("delivery" in result && result.delivery ? { delivery: result.delivery } : {}),
   };
 }
 
