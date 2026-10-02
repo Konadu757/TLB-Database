@@ -202,6 +202,7 @@ export type AuditAction =
   | "user.role_assigned"
   | "user.invite_issued"
   | "user.invite_accepted"
+  | "user.login"
   | "session.user_switched"
   | "record.edited"
   | "record.trashed"
@@ -326,6 +327,8 @@ export interface AppUser extends SoftDeleteFields {
   inviteCreatedAt?: string;
   inviteAcceptedAt?: string;
   invitePending?: boolean;
+  /** Last successful Auth sign-in (from auth.users / activity hydrate). */
+  lastLoginAt?: string;
 }
 export interface Warehouse extends SoftDeleteFields {
   id: string;

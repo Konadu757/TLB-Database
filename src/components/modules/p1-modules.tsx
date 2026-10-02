@@ -251,7 +251,7 @@ export function AuditModule({ store }: { store: TlbStoreApi }) {
         <div>
           <span className="tlb-eyebrow">Control</span>
           <strong>Audit log</strong>
-          <p className="tlb-muted-line">Append-only — users cannot delete audit history</p>
+          <p className="tlb-muted-line">Append-only — includes portal sign-ins and access events</p>
         </div>
       </div>
       <article className="tlb-panel tlb-orders-panel">
@@ -333,6 +333,21 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
   const assignedUsers = useMemo(
     () => notSoftDeleted(store.state.users),
     [store.state.users],
+  );
+  const recentAccessActivity = useMemo(
+    () =>
+      store.state.audit
+        .filter((a) =>
+          [
+            "user.login",
+            "user.invite_issued",
+            "user.invite_accepted",
+            "user.role_assigned",
+            "user.updated",
+          ].includes(a.action),
+        )
+        .slice(0, 12),
+    [store.state.audit],
   );
   const editingUser = assignedUsers.find((u) => u.id === editingUserId) ?? null;
   const canManageUsers = store.can("users.manage");
@@ -590,7 +605,7 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                       <th>Email</th>
                       <th>Role</th>
                       <th>Status</th>
-                      <th>Session</th>
+                      <th>Last login</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -618,8 +633,14 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                         <td>
                           {store.state.currentUserId === user.id ? (
                             <StatusBadge tone="success">Signed in</StatusBadge>
-                          ) : (
+                          ) : user.lastLoginAt ? (
+                            <span title={new Date(user.lastLoginAt).toLocaleString()}>
+                              {new Date(user.lastLoginAt).toLocaleString()}
+                            </span>
+                          ) : isInvitePending(user) ? (
                             "—"
+                          ) : (
+                            <span className="tlb-muted-line">Never</span>
                           )}
                         </td>
                         <td>
@@ -688,6 +709,42 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                 </table>
               </div>
             )}
+            {recentAccessActivity.length > 0 ? (
+              <div style={{ margin: "14px 12px 4px" }}>
+                <div className="tlb-panel-heading" style={{ marginBottom: 8 }}>
+                  <div>
+                    <span>Activity</span>
+                    <strong>Recent access events</strong>
+                    <p className="tlb-muted-line">
+                      Sign-ins, invites, and role changes — synced from the cloud so they survive
+                      refresh.
+                    </p>
+                  </div>
+                </div>
+                <div className="tlb-table-scroll tlb-orders-panel">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>When</th>
+                        <th>Who</th>
+                        <th>Event</th>
+                        <th>Summary</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentAccessActivity.map((a) => (
+                        <tr key={a.id}>
+                          <td>{new Date(a.at).toLocaleString()}</td>
+                          <td>{a.actor}</td>
+                          <td>{a.action}</td>
+                          <td>{a.summary}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
             {editingUser ? (
               <form
                 className="tlb-form-grid"

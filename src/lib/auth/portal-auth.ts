@@ -179,6 +179,19 @@ export async function signInWithOwnerPassword(
       return { ok: false, error: signInFailureMessage(error as { message?: string; name?: string; status?: number } | null) };
     }
     markTabAuthSession();
+    // Durable Owner-visible trail — failures must not block a successful sign-in.
+    try {
+      const { recordPortalLoginActivity } = await import("@/lib/access/portal-activity");
+      const recorded = await recordPortalLoginActivity();
+      if (!recorded.ok) {
+        console.warn("[portal-auth] login activity not recorded:", recorded.error);
+      }
+    } catch (activityErr) {
+      console.warn(
+        "[portal-auth] login activity skipped:",
+        activityErr instanceof Error ? activityErr.message : activityErr,
+      );
+    }
     return {
       ok: true,
       userId: data.session.user.id,

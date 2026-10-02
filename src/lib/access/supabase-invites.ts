@@ -193,6 +193,8 @@ function parseStaffAccessStatuses(data: unknown): CloudStaffAccessStatus[] {
     const invitePending = Boolean(item["invite_pending"]);
     const inviteAcceptedAt =
       typeof item["invite_accepted_at"] === "string" ? item["invite_accepted_at"] : null;
+    const lastSignInAt =
+      typeof item["last_sign_in_at"] === "string" ? item["last_sign_in_at"] : null;
     const active = typeof item["active"] === "boolean" ? item["active"] : undefined;
     out.push({
       email,
@@ -201,6 +203,7 @@ function parseStaffAccessStatuses(data: unknown): CloudStaffAccessStatus[] {
       roleCode,
       invitePending,
       inviteAcceptedAt,
+      ...(lastSignInAt ? { lastSignInAt } : {}),
       ...(active !== undefined ? { active } : {}),
     });
   }

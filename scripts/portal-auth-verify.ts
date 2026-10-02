@@ -70,6 +70,7 @@ assert.match(gate, /!result\.ok \|\| !dashboardAllowed\(session\)/);
 assert.match(styles, /\.tlb-portal-resolving/);
 assert.doesNotMatch(gate, /checking=\{/);
 assert.match(auth, /signInWithPassword/);
+assert.match(auth, /recordPortalLoginActivity/);
 assert.match(auth, /discardRestoredSessionIfColdVisit/);
 assert.match(auth, /hasTabAuthSession/);
 assert.match(auth, /tlb-portal-tab-auth/);

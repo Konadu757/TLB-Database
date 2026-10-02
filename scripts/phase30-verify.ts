@@ -396,6 +396,18 @@ function testInvites() {
   assert.equal(cloudCleared[0]?.invitePending, false);
   assert.equal(cloudCleared[0]?.id, "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee");
   assert.equal(isInvitePending(cloudCleared[0]!), false);
+
+  const withLogin = applyCloudStaffAccessStatuses([user], [
+    {
+      email: user.email,
+      profileId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      invitePending: false,
+      inviteAcceptedAt: "2026-10-02T12:00:00.000Z",
+      lastSignInAt: "2026-10-02T15:30:00.000Z",
+      active: true,
+    },
+  ]);
+  assert.equal(withLogin[0]?.lastLoginAt, "2026-10-02T15:30:00.000Z");
 }
 
 function testPhase30Scenario() {

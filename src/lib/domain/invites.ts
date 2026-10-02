@@ -235,6 +235,8 @@ export type CloudStaffAccessStatus = {
   invitePending: boolean;
   inviteAcceptedAt?: string | null;
   active?: boolean;
+  /** auth.users.last_sign_in_at when the profile exists. */
+  lastSignInAt?: string | null;
 };
 
 /**
@@ -277,6 +279,10 @@ export function applyCloudStaffAccessStatuses(
       delete next.inviteCode;
     } else if (!next.inviteAcceptedAt) {
       next.invitePending = true;
+    }
+
+    if (status.lastSignInAt?.trim()) {
+      next.lastLoginAt = status.lastSignInAt.trim();
     }
 
     return next;

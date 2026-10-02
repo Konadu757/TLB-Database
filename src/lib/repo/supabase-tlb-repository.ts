@@ -61,6 +61,10 @@ import {
 import { mergeCanonicalBalances, mergeCanonicalMovements } from "./ledger-rpc";
 import { fetchStaffAccessStatusesFromSupabase } from "../access/supabase-invites";
 import {
+  fetchActivityEventsFromSupabase,
+  mergeCloudActivityIntoAudit,
+} from "../access/portal-activity";
+import {
   applyCloudStaffAccessStatuses,
   mergeStaffUsers,
   staffUsersForRemoteDirectory,
@@ -653,6 +657,8 @@ export class SupabaseTlbRepository implements TlbRepository {
       let mergedUsers = mergeStaffUsers(authDir.users, localOnly.users, purged);
       // Authoritative invite acceptance lives in tlb.invites / profiles — not localStorage.
       // Without this, Owner keeps seeing Pending after the invitee accepts on another device.
+      let cloudActivity: Awaited<ReturnType<typeof fetchActivityEventsFromSupabase>> | null =
+        null;
       try {
         const cloudAccess = await fetchStaffAccessStatusesFromSupabase();
         if (cloudAccess.ok && cloudAccess.data.length) {
@@ -662,6 +668,34 @@ export class SupabaseTlbRepository implements TlbRepository {
         console.warn(
           "[SupabaseTlbRepository] staff access status sync skipped:",
           accessErr instanceof Error ? accessErr.message : accessErr,
+        );
+      }
+      try {
+        cloudActivity = await fetchActivityEventsFromSupabase(200);
+        if (cloudActivity.ok && cloudActivity.data.length) {
+          // Prefer Auth last_sign_in_at; fall back to latest user.login activity per user.
+          const loginByActor = new Map<string, string>();
+          for (const event of cloudActivity.data) {
+            if (event.action !== "user.login") continue;
+            const idKey = (event.actorId ?? "").trim();
+            const emailKey = (event.actorEmail ?? "").trim().toLowerCase();
+            if (idKey && !loginByActor.has(idKey)) loginByActor.set(idKey, event.createdAt);
+            if (emailKey && !loginByActor.has(emailKey)) {
+              loginByActor.set(emailKey, event.createdAt);
+            }
+          }
+          mergedUsers = mergedUsers.map((user) => {
+            if (user.lastLoginAt) return user;
+            const byId = loginByActor.get(user.id);
+            const byEmail = loginByActor.get((user.email ?? "").trim().toLowerCase());
+            const last = byId || byEmail;
+            return last ? { ...user, lastLoginAt: last } : user;
+          });
+        }
+      } catch (activityErr) {
+        console.warn(
+          "[SupabaseTlbRepository] activity sync skipped:",
+          activityErr instanceof Error ? activityErr.message : activityErr,
         );
       }
       const mergedRoles = mergeRolesPreferringSoftDelete(authDir.roles, localOnly.roles, purged);
@@ -749,7 +783,13 @@ export class SupabaseTlbRepository implements TlbRepository {
           purged,
         ),
         supplyLines: supplyLines.map(supplyLineFromRow),
-        audit: audit.map(auditFromRow).sort((a, b) => (a.at < b.at ? 1 : -1)),
+        audit: (() => {
+          const localAudit = audit.map(auditFromRow);
+          if (cloudActivity?.ok && cloudActivity.data.length) {
+            return mergeCloudActivityIntoAudit(localAudit, cloudActivity.data);
+          }
+          return localAudit.sort((a, b) => (a.at < b.at ? 1 : -1));
+        })(),
         counters: {
           ...prior.counters,
           ...countersFromRow(countersRows[0] ?? null, prior.counters),
