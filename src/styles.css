@@ -1936,11 +1936,23 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
 .tlb-empty-state { padding: 28px 18px; text-align: center; color: var(--muted-foreground); }
 .tlb-empty-state strong { display: block; color: var(--foreground); font-size: 0.875rem; margin-bottom: 6px; }
 .tlb-empty-state p { margin: 0; font-size: 0.75rem; }
-.tlb-flash { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-radius: var(--radius-md); border: 1px solid var(--border); font-size: 0.8125rem; }
-.tlb-flash button { border: 0; background: transparent; color: inherit; }
+.tlb-flash { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-radius: 999px; border: 1px solid transparent; font-size: 0.8125rem; font-weight: 600; }
+.tlb-flash button { border: 0; background: transparent; color: inherit; opacity: 0.85; }
+.tlb-flash button:hover { opacity: 1; }
 .tlb-flash button svg { width: 14px; }
-.tlb-flash-error { background: var(--danger-muted); color: var(--danger); }
-.tlb-flash-ok { background: var(--success-muted); color: var(--success); }
+.tlb-flash-error,
+.tlb-flash--error {
+  background: var(--danger);
+  color: #fff;
+  border-color: color-mix(in oklab, var(--danger) 80%, black);
+}
+.tlb-flash-ok,
+.tlb-flash--notice,
+.tlb-flash--ok {
+  background: var(--success);
+  color: #fff;
+  border-color: color-mix(in oklab, var(--success) 80%, black);
+}
 .tlb-roles-layout { display: grid; grid-template-columns: minmax(180px, 240px) minmax(0, 1fr); gap: 14px; padding: 14px 17px; }
 .tlb-roles-list { display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow: auto; }
 .tlb-role-chip { display: flex; flex-direction: column; gap: 2px; text-align: left; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; padding: 10px 12px; cursor: pointer; color: inherit; }

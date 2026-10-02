@@ -47,7 +47,7 @@ function Flash({
 }) {
   if (!error && !notice) return null;
   return (
-    <div className={`tlb-flash ${error ? "tlb-flash--error" : "tlb-flash--notice"}`} role="status">
+    <div className={`tlb-flash ${error ? "tlb-flash-error" : "tlb-flash-ok"}`} role="status">
       <span>{error ?? notice}</span>
       <button type="button" onClick={onClear}>
         Dismiss
@@ -294,6 +294,8 @@ export function QuotationsModule(props: CatalogModuleProps) {
     editing && selectedId && store ? store.state.quotations.find((q) => q.id === selectedId) : null;
 
   const openCreate = useCallback(() => {
+    setSelectedId(null);
+    setEditing(false);
     setCreating(true);
     onCreatingChange?.(true);
     if (store) {
@@ -362,7 +364,7 @@ export function QuotationsModule(props: CatalogModuleProps) {
               });
               if (ok) {
                 setEditing(false);
-                setSelectedId(editingQuote.id);
+                setSelectedId(null);
               }
             }}
           >
@@ -564,6 +566,8 @@ export function QuotationsModule(props: CatalogModuleProps) {
                   setUnitPrice("0");
                   setNotes("");
                   setTaxExempt(false);
+                  setSelectedId(null);
+                  setEditing(false);
                   closeCreate();
                 }
               }}
