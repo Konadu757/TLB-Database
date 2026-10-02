@@ -523,13 +523,6 @@ table.tlb-table,
     margin-left: calc(68px + (2 * var(--tlb-chrome-gap)));
     width: calc(100% - (68px + (2 * var(--tlb-chrome-gap))));
   }
-  .tlb-notification-panel,
-  .tlb-user-menu {
-    position: fixed;
-    top: calc(var(--tlb-chrome-gap) + var(--tlb-header-h) + 8px);
-    right: calc(28px + var(--tlb-chrome-gap));
-    left: auto;
-  }
 }
 .tlb-header {
   height: auto;
@@ -3448,6 +3441,263 @@ button.tlb-user-action:focus-visible {
 .tlb-popover.tlb-quick-menu.tlb-user-menu button.is-selected svg,
 .tlb-popover.tlb-quick-menu.tlb-user-menu button.is-selected:hover svg {
   color: #2a1f12;
+}
+
+/* Header notification panel — same floating family as Quick action / account / warehouse / search. */
+.tlb-popover.tlb-notification-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  left: auto;
+  bottom: auto;
+  z-index: 90;
+  width: min(22rem, calc(100vw - 40px));
+  min-width: min(16rem, calc(100vw - 40px));
+  max-height: min(28rem, calc(100dvh - 7.5rem));
+  margin: 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 0;
+  border-radius: 20px;
+  background: #ffffff;
+  color: #1f1630;
+  font-family: var(--font-sans);
+  box-shadow:
+    0 18px 42px color-mix(in oklab, var(--tlb-purple) 16%, transparent),
+    0 2px 8px color-mix(in oklab, #1f1630 6%, transparent);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--tlb-purple) 32%, white) transparent;
+  animation: tlb-quick-actions-in 180ms ease;
+}
+.tlb-popover.tlb-notification-panel::-webkit-scrollbar {
+  width: 8px;
+}
+.tlb-popover.tlb-notification-panel::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--tlb-purple) 28%, white);
+  border-radius: 999px;
+}
+.tlb-notification-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 2px 4px 4px;
+  padding: 6px 10px 10px;
+  border: 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--tlb-purple) 10%, #e8e4f0);
+}
+.tlb-notification-panel-heading > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.tlb-notification-panel-label {
+  color: color-mix(in oklab, var(--tlb-purple) 72%, #1f1630);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+.tlb-notification-panel-heading strong {
+  color: #1f1630;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+.tlb-notification-panel-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.tlb-notification-mark-all {
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--tlb-gold) 72%, white);
+  color: #2a1f12;
+  font-family: inherit;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  padding: 7px 10px;
+  cursor: pointer;
+  transition: background-color 180ms ease, transform 120ms ease;
+}
+.tlb-notification-mark-all:hover {
+  background: var(--tlb-gold);
+}
+.tlb-notification-mark-all:active {
+  transform: translateY(1px);
+}
+.tlb-notification-panel-close {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: color-mix(in oklab, var(--tlb-purple) 55%, #1f1630);
+  cursor: pointer;
+  transition: background-color 180ms ease, color 180ms ease;
+}
+.tlb-notification-panel-close:hover {
+  background: color-mix(in oklab, var(--tlb-purple) 8%, white);
+  color: var(--tlb-purple);
+}
+.tlb-notification-panel-close svg {
+  width: 15px;
+  height: 15px;
+}
+.tlb-notification-panel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+}
+.tlb-popover.tlb-notification-panel .tlb-mini-alert {
+  width: 100%;
+  min-height: 52px;
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #1f1630;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 180ms ease, transform 120ms ease;
+}
+.tlb-popover.tlb-notification-panel .tlb-mini-alert:hover {
+  background: color-mix(in oklab, var(--tlb-purple) 8%, white);
+}
+.tlb-popover.tlb-notification-panel .tlb-mini-alert:active {
+  transform: translateY(1px);
+}
+.tlb-popover.tlb-notification-panel .tlb-mini-alert:focus-visible {
+  outline: 2px solid var(--tlb-purple);
+  outline-offset: -2px;
+}
+.tlb-popover.tlb-notification-panel .tlb-mini-alert-unread {
+  background: color-mix(in oklab, var(--tlb-gold) 28%, white);
+}
+.tlb-popover.tlb-notification-panel .tlb-mini-alert-unread:hover {
+  background: color-mix(in oklab, var(--tlb-gold) 42%, white);
+}
+.tlb-popover.tlb-notification-panel .tlb-alert-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  margin-top: 6px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px color-mix(in oklab, currentColor 14%, transparent);
+}
+.tlb-popover.tlb-notification-panel .tlb-alert-dot.tlb-alert-danger {
+  background: var(--danger);
+  color: var(--danger);
+}
+.tlb-popover.tlb-notification-panel .tlb-alert-dot.tlb-alert-warning {
+  background: var(--warning-foreground, #b45309);
+  color: var(--warning-foreground, #b45309);
+}
+.tlb-popover.tlb-notification-panel .tlb-alert-dot.tlb-alert-info {
+  background: var(--tlb-purple);
+  color: var(--tlb-purple);
+}
+.tlb-popover.tlb-notification-panel .tlb-mini-alert div {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tlb-popover.tlb-notification-panel .tlb-mini-alert strong {
+  color: #1f1630;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.tlb-popover.tlb-notification-panel .tlb-mini-alert span {
+  color: color-mix(in oklab, #1f1630 58%, white);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tlb-notification-empty {
+  margin: 0;
+  padding: 18px 14px;
+  color: color-mix(in oklab, #1f1630 55%, white);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: center;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--tlb-purple) 4%, white);
+}
+.tlb-notification-view-all {
+  width: 100%;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 2px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--tlb-purple);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  cursor: pointer;
+  transition: background-color 180ms ease, color 180ms ease, transform 120ms ease;
+}
+.tlb-notification-view-all:hover {
+  background: color-mix(in oklab, var(--tlb-purple) 8%, white);
+  color: color-mix(in oklab, var(--tlb-purple) 82%, #1f1630);
+}
+.tlb-notification-view-all:active {
+  transform: translateY(1px);
+}
+.tlb-notification-view-all svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+@media (max-width: 640px) {
+  .tlb-popover.tlb-notification-panel {
+    position: fixed;
+    top: calc(var(--tlb-chrome-top) + var(--tlb-header-h));
+    right: 12px;
+    left: 12px;
+    width: auto;
+    min-width: 0;
+    max-width: calc(100% - 24px);
+  }
 }
 
 /* Header search results. Same floating panel as Quick action, All warehouses, and the Owner menu. */

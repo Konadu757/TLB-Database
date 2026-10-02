@@ -1144,43 +1144,60 @@ function TLBDashboardInner() {
                   role="region"
                   aria-label="Notifications"
                 >
-                  <div className="tlb-popover-heading">
-                    <strong>Notifications</strong>
-                    <button
-                      type="button"
-                      aria-label="Close notifications"
-                      onClick={() => setNotificationsOpen(false)}
-                    >
-                      <X />
-                    </button>
+                  <div className="tlb-notification-panel-heading">
+                    <div>
+                      <span className="tlb-notification-panel-label">Inbox</span>
+                      <strong>Notifications</strong>
+                    </div>
+                    <div className="tlb-notification-panel-heading-actions">
+                      {unreadNotifications > 0 ? (
+                        <button
+                          type="button"
+                          className="tlb-notification-mark-all"
+                          onClick={() => {
+                            store.markAllNotificationsRead(
+                              visibleNotifications.filter((n) => !n.readAt).map((n) => n.id),
+                            );
+                          }}
+                        >
+                          Mark all read
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="tlb-notification-panel-close"
+                        aria-label="Close notifications"
+                        onClick={() => setNotificationsOpen(false)}
+                      >
+                        <X />
+                      </button>
+                    </div>
                   </div>
-                  {visibleNotifications.slice(0, 6).map((n) => (
-                    <button
-                      type="button"
-                      className={`tlb-mini-alert${n.readAt ? "" : " tlb-mini-alert-unread"}`}
-                      key={n.id}
-                      onClick={() => openNotificationRelated(n)}
-                    >
-                      <span
-                        className={`tlb-alert-dot tlb-alert-${n.type.includes("overdue") || n.type.includes("extended") ? "danger" : n.type.includes("approaching") || n.type.includes("partial") ? "warning" : "info"}`}
-                      />
-                      <div>
-                        <strong>{n.title}</strong>
-                        <span>{n.body}</span>
-                      </div>
-                    </button>
-                  ))}
-                  {visibleNotifications.length === 0 ? (
-                    <p
-                      className="tlb-muted"
-                      style={{ margin: "0.5rem 0.75rem", fontSize: "0.8125rem" }}
-                    >
-                      No notifications yet.
-                    </p>
-                  ) : null}
+                  <div className="tlb-notification-panel-list">
+                    {visibleNotifications.slice(0, 6).map((n) => (
+                      <button
+                        type="button"
+                        className={`tlb-mini-alert${n.readAt ? "" : " tlb-mini-alert-unread"}`}
+                        key={n.id}
+                        onClick={() => openNotificationRelated(n)}
+                      >
+                        <span
+                          className={`tlb-alert-dot tlb-alert-${n.type.includes("overdue") || n.type.includes("extended") ? "danger" : n.type.includes("approaching") || n.type.includes("partial") ? "warning" : "info"}`}
+                          aria-hidden="true"
+                        />
+                        <div>
+                          <strong>{n.title}</strong>
+                          <span>{n.body}</span>
+                        </div>
+                      </button>
+                    ))}
+                    {visibleNotifications.length === 0 ? (
+                      <p className="tlb-notification-empty">No notifications yet.</p>
+                    ) : null}
+                  </div>
                   <button
                     type="button"
-                    className="tlb-text-action"
+                    className="tlb-notification-view-all"
                     onClick={() => {
                       setNotificationsOpen(false);
                       openLiveModule("Notifications");
