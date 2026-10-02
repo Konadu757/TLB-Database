@@ -241,44 +241,135 @@ function Flash({
 export { FinanceModule, DeliveriesModule } from "@/components/modules/finance-deliveries-modules";
 export { ReportsModule } from "@/components/modules/reports-module";
 
+const ACCESS_AUDIT_ACTIONS = new Set([
+  "user.login",
+  "user.invite_issued",
+  "user.invite_accepted",
+  "user.role_assigned",
+  "user.updated",
+]);
+
+type AuditViewTab = "all" | "access" | "ops";
+
+function isAccessAuditAction(action: string): boolean {
+  return ACCESS_AUDIT_ACTIONS.has(action);
+}
+
 export function AuditModule({ store }: { store: TlbStoreApi }) {
+  const [tab, setTab] = useState<AuditViewTab>("all");
+
+  const accessEvents = useMemo(
+    () => store.state.audit.filter((a) => isAccessAuditAction(a.action)),
+    [store.state.audit],
+  );
+  const opsEvents = useMemo(
+    () => store.state.audit.filter((a) => !isAccessAuditAction(a.action)),
+    [store.state.audit],
+  );
+  const visible = tab === "access" ? accessEvents : tab === "ops" ? opsEvents : store.state.audit;
+
   if (!store.can("audit.view")) {
     return <EmptyState title="Audit restricted" detail="Your role cannot view the audit trail." />;
   }
+
+  const sectionCopy =
+    tab === "access"
+      ? {
+          kicker: "Access",
+          title: "Recent access events",
+          detail: "Sign-ins, invites, and role changes — synced from the cloud so they survive refresh.",
+        }
+      : tab === "ops"
+        ? {
+            kicker: "Operations",
+            title: "Operational audit trail",
+            detail: "Orders, stock, finance, and other non-access changes.",
+          }
+        : {
+            kicker: "Control",
+            title: "Full audit trail",
+            detail: "Append-only log — portal access events and operational changes.",
+          };
+
   return (
     <div className="tlb-module">
       <div className="tlb-module-toolbar">
         <div>
           <span className="tlb-eyebrow">Control</span>
           <strong>Audit log</strong>
-          <p className="tlb-muted-line">Append-only — includes portal sign-ins and access events</p>
+          <p className="tlb-muted-line">
+            Append-only trail — use Recent access events for sign-ins and invites
+          </p>
         </div>
       </div>
-      <article className="tlb-panel tlb-orders-panel">
-        <div className="tlb-table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>When</th>
-                <th>Actor</th>
-                <th>Action</th>
-                <th>Entity</th>
-                <th>Summary</th>
-              </tr>
-            </thead>
-            <tbody>
-              {store.state.audit.map((a) => (
-                <tr key={a.id}>
-                  <td>{new Date(a.at).toLocaleString()}</td>
-                  <td>{a.actor}</td>
-                  <td>{a.action}</td>
-                  <td>{a.entityType}</td>
-                  <td>{a.summary}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <section className="tlb-filter-bar tlb-module-filters" aria-label="Audit log sections">
+        <div className="tlb-periods" style={{ flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className={tab === "all" ? "active" : ""}
+            onClick={() => setTab("all")}
+          >
+            All ({store.state.audit.length})
+          </button>
+          <button
+            type="button"
+            className={tab === "access" ? "active" : ""}
+            onClick={() => setTab("access")}
+          >
+            Recent access events ({accessEvents.length})
+          </button>
+          <button
+            type="button"
+            className={tab === "ops" ? "active" : ""}
+            onClick={() => setTab("ops")}
+          >
+            Operations ({opsEvents.length})
+          </button>
         </div>
+      </section>
+      <article className="tlb-panel tlb-orders-panel">
+        <div className="tlb-panel-heading">
+          <div>
+            <span>{sectionCopy.kicker}</span>
+            <strong>{sectionCopy.title}</strong>
+            <p className="tlb-muted-line">{sectionCopy.detail}</p>
+          </div>
+        </div>
+        {visible.length === 0 ? (
+          <EmptyState
+            title={tab === "access" ? "No access events yet" : "No audit entries"}
+            detail={
+              tab === "access"
+                ? "Portal sign-ins and invite accepts will appear here once recorded in the cloud."
+                : "Actions across the portal will appear in this trail."
+            }
+          />
+        ) : (
+          <div className="tlb-table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>Actor</th>
+                  <th>Action</th>
+                  <th>Entity</th>
+                  <th>Summary</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((a) => (
+                  <tr key={a.id}>
+                    <td>{new Date(a.at).toLocaleString()}</td>
+                    <td>{a.actor}</td>
+                    <td>{a.action}</td>
+                    <td>{a.entityType}</td>
+                    <td>{a.summary}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </article>
     </div>
   );
@@ -333,21 +424,6 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
   const assignedUsers = useMemo(
     () => notSoftDeleted(store.state.users),
     [store.state.users],
-  );
-  const recentAccessActivity = useMemo(
-    () =>
-      store.state.audit
-        .filter((a) =>
-          [
-            "user.login",
-            "user.invite_issued",
-            "user.invite_accepted",
-            "user.role_assigned",
-            "user.updated",
-          ].includes(a.action),
-        )
-        .slice(0, 12),
-    [store.state.audit],
   );
   const editingUser = assignedUsers.find((u) => u.id === editingUserId) ?? null;
   const canManageUsers = store.can("users.manage");
@@ -695,42 +771,6 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                 </table>
               </div>
             )}
-            {recentAccessActivity.length > 0 ? (
-              <div style={{ margin: "14px 12px 4px" }}>
-                <div className="tlb-panel-heading" style={{ marginBottom: 8 }}>
-                  <div>
-                    <span>Activity</span>
-                    <strong>Recent access events</strong>
-                    <p className="tlb-muted-line">
-                      Sign-ins, invites, and role changes — synced from the cloud so they survive
-                      refresh.
-                    </p>
-                  </div>
-                </div>
-                <div className="tlb-table-scroll tlb-orders-panel">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>When</th>
-                        <th>Who</th>
-                        <th>Event</th>
-                        <th>Summary</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {recentAccessActivity.map((a) => (
-                        <tr key={a.id}>
-                          <td>{new Date(a.at).toLocaleString()}</td>
-                          <td>{a.actor}</td>
-                          <td>{a.action}</td>
-                          <td>{a.summary}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ) : null}
             {editingUser ? (
               <form
                 className="tlb-form-grid"
