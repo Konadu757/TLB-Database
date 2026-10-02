@@ -27,6 +27,10 @@ import { DEFAULT_INVENTORY_SETTINGS } from "../domain/inventory";
 import { MATURE_SEQUENCE_FLOOR, floorMatureCommercialCounters } from "../domain/numbering";
 import { defaultTaxCatalog, ensureTaxCatalog } from "../domain/tax";
 import { createSeedState } from "./seed";
+import {
+  ensureQuotationLines,
+  rollupQuotationLines,
+} from "../domain/quotation-calc";
 import { omitPurgedEntities } from "../domain/trash";
 
 const DEFAULT_COMPANY: CompanyProfile = {
@@ -217,7 +221,7 @@ export function lockWorkspaceToOwner(state: TlbState): void {
   if (!sessionUser) {
     state.currentUserId = PORTAL_OWNER_AUTH_USER_ID;
   }
-  state.version = Math.max(state.version, 14);
+  state.version = Math.max(state.version, 15);
   syncSessionIdentity(state);
 }
 
@@ -828,6 +832,18 @@ export function migrateState(raw: unknown): TlbState {
     next.supplierReceipts = omitPurgedEntities(next.supplierReceipts ?? [], "supplier_receipt", purged);
     next.supplierPayments = omitPurgedEntities(next.supplierPayments ?? [], "supplier_payment", purged);
   }
+
+  // v15: quotation line items + smart calculator rollups
+  next.quotations = (next.quotations ?? []).map((q) => {
+    const lines = ensureQuotationLines(q);
+    const rollup = rollupQuotationLines(lines);
+    return {
+      ...q,
+      ...rollup,
+      lines,
+    };
+  });
+  next.version = Math.max(next.version ?? 0, 15);
 
   syncSessionIdentity(next);
   lockWorkspaceToOwner(next);

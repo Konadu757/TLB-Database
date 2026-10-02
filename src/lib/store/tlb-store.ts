@@ -33,6 +33,10 @@ import {
 
 export { buildInviteLink, isInvitePending } from "../domain/invites";
 import { isSoftDeleted } from "../domain/trash";
+import {
+  buildQuotationLines,
+  rollupQuotationLines,
+} from "../domain/quotation-calc";
 import type {
   AppRole,
   AppUser,
@@ -438,15 +442,77 @@ export function upsertSupplier(
   return { ok: true, data: { state: next, data: supplier } };
 }
 
+type QuotationLineDraft = {
+  id?: string;
+  itemLabel: string;
+  qty: number;
+  unitPrice: number;
+  note?: string;
+};
+
+function resolveQuotationLines(
+  input: {
+    lines?: QuotationLineDraft[];
+    itemLabel?: string;
+    qty?: number;
+    unitPrice?: number;
+  },
+  quotationId: string,
+): { ok: true; lines: ReturnType<typeof buildQuotationLines> } | { ok: false; error: string } {
+  const drafts: QuotationLineDraft[] =
+    input.lines && input.lines.length > 0
+      ? input.lines
+      : input.itemLabel != null
+        ? [
+            {
+              itemLabel: input.itemLabel,
+              qty: Number(input.qty),
+              unitPrice: Number(input.unitPrice),
+            },
+          ]
+        : [];
+
+  if (drafts.length === 0) {
+    return { ok: false, error: "Add at least one line item." };
+  }
+
+  for (const [i, draft] of drafts.entries()) {
+    const label = draft.itemLabel.trim();
+    if (!label) {
+      return { ok: false, error: `Line ${i + 1}: item / description is required.` };
+    }
+    if (!Number.isFinite(draft.qty) || draft.qty <= 0) {
+      return { ok: false, error: `Line ${i + 1}: quantity must be greater than zero.` };
+    }
+    if (!Number.isFinite(draft.unitPrice) || draft.unitPrice < 0) {
+      return { ok: false, error: `Line ${i + 1}: unit price must be zero or greater.` };
+    }
+  }
+
+  const lines = buildQuotationLines(
+    drafts.map((d, i) => ({
+      id: d.id?.trim() || `${quotationId}-line-${i + 1}`,
+      itemLabel: d.itemLabel,
+      qty: d.qty,
+      unitPrice: d.unitPrice,
+      ...(d.note?.trim() ? { note: d.note.trim() } : {}),
+    })),
+  );
+  return { ok: true, lines };
+}
+
 export function createQuotation(
   state: TlbState,
   input: {
     customerId?: string;
     customerName: string;
     contact?: string;
-    itemLabel: string;
-    qty: number;
-    unitPrice: number;
+    /** Preferred: one or more calculated line items. */
+    lines?: QuotationLineDraft[];
+    /** Legacy single-line fields (still accepted). */
+    itemLabel?: string;
+    qty?: number;
+    unitPrice?: number;
     paymentTerms?: string;
     notes?: string;
     validDays?: number;
@@ -458,15 +524,7 @@ export function createQuotation(
   if (blocked) return { ok: false, error: blocked };
 
   const customerName = input.customerName.trim();
-  const itemLabel = input.itemLabel.trim();
   if (!customerName) return { ok: false, error: "Customer name is required." };
-  if (!itemLabel) return { ok: false, error: "Item / description is required." };
-  if (!Number.isFinite(input.qty) || input.qty <= 0) {
-    return { ok: false, error: "Quantity must be greater than zero." };
-  }
-  if (!Number.isFinite(input.unitPrice) || input.unitPrice < 0) {
-    return { ok: false, error: "Unit price must be zero or greater." };
-  }
 
   const next = cloneState(state);
   const numbered = nextDocumentNumber("quotation", next.counters);
@@ -478,11 +536,15 @@ export function createQuotation(
     return { ok: false, error: `Quote number ${numbered.number} already exists.` };
   }
 
+  const quotationId = uid("qt");
+  const resolved = resolveQuotationLines(input, quotationId);
+  if (!resolved.ok) return { ok: false, error: resolved.error };
+  const rollup = rollupQuotationLines(resolved.lines);
+
   const now = new Date();
   const quoteDate = now.toISOString();
   const validDays = input.validDays && input.validDays > 0 ? input.validDays : 14;
   const validUntil = new Date(now.getTime() + validDays * 24 * 60 * 60 * 1000).toISOString();
-  const amount = Math.round(input.qty * input.unitPrice * 100) / 100;
 
   // Honour linked customer tax-exempt flag when creating.
   const linkedCustomer = input.customerId
@@ -491,13 +553,14 @@ export function createQuotation(
   const taxExempt = Boolean(input.taxExempt || linkedCustomer?.taxExempt);
 
   const quotation: Quotation = {
-    id: uid("qt"),
+    id: quotationId,
     number: numbered.number,
     customerName,
-    itemLabel,
-    qty: input.qty,
-    unitPrice: input.unitPrice,
-    amount,
+    itemLabel: rollup.itemLabel,
+    qty: rollup.qty,
+    unitPrice: rollup.unitPrice,
+    amount: rollup.amount,
+    lines: resolved.lines,
     paymentTerms: input.paymentTerms?.trim() || "Net 30",
     status: input.status ?? "Draft",
     quoteDate,
@@ -527,9 +590,10 @@ export function updateQuotation(
     customerId?: string;
     customerName: string;
     contact?: string;
-    itemLabel: string;
-    qty: number;
-    unitPrice: number;
+    lines?: QuotationLineDraft[];
+    itemLabel?: string;
+    qty?: number;
+    unitPrice?: number;
     paymentTerms?: string;
     notes?: string;
     status?: "Draft" | "Sent";
@@ -541,36 +605,38 @@ export function updateQuotation(
   if (blocked) return { ok: false, error: blocked };
 
   const customerName = input.customerName.trim();
-  const itemLabel = input.itemLabel.trim();
   if (!customerName) return { ok: false, error: "Customer name is required." };
-  if (!itemLabel) return { ok: false, error: "Item / description is required." };
-  if (!Number.isFinite(input.qty) || input.qty <= 0) {
-    return { ok: false, error: "Quantity must be greater than zero." };
-  }
-  if (!Number.isFinite(input.unitPrice) || input.unitPrice < 0) {
-    return { ok: false, error: "Unit price must be zero or greater." };
-  }
+
+  const resolved = resolveQuotationLines(input, quotationId);
+  if (!resolved.ok) return { ok: false, error: resolved.error };
+  const rollup = rollupQuotationLines(resolved.lines);
 
   const next = cloneState(state);
   const idx = next.quotations.findIndex((q) => q.id === quotationId);
   if (idx < 0) return { ok: false, error: "Quotation not found." };
   const existing = next.quotations[idx]!;
-  const amount = Math.round(input.qty * input.unitPrice * 100) / 100;
   const updated: Quotation = {
     ...existing,
     customerName,
-    itemLabel,
-    qty: input.qty,
-    unitPrice: input.unitPrice,
-    amount,
+    itemLabel: rollup.itemLabel,
+    qty: rollup.qty,
+    unitPrice: rollup.unitPrice,
+    amount: rollup.amount,
+    lines: resolved.lines,
     paymentTerms: input.paymentTerms?.trim() || existing.paymentTerms || "Net 30",
     status: input.status ?? existing.status,
-    taxExempt: input.taxExempt ? true : undefined,
     ...(input.validUntil ? { validUntil: input.validUntil } : {}),
-    ...(input.customerId ? { customerId: input.customerId } : { customerId: undefined }),
-    ...(input.contact?.trim() ? { contact: input.contact.trim() } : { contact: undefined }),
-    ...(input.notes?.trim() ? { notes: input.notes.trim() } : { notes: undefined }),
   };
+  if (input.taxExempt) updated.taxExempt = true;
+  else delete updated.taxExempt;
+  if (input.customerId) updated.customerId = input.customerId;
+  else delete updated.customerId;
+  const contact = input.contact?.trim();
+  if (contact) updated.contact = contact;
+  else delete updated.contact;
+  const notes = input.notes?.trim();
+  if (notes) updated.notes = notes;
+  else delete updated.notes;
   next.quotations[idx] = updated;
   pushAudit(next, {
     action: "quotation.updated",

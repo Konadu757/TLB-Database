@@ -2364,6 +2364,56 @@ button.tlb-user-action:focus-visible {
   .tlb-customer-detail-actions { width: 100%; justify-content: flex-start; }
 }
 .tlb-line-editor { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 10px; border: 0; border-radius: 16px; background: #f6f4fc; box-shadow: 0 4px 14px color-mix(in oklab, #6420d0 6%, transparent); }
+
+.tlb-quote-lines { display: flex; flex-direction: column; gap: 12px; }
+.tlb-quote-lines-hint { margin: 0; font-size: 0.8125rem; color: color-mix(in oklab, #1f1630 62%, transparent); }
+.tlb-quote-line-editor { grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr)) minmax(0, 1.2fr) auto; align-items: end; }
+.tlb-quote-line-editor .tlb-calc-readonly {
+  background: color-mix(in oklab, #F9CD5B 22%, #fff);
+  border: 1px solid color-mix(in oklab, #F9CD5B 55%, #e8e6ef);
+  font-weight: 600;
+  color: #1f1630;
+}
+.tlb-quote-line-remove {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: color-mix(in oklab, #6420d0 8%, #fff);
+  color: #523784;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tlb-quote-line-remove:hover { background: color-mix(in oklab, #6420d0 14%, #fff); }
+.tlb-quote-lines-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.tlb-quote-subtotal {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, color-mix(in oklab, #F9CD5B 38%, #fff), color-mix(in oklab, #523784 8%, #fff));
+  box-shadow: 0 4px 14px color-mix(in oklab, #523784 10%, transparent);
+}
+.tlb-quote-subtotal span { font-size: 0.7rem; letter-spacing: 0.04em; text-transform: uppercase; color: #523784; }
+.tlb-quote-subtotal strong { font-size: 1rem; color: #1f1630; }
+@media (max-width: 900px) {
+  .tlb-quote-line-editor { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 640px) {
+  .tlb-quote-line-editor { grid-template-columns: 1fr; }
+  .tlb-quote-subtotal { align-items: flex-start; width: 100%; }
+}
+
 .tlb-qty-input { width: 72px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 8px; font-size: 0.8125rem; }
 .tlb-inline-actions { display: flex; gap: 8px; align-items: center; padding: 12px 17px 16px; flex-wrap: wrap; }
 .tlb-inline-actions input { flex: 1; min-width: 160px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; font-size: 0.8125rem; }

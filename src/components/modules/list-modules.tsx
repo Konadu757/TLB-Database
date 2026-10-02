@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { MODULE_META, recordsForModule, type CatalogRecord } from "@/lib/domain/list-catalog";
 import type { DateRange } from "@/lib/domain/period-range";
 import { calcAvailable } from "@/lib/domain/calculations";
+import { calcLineTotal, calcQuotationSubtotal } from "@/lib/domain/quotation-calc";
 import { catalogDeletionSet, catalogPurgedSet, notSoftDeleted } from "@/lib/domain/trash";
 import type { Quotation } from "@/lib/domain/types";
 import type { TlbStoreApi } from "@/lib/store/use-tlb-store";
@@ -216,15 +217,27 @@ function CatalogModule({
           title: "Line items",
           empty: "No line items on this record.",
           tone: "lines" as const,
-          headers: ["Item", "Qty", "Amount", "Note"],
+          headers:
+            module === "Quotations"
+              ? ["Item", "Quantity", "Unit Price", "Total Amount", "Note"]
+              : ["Item", "Qty", "Amount", "Note"],
           rows: (row.lines ?? []).map((line) => ({
             id: line.id,
-            cells: [
-              <strong key="l">{line.label}</strong>,
-              line.qty ?? "—",
-              line.amount != null ? money(line.amount) : "—",
-              line.note ?? "—",
-            ],
+            cells:
+              module === "Quotations"
+                ? [
+                    <strong key="l">{line.label}</strong>,
+                    line.qty ?? "—",
+                    line.unitPrice != null ? money(line.unitPrice) : "—",
+                    line.amount != null ? money(line.amount) : "—",
+                    line.note ?? "—",
+                  ]
+                : [
+                    <strong key="l">{line.label}</strong>,
+                    line.qty ?? "—",
+                    line.amount != null ? money(line.amount) : "—",
+                    line.note ?? "—",
+                  ],
           })),
         },
         {
@@ -269,6 +282,162 @@ const quotationColumns: BrowserColumn<CatalogRecord>[] = [
   },
 ];
 
+
+type DraftQuoteLine = {
+  key: string;
+  itemLabel: string;
+  qty: string;
+  unitPrice: string;
+  note: string;
+};
+
+function newDraftQuoteLine(): DraftQuoteLine {
+  return {
+    key: `d-${Math.random().toString(36).slice(2, 9)}`,
+    itemLabel: "",
+    qty: "1",
+    unitPrice: "0",
+    note: "",
+  };
+}
+
+function draftLinesFromQuotation(q: Quotation): DraftQuoteLine[] {
+  const source =
+    q.lines && q.lines.length > 0
+      ? q.lines
+      : [
+          {
+            id: `${q.id}-line`,
+            itemLabel: q.itemLabel,
+            qty: q.qty,
+            unitPrice: q.unitPrice,
+            amount: q.amount,
+          },
+        ];
+  return source.map((l, i) => ({
+    key: l.id || `d-${i}`,
+    itemLabel: l.itemLabel,
+    qty: String(l.qty),
+    unitPrice: String(l.unitPrice),
+    note: l.note ?? "",
+  }));
+}
+
+function QuotationLinesEditor({
+  lines,
+  onChange,
+}: {
+  lines: DraftQuoteLine[];
+  onChange: (lines: DraftQuoteLine[]) => void;
+}) {
+  const quoteTotal = calcQuotationSubtotal(
+    lines.map((l) => ({
+      qty: Number(l.qty) || 0,
+      unitPrice: Number(l.unitPrice) || 0,
+    })),
+  );
+
+  return (
+    <div className="tlb-span-2 tlb-quote-lines">
+      <div className="tlb-subheading">Line items</div>
+      <p className="tlb-quote-lines-hint">
+        Total Amount updates live as Quantity × Unit Price. Quotation total is the sum of line
+        totals (ex-tax; Settings tax still applies unless exempt).
+      </p>
+      {lines.map((line, index) => {
+        const lineTotal = calcLineTotal(Number(line.qty) || 0, Number(line.unitPrice) || 0);
+        return (
+          <div className="tlb-line-editor tlb-quote-line-editor" key={line.key}>
+            <label>
+              Item
+              <input
+                required
+                value={line.itemLabel}
+                onChange={(e) => {
+                  const next = [...lines];
+                  next[index] = { ...line, itemLabel: e.target.value };
+                  onChange(next);
+                }}
+                placeholder="Product or package"
+              />
+            </label>
+            <label>
+              Quantity
+              <input
+                required
+                type="number"
+                min={0.01}
+                step="any"
+                value={line.qty}
+                onChange={(e) => {
+                  const next = [...lines];
+                  next[index] = { ...line, qty: e.target.value };
+                  onChange(next);
+                }}
+              />
+            </label>
+            <label>
+              Unit Price (GHS)
+              <input
+                required
+                type="number"
+                min={0}
+                step="0.01"
+                value={line.unitPrice}
+                onChange={(e) => {
+                  const next = [...lines];
+                  next[index] = { ...line, unitPrice: e.target.value };
+                  onChange(next);
+                }}
+              />
+            </label>
+            <label>
+              Total Amount
+              <input
+                readOnly
+                className="tlb-calc-readonly"
+                value={money(lineTotal)}
+                tabIndex={-1}
+                aria-label="Calculated total amount"
+              />
+            </label>
+            <label>
+              Note
+              <input
+                value={line.note}
+                onChange={(e) => {
+                  const next = [...lines];
+                  next[index] = { ...line, note: e.target.value };
+                  onChange(next);
+                }}
+                placeholder="Optional"
+              />
+            </label>
+            {lines.length > 1 ? (
+              <button
+                type="button"
+                className="tlb-quote-line-remove"
+                onClick={() => onChange(lines.filter((_, i) => i !== index))}
+              >
+                Remove
+              </button>
+            ) : null}
+          </div>
+        );
+      })}
+      <div className="tlb-quote-lines-footer">
+        <Button type="button" variant="outline" onClick={() => onChange([...lines, newDraftQuoteLine()])}>
+          <Plus /> Add line
+        </Button>
+        <div className="tlb-quote-subtotal">
+          <span>Quotation total (ex-tax)</span>
+          <strong>{money(quoteTotal)}</strong>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function QuotationsModule(props: CatalogModuleProps) {
   const store = props.store;
   const startCreating = props.startCreating;
@@ -281,9 +450,7 @@ export function QuotationsModule(props: CatalogModuleProps) {
   const [customerId, setCustomerId] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [contact, setContact] = useState("");
-  const [itemLabel, setItemLabel] = useState("");
-  const [qty, setQty] = useState("1");
-  const [unitPrice, setUnitPrice] = useState("0");
+  const [draftLines, setDraftLines] = useState<DraftQuoteLine[]>([newDraftQuoteLine()]);
   const [paymentTerms, setPaymentTerms] = useState("Net 30");
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState<"Draft" | "Sent">("Draft");
@@ -293,11 +460,17 @@ export function QuotationsModule(props: CatalogModuleProps) {
   const editingQuote =
     editing && selectedId && store ? store.state.quotations.find((q) => q.id === selectedId) : null;
 
+  const resetDraftLines = useCallback(() => setDraftLines([newDraftQuoteLine()]), []);
+
   const openCreate = useCallback(() => {
     setSelectedId(null);
     setEditing(false);
     setCreating(true);
     onCreatingChange?.(true);
+    resetDraftLines();
+    setNotes("");
+    setStatus("Draft");
+    setTaxExempt(false);
     if (store) {
       const next = (store.state.counters.quotation ?? 0) + 1;
       const now = new Date();
@@ -310,13 +483,15 @@ export function QuotationsModule(props: CatalogModuleProps) {
         setCustomerName(first.name);
         setContact([first.contactName, first.email].filter(Boolean).join(" · "));
         setPaymentTerms(first.paymentTerms || "Net 30");
+        setTaxExempt(Boolean(first.taxExempt));
       } else {
         setCustomerId("");
         setCustomerName("");
         setContact("");
+        setPaymentTerms("Net 30");
       }
     }
-  }, [onCreatingChange, store]);
+  }, [onCreatingChange, resetDraftLines, store]);
 
   const closeCreate = useCallback(() => {
     setCreating(false);
@@ -335,6 +510,14 @@ export function QuotationsModule(props: CatalogModuleProps) {
 
   const customers = store ? notSoftDeleted(store.state.customers).filter((c) => c.active) : [];
 
+  const buildLinesPayload = () =>
+    draftLines.map((l) => ({
+      itemLabel: l.itemLabel,
+      qty: Number(l.qty),
+      unitPrice: Number(l.unitPrice),
+      ...(l.note.trim() ? { note: l.note.trim() } : {}),
+    }));
+
   if (editingQuote && store) {
     return (
       <RecordDetailPage
@@ -352,9 +535,7 @@ export function QuotationsModule(props: CatalogModuleProps) {
               e.preventDefault();
               const ok = store.updateQuotation(editingQuote.id, {
                 customerName,
-                itemLabel,
-                qty: Number(qty),
-                unitPrice: Number(unitPrice),
+                lines: buildLinesPayload(),
                 paymentTerms,
                 status,
                 taxExempt,
@@ -389,6 +570,7 @@ export function QuotationsModule(props: CatalogModuleProps) {
                     setCustomerName(c.name);
                     setContact([c.contactName, c.email].filter(Boolean).join(" · "));
                     setPaymentTerms(c.paymentTerms || "Net 30");
+                    setTaxExempt(Boolean(c.taxExempt));
                   }
                 }}
               >
@@ -436,32 +618,7 @@ export function QuotationsModule(props: CatalogModuleProps) {
                 <option value="yes">Yes — quote ex-tax</option>
               </select>
             </label>
-            <label className="tlb-span-2">
-              Item / description
-              <input required value={itemLabel} onChange={(e) => setItemLabel(e.target.value)} />
-            </label>
-            <label>
-              Qty
-              <input
-                required
-                type="number"
-                min={0.01}
-                step="any"
-                value={qty}
-                onChange={(e) => setQty(e.target.value)}
-              />
-            </label>
-            <label>
-              Unit price (GHS)
-              <input
-                required
-                type="number"
-                min={0}
-                step="0.01"
-                value={unitPrice}
-                onChange={(e) => setUnitPrice(e.target.value)}
-              />
-            </label>
+            <QuotationLinesEditor lines={draftLines} onChange={setDraftLines} />
             <label className="tlb-span-2">
               Notes
               <input value={notes} onChange={(e) => setNotes(e.target.value)} />
@@ -484,9 +641,9 @@ export function QuotationsModule(props: CatalogModuleProps) {
         setSelectedId(null);
         setEditing(false);
       }}
-      detailActions={
-        store
-          ? (row) => {
+      {...(store
+        ? {
+            detailActions: (row: CatalogRecord) => {
               const live = store.state.quotations.find((q) => q.id === row.id);
               return (
                 <>
@@ -498,9 +655,7 @@ export function QuotationsModule(props: CatalogModuleProps) {
                         setCustomerId(live.customerId ?? "");
                         setCustomerName(live.customerName);
                         setContact(live.contact ?? "");
-                        setItemLabel(live.itemLabel);
-                        setQty(String(live.qty));
-                        setUnitPrice(String(live.unitPrice));
+                        setDraftLines(draftLinesFromQuotation(live));
                         setPaymentTerms(live.paymentTerms);
                         setNotes(live.notes ?? "");
                         setStatus(live.status);
@@ -523,9 +678,9 @@ export function QuotationsModule(props: CatalogModuleProps) {
                   />
                 </>
               );
-            }
-          : undefined
-      }
+            },
+          }
+        : {})}
       listColumns={quotationColumns}
       {...(props.range !== undefined ? { range: props.range } : {})}
       {...(props.periodLabel !== undefined ? { periodLabel: props.periodLabel } : {})}
@@ -551,9 +706,7 @@ export function QuotationsModule(props: CatalogModuleProps) {
                 e.preventDefault();
                 const ok = store.createQuotation({
                   customerName,
-                  itemLabel,
-                  qty: Number(qty),
-                  unitPrice: Number(unitPrice),
+                  lines: buildLinesPayload(),
                   paymentTerms,
                   taxExempt,
                   ...(customerId ? { customerId } : {}),
@@ -561,9 +714,7 @@ export function QuotationsModule(props: CatalogModuleProps) {
                   ...(notes.trim() ? { notes: notes.trim() } : {}),
                 });
                 if (ok) {
-                  setItemLabel("");
-                  setQty("1");
-                  setUnitPrice("0");
+                  resetDraftLines();
                   setNotes("");
                   setTaxExempt(false);
                   setSelectedId(null);
@@ -575,7 +726,7 @@ export function QuotationsModule(props: CatalogModuleProps) {
               <div className="tlb-panel-heading">
                 <div>
                   <span>Commercial quotation</span>
-                  <strong>New quotation{previewNumber ? ` · ${previewNumber}` : ""}</strong>
+                  <strong>New quotation{previewNumber ? ` - ${previewNumber}` : ""}</strong>
                 </div>
                 <button type="button" onClick={closeCreate}>
                   Cancel
@@ -629,37 +780,6 @@ export function QuotationsModule(props: CatalogModuleProps) {
                 Payment terms
                 <input value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} />
               </label>
-              <label className="tlb-span-2">
-                Item / description
-                <input
-                  required
-                  value={itemLabel}
-                  onChange={(e) => setItemLabel(e.target.value)}
-                  placeholder="Product or package being quoted"
-                />
-              </label>
-              <label>
-                Qty
-                <input
-                  required
-                  type="number"
-                  min={0.01}
-                  step="any"
-                  value={qty}
-                  onChange={(e) => setQty(e.target.value)}
-                />
-              </label>
-              <label>
-                Unit price (GHS)
-                <input
-                  required
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={unitPrice}
-                  onChange={(e) => setUnitPrice(e.target.value)}
-                />
-              </label>
               <label>
                 Tax exempt
                 <select
@@ -670,6 +790,7 @@ export function QuotationsModule(props: CatalogModuleProps) {
                   <option value="yes">Yes — quote ex-tax</option>
                 </select>
               </label>
+              <QuotationLinesEditor lines={draftLines} onChange={setDraftLines} />
               <label className="tlb-span-2">
                 Notes
                 <input
@@ -688,6 +809,7 @@ export function QuotationsModule(props: CatalogModuleProps) {
     />
   );
 }
+
 
 const batchColumns: BrowserColumn<CatalogRecord>[] = [
   {

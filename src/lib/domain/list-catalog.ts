@@ -15,6 +15,7 @@ export interface CatalogLine {
   id: string;
   label: string;
   qty?: number;
+  unitPrice?: number;
   amount?: number;
   note?: string;
 }
@@ -66,23 +67,59 @@ export function quotationToCatalogRecord(q: {
   contact?: string;
   itemLabel: string;
   qty: number;
+  unitPrice?: number;
   amount: number;
+  lines?: Array<{
+    id: string;
+    itemLabel: string;
+    qty: number;
+    unitPrice: number;
+    amount: number;
+    note?: string;
+  }>;
   paymentTerms: string;
   notes?: string;
   status: string;
   quoteDate: string;
   validUntil: string;
   preparedBy: string;
+  taxExempt?: boolean;
 }): CatalogRecord {
+  const catalogLines: CatalogLine[] =
+    q.lines && q.lines.length > 0
+      ? q.lines.map((l) => ({
+          id: l.id,
+          label: l.itemLabel,
+          qty: l.qty,
+          unitPrice: l.unitPrice,
+          amount: l.amount,
+          ...(l.note ? { note: l.note } : {}),
+        }))
+      : [
+          {
+            id: `${q.id}-line`,
+            label: q.itemLabel,
+            qty: q.qty,
+            unitPrice: q.unitPrice ?? (q.qty > 0 ? Math.round((q.amount / q.qty) * 100) / 100 : 0),
+            amount: q.amount,
+          },
+        ];
+  const lineTotal = catalogLines.reduce((s, l) => s + (l.amount ?? 0), 0);
+  const total = q.amount || lineTotal;
+  const secondaryItem =
+    catalogLines.length > 1
+      ? `${catalogLines[0]?.label ?? q.itemLabel} +${catalogLines.length - 1} more`
+      : (catalogLines[0]?.label ?? q.itemLabel);
+
   return {
     id: q.id,
     module: "Quotations",
     primary: q.number,
-    secondary: `${q.customerName} · ${q.itemLabel}`,
+    secondary: `${q.customerName} · ${secondaryItem}`,
     status: q.status,
     tone: q.status === "Draft" ? "warning" : q.status === "Sent" ? "info" : "neutral",
     date: q.quoteDate,
-    searchText: `${q.number} ${q.customerName} ${q.itemLabel} ${q.status} ${q.contact ?? ""}`,
+    searchText: `${q.number} ${q.customerName} ${q.itemLabel} ${catalogLines.map((l) => l.label).join(" ")} ${q.status} ${q.contact ?? ""}`,
     fields: [
       { label: "Customer", value: q.customerName },
       ...(q.contact ? [{ label: "Contact", value: q.contact }] : []),
@@ -90,15 +127,20 @@ export function quotationToCatalogRecord(q: {
       { label: "Valid until", value: formatQuoteDate(q.validUntil) },
       { label: "Prepared by", value: q.preparedBy },
       { label: "Payment terms", value: q.paymentTerms },
+      ...(q.taxExempt ? [{ label: "Tax", value: "Exempt (ex-tax)" }] : []),
       ...(q.notes ? [{ label: "Notes", value: q.notes }] : []),
     ],
     summary: [
-      { label: "Total", value: money(q.amount), note: "ex-tax (Settings)" },
-      { label: "Lines", value: "1" },
+      {
+        label: "Total",
+        value: money(total),
+        note: q.taxExempt ? "ex-tax (exempt)" : "ex-tax (Settings)",
+      },
+      { label: "Lines", value: String(catalogLines.length) },
       { label: "Status", value: q.status },
       { label: "Quote #", value: q.number },
     ],
-    lines: [{ id: `${q.id}-line`, label: q.itemLabel, qty: q.qty, amount: q.amount }],
+    lines: catalogLines,
     history: [
       {
         id: `${q.id}-created`,
@@ -140,7 +182,7 @@ export const QUOTATION_RECORDS: CatalogRecord[] = [
       {
         id: "qtl-1",
         label: "Hydrochloric Acid 32%",
-        qty: 6,
+        qty: 6, unitPrice: 640,
         amount: 3840,
         note: "CHEM-001 · drums",
       },
@@ -175,7 +217,7 @@ export const QUOTATION_RECORDS: CatalogRecord[] = [
       { label: "Age", value: "1d" },
     ],
     lines: [
-      { id: "qtl-2", label: "Ethanol 96%", qty: 12, amount: 15000, note: "CHEM-014 · drums" },
+      { id: "qtl-2", label: "Ethanol 96%", qty: 12, unitPrice: 1250, amount: 15000, note: "CHEM-014 · drums" },
     ],
     history: [{ id: "qth-3", at: THIS_WEEK, label: "Created", detail: "Draft quotation opened" }],
   },
@@ -204,8 +246,8 @@ export const QUOTATION_RECORDS: CatalogRecord[] = [
       { label: "Age", value: "7d" },
     ],
     lines: [
-      { id: "qtl-3", label: "Chemical A", qty: 4, amount: 7400, note: "CHEM-A" },
-      { id: "qtl-4", label: "Chemical B", qty: 10, amount: 9200, note: "CHEM-B" },
+      { id: "qtl-3", label: "Chemical A", qty: 4, unitPrice: 1850, amount: 7400, note: "CHEM-A" },
+      { id: "qtl-4", label: "Chemical B", qty: 10, unitPrice: 920, amount: 9200, note: "CHEM-B" },
     ],
     history: [
       { id: "qth-4", at: THIS_MONTH, label: "Accepted", detail: "Customer signed commercially" },
@@ -237,7 +279,7 @@ export const QUOTATION_RECORDS: CatalogRecord[] = [
       { label: "Age", value: "26d" },
     ],
     lines: [
-      { id: "qtl-5", label: "Hydrochloric Acid 32%", qty: 40, amount: 25600, note: "CHEM-001" },
+      { id: "qtl-5", label: "Hydrochloric Acid 32%", qty: 40, unitPrice: 640, amount: 25600, note: "CHEM-001" },
     ],
     history: [
       { id: "qth-6", at: THIS_QUARTER, label: "Converted", detail: "Linked to TLB-ORD-2608-00104" },
@@ -268,7 +310,7 @@ export const QUOTATION_RECORDS: CatalogRecord[] = [
       { label: "Status", value: "Expired" },
       { label: "Age", value: "175d" },
     ],
-    lines: [{ id: "qtl-6", label: "Ethanol 96%", qty: 30, amount: 37500, note: "CHEM-014" }],
+    lines: [{ id: "qtl-6", label: "Ethanol 96%", qty: 30, unitPrice: 1250, amount: 37500, note: "CHEM-014" }],
     history: [{ id: "qth-8", at: THIS_YEAR, label: "Expired", detail: "Validity window closed" }],
   },
 ];

@@ -23,7 +23,7 @@ const THIS_YEAR = "2026-03-18T10:00:00.000Z";
 export function createSeedState(): TlbState {
   const roles = createSystemRoles();
   return {
-    version: 14,
+    version: 15,
     currentUserId: OWNER_USER_ID,
     currentUser: OWNER_DISPLAY_NAME,
     currentRoleId: SYSTEM_ROLE_IDS.Owner,

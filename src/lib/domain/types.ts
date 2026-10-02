@@ -1322,6 +1322,17 @@ export interface OpsActionItem {
   nav: string;
 }
 
+/** One commercial line on a quotation (qty × unitPrice = amount). */
+export interface QuotationLine {
+  id: string;
+  itemLabel: string;
+  qty: number;
+  unitPrice: number;
+  /** Line total = qty × unitPrice (ex-tax). Always calculated — never typed by hand. */
+  amount: number;
+  note?: string;
+}
+
 /** User-created commercial quotations (unique TLB-QTE numbers). */
 export interface Quotation extends SoftDeleteFields {
   id: string;
@@ -1329,11 +1340,19 @@ export interface Quotation extends SoftDeleteFields {
   customerId?: string;
   customerName: string;
   contact?: string;
+  /** Denormalized from first line — list/search convenience. */
   itemLabel: string;
+  /** Denormalized from first line. */
   qty: number;
+  /** Denormalized from first line. */
   unitPrice: number;
-  /** Base amount (ex-tax). Estimated tax uses Settings when displayed. */
+  /**
+   * Quotation subtotal = sum of line amounts (ex-tax).
+   * Estimated tax uses Settings when displayed; taxExempt skips that estimate.
+   */
   amount: number;
+  /** Related line items (Item / Quantity / Unit Price / Total Amount / Note). */
+  lines: QuotationLine[];
   paymentTerms: string;
   notes?: string;
   /** Skip estimated tax for this quotation when Settings would otherwise apply. */
