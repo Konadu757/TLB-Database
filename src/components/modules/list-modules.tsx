@@ -356,11 +356,14 @@ export function QuotationsModule(props: CatalogModuleProps) {
                 paymentTerms,
                 status,
                 taxExempt,
+                contact: contact.trim(),
+                notes: notes.trim(),
                 ...(customerId ? { customerId } : {}),
-                ...(contact.trim() ? { contact: contact.trim() } : {}),
-                ...(notes.trim() ? { notes: notes.trim() } : {}),
               });
-              if (ok) setEditing(false);
+              if (ok) {
+                setEditing(false);
+                setSelectedId(editingQuote.id);
+              }
             }}
           >
             <div className="tlb-panel-heading">

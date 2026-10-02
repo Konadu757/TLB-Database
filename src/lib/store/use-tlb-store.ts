@@ -35,6 +35,7 @@ import {
   createOrdinaryReceipt,
   createReceiptFromSupply,
   createQuotation,
+  updateQuotation,
   createRole,
   createSupply,
   deleteRole,
@@ -669,6 +670,10 @@ export function useTlbStore() {
       apply((s) => createCustomerOrder(s, input), "Customer order created."),
     createQuotation: (input: Parameters<typeof createQuotation>[1]) =>
       apply((s) => createQuotation(s, input), "Quotation created."),
+    updateQuotation: (
+      quotationId: string,
+      input: Parameters<typeof updateQuotation>[2],
+    ) => apply((s) => updateQuotation(s, quotationId, input), "Quotation updated."),
     confirmOrder: (orderId: string, creditOverrideReason?: string) =>
       apply((s) => confirmCustomerOrder(s, orderId, creditOverrideReason), "Order confirmed."),
     cancelLine: (lineId: string, reason: string) =>
