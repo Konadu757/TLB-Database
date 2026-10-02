@@ -784,7 +784,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
 .tlb-history-copy strong { display: block; font-size: 1rem; }
 .tlb-history-copy p { margin: 6px 0 0; color: var(--muted-foreground); font-size: 0.8125rem; max-width: 72ch; line-height: 1.45; }
 .tlb-history-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
-.tlb-history-controls > button:not(.tlb-history-card) { height: 34px; padding: 0 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--cream); color: var(--foreground); font-size: 0.8125rem; font-weight: 600; }
+.tlb-history-controls > button:not(.tlb-history-card) { height: 34px; padding: 0 14px; border: 1px solid var(--border); border-radius: 999px; background: var(--cream); color: var(--foreground); font-size: 0.8125rem; font-weight: 600; }
 .tlb-history-controls > button:not(.tlb-history-card).active { border-color: var(--primary); background: var(--secondary); color: var(--primary); }
 .tlb-history-controls label:not(.tlb-history-card) { display: grid; gap: 4px; font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; color: var(--muted-foreground); }
 .tlb-history-controls input[type="date"] { height: 34px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: #ffffff; color: var(--foreground); font-size: 0.8125rem; }
@@ -793,7 +793,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; bac
   gap: 4px;
   padding: 8px 12px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 999px;
   font-size: 0.6875rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -1916,7 +1916,7 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
 }
 .tlb-role-menu button {
   width: 100%; min-height: 40px; display: flex; align-items: center; padding: 8px 14px;
-  border: 0; border-radius: 12px; background: transparent; color: #1f1630;
+  border: 0; border-radius: 999px; background: transparent; color: #1f1630;
   font-family: inherit; font-size: 0.875rem; font-weight: 600; letter-spacing: -0.01em; line-height: 1.25;
   text-align: left; text-transform: none; cursor: pointer;
   transition: background-color 180ms ease, color 180ms ease, transform 120ms ease;
@@ -1968,7 +1968,7 @@ table.tlb-table tbody tr:nth-child(even):not(:hover):not(.tlb-row-active):not(.t
 /* Beat .tlb-orders-panel td:last-child button so Settings Edit/Delete keep brand colors */
 .tlb-orders-panel td:last-child button.tlb-user-action,
 button.tlb-user-action {
-  border: 0; border-radius: 4px; padding: 4px 10px; font-size: 0.75rem; font-weight: 700;
+  border: 0; border-radius: 999px; padding: 4px 12px; font-size: 0.75rem; font-weight: 700;
   line-height: 1.2; cursor: pointer; color: #fff;
 }
 .tlb-orders-panel td:last-child button.tlb-user-action--edit,
@@ -2121,20 +2121,21 @@ button.tlb-user-action:focus-visible {
 }
 .tlb-record-detail-header .tlb-text-link,
 .tlb-customer-detail-header .tlb-text-link { color: #6420d0; }
-/* Sticky back row ? always under floating .tlb-header. Period filter is hidden on detail. */
+/* Sticky back control — standalone pill, no full-width white toolbar strip. */
 .tlb-record-back-bar {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
+  width: fit-content;
+  max-width: 100%;
   margin: 0 0 12px;
-  padding: 10px 12px;
+  padding: 0;
   position: sticky;
   top: calc(var(--tlb-chrome-gap) + var(--tlb-header-h));
   z-index: 55;
-  background: #ffffff;
+  background: transparent;
   border: 0;
-  border-radius: 22px;
-  box-shadow: 0 6px 22px color-mix(in oklab, #6420d0 7%, transparent);
+  border-radius: 0;
+  box-shadow: none;
 }
 .tlb-content:has(> .tlb-filter-bar) .tlb-record-back-bar {
   top: calc(var(--tlb-chrome-gap) + var(--tlb-header-h)); /* filter is hidden on detail; keep under header */
@@ -2147,7 +2148,7 @@ button.tlb-user-action:focus-visible {
   min-height: 40px;
   width: fit-content;
   border: 2px solid var(--primary);
-  border-radius: 8px;
+  border-radius: 999px;
   background: var(--primary);
   color: var(--primary-foreground);
   font-size: 13px;
@@ -2463,7 +2464,7 @@ button.tlb-user-action:focus-visible {
 }
 .tlb-sign-out-dialog .tlb-sign-out-cancel {
   border: 0;
-  border-radius: 12px;
+  border-radius: 999px;
   background: color-mix(in oklab, #6420d0 7%, #f6f4fc);
   color: color-mix(in oklab, #1f1630 72%, #6420d0);
   box-shadow: none;
@@ -2476,7 +2477,7 @@ button.tlb-user-action:focus-visible {
 }
 .tlb-sign-out-dialog .tlb-sign-out-confirm {
   border: 0;
-  border-radius: 12px;
+  border-radius: 999px;
   background: var(--danger);
   color: #fff;
   box-shadow: 0 1px 2px color-mix(in oklab, #1f1630 10%, transparent);
@@ -2705,12 +2706,11 @@ button.tlb-user-action:focus-visible {
     height: 36px;
     min-width: 36px;
   }
-  /* Smaller back controls — still ≥36px hit, visually lighter than desktop. */
+  /* Smaller standalone back pill — still ≥36px hit, no white bar chrome. */
   .tlb-record-back-bar {
     margin-bottom: 10px;
-    padding: 6px 8px;
-    border-radius: 14px;
-    gap: 8px;
+    padding: 0;
+    border-radius: 0;
     top: calc(var(--tlb-chrome-top) + var(--tlb-header-h));
   }
   .tlb-record-back,
@@ -2718,11 +2718,11 @@ button.tlb-user-action:focus-visible {
     min-height: 36px;
     height: auto;
     gap: 5px;
-    padding: 5px 11px;
+    padding: 5px 12px;
     font-size: 0.75rem;
     font-weight: 700;
     border-width: 1.5px;
-    border-radius: 7px;
+    border-radius: 999px;
     box-shadow: 0 1px 2px color-mix(in oklab, var(--primary) 28%, transparent);
   }
   .tlb-record-back span[aria-hidden="true"] {
@@ -3176,7 +3176,7 @@ button.tlb-user-action:focus-visible {
   gap: 12px;
   padding: 7px 8px;
   border: 0;
-  border-radius: 12px;
+  border-radius: 999px;
   background: transparent;
   color: #1f1630;
   font-family: inherit;
@@ -3316,7 +3316,7 @@ button.tlb-user-action:focus-visible {
   align-items: center;
   padding: 8px 14px;
   border: 0;
-  border-radius: 12px;
+  border-radius: 999px;
   background: transparent;
   color: #1f1630;
   font-family: inherit;
@@ -3398,7 +3398,7 @@ button.tlb-user-action:focus-visible {
   gap: 11px;
   padding: 8px 14px;
   border: 0;
-  border-radius: 12px;
+  border-radius: 999px;
   background: transparent;
   color: #1f1630;
   font-family: var(--font-sans);
@@ -3572,7 +3572,7 @@ button.tlb-user-action:focus-visible {
   margin: 0;
   padding: 10px 12px;
   border: 0;
-  border-radius: 12px;
+  border-radius: 999px;
   background: transparent;
   color: #1f1630;
   font-family: inherit;
@@ -3665,7 +3665,7 @@ button.tlb-user-action:focus-visible {
   margin-top: 2px;
   padding: 8px 14px;
   border: 0;
-  border-radius: 12px;
+  border-radius: 999px;
   background: transparent;
   color: var(--tlb-purple);
   font-family: inherit;
@@ -3752,7 +3752,7 @@ button.tlb-user-action:focus-visible {
   gap: 12px;
   padding: 8px 10px;
   border: 0;
-  border-radius: 12px;
+  border-radius: 999px;
   background: transparent;
   color: #1f1630;
   font-family: var(--font-sans);
@@ -4048,7 +4048,7 @@ button.tlb-user-action:focus-visible {
   min-height: 44px;
   padding: 0 18px;
   border: 0;
-  border-radius: 12px;
+  border-radius: 999px;
   background: #6420d0;
   color: #fff;
   font-family: var(--font-sans);
@@ -4266,10 +4266,11 @@ button.tlb-user-action:focus-visible {
 .tlb-access-secondary {
   width: 100%;
   min-height: 44px;
+  border-radius: 999px;
 }
 .tlb-access-primary {
   border: 0;
-  border-radius: 12px;
+  border-radius: 999px;
   background: #6420d0;
   color: #fff;
   font-weight: 700;
