@@ -815,6 +815,10 @@ export class SupabaseTlbRepository implements TlbRepository {
   }
 
   async save(state: TlbState): Promise<void> {
+    // Yield so Assign/Re-issue can paint the invitation panel before a large
+    // localStorage JSON.stringify freezes the main thread.
+    await Promise.resolve();
+
     saveLocalOnly(pickLocalOnly(state));
     saveProductExtras(state.products);
     saveStockExtras(state.stock);

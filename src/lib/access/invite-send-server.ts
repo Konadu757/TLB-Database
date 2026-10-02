@@ -20,10 +20,17 @@ export { looksLikePhoneNumber, normalizePhoneDigits, normalizePhoneForSms };
 
 const DEFAULT_ARKESEL_BASE_URL = "https://sms.arkesel.com";
 const DEFAULT_TERMII_BASE_URL = "https://api.ng.termii.com";
-/** Per-provider HTTP budget — fail fast so status chips leave “Sending…” quickly. */
-const PROVIDER_FETCH_TIMEOUT_MS = 5_000;
-/** Cap Arkesel → Termii → Twilio waterfall under a tight wall-clock budget. */
-const SMS_TOTAL_BUDGET_MS = 6_000;
+/** Resend stays snappy — email must not inherit Arkesel latency. */
+const EMAIL_PROVIDER_TIMEOUT_MS = 5_000;
+/**
+ * Arkesel often needs >5s from Vercel (logs: Timed out after 5s while email ok).
+ * SMS-only budget — does not block Assign/Re-issue (UI is fire-and-forget).
+ */
+const SMS_PROVIDER_TIMEOUT_MS = 14_000;
+/** Cap Arkesel → Termii → Twilio waterfall; prefer letting Arkesel finish. */
+const SMS_TOTAL_BUDGET_MS = 16_000;
+/** @deprecated alias — prefer EMAIL_ / SMS_ constants */
+const PROVIDER_FETCH_TIMEOUT_MS = EMAIL_PROVIDER_TIMEOUT_MS;
 const SMS_NOT_CONFIGURED_MESSAGE =
   "SMS is not configured. Set ARKESEL_API_KEY and ARKESEL_SENDER_ID on the host (Vercel), then redeploy. TERMII_* and TWILIO_* remain supported as fallbacks.";
 
@@ -143,7 +150,7 @@ export async function sendInviteEmailWithResend(input: {
     <p>— TLB</p>
   `.trim();
 
-  const timeoutMs = input.timeoutMs ?? PROVIDER_FETCH_TIMEOUT_MS;
+  const timeoutMs = input.timeoutMs ?? EMAIL_PROVIDER_TIMEOUT_MS;
   try {
     const response = await fetchWithTimeout(
       "https://api.resend.com/emails",
@@ -237,7 +244,7 @@ export async function sendInviteSmsWithArkesel(input: {
 
   const baseUrl = (env("ARKESEL_BASE_URL") || DEFAULT_ARKESEL_BASE_URL).replace(/\/+$/, "");
   const url = `${baseUrl}/api/v2/sms/send`;
-  const timeoutMs = input.timeoutMs ?? PROVIDER_FETCH_TIMEOUT_MS;
+  const timeoutMs = input.timeoutMs ?? SMS_PROVIDER_TIMEOUT_MS;
 
   try {
     const response = await fetchWithTimeout(
@@ -369,7 +376,7 @@ export async function sendInviteSmsWithTermii(input: {
   const channelRaw = env("TERMII_CHANNEL").toLowerCase();
   const channel = channelRaw === "generic" ? "generic" : "dnd";
   const url = `${baseUrl}/api/sms/send`;
-  const timeoutMs = input.timeoutMs ?? PROVIDER_FETCH_TIMEOUT_MS;
+  const timeoutMs = input.timeoutMs ?? SMS_PROVIDER_TIMEOUT_MS;
 
   try {
     const response = await fetchWithTimeout(
@@ -465,7 +472,7 @@ export async function sendInviteSmsWithTwilio(input: {
     From: from,
     Body: body,
   });
-  const timeoutMs = input.timeoutMs ?? PROVIDER_FETCH_TIMEOUT_MS;
+  const timeoutMs = input.timeoutMs ?? SMS_PROVIDER_TIMEOUT_MS;
 
   try {
     const response = await fetchWithTimeout(
@@ -509,7 +516,7 @@ export async function sendInviteSmsWithTwilio(input: {
 
 /**
  * Prefer Arkesel when configured; on failure/timeout fall through to Termii then Twilio.
- * Total SMS wall time is capped by SMS_TOTAL_BUDGET_MS so Re-issue stays responsive.
+ * Total SMS wall time is capped by SMS_TOTAL_BUDGET_MS (Assign/Re-issue never await this).
  */
 export async function sendInviteSms(input: {
   to: string;
@@ -553,11 +560,11 @@ export async function sendInviteSms(input: {
 
   for (const attempt of configured) {
     const remaining = SMS_TOTAL_BUDGET_MS - (Date.now() - started);
-    if (remaining < 1_000) {
+    if (remaining < 1_500) {
       errors.push(`${attempt.label} skipped (SMS time budget exhausted)`);
       break;
     }
-    const timeoutMs = Math.min(PROVIDER_FETCH_TIMEOUT_MS, remaining);
+    const timeoutMs = Math.min(SMS_PROVIDER_TIMEOUT_MS, remaining);
     const result = await attempt.send(timeoutMs);
     if (result.ok) return result;
     if ("notConfigured" in result && result.notConfigured) {

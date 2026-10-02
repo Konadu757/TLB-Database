@@ -30,6 +30,7 @@ export class LocalTlbRepository implements TlbRepository {
     return loadState();
   }
   async save(state: TlbState): Promise<void> {
+    await Promise.resolve();
     saveState(state);
   }
 }

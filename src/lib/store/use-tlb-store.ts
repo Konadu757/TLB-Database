@@ -4,7 +4,6 @@ import {
   formatCloudInviteFailureNote,
   initialInviteDelivery,
   looksLikePhoneNumber,
-  tryDeliverInvite,
   trySendInviteEmail,
   trySendInviteSms,
   type InviteDeliveryStatus,
@@ -331,8 +330,8 @@ export function useTlbStore() {
       willPublishCloud,
     });
     const snap = inviteSnapshot(user, delivery);
+    // Paint code/link + chips immediately — never wait on cloud/email/SMS.
     if (snap) setLastInvite(snap);
-    // Show code/link immediately — never block the UI on email/SMS/cloud finishing.
     setNotice(
       "Invitation ready below — copy the code or link now. Email and SMS are sending in the background.",
     );
@@ -340,8 +339,8 @@ export function useTlbStore() {
 
     const phone = user.contact?.trim();
     const willTrySms = Boolean(phone && looksLikePhoneNumber(phone));
-    /** Hard ceiling so Sending… / Saving… never stick if a promise mishandles abort. */
-    const DELIVERY_WATCHDOG_MS = 8_000;
+    /** Must exceed client SMS/deliver budget (~18s) so chips are not false-failed early. */
+    const DELIVERY_WATCHDOG_MS = 20_000;
     let emailSettled = false;
     let smsSettled = !willTrySms;
     let cloudSettled = !willPublishCloud;
@@ -371,50 +370,6 @@ export function useTlbStore() {
         });
       }
     }, DELIVERY_WATCHDOG_MS);
-
-    if (willPublishCloud) {
-      const roleCode = dbRoleCodeForRoleId(user.roleId);
-      if (!roleCode) {
-        cloudSettled = true;
-        patchLastInviteDelivery(user.id, {
-          cloud: "failed",
-          cloudNote:
-            "Cloud invite failed: predefined system roles only. Local code and link below still work on this browser.",
-        });
-      } else {
-        void createInviteOnSupabase({
-          email: user.email,
-          fullName: user.name,
-          roleCode,
-          token: user.inviteToken,
-          accessCode: user.inviteCode,
-          ...(replacesToken ? { replacesToken } : {}),
-          ...(user.contact?.trim() ? { phone: user.contact.trim() } : {}),
-        })
-          .then((result) => {
-            cloudSettled = true;
-            if (result.ok) {
-              patchLastInviteDelivery(user.id, {
-                cloud: "ok",
-                cloudNote: "Cloud invite saved. Share the code or link below.",
-              });
-              return;
-            }
-            patchLastInviteDelivery(user.id, {
-              cloud: "failed",
-              cloudNote: formatCloudInviteFailureNote(result.error),
-            });
-          })
-          .catch((err: unknown) => {
-            cloudSettled = true;
-            const message = err instanceof Error ? err.message : String(err);
-            patchLastInviteDelivery(user.id, {
-              cloud: "failed",
-              cloudNote: formatCloudInviteFailureNote(message),
-            });
-          });
-      }
-    }
 
     const applyEmailResult = (result: SendClientResult) => {
       emailSettled = true;
@@ -475,71 +430,112 @@ export function useTlbStore() {
       });
     };
 
-    // One serverless round-trip; email+SMS fan out in parallel on the server.
-    // Never awaited by Assign/Re-issue — panel + buttons stay interactive.
-    // Defer one tick so the Invitation panel paints code/link before the fetch.
     const inviteCode = user.inviteCode;
-    window.setTimeout(() => {
-      void tryDeliverInvite({
+
+    // After paint: cloud + email/SMS are strictly fire-and-forget.
+    // Email and SMS run as separate posts so the email chip can settle without
+    // waiting for a slow Arkesel response (combined route would couple them).
+    const startBackgroundDelivery = () => {
+      if (willPublishCloud) {
+        const roleCode = dbRoleCodeForRoleId(user.roleId);
+        if (!roleCode) {
+          cloudSettled = true;
+          patchLastInviteDelivery(user.id, {
+            cloud: "failed",
+            cloudNote:
+              "Cloud invite failed: predefined system roles only. Local code and link below still work on this browser.",
+          });
+        } else {
+          void createInviteOnSupabase({
+            email: user.email,
+            fullName: user.name,
+            roleCode,
+            token: user.inviteToken!,
+            accessCode: user.inviteCode!,
+            ...(replacesToken ? { replacesToken } : {}),
+            ...(user.contact?.trim() ? { phone: user.contact.trim() } : {}),
+          })
+            .then((result) => {
+              cloudSettled = true;
+              if (result.ok) {
+                patchLastInviteDelivery(user.id, {
+                  cloud: "ok",
+                  cloudNote: "Cloud invite saved. Share the code or link below.",
+                });
+                return;
+              }
+              patchLastInviteDelivery(user.id, {
+                cloud: "failed",
+                cloudNote: formatCloudInviteFailureNote(result.error),
+              });
+            })
+            .catch((err: unknown) => {
+              cloudSettled = true;
+              const message = err instanceof Error ? err.message : String(err);
+              patchLastInviteDelivery(user.id, {
+                cloud: "failed",
+                cloudNote: formatCloudInviteFailureNote(message),
+              });
+            });
+        }
+      }
+
+      void trySendInviteEmail({
         to: user.email,
         name: user.name,
         inviteCode,
         inviteLink,
         ...(roleName ? { role: roleName } : {}),
-        ...(willTrySms && phone
-          ? { smsTo: phone, smsBody: delivery.smsBody }
-          : {}),
       })
-        .then(({ email, sms }) => {
+        .then((email) => {
           applyEmailResult(email);
-          if (willTrySms && sms) {
-            applySmsResult(sms);
-          } else if (willTrySms && !sms) {
-            applySmsResult({
-              ok: false,
-              error: "SMS result missing from deliver response.",
-            });
-          }
-
-          const lines: string[] = [];
-          if (email.ok) {
-            lines.push(`Email sent to ${user.email}`);
-          } else if (email.notConfigured) {
-            lines.push("Email not configured (set RESEND_* on Vercel)");
-          } else {
-            lines.push(`Email failed: ${email.error}`);
-          }
-          if (!willTrySms) {
-            lines.push(delivery.smsNote);
-          } else if (sms?.ok) {
-            lines.push(`SMS sent to ${phone}`);
-          } else if (sms?.notConfigured) {
-            lines.push("SMS not configured (set ARKESEL_* on Vercel)");
-          } else {
-            lines.push(`SMS failed: ${sms?.error ?? "unknown error"}`);
-          }
-
-          setNotice(`Invitation ready below. ${lines.join(" · ")}`);
-          setError(null);
           if (emailSettled && smsSettled && cloudSettled) {
             window.clearTimeout(watchdog);
+          }
+          if (email.ok) {
+            setNotice((prev) =>
+              prev && prev.startsWith("Invitation ready")
+                ? `Invitation ready below. Email sent to ${user.email}${willTrySms ? " · SMS still sending…" : "."}`
+                : prev,
+            );
           }
         })
         .catch((err: unknown) => {
           const message = err instanceof Error ? err.message : String(err);
           applyEmailResult({ ok: false, error: message });
-          if (willTrySms) {
-            applySmsResult({ ok: false, error: message });
-          }
-          setNotice(
-            `Invitation ready below. Delivery failed: ${message}. Use Retry on Email/SMS or copy the code/link.`,
-          );
-          setError(null);
-          if (emailSettled && smsSettled && cloudSettled) {
-            window.clearTimeout(watchdog);
-          }
         });
-    }, 0);
+
+      if (willTrySms && phone) {
+        void trySendInviteSms({
+          to: phone,
+          name: user.name,
+          inviteCode,
+          inviteLink,
+          body: delivery.smsBody,
+        })
+          .then((sms) => {
+            applySmsResult(sms);
+            if (emailSettled && smsSettled && cloudSettled) {
+              window.clearTimeout(watchdog);
+            }
+            if (sms.ok) {
+              setNotice(
+                `Invitation ready below. Email and SMS delivery finished — copy the code/link if needed.`,
+              );
+            }
+          })
+          .catch((err: unknown) => {
+            const message = err instanceof Error ? err.message : String(err);
+            applySmsResult({ ok: false, error: message });
+          });
+      } else if (emailSettled && smsSettled && cloudSettled) {
+        window.clearTimeout(watchdog);
+      }
+    };
+
+    // Yield to the browser so Assign/Re-issue unlocks and the invite panel paints
+    // before create_invite / Resend / Arkesel start competing for the main thread.
+    window.setTimeout(startBackgroundDelivery, 0);
   };
 
   const retryInviteChannel = (channel: "email" | "sms") => {

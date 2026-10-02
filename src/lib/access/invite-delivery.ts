@@ -49,8 +49,14 @@ export const BUILTIN_INVITE_SMS_PATH = "/api/invite-sms";
 /** Combined email+SMS fan-out (preferred — one serverless cold start). */
 export const BUILTIN_INVITE_DELIVER_PATH = "/api/invite-deliver";
 
-/** Client budget for invite API routes — fail fast so UI never feels stuck. */
-const INVITE_FETCH_TIMEOUT_MS = 7_000;
+/** Email/Resend client budget — keep snappy; SMS uses a longer budget. */
+const INVITE_EMAIL_FETCH_TIMEOUT_MS = 8_000;
+/**
+ * SMS / combined-deliver client budget — must exceed server SMS_TOTAL_BUDGET (~16s)
+ * so the browser does not abort a slow-but-working Arkesel send.
+ */
+const INVITE_SMS_FETCH_TIMEOUT_MS = 18_000;
+const INVITE_DELIVER_FETCH_TIMEOUT_MS = 18_000;
 
 /**
  * Optional POST URL override that accepts { to, name, inviteCode, inviteLink, role? }.
@@ -170,9 +176,10 @@ function parseSendClientResult(data: unknown, fallbackError: string): SendClient
 async function postInviteJson(
   endpoint: string,
   payload: Record<string, string>,
+  timeoutMs = INVITE_EMAIL_FETCH_TIMEOUT_MS,
 ): Promise<SendClientResult> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), INVITE_FETCH_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(endpoint, {
       method: "POST",
@@ -249,7 +256,7 @@ async function postInviteJson(
     if (err instanceof DOMException && err.name === "AbortError") {
       return {
         ok: false,
-        error: `Timed out after ${Math.round(INVITE_FETCH_TIMEOUT_MS / 1000)}s waiting for ${endpoint}.`,
+        error: `Timed out after ${Math.round(timeoutMs / 1000)}s waiting for ${endpoint}.`,
       };
     }
     const message = err instanceof Error ? err.message : String(err);
@@ -274,7 +281,7 @@ export async function trySendInviteEmail(input: {
     inviteLink: input.inviteLink,
   };
   if (input.role?.trim()) payload["role"] = input.role.trim();
-  return postInviteJson(endpoint, payload);
+  return postInviteJson(endpoint, payload, INVITE_EMAIL_FETCH_TIMEOUT_MS);
 }
 
 export async function trySendInviteSms(input: {
@@ -290,13 +297,17 @@ export async function trySendInviteSms(input: {
       error: "Contact does not look like a phone number.",
     };
   }
-  return postInviteJson(inviteSmsEndpoint(), {
-    to: input.to,
-    name: input.name,
-    inviteCode: input.inviteCode,
-    inviteLink: input.inviteLink,
-    body: input.body,
-  });
+  return postInviteJson(
+    inviteSmsEndpoint(),
+    {
+      to: input.to,
+      name: input.name,
+      inviteCode: input.inviteCode,
+      inviteLink: input.inviteLink,
+      body: input.body,
+    },
+    INVITE_SMS_FETCH_TIMEOUT_MS,
+  );
 }
 
 /**
@@ -347,7 +358,7 @@ export async function tryDeliverInvite(input: {
   if (input.smsBody?.trim()) payload["smsBody"] = input.smsBody.trim();
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), INVITE_FETCH_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), INVITE_DELIVER_FETCH_TIMEOUT_MS);
   try {
     const response = await fetch(inviteDeliverEndpoint(), {
       method: "POST",
@@ -404,7 +415,7 @@ export async function tryDeliverInvite(input: {
     };
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") {
-      const error = `Timed out after ${Math.round(INVITE_FETCH_TIMEOUT_MS / 1000)}s waiting for ${inviteDeliverEndpoint()}.`;
+      const error = `Timed out after ${Math.round(INVITE_DELIVER_FETCH_TIMEOUT_MS / 1000)}s waiting for ${inviteDeliverEndpoint()}.`;
       return {
         email: { ok: false, error },
         sms: input.smsTo ? { ok: false, error } : null,

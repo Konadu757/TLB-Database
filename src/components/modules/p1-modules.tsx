@@ -312,7 +312,8 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
 
   useEffect(() => {
     if (!store.lastInvite) return;
-    invitePanelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    // Instant jump — smooth scroll made Assign feel like it was still "busy".
+    invitePanelRef.current?.scrollIntoView({ behavior: "auto", block: "nearest" });
     // Scroll only when a new invite code appears — not on every email/SMS status tick.
   }, [store.lastInvite?.userId, store.lastInvite?.inviteCode]);
 
