@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import {
+  inviteSendResultToJson,
   parseInviteEmailBody,
   sendInviteEmailWithResend,
 } from "@/lib/access/invite-send-server";
@@ -28,28 +29,8 @@ export const Route = createFileRoute("/api/invite-email")({
         }
 
         const result = await sendInviteEmailWithResend(parsed);
-        if (result.ok) {
-          return Response.json({
-            ok: true,
-            ...(result.messageId ? { messageId: result.messageId } : {}),
-            ...(result.provider ? { provider: result.provider } : {}),
-          });
-        }
-        if (result.notConfigured) {
-          return Response.json(
-            { ok: false, notConfigured: true, error: result.error },
-            { status: 503 },
-          );
-        }
-        return Response.json(
-          {
-            ok: false,
-            error: result.error,
-            ...(result.messageId ? { messageId: result.messageId } : {}),
-            ...(result.provider ? { provider: result.provider } : {}),
-          },
-          { status: 502 },
-        );
+        // Always 200 when body parsed — clients read ok/notConfigured (502 looked like a gateway crash).
+        return Response.json(inviteSendResultToJson(result), { status: 200 });
       },
     },
   },

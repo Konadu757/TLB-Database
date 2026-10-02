@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { looksLikePhoneNumber } from "@/lib/access/invite-phone";
 import {
+  inviteSendResultToJson,
   parseInviteSmsBody,
   sendInviteSms,
 } from "@/lib/access/invite-send-server";
@@ -47,28 +48,8 @@ export const Route = createFileRoute("/api/invite-sms")({
           body: smsBody,
         });
 
-        if (result.ok) {
-          return Response.json({
-            ok: true,
-            ...(result.messageId ? { messageId: result.messageId } : {}),
-            ...(result.provider ? { provider: result.provider } : {}),
-          });
-        }
-        if (result.notConfigured) {
-          return Response.json(
-            { ok: false, notConfigured: true, error: result.error },
-            { status: 503 },
-          );
-        }
-        return Response.json(
-          {
-            ok: false,
-            error: result.error,
-            ...(result.messageId ? { messageId: result.messageId } : {}),
-            ...(result.provider ? { provider: result.provider } : {}),
-          },
-          { status: 502 },
-        );
+        // Always 200 when body parsed — clients read ok/notConfigured (avoid 502 gateway noise).
+        return Response.json(inviteSendResultToJson(result), { status: 200 });
       },
     },
   },

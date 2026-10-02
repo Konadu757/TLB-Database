@@ -338,9 +338,44 @@ export function useTlbStore() {
     );
     setError(null);
 
+    const phone = user.contact?.trim();
+    const willTrySms = Boolean(phone && looksLikePhoneNumber(phone));
+    /** Hard ceiling so Sending… / Saving… never stick if a promise mishandles abort. */
+    const DELIVERY_WATCHDOG_MS = 8_000;
+    let emailSettled = false;
+    let smsSettled = !willTrySms;
+    let cloudSettled = !willPublishCloud;
+
+    const watchdog = window.setTimeout(() => {
+      if (!emailSettled) {
+        emailSettled = true;
+        patchLastInviteDelivery(user.id, {
+          email: "failed",
+          emailNote:
+            "Email status timed out — copy the invite below, then use Retry. If this keeps happening, hard-refresh the portal.",
+        });
+      }
+      if (willTrySms && !smsSettled) {
+        smsSettled = true;
+        patchLastInviteDelivery(user.id, {
+          sms: "failed",
+          smsNote: `SMS status timed out for ${phone} — copy the SMS text below, then use Retry.`,
+        });
+      }
+      if (willPublishCloud && !cloudSettled) {
+        cloudSettled = true;
+        patchLastInviteDelivery(user.id, {
+          cloud: "failed",
+          cloudNote:
+            "Cloud save timed out. Access code and link below still work on this browser — try Re-issue again if other devices need the code.",
+        });
+      }
+    }, DELIVERY_WATCHDOG_MS);
+
     if (willPublishCloud) {
       const roleCode = dbRoleCodeForRoleId(user.roleId);
       if (!roleCode) {
+        cloudSettled = true;
         patchLastInviteDelivery(user.id, {
           cloud: "failed",
           cloudNote:
@@ -355,30 +390,45 @@ export function useTlbStore() {
           accessCode: user.inviteCode,
           ...(replacesToken ? { replacesToken } : {}),
           ...(user.contact?.trim() ? { phone: user.contact.trim() } : {}),
-        }).then((result) => {
-          if (result.ok) {
+        })
+          .then((result) => {
+            cloudSettled = true;
+            if (result.ok) {
+              patchLastInviteDelivery(user.id, {
+                cloud: "ok",
+                cloudNote: "Cloud invite saved. Share the code or link below.",
+              });
+              return;
+            }
             patchLastInviteDelivery(user.id, {
-              cloud: "ok",
-              cloudNote: "Cloud invite saved. Share the code or link below.",
+              cloud: "failed",
+              cloudNote: formatCloudInviteFailureNote(result.error),
             });
-            return;
-          }
-          patchLastInviteDelivery(user.id, {
-            cloud: "failed",
-            cloudNote: formatCloudInviteFailureNote(result.error),
+          })
+          .catch((err: unknown) => {
+            cloudSettled = true;
+            const message = err instanceof Error ? err.message : String(err);
+            patchLastInviteDelivery(user.id, {
+              cloud: "failed",
+              cloudNote: formatCloudInviteFailureNote(message),
+            });
           });
-        });
       }
     }
 
-    const phone = user.contact?.trim();
-    const willTrySms = Boolean(phone && looksLikePhoneNumber(phone));
-
     const applyEmailResult = (result: SendClientResult) => {
+      emailSettled = true;
       if (result.ok) {
+        const detail = [
+          `Email sent to ${user.email}`,
+          result.provider ? `via ${result.provider}` : "",
+          result.messageId ? `(id ${result.messageId})` : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
         patchLastInviteDelivery(user.id, {
           email: "sent",
-          emailNote: `Email sent to ${user.email}.`,
+          emailNote: `${detail}.`,
         });
         return;
       }
@@ -397,10 +447,18 @@ export function useTlbStore() {
     };
 
     const applySmsResult = (result: SendClientResult) => {
+      smsSettled = true;
       if (result.ok) {
+        const detail = [
+          `SMS sent to ${phone}`,
+          result.provider ? `via ${result.provider}` : "",
+          result.messageId ? `(id ${result.messageId})` : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
         patchLastInviteDelivery(user.id, {
           sms: "sent",
-          smsNote: `SMS sent to ${phone}.`,
+          smsNote: `${detail}.`,
         });
         return;
       }
@@ -419,60 +477,69 @@ export function useTlbStore() {
 
     // One serverless round-trip; email+SMS fan out in parallel on the server.
     // Never awaited by Assign/Re-issue — panel + buttons stay interactive.
-    void tryDeliverInvite({
-      to: user.email,
-      name: user.name,
-      inviteCode: user.inviteCode,
-      inviteLink,
-      ...(roleName ? { role: roleName } : {}),
-      ...(willTrySms && phone
-        ? { smsTo: phone, smsBody: delivery.smsBody }
-        : {}),
-    })
-      .then(({ email, sms }) => {
-        applyEmailResult(email);
-        if (willTrySms && sms) {
-          applySmsResult(sms);
-        }
-
-        const lines: string[] = [];
-        if (email.ok) {
-          lines.push(`Email sent to ${user.email}`);
-        } else if (email.notConfigured) {
-          lines.push("Email not configured (set RESEND_* on Vercel)");
-        } else {
-          lines.push(`Email failed: ${email.error}`);
-        }
-        if (!willTrySms) {
-          lines.push(delivery.smsNote);
-        } else if (sms?.ok) {
-          lines.push(`SMS sent to ${phone}`);
-        } else if (sms?.notConfigured) {
-          lines.push("SMS not configured (set ARKESEL_* on Vercel)");
-        } else {
-          lines.push(`SMS failed: ${sms?.error ?? "unknown error"}`);
-        }
-
-        setNotice(`Invitation ready below. ${lines.join(" · ")}`);
-        setError(null);
+    // Defer one tick so the Invitation panel paints code/link before the fetch.
+    const inviteCode = user.inviteCode;
+    window.setTimeout(() => {
+      void tryDeliverInvite({
+        to: user.email,
+        name: user.name,
+        inviteCode,
+        inviteLink,
+        ...(roleName ? { role: roleName } : {}),
+        ...(willTrySms && phone
+          ? { smsTo: phone, smsBody: delivery.smsBody }
+          : {}),
       })
-      .catch((err: unknown) => {
-        const message = err instanceof Error ? err.message : String(err);
-        patchLastInviteDelivery(user.id, {
-          email: "failed",
-          emailNote: `Email was not sent: ${message}. Copy the invite below.`,
-          ...(willTrySms
-            ? {
-                sms: "failed" as const,
-                smsNote: `SMS was not sent: ${message}. Copy the SMS text below.`,
-              }
-            : {}),
+        .then(({ email, sms }) => {
+          applyEmailResult(email);
+          if (willTrySms && sms) {
+            applySmsResult(sms);
+          } else if (willTrySms && !sms) {
+            applySmsResult({
+              ok: false,
+              error: "SMS result missing from deliver response.",
+            });
+          }
+
+          const lines: string[] = [];
+          if (email.ok) {
+            lines.push(`Email sent to ${user.email}`);
+          } else if (email.notConfigured) {
+            lines.push("Email not configured (set RESEND_* on Vercel)");
+          } else {
+            lines.push(`Email failed: ${email.error}`);
+          }
+          if (!willTrySms) {
+            lines.push(delivery.smsNote);
+          } else if (sms?.ok) {
+            lines.push(`SMS sent to ${phone}`);
+          } else if (sms?.notConfigured) {
+            lines.push("SMS not configured (set ARKESEL_* on Vercel)");
+          } else {
+            lines.push(`SMS failed: ${sms?.error ?? "unknown error"}`);
+          }
+
+          setNotice(`Invitation ready below. ${lines.join(" · ")}`);
+          setError(null);
+          if (emailSettled && smsSettled && cloudSettled) {
+            window.clearTimeout(watchdog);
+          }
+        })
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
+          applyEmailResult({ ok: false, error: message });
+          if (willTrySms) {
+            applySmsResult({ ok: false, error: message });
+          }
+          setNotice(
+            `Invitation ready below. Delivery failed: ${message}. Use Retry on Email/SMS or copy the code/link.`,
+          );
+          setError(null);
+          if (emailSettled && smsSettled && cloudSettled) {
+            window.clearTimeout(watchdog);
+          }
         });
-        setNotice(
-          `Invitation ready below. Delivery failed: ${message}. Use Retry on Email/SMS or copy the code/link.`,
-        );
-        setError(null);
-      });
+    }, 0);
   };
 
   const retryInviteChannel = (channel: "email" | "sms") => {

@@ -34,8 +34,11 @@ async function rpcWithTimeout(
 ): Promise<RpcResult> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
+    // Force a real Promise so Promise.race always settles on timeout
+    // (PostgREST builders are thenable but can confuse some runtimes).
+    const rpcPromise = Promise.resolve().then(() => rpc(fn, args));
     return await Promise.race([
-      rpc(fn, args),
+      rpcPromise,
       new Promise<RpcResult>((_, reject) => {
         timer = setTimeout(() => {
           reject(new Error(`Timed out after ${Math.round(timeoutMs / 1000)}s waiting for ${fn}.`));
@@ -117,11 +120,13 @@ export async function createInviteOnSupabase(input: {
         /p_phone/i.test(withPhone.error) ||
         /schema cache/i.test(withPhone.error);
       if (missingPhoneArg) {
-        return attempt(baseArgs);
+        // Must await — a bare `return attempt(...)` rejects past this try/catch and
+        // leaves the Invitation panel stuck on Cloud “Saving…”.
+        return await attempt(baseArgs);
       }
       return withPhone;
     }
-    return attempt(baseArgs);
+    return await attempt(baseArgs);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, error: `Supabase invite was not stored: ${message}` };

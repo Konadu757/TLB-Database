@@ -221,7 +221,22 @@ async function postInviteJson(
       (typeof data?.error === "string" && data.error.trim()) ||
       (response.status === 404
         ? `Invite API route missing (${endpoint}). Redeploy the portal so /api/invite-deliver (or /api/invite-email and /api/invite-sms) exist.`
-        : `Endpoint returned ${response.status}.`);
+        : response.status >= 500
+          ? `Endpoint returned ${response.status}.`
+          : `Invite send failed (${response.status}).`);
+
+    // Prefer JSON ok:false on HTTP 200 (combined + single-channel routes).
+    if (data && data.ok === false) {
+      return {
+        ok: false,
+        error:
+          (typeof data.error === "string" && data.error.trim()) ||
+          `Invite send failed (${response.status}).`,
+        ...(data.notConfigured === true ? { notConfigured: true } : {}),
+        ...(messageId ? { messageId } : {}),
+        ...(provider ? { provider } : {}),
+      };
+    }
 
     return {
       ok: false,

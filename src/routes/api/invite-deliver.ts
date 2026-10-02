@@ -33,6 +33,17 @@ export const Route = createFileRoute("/api/invite-deliver")({
         const smsJson = sms ? inviteSendResultToJson(sms) : null;
         const bothOk = email.ok && (sms === null || sms.ok);
 
+        console.info("[invite-deliver]", {
+          to: parsed.to,
+          smsTo: parsed.smsTo ?? null,
+          emailOk: email.ok,
+          emailProvider: "provider" in email ? email.provider : undefined,
+          emailError: email.ok ? undefined : email.error,
+          smsOk: sms == null ? null : sms.ok,
+          smsProvider: sms && "provider" in sms ? sms.provider : undefined,
+          smsError: sms && !sms.ok ? sms.error : undefined,
+        });
+
         return Response.json(
           {
             ok: bothOk,
