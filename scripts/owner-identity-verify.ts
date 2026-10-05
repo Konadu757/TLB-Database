@@ -128,4 +128,69 @@ function corruptedOwnerState() {
   assert.equal(seed.users.some((user) => user.id === LEGACY_SEED_OWNER_USER_ID), false);
 }
 
-console.log("owner-identity-verify: sole Owner Auth binds as TLB Owner; seed Owner purged");
+{
+  // Staff Auth (Konadu) must NEVER bind as TLB Owner — even when local row
+  // still has a pre-accept invite id and session was previously Owner.
+  const STAFF_AUTH_ID = "48790d50-842f-4851-a944-b1bb91a3d926";
+  const STAFF_EMAIL = "konadubeatrice757@gmail.com";
+  const state = createSeedState();
+  state.users.push({
+    id: "invite-konadu-local",
+    name: "Konadu",
+    email: STAFF_EMAIL,
+    roleId: SYSTEM_ROLE_IDS.Finance,
+    active: true,
+    invitePending: true,
+    inviteToken: "inv_test",
+    inviteCode: "TLB-TEST-CODE",
+  });
+  state.currentUserId = PORTAL_OWNER_AUTH_USER_ID;
+  state.currentUser = OWNER_DISPLAY_NAME;
+  state.currentRoleId = SYSTEM_ROLE_IDS.Owner;
+  state.currentRole = "Owner";
+
+  const bound = bindSessionToAuthIdentity(state, {
+    email: STAFF_EMAIL,
+    authUserId: STAFF_AUTH_ID,
+  });
+  assert.equal(bound.currentUserId, STAFF_AUTH_ID);
+  assert.equal(bound.currentUser, "Konadu");
+  assert.equal(bound.currentRole, "Finance");
+  assert.equal(bound.currentRoleId, SYSTEM_ROLE_IDS.Finance);
+  assert.notEqual(bound.currentUser, OWNER_DISPLAY_NAME);
+  assert.notEqual(bound.currentRole, "Owner");
+  const staff = bound.users.find((user) => user.id === STAFF_AUTH_ID);
+  assert.ok(staff);
+  assert.equal(staff.email, STAFF_EMAIL);
+  assert.equal(staff.invitePending, false);
+  assert.equal(bound.users.some((user) => user.id === "invite-konadu-local"), false);
+  assert.equal(ownerCount(bound), 1);
+}
+
+{
+  // Owner Auth still binds as TLB Owner after a staff session was active.
+  const STAFF_AUTH_ID = "48790d50-842f-4851-a944-b1bb91a3d926";
+  const state = createSeedState();
+  state.users.push({
+    id: STAFF_AUTH_ID,
+    name: "Konadu",
+    email: "konadubeatrice757@gmail.com",
+    roleId: SYSTEM_ROLE_IDS.Finance,
+    active: true,
+  });
+  state.currentUserId = STAFF_AUTH_ID;
+  state.currentUser = "Konadu";
+  state.currentRoleId = SYSTEM_ROLE_IDS.Finance;
+  state.currentRole = "Finance";
+  const bound = bindSessionToAuthIdentity(state, {
+    email: PORTAL_OWNER_AUTH_EMAIL,
+    authUserId: PORTAL_OWNER_AUTH_USER_ID,
+  });
+  assert.equal(bound.currentUserId, PORTAL_OWNER_AUTH_USER_ID);
+  assert.equal(bound.currentUser, OWNER_DISPLAY_NAME);
+  assert.equal(bound.currentRole, "Owner");
+}
+
+console.log(
+  "owner-identity-verify: sole Owner Auth binds as TLB Owner; staff Auth binds as staff; seed Owner purged",
+);

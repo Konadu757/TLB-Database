@@ -4,7 +4,7 @@ import { ChevronDown, X } from "lucide-react";
 import { TrashConfirmDialog } from "@/components/modules/trash-confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { listAssignableRoles, OWNER_USER_ID } from "@/lib/domain/permissions";
-import { buildInviteLink, isInvitePending } from "@/lib/domain/invites";
+import { buildInviteLink, isAuthProfileId, isInvitePending } from "@/lib/domain/invites";
 import { notSoftDeleted } from "@/lib/domain/trash";
 import type { AppUser, RoleDefinition, TaxMode, VatRate } from "@/lib/domain/types";
 import { ensureTaxCatalog, normalizeTaxMode, TAX_MODE_LABELS, taxKindOf } from "@/lib/domain/tax";
@@ -690,7 +690,9 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                               {" "}
                               <StatusBadge tone="warning">Pending</StatusBadge>
                             </>
-                          ) : user.lastLoginAt || user.inviteAcceptedAt ? (
+                          ) : user.lastLoginAt ||
+                            user.inviteAcceptedAt ||
+                            isAuthProfileId(user.id) ? (
                             <>
                               {" "}
                               <StatusBadge tone="success">Signed in</StatusBadge>

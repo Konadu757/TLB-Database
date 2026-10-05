@@ -217,8 +217,15 @@ export function lockWorkspaceToOwner(state: TlbState): void {
     ownerUser.active = true;
     ownerUser.roleId = owner.id;
   }
+  // Never steal a staff Auth session into Owner just because the row is
+  // briefly missing — bindSessionToAuthIdentity remaps/creates that row.
   const sessionUser = state.users.find((u) => u.id === state.currentUserId && u.active);
-  if (!sessionUser) {
+  if (
+    !sessionUser &&
+    (!state.currentUserId ||
+      state.currentUserId === LEGACY_SEED_OWNER_USER_ID ||
+      isPortalOwnerAuth({ authUserId: state.currentUserId }))
+  ) {
     state.currentUserId = PORTAL_OWNER_AUTH_USER_ID;
   }
   state.version = Math.max(state.version, 15);
@@ -227,16 +234,25 @@ export function lockWorkspaceToOwner(state: TlbState): void {
 
 /** Keep denormalized session fields aligned with the signed-in user's assigned role. */
 export function syncSessionIdentity(state: TlbState): void {
-  const user =
+  const matched =
     state.users.find((u) => u.id === state.currentUserId && u.active) ??
-    state.users.find((u) => u.id === state.currentUserId) ??
-    state.users.find((u) => u.id === OWNER_USER_ID) ??
-    state.users[0];
+    state.users.find((u) => u.id === state.currentUserId);
+  // Only fall back to Owner when the session id is unset/Owner/legacy —
+  // never when a staff Auth UUID is set but not yet remapped into users.
+  const user =
+    matched ??
+    (!state.currentUserId ||
+    state.currentUserId === LEGACY_SEED_OWNER_USER_ID ||
+    isPortalOwnerAuth({ authUserId: state.currentUserId })
+      ? (state.users.find((u) => u.id === OWNER_USER_ID) ?? state.users[0])
+      : undefined);
   if (!user) return;
   const role =
     state.roles.find((r) => r.id === user.roleId && r.active && !r.deletedAt) ??
     state.roles.find((r) => r.id === user.roleId) ??
-    state.roles.find((r) => r.systemKey === "Owner" && r.active);
+    (isSoleOwnerUserId(user.id)
+      ? state.roles.find((r) => r.systemKey === "Owner" && r.active)
+      : undefined);
   state.currentUserId = user.id;
   state.currentUser = user.name;
   if (role) {
@@ -246,44 +262,18 @@ export function syncSessionIdentity(state: TlbState): void {
 }
 
 /**
- * Same-email Finance (etc.) invite acceptance could demote the Auth Owner
- * profile in local/cloud staff while Auth UUID stayed the same — and could
- * leave the Owner display name as the Finance invitee. Always restore Owner
- * identity for the portal Owner Auth account; also restore when heuristics
- * show this Auth row is the workspace Owner.
+ * Owner heal is ONLY for the portal Owner Auth account
+ * (mccaesartechsolutions@gmail.com / aa9ba161-…). Staff Auth logins must
+ * never enter this path — broad heuristics previously forced every staff
+ * session into TLB Owner.
  */
 function shouldHealAuthOwner(
-  state: TlbState,
+  _state: TlbState,
   authUserId: string,
   authEmail: string,
 ): boolean {
-  if (!authUserId) return false;
-  if (isPortalOwnerAuth({ authUserId, email: authEmail })) return true;
-
-  const authUser =
-    state.users.find((user) => user.id === authUserId && user.active) ??
-    state.users.find((user) => user.id === authUserId);
-  const email = (authEmail || authUser?.email || "").trim().toLowerCase();
-  if (!email) return false;
-
-  const legacySeedOwner = state.users.some(
-    (user) =>
-      user.id === LEGACY_SEED_OWNER_USER_ID &&
-      state.roles.find((role) => role.id === user.roleId)?.systemKey === "Owner",
-  );
-  if (legacySeedOwner) return true;
-
-  const otherOwners = state.users.filter(
-    (user) =>
-      user.id !== authUserId &&
-      user.active &&
-      state.roles.find((role) => role.id === user.roleId)?.systemKey === "Owner",
-  );
-  if (otherOwners.some((user) => user.email.trim().toLowerCase() === email)) return true;
-  // Legacy seed Owner (user-owner / owner@tlb.gh) still means this Auth UUID is Owner.
-  if (otherOwners.every((user) => user.id === LEGACY_SEED_OWNER_USER_ID)) return true;
-  if (otherOwners.length === 0) return true;
-  return false;
+  if (!authUserId && !authEmail) return false;
+  return isPortalOwnerAuth({ authUserId, email: authEmail });
 }
 
 /**
@@ -332,10 +322,8 @@ export function ensurePortalOwnerStaffDirectory(state: TlbState): void {
     }
   }
 
-  if (
-    state.currentUserId === LEGACY_SEED_OWNER_USER_ID ||
-    !state.users.some((user) => user.id === state.currentUserId && user.active)
-  ) {
+  // Only remap legacy seed session → Owner. Do not steal staff Auth UUIDs.
+  if (state.currentUserId === LEGACY_SEED_OWNER_USER_ID) {
     state.currentUserId = PORTAL_OWNER_AUTH_USER_ID;
   }
 }
@@ -417,9 +405,75 @@ function authOwnerNeedsHeal(
 }
 
 /**
+ * Remap a pending invite / stale local staff row onto the live Auth UUID so
+ * session bind can find them. Never promotes non-Owner Auth into Owner.
+ */
+function ensureStaffAuthUserRow(
+  state: TlbState,
+  input: { authUserId: string; email: string },
+): AppUser | undefined {
+  const authUserId = input.authUserId.trim();
+  const email = input.email.trim().toLowerCase();
+  if (!authUserId || isPortalOwnerAuth({ authUserId, email })) return undefined;
+
+  const byId =
+    state.users.find((u) => u.active && u.id === authUserId) ??
+    state.users.find((u) => u.id === authUserId);
+  if (byId) {
+    if (email && byId.email.trim().toLowerCase() !== email) byId.email = email;
+    byId.active = true;
+    byId.invitePending = false;
+    delete byId.inviteToken;
+    delete byId.inviteCode;
+    if (!byId.inviteAcceptedAt) byId.inviteAcceptedAt = new Date().toISOString();
+    // Staff Auth must never keep an Owner role assignment.
+    const role = state.roles.find((r) => r.id === byId.roleId);
+    if (role?.systemKey === "Owner") {
+      byId.roleId = demoRoleIdForEmail(byId.email, state.roles);
+    }
+    return byId;
+  }
+
+  const byEmail = email
+    ? state.users.find(
+        (u) =>
+          !isSoleOwnerUserId(u.id) &&
+          u.email.trim().toLowerCase() === email,
+      )
+    : undefined;
+  if (byEmail) {
+    byEmail.id = authUserId;
+    byEmail.active = true;
+    byEmail.invitePending = false;
+    delete byEmail.inviteToken;
+    delete byEmail.inviteCode;
+    if (!byEmail.inviteAcceptedAt) byEmail.inviteAcceptedAt = new Date().toISOString();
+    const role = state.roles.find((r) => r.id === byEmail.roleId);
+    if (role?.systemKey === "Owner") {
+      byEmail.roleId = demoRoleIdForEmail(byEmail.email, state.roles);
+    }
+    return byEmail;
+  }
+
+  if (!email) return undefined;
+  const created: AppUser = {
+    id: authUserId,
+    name: email.split("@")[0] || "Staff",
+    email,
+    roleId: demoRoleIdForEmail(email, state.roles),
+    active: true,
+    invitePending: false,
+    inviteAcceptedAt: new Date().toISOString(),
+  };
+  state.users.push(created);
+  return created;
+}
+
+/**
  * Bind the local workspace session to the Auth user (profile id / email).
  * Prefer Auth UUID over email so same-email collisions cannot steal Owner.
  * Owner Auth always binds to Owner staff + OWNER role + TLB Owner name.
+ * Any other Auth login binds to that staff profile + invited role — never Owner.
  * Returns the same state reference when already aligned.
  */
 export function bindSessionToAuthIdentity(
@@ -431,50 +485,71 @@ export function bindSessionToAuthIdentity(
   if (!email && !authUserId) return state;
 
   const portalOwner = isPortalOwnerAuth({ authUserId, email });
-  const needsHeal = authUserId ? authOwnerNeedsHeal(state, authUserId, email) : false;
 
-  const byId = authUserId
-    ? state.users.find((u) => u.active && u.id === authUserId) ??
-      state.users.find((u) => u.id === authUserId)
-    : undefined;
-  const byEmail = email
-    ? state.users.find((u) => u.active && u.email.trim().toLowerCase() === email)
-    : undefined;
-  // Auth UUID wins. Email is only a fallback when the profile id is not in local users yet.
-  // For portal Owner Auth, never bind to a leftover Finance staff row found by email alone.
-  let user = byId ?? (portalOwner || needsHeal ? undefined : byEmail);
-  if (!user && (portalOwner || needsHeal) && authUserId) {
-    // Ensure heal can create/repair the Auth Owner row below.
-    user = byId;
-  }
-  if (!user && !portalOwner && !needsHeal) return state;
-  if (!user && !authUserId) return state;
+  // ── Owner Auth only ──────────────────────────────────────────────
+  if (portalOwner) {
+    const needsHeal = authUserId ? authOwnerNeedsHeal(state, authUserId, email) : true;
+    const byId = authUserId
+      ? state.users.find((u) => u.active && u.id === authUserId) ??
+        state.users.find((u) => u.id === authUserId)
+      : undefined;
+    let user = byId;
+    if (!user && authUserId) user = byId;
+    if (!user && !authUserId) return state;
 
-  const sessionUserId = authUserId || user?.id || "";
-  const role = user ? state.roles.find((r) => r.id === user.roleId) : undefined;
-  const roleLabel = (role?.systemKey ?? role?.name ?? state.currentRole) as TlbState["currentRole"];
-  if (
-    !needsHeal &&
-    user &&
-    state.currentUserId === user.id &&
-    state.currentUser === user.name &&
-    state.currentRoleId === user.roleId &&
-    state.currentRole === roleLabel &&
-    (!portalOwner ||
-      (user.name === OWNER_DISPLAY_NAME &&
-        role?.systemKey === "Owner" &&
-        state.currentRole === "Owner"))
-  ) {
-    return state;
+    const sessionUserId = authUserId || user?.id || PORTAL_OWNER_AUTH_USER_ID;
+    const role = user ? state.roles.find((r) => r.id === user.roleId) : undefined;
+    const roleLabel = (role?.systemKey ?? role?.name ?? state.currentRole) as TlbState["currentRole"];
+    if (
+      !needsHeal &&
+      user &&
+      state.currentUserId === user.id &&
+      state.currentUser === user.name &&
+      state.currentRoleId === user.roleId &&
+      state.currentRole === roleLabel &&
+      user.name === OWNER_DISPLAY_NAME &&
+      role?.systemKey === "Owner" &&
+      state.currentRole === "Owner"
+    ) {
+      return state;
+    }
+
+    const next = JSON.parse(JSON.stringify(state)) as TlbState;
+    if (authUserId) healAuthOwnerIdentity(next, authUserId, email);
+    else ensurePortalOwnerStaffDirectory(next);
+    next.currentUserId =
+      (authUserId && next.users.some((u) => u.id === authUserId) ? authUserId : undefined) ??
+      sessionUserId;
+    syncSessionIdentity(next);
+    return next;
   }
+
+  // ── Staff Auth — never Owner ─────────────────────────────────────
+  if (!authUserId) return state;
 
   const next = JSON.parse(JSON.stringify(state)) as TlbState;
-  if (authUserId) healAuthOwnerIdentity(next, authUserId, email);
-  const boundId =
-    (authUserId && next.users.some((u) => u.id === authUserId) ? authUserId : undefined) ??
-    sessionUserId ??
-    user?.id;
-  if (boundId) next.currentUserId = boundId;
+  // Keep sole Owner directory tidy without changing this staff session.
+  ensurePortalOwnerStaffDirectory(next);
+  const staff = ensureStaffAuthUserRow(next, { authUserId, email });
+  if (!staff) return state;
+
+  const role = next.roles.find((r) => r.id === staff.roleId);
+  const roleLabel = (role?.systemKey ?? role?.name ?? next.currentRole) as TlbState["currentRole"];
+  if (
+    next.currentUserId === staff.id &&
+    next.currentUser === staff.name &&
+    next.currentRoleId === staff.roleId &&
+    next.currentRole === roleLabel
+  ) {
+    // Still return next when we remapped/created the row so callers persist heal.
+    const unchanged =
+      state.users.some((u) => u.id === staff.id) &&
+      state.currentUserId === staff.id &&
+      state.currentUser === staff.name;
+    return unchanged ? state : next;
+  }
+
+  next.currentUserId = staff.id;
   syncSessionIdentity(next);
   return next;
 }
