@@ -175,9 +175,18 @@ export async function acceptInviteOnSupabase(input: {
 }
 
 function parseStaffAccessStatuses(data: unknown): CloudStaffAccessStatus[] {
-  if (!Array.isArray(data)) return [];
+  let rows: unknown = data;
+  // PostgREST sometimes returns jsonb RPCs as a JSON string.
+  if (typeof rows === "string") {
+    try {
+      rows = JSON.parse(rows);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(rows)) return [];
   const out: CloudStaffAccessStatus[] = [];
-  for (const row of data) {
+  for (const row of rows) {
     if (!row || typeof row !== "object" || Array.isArray(row)) continue;
     const item = row as Record<string, unknown>;
     const email = typeof item["email"] === "string" ? item["email"].trim().toLowerCase() : "";

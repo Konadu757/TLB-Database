@@ -408,9 +408,27 @@ function saveStockExtras(stock: StockBalance[]): void {
   window.localStorage.setItem(STOCK_EXTRAS_KEY, JSON.stringify(extras));
 }
 
+function isMissingRelationError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("could not find the table") ||
+    lower.includes("does not exist") ||
+    lower.includes("pgrst205") ||
+    lower.includes("schema cache")
+  );
+}
+
 async function fetchAll<T>(sb: Sb, table: keyof Database["public"]["Tables"]): Promise<T[]> {
   const { data, error } = await sb.from(table).select("*");
-  if (error) throw new Error(`${String(table)}: ${error.message}`);
+  if (error) {
+    // Live DB may only have tlb.* RPCs while public P0 tables are not provisioned yet.
+    // Soft-fail so staff access / activity hydrate can still run.
+    if (isMissingRelationError(error.message)) {
+      console.warn(`[SupabaseTlbRepository] ${String(table)} unavailable:`, error.message);
+      return [];
+    }
+    throw new Error(`${String(table)}: ${error.message}`);
+  }
   return (data ?? []) as T[];
 }
 
@@ -422,10 +440,20 @@ async function upsertRows(
   if (!rows.length) return;
   try {
     const { error } = await sb.from(table).upsert(rows as never, { onConflict: "id" });
-    if (error) throw new Error(`upsert ${String(table)}: ${error.message}`);
+    if (error) {
+      if (isMissingRelationError(error.message)) {
+        console.warn(`[SupabaseTlbRepository] upsert ${String(table)} skipped:`, error.message);
+        return;
+      }
+      throw new Error(`upsert ${String(table)}: ${error.message}`);
+    }
   } catch (err) {
     if (err instanceof Error && err.message.startsWith(`upsert ${String(table)}:`)) throw err;
     const detail = err instanceof Error ? err.message : String(err);
+    if (isMissingRelationError(detail)) {
+      console.warn(`[SupabaseTlbRepository] upsert ${String(table)} skipped:`, detail);
+      return;
+    }
     throw new Error(`upsert ${String(table)}: ${detail}`);
   }
 }
@@ -482,6 +510,84 @@ export class SupabaseTlbRepository implements TlbRepository {
     if (this.remotePausedForSession) return;
     this.remotePausedForSession = true;
     console.warn("[SupabaseTlbRepository] remote paused for this session (local-only);", reason);
+  }
+
+  /**
+   * Always apply hosted invite/profile + login trail onto staff rows.
+   * Must run even when public P0 tables are missing (local fallback / empty remote),
+   * otherwise Owner Settings → Users stays stuck on Pending forever.
+   */
+  private async applyCloudStaffTracking(
+    users: AppUser[],
+    audit: TlbState["audit"] = [],
+  ): Promise<{ users: AppUser[]; audit: TlbState["audit"]; cloudActivityOk: boolean }> {
+    let mergedUsers = users;
+    let mergedAudit = audit;
+    let cloudActivityOk = false;
+
+    try {
+      const cloudAccess = await fetchStaffAccessStatusesFromSupabase();
+      if (cloudAccess.ok && cloudAccess.data.length) {
+        mergedUsers = applyCloudStaffAccessStatuses(mergedUsers, cloudAccess.data);
+      }
+    } catch (accessErr) {
+      console.warn(
+        "[SupabaseTlbRepository] staff access status sync skipped:",
+        accessErr instanceof Error ? accessErr.message : accessErr,
+      );
+    }
+
+    try {
+      const cloudActivity = await fetchActivityEventsFromSupabase(200);
+      if (cloudActivity.ok && cloudActivity.data.length) {
+        cloudActivityOk = true;
+        const loginByActor = new Map<string, string>();
+        for (const event of cloudActivity.data) {
+          if (event.action !== "user.login") continue;
+          const idKey = (event.actorId ?? "").trim();
+          const emailKey = (event.actorEmail ?? "").trim().toLowerCase();
+          if (idKey && !loginByActor.has(idKey)) loginByActor.set(idKey, event.createdAt);
+          if (emailKey && !loginByActor.has(emailKey)) {
+            loginByActor.set(emailKey, event.createdAt);
+          }
+        }
+        mergedUsers = mergedUsers.map((user) => {
+          const byId = loginByActor.get(user.id);
+          const byEmail = loginByActor.get((user.email ?? "").trim().toLowerCase());
+          const last = user.lastLoginAt || byId || byEmail;
+          if (!last) return user;
+          const next = { ...user, lastLoginAt: last, invitePending: false as const };
+          if (!next.inviteAcceptedAt) next.inviteAcceptedAt = last;
+          delete next.inviteToken;
+          delete next.inviteCode;
+          return next;
+        });
+        mergedAudit = mergeCloudActivityIntoAudit(mergedAudit, cloudActivity.data);
+      }
+    } catch (activityErr) {
+      console.warn(
+        "[SupabaseTlbRepository] activity sync skipped:",
+        activityErr instanceof Error ? activityErr.message : activityErr,
+      );
+    }
+
+    mergedUsers = mergedUsers.map((user) => {
+      if (!user.invitePending) return user;
+      if (
+        user.lastLoginAt ||
+        user.inviteAcceptedAt ||
+        (isAuthProfileId(user.id) && !user.inviteToken)
+      ) {
+        const next = { ...user, invitePending: false as const };
+        if (!next.inviteAcceptedAt && next.lastLoginAt) next.inviteAcceptedAt = next.lastLoginAt;
+        delete next.inviteToken;
+        delete next.inviteCode;
+        return next;
+      }
+      return user;
+    });
+
+    return { users: mergedUsers, audit: mergedAudit, cloudActivityOk };
   }
 
   /** Snapshot current mapped rows as "already synced" so the next save only hits dirty tables. */
@@ -566,8 +672,22 @@ export class SupabaseTlbRepository implements TlbRepository {
 
     if (this.remotePausedForSession) {
       const fallback = loadState();
-      this.rememberRemoteFingerprints(fallback);
-      return fallback;
+      const tracked = await this.applyCloudStaffTracking(fallback.users, fallback.audit);
+      const healed = {
+        ...fallback,
+        users: tracked.users,
+        audit: tracked.audit,
+      };
+      lockWorkspaceToOwner(healed);
+      this.rememberRemoteFingerprints(healed);
+      // Persist healed invite/login flags into localStorage even when P0 upserts are paused.
+      try {
+        saveLocalOnly(pickLocalOnly(healed));
+        saveState(healed);
+      } catch {
+        /* non-fatal */
+      }
+      return healed;
     }
 
     try {
@@ -634,9 +754,22 @@ export class SupabaseTlbRepository implements TlbRepository {
 
       if (remoteEmpty) {
         // Bootstrap once from seed — does not truncate; only runs when tables are empty.
+        // Still hydrate staff login/invite status from tlb RPCs (public P0 may be absent).
         const boot = { ...seed, ...localOnly, version: Math.max(seed.version, localOnly.version) };
+        const tracked = await this.applyCloudStaffTracking(boot.users, boot.audit);
+        boot.users = tracked.users;
+        boot.audit = tracked.audit;
         lockWorkspaceToOwner(boot);
-        await this.save(boot);
+        try {
+          await this.save(boot);
+        } catch (bootErr) {
+          console.warn(
+            "[SupabaseTlbRepository] empty-remote bootstrap save skipped:",
+            bootErr instanceof Error ? bootErr.message : bootErr,
+          );
+          saveLocalOnly(pickLocalOnly(boot));
+          saveState(boot);
+        }
         return boot;
       }
 
@@ -655,70 +788,15 @@ export class SupabaseTlbRepository implements TlbRepository {
         ...remotePurged,
         ...(authDir.purgedRoleIds ?? []),
       ]);
-      let mergedUsers = mergeStaffUsers(authDir.users, localOnly.users, purged);
       // Authoritative invite acceptance lives in tlb.invites / profiles — not localStorage.
-      // Without this, Owner keeps seeing Pending after the invitee accepts on another device.
-      let cloudActivity: Awaited<ReturnType<typeof fetchActivityEventsFromSupabase>> | null =
-        null;
-      try {
-        const cloudAccess = await fetchStaffAccessStatusesFromSupabase();
-        if (cloudAccess.ok && cloudAccess.data.length) {
-          mergedUsers = applyCloudStaffAccessStatuses(mergedUsers, cloudAccess.data);
-        }
-      } catch (accessErr) {
-        console.warn(
-          "[SupabaseTlbRepository] staff access status sync skipped:",
-          accessErr instanceof Error ? accessErr.message : accessErr,
-        );
-      }
-      try {
-        cloudActivity = await fetchActivityEventsFromSupabase(200);
-        if (cloudActivity.ok && cloudActivity.data.length) {
-          // Prefer Auth last_sign_in_at; fall back to latest user.login activity per user.
-          const loginByActor = new Map<string, string>();
-          for (const event of cloudActivity.data) {
-            if (event.action !== "user.login") continue;
-            const idKey = (event.actorId ?? "").trim();
-            const emailKey = (event.actorEmail ?? "").trim().toLowerCase();
-            if (idKey && !loginByActor.has(idKey)) loginByActor.set(idKey, event.createdAt);
-            if (emailKey && !loginByActor.has(emailKey)) {
-              loginByActor.set(emailKey, event.createdAt);
-            }
-          }
-          mergedUsers = mergedUsers.map((user) => {
-            const byId = loginByActor.get(user.id);
-            const byEmail = loginByActor.get((user.email ?? "").trim().toLowerCase());
-            const last = user.lastLoginAt || byId || byEmail;
-            if (!last) return user;
-            // Login activity proves access — never leave Owner UI stuck on Pending.
-            const next = { ...user, lastLoginAt: last, invitePending: false as const };
-            if (!next.inviteAcceptedAt) next.inviteAcceptedAt = last;
-            delete next.inviteToken;
-            delete next.inviteCode;
-            return next;
-          });
-        }
-      } catch (activityErr) {
-        console.warn(
-          "[SupabaseTlbRepository] activity sync skipped:",
-          activityErr instanceof Error ? activityErr.message : activityErr,
-        );
-      }
-      // Final pass: Auth UUID staff with no token secrets cannot be Pending.
-      mergedUsers = mergedUsers.map((user) => {
-        if (!user.invitePending) return user;
-        if (user.lastLoginAt || user.inviteAcceptedAt || (isAuthProfileId(user.id) && !user.inviteToken)) {
-          const next = { ...user, invitePending: false as const };
-          if (!next.inviteAcceptedAt && next.lastLoginAt) next.inviteAcceptedAt = next.lastLoginAt;
-          delete next.inviteToken;
-          delete next.inviteCode;
-          return next;
-        }
-        return user;
-      });
-      const mergedRoles = mergeRolesPreferringSoftDelete(authDir.roles, localOnly.roles, purged);
-
       const prior = loadState();
+      const preUsers = mergeStaffUsers(authDir.users, localOnly.users, purged);
+      const tracked = await this.applyCloudStaffTracking(
+        preUsers,
+        audit.map(auditFromRow),
+      );
+      const mergedUsers = tracked.users;
+      const mergedRoles = mergeRolesPreferringSoftDelete(authDir.roles, localOnly.roles, purged);
       const ledger = await readCanonicalLedger(this.sb);
       const prototypeStock = stock.map((row) => stockFromRow(row, stockExtras[row.id]));
       const baseCustomers = omitPurgedEntities(
@@ -801,13 +879,9 @@ export class SupabaseTlbRepository implements TlbRepository {
           purged,
         ),
         supplyLines: supplyLines.map(supplyLineFromRow),
-        audit: (() => {
-          const localAudit = audit.map(auditFromRow);
-          if (cloudActivity?.ok && cloudActivity.data.length) {
-            return mergeCloudActivityIntoAudit(localAudit, cloudActivity.data);
-          }
-          return localAudit.sort((a, b) => (a.at < b.at ? 1 : -1));
-        })(),
+        audit: tracked.audit.length
+          ? tracked.audit
+          : audit.map(auditFromRow).sort((a, b) => (a.at < b.at ? 1 : -1)),
         counters: {
           ...prior.counters,
           ...countersFromRow(countersRows[0] ?? null, prior.counters),
@@ -940,9 +1014,22 @@ export class SupabaseTlbRepository implements TlbRepository {
       if (unreachable) this.pauseRemoteForSession(message);
       console.warn("[SupabaseTlbRepository] load failed, using local fallback:", message);
       const fallback = loadState();
+      const tracked = await this.applyCloudStaffTracking(fallback.users, fallback.audit);
+      const healed = {
+        ...fallback,
+        users: tracked.users,
+        audit: tracked.audit,
+      };
+      lockWorkspaceToOwner(healed);
       // Avoid treating every local-only mutation as a full P0 resync when remote is down.
-      this.rememberRemoteFingerprints(fallback);
-      return fallback;
+      this.rememberRemoteFingerprints(healed);
+      try {
+        saveLocalOnly(pickLocalOnly(healed));
+        saveState(healed);
+      } catch {
+        /* non-fatal */
+      }
+      return healed;
     }
   }
 

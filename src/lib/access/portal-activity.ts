@@ -61,9 +61,17 @@ function parseMeta(raw: unknown): CloudActivityEvent["meta"] {
 }
 
 function parseActivityEvents(data: unknown): CloudActivityEvent[] {
-  if (!Array.isArray(data)) return [];
+  let rows: unknown = data;
+  if (typeof rows === "string") {
+    try {
+      rows = JSON.parse(rows);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(rows)) return [];
   const out: CloudActivityEvent[] = [];
-  for (const row of data) {
+  for (const row of rows) {
     if (!row || typeof row !== "object" || Array.isArray(row)) continue;
     const item = row as Record<string, unknown>;
     const id = typeof item["id"] === "string" ? item["id"] : "";

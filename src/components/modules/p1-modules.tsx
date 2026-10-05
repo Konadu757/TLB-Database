@@ -690,15 +690,20 @@ export function SettingsModule({ store }: { store: TlbStoreApi }) {
                               {" "}
                               <StatusBadge tone="warning">Pending</StatusBadge>
                             </>
+                          ) : user.lastLoginAt || user.inviteAcceptedAt ? (
+                            <>
+                              {" "}
+                              <StatusBadge tone="success">Signed in</StatusBadge>
+                            </>
                           ) : null}
                         </td>
                         <td>
-                          {store.state.currentUserId === user.id ? (
-                            <StatusBadge tone="success">Signed in</StatusBadge>
-                          ) : user.lastLoginAt ? (
+                          {user.lastLoginAt ? (
                             <span title={new Date(user.lastLoginAt).toLocaleString()}>
                               {new Date(user.lastLoginAt).toLocaleString()}
                             </span>
+                          ) : store.state.currentUserId === user.id ? (
+                            <StatusBadge tone="success">Signed in</StatusBadge>
                           ) : isInvitePending(user) ? (
                             "—"
                           ) : (
