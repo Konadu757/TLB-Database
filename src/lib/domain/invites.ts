@@ -1,6 +1,33 @@
 /** Invite / access-code helpers for mock-auth staff onboarding. */
 
+import {
+  isPortalOwnerAuth,
+  SYSTEM_ROLE_IDS,
+  systemRoleKeyForDbCode,
+} from "./permissions";
 import type { AppUser } from "./types";
+
+/**
+ * Map tlb.roles.code / accept_invite role_code onto a local system role id.
+ * Never returns Owner for non-portal-Owner Auth identities.
+ */
+export function staffRoleIdFromCloudCode(
+  roleCode: string | null | undefined,
+  identity?: { authUserId?: string; email?: string },
+): string | undefined {
+  if (!roleCode?.trim()) return undefined;
+  const key = systemRoleKeyForDbCode(roleCode);
+  if (!key) return undefined;
+  if (key === "Owner") {
+    return isPortalOwnerAuth({
+      authUserId: identity?.authUserId,
+      email: identity?.email,
+    })
+      ? SYSTEM_ROLE_IDS.Owner
+      : undefined;
+  }
+  return SYSTEM_ROLE_IDS[key];
+}
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const AUTH_UUID_RE =
@@ -256,6 +283,9 @@ export type CloudStaffAccessStatus = {
  *
  * Permanent rule: profileId or lastSignInAt always means Active (not Pending),
  * even if a leftover live invite row still exists in tlb.invites.
+ *
+ * Permanent rule: role_code from tlb.user_roles / invites always wins over a
+ * stale local/auth_directory roleId (so Finance never stays Owner/Admin).
  */
 export function applyCloudStaffAccessStatuses(
   users: AppUser[],
@@ -281,9 +311,12 @@ export function applyCloudStaffAccessStatuses(
     }
   }
 
-  return users.map((user) => {
-    const status = byEmail.get(emailKey(user));
+  const seenEmails = new Set<string>();
+  const merged = users.map((user) => {
+    const key = emailKey(user);
+    const status = byEmail.get(key);
     if (!status) return user;
+    if (key) seenEmails.add(key);
 
     const next: AppUser = { ...user };
     const profileId = status.profileId?.trim() || "";
@@ -293,6 +326,21 @@ export function applyCloudStaffAccessStatuses(
 
     if (status.lastSignInAt?.trim()) {
       next.lastLoginAt = status.lastSignInAt.trim();
+    }
+
+    const cloudRoleId = staffRoleIdFromCloudCode(status.roleCode, {
+      authUserId: profileId || next.id,
+      email: status.email || next.email,
+    });
+    if (cloudRoleId) {
+      next.roleId = cloudRoleId;
+    } else if (
+      !isPortalOwnerAuth({ authUserId: next.id, email: next.email }) &&
+      next.roleId === SYSTEM_ROLE_IDS.Owner
+    ) {
+      // Stale Owner on a staff row with no cloud code — drop to Admin until
+      // the next invite/role sync; never keep Owner for non-Owner Auth.
+      next.roleId = SYSTEM_ROLE_IDS.Admin;
     }
 
     const onboarded =
@@ -316,4 +364,40 @@ export function applyCloudStaffAccessStatuses(
 
     return next;
   });
+
+  // Upsert cloud-only profiles (accepted Finance invitee missing from local/auth_directory).
+  for (const status of byEmail.values()) {
+    const key = (status.email ?? "").trim().toLowerCase();
+    if (!key || seenEmails.has(key)) continue;
+    if (isPortalOwnerAuth({ email: key, authUserId: status.profileId ?? undefined })) {
+      continue;
+    }
+    const profileId = status.profileId?.trim() || "";
+    const roleId =
+      staffRoleIdFromCloudCode(status.roleCode, {
+        authUserId: profileId,
+        email: key,
+      }) ?? SYSTEM_ROLE_IDS.Admin;
+    const created: AppUser = {
+      id: profileId || `invite-cloud-${key}`,
+      name: status.fullName?.trim() || key.split("@")[0] || "Staff",
+      email: key,
+      roleId,
+      active: status.active !== false,
+      invitePending: Boolean(status.invitePending) && !profileId && !status.lastSignInAt,
+    };
+    if (status.inviteAcceptedAt?.trim()) created.inviteAcceptedAt = status.inviteAcceptedAt.trim();
+    if (status.lastSignInAt?.trim()) created.lastLoginAt = status.lastSignInAt.trim();
+    if (!created.invitePending) {
+      delete created.inviteToken;
+      delete created.inviteCode;
+      if (!created.inviteAcceptedAt && created.lastLoginAt) {
+        created.inviteAcceptedAt = created.lastLoginAt;
+      }
+    }
+    merged.push(created);
+    seenEmails.add(key);
+  }
+
+  return merged;
 }

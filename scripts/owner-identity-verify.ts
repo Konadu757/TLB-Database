@@ -1,6 +1,7 @@
 /**
  * Sole Owner Auth must bind as TLB Owner / Owner — never Finance leftovers,
  * never a second seed Owner (user-owner / owner@tlb.gh).
+ * Finance Auth must bind as Finance person / Finance — never Owner.
  * Run: npx tsx scripts/owner-identity-verify.ts
  */
 import assert from "node:assert/strict";
@@ -14,6 +15,10 @@ import {
   SYSTEM_ROLE_IDS,
 } from "../src/lib/domain/permissions";
 import {
+  applyCloudStaffAccessStatuses,
+  staffRoleIdFromCloudCode,
+} from "../src/lib/domain/invites";
+import {
   bindSessionToAuthIdentity,
   ensurePortalOwnerStaffDirectory,
   lockWorkspaceToOwner,
@@ -22,6 +27,8 @@ import { createSeedState } from "../src/lib/store/seed";
 
 const FINANCE_NAME = "Finance Invitee";
 const FINANCE_STAFF_ID = "staff-finance-leftover";
+const FINANCE_AUTH_ID = "48790d50-842f-4851-a944-b1bb91a3d926";
+const FINANCE_EMAIL = "konadubeatrice757@gmail.com";
 
 function ownerCount(state: ReturnType<typeof createSeedState>) {
   return state.users.filter(
@@ -131,13 +138,11 @@ function corruptedOwnerState() {
 {
   // Staff Auth (Konadu) must NEVER bind as TLB Owner — even when local row
   // still has a pre-accept invite id and session was previously Owner.
-  const STAFF_AUTH_ID = "48790d50-842f-4851-a944-b1bb91a3d926";
-  const STAFF_EMAIL = "konadubeatrice757@gmail.com";
   const state = createSeedState();
   state.users.push({
     id: "invite-konadu-local",
     name: "Konadu",
-    email: STAFF_EMAIL,
+    email: FINANCE_EMAIL,
     roleId: SYSTEM_ROLE_IDS.Finance,
     active: true,
     invitePending: true,
@@ -150,35 +155,108 @@ function corruptedOwnerState() {
   state.currentRole = "Owner";
 
   const bound = bindSessionToAuthIdentity(state, {
-    email: STAFF_EMAIL,
-    authUserId: STAFF_AUTH_ID,
+    email: FINANCE_EMAIL,
+    authUserId: FINANCE_AUTH_ID,
+    roleCode: "FINANCE",
   });
-  assert.equal(bound.currentUserId, STAFF_AUTH_ID);
+  assert.equal(bound.currentUserId, FINANCE_AUTH_ID);
   assert.equal(bound.currentUser, "Konadu");
   assert.equal(bound.currentRole, "Finance");
   assert.equal(bound.currentRoleId, SYSTEM_ROLE_IDS.Finance);
   assert.notEqual(bound.currentUser, OWNER_DISPLAY_NAME);
   assert.notEqual(bound.currentRole, "Owner");
-  const staff = bound.users.find((user) => user.id === STAFF_AUTH_ID);
+  const staff = bound.users.find((user) => user.id === FINANCE_AUTH_ID);
   assert.ok(staff);
-  assert.equal(staff.email, STAFF_EMAIL);
+  assert.equal(staff.email, FINANCE_EMAIL);
+  assert.equal(staff.roleId, SYSTEM_ROLE_IDS.Finance);
   assert.equal(staff.invitePending, false);
   assert.equal(bound.users.some((user) => user.id === "invite-konadu-local"), false);
   assert.equal(ownerCount(bound), 1);
 }
 
 {
-  // Owner Auth still binds as TLB Owner after a staff session was active.
-  const STAFF_AUTH_ID = "48790d50-842f-4851-a944-b1bb91a3d926";
+  // Regression: Finance Auth with stale local Owner roleId + cloud FINANCE
+  // must never resolve to Owner roleId / TLB Owner identity.
   const state = createSeedState();
   state.users.push({
-    id: STAFF_AUTH_ID,
+    id: FINANCE_AUTH_ID,
+    name: "Konadu Beatrice",
+    email: FINANCE_EMAIL,
+    roleId: SYSTEM_ROLE_IDS.Owner,
+    active: true,
+  });
+  state.currentUserId = PORTAL_OWNER_AUTH_USER_ID;
+  state.currentUser = OWNER_DISPLAY_NAME;
+  state.currentRoleId = SYSTEM_ROLE_IDS.Owner;
+  state.currentRole = "Owner";
+
+  assert.equal(
+    staffRoleIdFromCloudCode("FINANCE", { authUserId: FINANCE_AUTH_ID, email: FINANCE_EMAIL }),
+    SYSTEM_ROLE_IDS.Finance,
+  );
+  assert.equal(
+    staffRoleIdFromCloudCode("OWNER", { authUserId: FINANCE_AUTH_ID, email: FINANCE_EMAIL }),
+    undefined,
+  );
+
+  const bound = bindSessionToAuthIdentity(state, {
+    email: FINANCE_EMAIL,
+    authUserId: FINANCE_AUTH_ID,
+    roleCode: "FINANCE",
+  });
+  assert.equal(bound.currentUserId, FINANCE_AUTH_ID);
+  assert.equal(bound.currentUser, "Konadu Beatrice");
+  assert.equal(bound.currentRole, "Finance");
+  assert.equal(bound.currentRoleId, SYSTEM_ROLE_IDS.Finance);
+  const staff = bound.users.find((user) => user.id === FINANCE_AUTH_ID)!;
+  assert.equal(staff.roleId, SYSTEM_ROLE_IDS.Finance);
+  assert.notEqual(staff.roleId, SYSTEM_ROLE_IDS.Owner);
+  assert.notEqual(bound.currentRole, "Owner");
+  assert.equal(ownerCount(bound), 1);
+}
+
+{
+  // Cloud roster role_code must overwrite stale auth_directory Owner/Admin.
+  const state = createSeedState();
+  state.users.push({
+    id: "invite-stale-finance",
     name: "Konadu",
-    email: "konadubeatrice757@gmail.com",
+    email: FINANCE_EMAIL,
+    roleId: SYSTEM_ROLE_IDS.Owner,
+    active: true,
+    invitePending: true,
+  });
+  const healed = applyCloudStaffAccessStatuses(state.users, [
+    {
+      email: FINANCE_EMAIL,
+      fullName: "Konadu Beatrice",
+      profileId: FINANCE_AUTH_ID,
+      roleCode: "FINANCE",
+      invitePending: false,
+      inviteAcceptedAt: "2026-10-01T00:00:00.000Z",
+      lastSignInAt: "2026-10-05T00:00:00.000Z",
+      active: true,
+    },
+  ]);
+  const staff = healed.find((user) => user.id === FINANCE_AUTH_ID);
+  assert.ok(staff);
+  assert.equal(staff.name, "Konadu Beatrice");
+  assert.equal(staff.roleId, SYSTEM_ROLE_IDS.Finance);
+  assert.notEqual(staff.roleId, SYSTEM_ROLE_IDS.Owner);
+  assert.equal(staff.invitePending, false);
+}
+
+{
+  // Owner Auth still binds as TLB Owner after a staff session was active.
+  const state = createSeedState();
+  state.users.push({
+    id: FINANCE_AUTH_ID,
+    name: "Konadu",
+    email: FINANCE_EMAIL,
     roleId: SYSTEM_ROLE_IDS.Finance,
     active: true,
   });
-  state.currentUserId = STAFF_AUTH_ID;
+  state.currentUserId = FINANCE_AUTH_ID;
   state.currentUser = "Konadu";
   state.currentRoleId = SYSTEM_ROLE_IDS.Finance;
   state.currentRole = "Finance";
@@ -192,5 +270,5 @@ function corruptedOwnerState() {
 }
 
 console.log(
-  "owner-identity-verify: sole Owner Auth binds as TLB Owner; staff Auth binds as staff; seed Owner purged",
+  "owner-identity-verify: sole Owner Auth binds as TLB Owner; Finance Auth binds as Finance; cloud role_code wins; seed Owner purged",
 );

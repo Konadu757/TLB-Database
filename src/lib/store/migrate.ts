@@ -31,6 +31,7 @@ import {
   ensureQuotationLines,
   rollupQuotationLines,
 } from "../domain/quotation-calc";
+import { isAuthProfileId, staffRoleIdFromCloudCode } from "../domain/invites";
 import { omitPurgedEntities } from "../domain/trash";
 
 const DEFAULT_COMPANY: CompanyProfile = {
@@ -404,13 +405,34 @@ function authOwnerNeedsHeal(
   return colliding;
 }
 
+/** Prefer cloud role_code; never leave Owner on a non-Owner Auth staff row. */
+function assignStaffRoleId(
+  state: TlbState,
+  user: AppUser,
+  roleCode?: string | null,
+): void {
+  const fromCloud = staffRoleIdFromCloudCode(roleCode, {
+    authUserId: user.id,
+    email: user.email,
+  });
+  if (fromCloud) {
+    user.roleId = fromCloud;
+    return;
+  }
+  const role = state.roles.find((r) => r.id === user.roleId);
+  if (!role || role.systemKey === "Owner") {
+    user.roleId = demoRoleIdForEmail(user.email, state.roles);
+  }
+}
+
 /**
  * Remap a pending invite / stale local staff row onto the live Auth UUID so
  * session bind can find them. Never promotes non-Owner Auth into Owner.
+ * When roleCode is present (tlb.user_roles / accept_invite), it always wins.
  */
 function ensureStaffAuthUserRow(
   state: TlbState,
-  input: { authUserId: string; email: string },
+  input: { authUserId: string; email: string; roleCode?: string | null },
 ): AppUser | undefined {
   const authUserId = input.authUserId.trim();
   const email = input.email.trim().toLowerCase();
@@ -426,11 +448,7 @@ function ensureStaffAuthUserRow(
     delete byId.inviteToken;
     delete byId.inviteCode;
     if (!byId.inviteAcceptedAt) byId.inviteAcceptedAt = new Date().toISOString();
-    // Staff Auth must never keep an Owner role assignment.
-    const role = state.roles.find((r) => r.id === byId.roleId);
-    if (role?.systemKey === "Owner") {
-      byId.roleId = demoRoleIdForEmail(byId.email, state.roles);
-    }
+    assignStaffRoleId(state, byId, input.roleCode);
     return byId;
   }
 
@@ -448,10 +466,7 @@ function ensureStaffAuthUserRow(
     delete byEmail.inviteToken;
     delete byEmail.inviteCode;
     if (!byEmail.inviteAcceptedAt) byEmail.inviteAcceptedAt = new Date().toISOString();
-    const role = state.roles.find((r) => r.id === byEmail.roleId);
-    if (role?.systemKey === "Owner") {
-      byEmail.roleId = demoRoleIdForEmail(byEmail.email, state.roles);
-    }
+    assignStaffRoleId(state, byEmail, input.roleCode);
     return byEmail;
   }
 
@@ -460,7 +475,9 @@ function ensureStaffAuthUserRow(
     id: authUserId,
     name: email.split("@")[0] || "Staff",
     email,
-    roleId: demoRoleIdForEmail(email, state.roles),
+    roleId:
+      staffRoleIdFromCloudCode(input.roleCode, { authUserId, email }) ??
+      demoRoleIdForEmail(email, state.roles),
     active: true,
     invitePending: false,
     inviteAcceptedAt: new Date().toISOString(),
@@ -474,11 +491,13 @@ function ensureStaffAuthUserRow(
  * Prefer Auth UUID over email so same-email collisions cannot steal Owner.
  * Owner Auth always binds to Owner staff + OWNER role + TLB Owner name.
  * Any other Auth login binds to that staff profile + invited role — never Owner.
+ * Pass roleCode from tlb.user_roles / accept_invite so stale local Owner/Admin
+ * roleIds cannot survive a Finance (etc.) sign-in.
  * Returns the same state reference when already aligned.
  */
 export function bindSessionToAuthIdentity(
   state: TlbState,
-  input: { email?: string; authUserId?: string },
+  input: { email?: string; authUserId?: string; roleCode?: string | null },
 ): TlbState {
   const email = input.email?.trim().toLowerCase() ?? "";
   const authUserId = input.authUserId?.trim() ?? "";
@@ -530,8 +549,18 @@ export function bindSessionToAuthIdentity(
   const next = JSON.parse(JSON.stringify(state)) as TlbState;
   // Keep sole Owner directory tidy without changing this staff session.
   ensurePortalOwnerStaffDirectory(next);
-  const staff = ensureStaffAuthUserRow(next, { authUserId, email });
+  const staff = ensureStaffAuthUserRow(next, {
+    authUserId,
+    email,
+    roleCode: input.roleCode,
+  });
   if (!staff) return state;
+
+  // Re-apply cloud role every bind — never trust a stale local Owner roleId.
+  assignStaffRoleId(next, staff, input.roleCode);
+  if (next.roles.find((r) => r.id === staff.roleId)?.systemKey === "Owner") {
+    staff.roleId = SYSTEM_ROLE_IDS.Admin;
+  }
 
   const role = next.roles.find((r) => r.id === staff.roleId);
   const roleLabel = (role?.systemKey ?? role?.name ?? next.currentRole) as TlbState["currentRole"];
@@ -539,13 +568,19 @@ export function bindSessionToAuthIdentity(
     next.currentUserId === staff.id &&
     next.currentUser === staff.name &&
     next.currentRoleId === staff.roleId &&
-    next.currentRole === roleLabel
+    next.currentRole === roleLabel &&
+    role?.systemKey !== "Owner"
   ) {
     // Still return next when we remapped/created the row so callers persist heal.
+    const prior = state.users.find((u) => u.id === staff.id);
     const unchanged =
-      state.users.some((u) => u.id === staff.id) &&
+      Boolean(prior) &&
+      prior!.roleId === staff.roleId &&
+      prior!.name === staff.name &&
       state.currentUserId === staff.id &&
-      state.currentUser === staff.name;
+      state.currentUser === staff.name &&
+      state.currentRoleId === staff.roleId &&
+      state.currentRole === roleLabel;
     return unchanged ? state : next;
   }
 
@@ -819,6 +854,8 @@ export function migrateState(raw: unknown): TlbState {
   };
 
   // Fix wrong demo identity: Kwame Asare / Manager → Owner session.
+  // Never steal a live staff Auth UUID session into Owner during migrate —
+  // bindSessionToAuthIdentity remaps/creates that row after hydrate.
   const legacyDemoNames = new Set([
     "Kwame Asare",
     "John Doe",
@@ -827,11 +864,16 @@ export function migrateState(raw: unknown): TlbState {
     "Mary",
     "Efua Addo",
   ]);
+  const sessionIsStaffAuth =
+    Boolean(next.currentUserId) &&
+    isAuthProfileId(next.currentUserId) &&
+    !isPortalOwnerAuth({ authUserId: next.currentUserId });
   if (
-    priorVersion < 5 ||
-    legacyDemoNames.has(next.currentUser) ||
-    !next.users.some((u) => u.id === next.currentUserId) ||
-    (next.currentRole === "Manager" && !parsed.currentUserId)
+    !sessionIsStaffAuth &&
+    (priorVersion < 5 ||
+      legacyDemoNames.has(next.currentUser) ||
+      !next.users.some((u) => u.id === next.currentUserId) ||
+      (next.currentRole === "Manager" && !parsed.currentUserId))
   ) {
     next.currentUserId = OWNER_USER_ID;
     const owner = next.users.find((u) => u.id === OWNER_USER_ID);

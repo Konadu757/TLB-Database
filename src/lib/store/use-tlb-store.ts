@@ -13,10 +13,11 @@ import {
 import {
   acceptInviteOnSupabase,
   createInviteOnSupabase,
+  fetchStaffAccessStatusesFromSupabase,
   validateInviteOnSupabase,
 } from "@/lib/access/supabase-invites";
 import { buildInviteLink, normalizeAccessCode } from "@/lib/domain/invites";
-import { dbRoleCodeForRoleId } from "@/lib/domain/permissions";
+import { dbRoleCodeForRoleId, isPortalOwnerAuth } from "@/lib/domain/permissions";
 import type { AppUser, DeliveryStatus, Permission, TlbState } from "@/lib/domain/types";
 import { createTlbRepository } from "@/lib/repo/tlb-repository";
 import { can as canPerm } from "@/lib/store/tlb-store";
@@ -25,6 +26,27 @@ import {
   readPortalSession,
   subscribePortalAuth,
 } from "@/lib/auth/portal-auth";
+
+/** Re-read tlb.user_roles / invite role_code for the signed-in Auth user. */
+async function cloudRoleCodeForAuthSession(input: {
+  userId: string;
+  email: string;
+}): Promise<string | null> {
+  if (isPortalOwnerAuth({ authUserId: input.userId, email: input.email })) {
+    return "OWNER";
+  }
+  const cloud = await fetchStaffAccessStatusesFromSupabase();
+  if (!cloud.ok || !cloud.data.length) return null;
+  const email = input.email.trim().toLowerCase();
+  const byId = cloud.data.find(
+    (row) => (row.profileId ?? "").trim() === input.userId.trim(),
+  );
+  if (byId?.roleCode) return byId.roleCode;
+  const byEmail = cloud.data.find(
+    (row) => (row.email ?? "").trim().toLowerCase() === email,
+  );
+  return byEmail?.roleCode ?? null;
+}
 import {
   assignUserRole,
   cancelOrderLine,
@@ -164,14 +186,22 @@ export function useTlbStore() {
         const loaded = await repo.load();
         if (cancelled) return;
         const session = await readPortalSession();
+        const roleCode = session
+          ? await cloudRoleCodeForAuthSession({
+              userId: session.userId,
+              email: session.email,
+            })
+          : null;
+        if (cancelled) return;
         const bound = session?.email
           ? bindSessionToAuthIdentity(loaded, {
               email: session.email,
               authUserId: session.userId,
+              roleCode,
             })
           : loaded;
-        // Persist Owner-identity heal so cloud auth_directory cannot keep
-        // resurrecting a Finance invitee name on the next hydrate.
+        // Persist identity/role heal so cloud auth_directory cannot keep
+        // resurrecting Owner (or wrong person) on the next hydrate.
         skipNextPersist.current = bound === loaded;
         setState(bound);
         setHydrated(true);
@@ -192,12 +222,19 @@ export function useTlbStore() {
     if (!hydrated) return;
     return subscribePortalAuth((session) => {
       if (!session?.email) return;
-      setState((prev) =>
-        bindSessionToAuthIdentity(prev, {
+      void (async () => {
+        const roleCode = await cloudRoleCodeForAuthSession({
+          userId: session.userId,
           email: session.email,
-          authUserId: session.userId,
-        }),
-      );
+        });
+        setState((prev) =>
+          bindSessionToAuthIdentity(prev, {
+            email: session.email,
+            authUserId: session.userId,
+            roleCode,
+          }),
+        );
+      })();
     });
   }, [hydrated]);
 
