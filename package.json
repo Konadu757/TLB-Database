@@ -12,7 +12,8 @@
     "format": "prettier --write .",
     "test:domain": "npx --yes tsx scripts/phase30-verify.ts",
     "test:trash": "npx --yes tsx scripts/trash-verify.ts",
-    "test:repo": "npx --yes tsx scripts/repo-verify.ts"
+    "test:repo": "npx --yes tsx scripts/repo-verify.ts",
+    "test:cp01": "npx supabase db query --linked -f supabase/tests/verify-cp01-foundation.sql"
   },
   "overrides": {
     "rolldown": "1.2.1"
